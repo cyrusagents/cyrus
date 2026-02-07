@@ -182,6 +182,12 @@ describe("EdgeWorker - Feedback Delivery Timeout Issue", () => {
 			mockChildAgentSessionManager,
 		);
 		(edgeWorker as any).repositories.set("test-repo", mockRepository);
+
+		// Setup mock issueTracker with getClient()
+		const mockIssueTracker = {
+			getClient: vi.fn().mockReturnValue({}),
+		};
+		(edgeWorker as any).issueTrackers.set("test-repo", mockIssueTracker);
 	});
 
 	afterEach(() => {

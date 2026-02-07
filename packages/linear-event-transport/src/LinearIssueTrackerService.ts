@@ -76,6 +76,7 @@ import { LinearEventTransport } from "./LinearEventTransport.js";
 export class LinearIssueTrackerService implements IIssueTrackerService {
 	private readonly linearClient: LinearClient;
 	private oauthConfig?: LinearOAuthConfig;
+	private rp: Promise<string> | null = null;
 
 	/**
 	 * Static map for workspace-level coalescing of concurrent token refreshes.
@@ -115,8 +116,7 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 
 			// Track the current refresh promise - this is kept around after resolution
 			// so that ALL concurrent 401 errors share the same refreshed token.
-			// The promise is only cleared when refresh fails, allowing a fresh retry.
-			let refreshPromise: Promise<string> | null = null;
+			// Cleared when refresh fails or when setAccessToken() is called.
 
 			client.request = async <Data, Variables extends Record<string, unknown>>(
 				document: string,
@@ -138,10 +138,10 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 					// Coalesce ALL concurrent refresh attempts - everyone shares the same promise.
 					// The promise persists after resolution so late-arriving 401s still get
 					// the same token without triggering a new refresh.
-					if (!refreshPromise) {
-						refreshPromise = this.doTokenRefresh().catch((refreshError) => {
+					if (!this.rp) {
+						this.rp = this.doTokenRefresh().catch((refreshError) => {
 							// On failure, clear the promise so next 401 can retry fresh
-							refreshPromise = null;
+							this.rp = null;
 							console.error(
 								"[LinearIssueTrackerService] Token refresh failed:",
 								refreshError,
@@ -151,7 +151,7 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 					}
 
 					try {
-						const newToken = await refreshPromise;
+						const newToken = await this.rp;
 						client.setHeader("Authorization", `Bearer ${newToken}`);
 
 						// Retry the request with the new token (marked as retry to prevent loops)
@@ -290,6 +290,7 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 	 * @param token - New access token
 	 */
 	setAccessToken(token: string): void {
+		this.rp = null;
 		// Guard for test mocks that may not have the .client property
 		if (this.linearClient.client) {
 			this.linearClient.client.setHeader("Authorization", `Bearer ${token}`);
@@ -884,6 +885,10 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 			sdkVersion: "unknown", // LinearClient doesn't expose version
 			apiVersion: "graphql",
 		};
+	}
+
+	getClient(): LinearClient {
+		return this.linearClient;
 	}
 
 	// ========================================================================

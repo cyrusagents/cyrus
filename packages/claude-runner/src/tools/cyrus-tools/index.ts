@@ -1,6 +1,6 @@
 import { basename, extname } from "node:path";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
-import { IssueRelationType, LinearClient } from "@linear/sdk";
+import { IssueRelationType, type LinearClient } from "@linear/sdk";
 import fs from "fs-extra";
 import { z } from "zod";
 
@@ -96,11 +96,9 @@ export interface CyrusToolsOptions {
  * Create an SDK MCP server with the inline Cyrus tools
  */
 export function createCyrusToolsServer(
-	linearApiToken: string,
+	linearClient: LinearClient,
 	options: CyrusToolsOptions = {},
 ) {
-	const linearClient = new LinearClient({ apiKey: linearApiToken });
-
 	// Create tools with bound linear client
 	const uploadTool = tool(
 		"linear_upload_file",
