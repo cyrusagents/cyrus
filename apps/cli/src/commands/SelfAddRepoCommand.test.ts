@@ -572,7 +572,46 @@ describe("SelfAddRepoCommand", () => {
 				linearToken: "existing-token",
 				linearRefreshToken: "existing-refresh",
 				isActive: true,
+				routingLabels: ["new-repo"],
 			});
+		});
+
+		it("should use custom routing labels when -l flag is provided", async () => {
+			mocks.mockReadFileSync.mockReturnValue(
+				JSON.stringify({
+					repositories: [
+						{
+							id: "existing",
+							linearWorkspaceId: "ws-123",
+							linearWorkspaceName: "Test Workspace",
+							linearToken: "existing-token",
+							linearRefreshToken: "existing-refresh",
+						},
+					],
+				}),
+			);
+
+			await expect(
+				command.execute([
+					"https://github.com/user/new-repo.git",
+					"-l",
+					"custom-label,another-label",
+				]),
+			).rejects.toThrow("process.exit called");
+			expect(mockExit).toHaveBeenCalledWith(0);
+
+			const writtenConfig = JSON.parse(
+				mocks.mockWriteFileSync.mock.calls[0][1],
+			);
+
+			const addedRepo = writtenConfig.repositories.find(
+				(r: any) => r.id === "generated-uuid-123",
+			);
+
+			expect(addedRepo.routingLabels).toEqual([
+				"custom-label",
+				"another-label",
+			]);
 		});
 
 		it("should preserve existing repositories", async () => {
