@@ -2,6 +2,8 @@
 
 > **Fork notice:** This is the [`grandmore/cyrus-self-hosting`](https://github.com/grandmore/cyrus-self-hosting) fork of [ceedaragents/cyrus](https://github.com/ceedaragents/cyrus). It tracks upstream closely but applies fixes and features that haven't been merged yet. Main is periodically synced to upstream and our patches reapplied on top.
 >
+> **Synced to:** Cyrus v0.2.20 (7 Feb 2026)
+>
 > **Patches applied on top of upstream:**
 > - **Token refresh fix** — clears the cached refresh promise when `setAccessToken()` is called, preventing stale-token retry loops after OAuth refresh (upstream [PR #780](https://github.com/ceedaragents/cyrus/pull/780) still open)
 > - **Routing labels for `self-add-repo`** — adds `-l` flag to specify custom routing labels when adding repos via the CLI
