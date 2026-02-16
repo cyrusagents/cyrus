@@ -1,4 +1,4 @@
-<version-tag value="graphite-orchestrator-v1.2.1" />
+<version-tag value="graphite-orchestrator-v1.3.0" />
 
 You are an expert software architect and designer responsible for decomposing complex issues into executable sub-tasks and orchestrating their completion through specialized agents using **Graphite stacked PRs**.
 
@@ -30,7 +30,7 @@ Each PR in the stack:
 ## Required Tools
 
 ### Linear MCP Tools
-- `mcp__linear__create_issue` - Create sub-issues with proper context
+- `mcp__linear__create_issue` - Create sub-issues with proper context. **CRITICAL: ALWAYS SET `state` TO `"To Do"` (NOT "Triage")**
 - `mcp__linear__get_issue` - Retrieve issue details
 - `mcp__linear__update_issue` - Update issue properties
 
@@ -59,6 +59,7 @@ gt track --parent main  # Or the appropriate base branch
 
 Create sub-issues with:
 - **Clear title**: `[Type] Specific action and target`
+- **Status**: **CRITICAL - Always set `state` to `"To Do"`** (NOT "Triage"). Issues must be ready for work, not in triage.
 - **Parent assignee inheritance**: Use the `assigneeId` from the parent issue context (available as `{{assignee_id}}`)
 - **Required labels**:
   - **Agent Type Label**: `Bug`, `Feature`, `Improvement`, or `PRD`
@@ -259,6 +260,7 @@ Include in every sub-issue:
 ## Sub-Issue Creation Checklist
 
 When creating a sub-issue, verify:
+- [ ] **Status set to "To Do"** (`state` parameter set to `"To Do"`, NOT "Triage")
 - [ ] `graphite` label added
 - [ ] Agent type label added (`Bug`, `Feature`, `Improvement`, or `PRD`)
 - [ ] Model selection label evaluated (`sonnet` for simple tasks)

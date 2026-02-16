@@ -822,7 +822,7 @@ export class EdgeWorker extends EventEmitter {
 				"", // No attachment manifest
 				false, // Not a new session
 				[], // No additional allowed directories
-				nextSubroutine?.singleTurn ? 1 : undefined, // Convert singleTurn to maxTurns: 1
+				nextSubroutine?.singleTurn ? 1 : undefined, // singleTurn mode
 			);
 			console.log(
 				`[Subroutine Transition] Successfully resumed session for ${nextSubroutine.name} subroutine${nextSubroutine.singleTurn ? " (singleTurn)" : ""}`,
@@ -2290,6 +2290,7 @@ export class EdgeWorker extends EventEmitter {
 				labels, // Pass labels for runner selection and model override
 				undefined, // maxTurns
 				currentSubroutine?.singleTurn, // singleTurn flag
+				currentSubroutine?.disallowAllTools, // disallowAllTools flag
 			);
 
 			console.log(
@@ -5333,6 +5334,7 @@ ${input.userComment}
 		labels?: string[],
 		maxTurns?: number,
 		singleTurn?: boolean,
+		disallowAllTools?: boolean,
 	): { config: AgentRunnerConfig; runnerType: "claude" | "gemini" } {
 		// Configure PostToolUse hooks for screenshot tools to guide Claude to use linear_upload_file
 		// This ensures screenshots can be viewed in Linear comments instead of remaining as local files
@@ -5462,6 +5464,9 @@ ${input.userComment}
 			mcpConfigPath: repository.mcpConfigPath,
 			mcpConfig: this.buildMcpConfig(repository, linearAgentActivitySessionId),
 			appendSystemPrompt: systemPrompt || "",
+			// When disallowAllTools is true, remove all built-in tools from model context
+			// so Claude cannot see or attempt tool use (distinct from allowedTools which only controls permissions)
+			...(disallowAllTools && { tools: [] }),
 			// Priority order: label override > repository config > global default
 			model: finalModel,
 			fallbackModel:
@@ -6523,6 +6528,7 @@ ${input.userComment}
 			labels, // Always pass labels to preserve model override
 			maxTurns, // Pass maxTurns if specified
 			currentSubroutine?.singleTurn, // singleTurn flag
+			currentSubroutine?.disallowAllTools, // disallowAllTools flag
 		);
 
 		// Create the appropriate runner based on session state

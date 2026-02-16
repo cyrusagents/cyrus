@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-linear-event-transport",
-	"version": "0.2.20",
+	"version": "0.2.21",
 	"description": "Linear event transport for receiving and verifying Linear webhooks",
 	"type": "module",
 	"main": "dist/index.js",

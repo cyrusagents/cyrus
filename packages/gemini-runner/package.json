@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-gemini-runner",
-	"version": "0.2.20",
+	"version": "0.2.21",
 	"description": "Gemini CLI process spawning and management for Cyrus",
 	"type": "module",
 	"main": "dist/index.js",

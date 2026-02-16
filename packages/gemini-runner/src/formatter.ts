@@ -44,6 +44,7 @@ function hasProperty(input: FormatterToolInput, key: string): boolean {
 export class GeminiMessageFormatter implements IMessageFormatter {
 	/**
 	 * Format TodoWrite tool parameter as a nice checklist
+	 * @deprecated TodoWrite has been replaced by Task tools
 	 */
 	formatTodoWriteParameter(jsonContent: string): string {
 		try {
@@ -88,6 +89,94 @@ export class GeminiMessageFormatter implements IMessageFormatter {
 				error,
 			);
 			return jsonContent;
+		}
+	}
+
+	/**
+	 * Format Task tool parameter (TaskCreate, TaskUpdate, TaskList, TaskGet)
+	 */
+	formatTaskParameter(toolName: string, toolInput: FormatterToolInput): string {
+		try {
+			// If input is already a string, return it
+			if (typeof toolInput === "string") {
+				return toolInput;
+			}
+
+			switch (toolName) {
+				case "TaskCreate": {
+					// TaskCreate: { subject, description, activeForm? }
+					const subject = getString(toolInput, "subject") || "";
+					const description = getString(toolInput, "description") || "";
+					const activeForm = getString(toolInput, "activeForm");
+
+					let formatted = subject;
+					if (description && description !== subject) {
+						// Add description if it's different from subject
+						formatted += `\n${description}`;
+					}
+					if (activeForm) {
+						formatted += `\n_Active: ${activeForm}_`;
+					}
+					return formatted;
+				}
+
+				case "TaskUpdate": {
+					// TaskUpdate: { taskId, status?, subject? }
+					const taskId = getString(toolInput, "taskId") || "";
+					const status = getString(toolInput, "status");
+					const subject = getString(toolInput, "subject");
+
+					let statusEmoji = "";
+					if (status === "completed") {
+						statusEmoji = "✅";
+					} else if (status === "in_progress") {
+						statusEmoji = "🔄";
+					} else if (status === "pending") {
+						statusEmoji = "⏳";
+					} else if (status === "deleted") {
+						statusEmoji = "🗑️";
+					}
+
+					if (subject) {
+						return `${statusEmoji} Task #${taskId} — ${subject}`;
+					}
+					return `${statusEmoji} Task #${taskId}`;
+				}
+
+				case "TaskGet": {
+					// TaskGet: { taskId, subject? }
+					const taskId = getString(toolInput, "taskId") || "";
+					const subject = getString(toolInput, "subject") || "";
+					if (subject) {
+						return `Task #${taskId} — ${subject}`;
+					}
+					return `Task #${taskId}`;
+				}
+
+				case "TaskList": {
+					// TaskList: no parameters typically
+					return "List all tasks";
+				}
+
+				default: {
+					// Fallback for unknown Task tool types
+					const subject = getString(toolInput, "subject");
+					const description = getString(toolInput, "description");
+					if (subject) {
+						return subject;
+					}
+					if (description) {
+						return description;
+					}
+					return JSON.stringify(toolInput);
+				}
+			}
+		} catch (error) {
+			console.error(
+				"[GeminiMessageFormatter] Failed to format Task parameter:",
+				error,
+			);
+			return JSON.stringify(toolInput);
 		}
 	}
 
@@ -185,6 +274,13 @@ export class GeminiMessageFormatter implements IMessageFormatter {
 						return this.formatTodoWriteParameter(JSON.stringify(toolInput));
 					}
 					break;
+
+				case "TaskCreate":
+				case "TaskUpdate":
+				case "TaskGet":
+				case "TaskList":
+					// Delegate to formatTaskParameter for Task tools
+					return this.formatTaskParameter(toolName, toolInput);
 
 				default:
 					// For MCP tools or other unknown tools, try to extract meaningful info
@@ -407,6 +503,37 @@ export class GeminiMessageFormatter implements IMessageFormatter {
 						return result;
 					}
 					return "*Todos updated*";
+
+				case "TaskCreate":
+					// TaskCreate result typically contains task ID
+					if (result?.trim()) {
+						return `*Task created*\n${result}`;
+					}
+					return "*Task created*";
+
+				case "TaskUpdate":
+					// TaskUpdate result confirmation
+					if (result?.trim()) {
+						return result;
+					}
+					return "*Task updated*";
+
+				case "TaskGet":
+					// TaskGet returns task details - format as code block if multiline
+					if (result?.trim()) {
+						if (result.includes("\n")) {
+							return `\`\`\`\n${result}\n\`\`\``;
+						}
+						return result;
+					}
+					return "*No task found*";
+
+				case "TaskList":
+					// TaskList returns list of tasks - format as code block
+					if (result?.trim()) {
+						return `\`\`\`\n${result}\n\`\`\``;
+					}
+					return "*No tasks*";
 
 				default:
 					// For unknown tools, use code block if result has multiple lines

@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.21] - 2026-02-09
+
+### Changed
+- **Updated Claude SDK dependencies** - Updated `@anthropic-ai/claude-agent-sdk` to v0.2.34 and `@anthropic-ai/sdk` to v0.73.0. See [claude-agent-sdk changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#v0234) for details. ([CYPACK-788](https://linear.app/ceedar/issue/CYPACK-788), [#837](https://github.com/ceedaragents/cyrus/pull/837))
+- **Improved task and tool activity display** - Task creation now shows as concise checklist items instead of verbose multi-line entries, task status updates display the task name with status emoji, and tool search/background task output activities are now cleanly formatted. ([CYPACK-795](https://linear.app/ceedar/issue/CYPACK-795), [#846](https://github.com/ceedaragents/cyrus/pull/846))
+- **Task status updates now show task descriptions** - Task update and task detail activities now display the task subject alongside the task number (e.g., "Task #3 — Fix login bug") instead of just the number. ([CYPACK-797](https://linear.app/ceedar/issue/CYPACK-797), [#847](https://github.com/ceedaragents/cyrus/pull/847))
+
+### Fixed
+- **Procedures no longer fail when a subroutine exits with an error** - When a single-turn subroutine hits the max turns limit, Cyrus now recovers by using the last successful subroutine's result, allowing the workflow to continue to completion instead of stopping mid-procedure. ([CYPACK-792](https://linear.app/ceedar/issue/CYPACK-792), [#843](https://github.com/ceedaragents/cyrus/pull/843))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.21
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.21
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.21
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.21
+
+#### cyrus-core
+- cyrus-core@0.2.21
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.21
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.21
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.21
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.21
+
 ## [0.2.20] - 2026-02-05
 
 ### Fixed

@@ -266,6 +266,7 @@ IMPORTANT: Respond with ONLY the classification word, nothing else.`;
 	advanceToNextSubroutine(
 		session: CyrusAgentSession,
 		sessionId: string | null,
+		result?: string,
 	): void {
 		const procedureMetadata = session.metadata?.procedure as
 			| ProcedureMetadata
@@ -287,11 +288,33 @@ IMPORTANT: Respond with ONLY the classification word, nothing else.`;
 				completedAt: Date.now(),
 				claudeSessionId: isGeminiSession ? null : sessionId,
 				geminiSessionId: isGeminiSession ? sessionId : null,
+				...(result !== undefined && { result }),
 			});
 		}
 
 		// Advance index
 		procedureMetadata.currentSubroutineIndex++;
+	}
+
+	/**
+	 * Get the result from the last completed subroutine in the history.
+	 * Returns null if there is no history or no result stored.
+	 */
+	getLastSubroutineResult(session: CyrusAgentSession): string | null {
+		const procedureMetadata = session.metadata?.procedure as
+			| ProcedureMetadata
+			| undefined;
+
+		if (!procedureMetadata) {
+			return null;
+		}
+
+		const history = procedureMetadata.subroutineHistory;
+		if (history.length === 0) {
+			return null;
+		}
+
+		return history[history.length - 1]?.result ?? null;
 	}
 
 	/**

@@ -120,7 +120,15 @@ export type OnAskUserQuestion = (
  * Forward declaration - implemented by each runner (e.g., ClaudeMessageFormatter, GeminiMessageFormatter)
  */
 export interface IMessageFormatter {
+	/**
+	 * Format TodoWrite tool parameter as a nice checklist
+	 * @deprecated TodoWrite has been replaced by Task tools (TaskCreate, TaskUpdate, etc.)
+	 */
 	formatTodoWriteParameter(jsonContent: string): string;
+	/**
+	 * Format Task tool parameter (TaskCreate, TaskUpdate, TaskList, TaskGet)
+	 */
+	formatTaskParameter(toolName: string, toolInput: any): string;
 	formatToolParameter(toolName: string, toolInput: any): string;
 	formatToolActionName(
 		toolName: string,
@@ -388,6 +396,8 @@ export interface AgentRunnerConfig {
 	fallbackModel?: string;
 	/** Maximum number of turns before completing session */
 	maxTurns?: number;
+	/** Built-in tools available in model context (empty array disables all tools) */
+	tools?: string[];
 	/** Cyrus home directory (required) */
 	cyrusHome: string;
 	/** Prompt template version information */

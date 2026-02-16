@@ -129,6 +129,11 @@ describe("ClaudeRunner", () => {
 					cwd: "/tmp/test",
 					systemPrompt: { type: "preset", preset: "claude_code" },
 					settingSources: ["user", "project", "local"],
+					env: expect.objectContaining({
+						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
+						CLAUDE_CODE_ENABLE_TASKS: "true",
+						CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1",
+					}),
 				},
 			});
 		});
@@ -159,6 +164,11 @@ describe("ClaudeRunner", () => {
 					cwd: "/tmp/test",
 					systemPrompt: { type: "preset", preset: "claude_code" },
 					settingSources: ["user", "project", "local"],
+					env: expect.objectContaining({
+						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
+						CLAUDE_CODE_ENABLE_TASKS: "true",
+						CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1",
+					}),
 				},
 			});
 		});
@@ -189,6 +199,11 @@ describe("ClaudeRunner", () => {
 					cwd: "/tmp/test",
 					systemPrompt: "You are a helpful assistant",
 					settingSources: ["user", "project", "local"],
+					env: expect.objectContaining({
+						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
+						CLAUDE_CODE_ENABLE_TASKS: "true",
+						CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1",
+					}),
 				},
 			});
 		});

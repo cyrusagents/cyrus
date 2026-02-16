@@ -437,6 +437,12 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// particularly with CLAUDE.md files, settings files, and custom slash commands,
 					// see: https://docs.claude.com/en/docs/claude-code/sdk/migration-guide#settings-sources-no-longer-loaded-by-default
 					settingSources: ["user", "project", "local"],
+					env: {
+						...process.env,
+						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
+						CLAUDE_CODE_ENABLE_TASKS: "true",
+						CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1",
+					},
 					...(this.config.workingDirectory && {
 						cwd: this.config.workingDirectory,
 					}),
@@ -455,6 +461,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					}),
 					...(Object.keys(mcpServers).length > 0 && { mcpServers }),
 					...(this.config.hooks && { hooks: this.config.hooks }),
+					...(this.config.tools !== undefined && { tools: this.config.tools }),
 					...(this.config.maxTurns && { maxTurns: this.config.maxTurns }),
 					...(this.config.outputFormat && {
 						outputFormat: this.config.outputFormat,
