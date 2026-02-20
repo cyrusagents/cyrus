@@ -82,7 +82,13 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 		it("should expose disallowAllTools when at concise-summary subroutine in full-development procedure", () => {
 			const procedure = PROCEDURES["full-development"];
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "session-123",
+				id: "session-123",
+				externalSessionId: "session-123",
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-1",
+				},
 				type: "comment_thread" as const,
 				status: "active" as const,
 				context: "comment_thread" as const,
@@ -93,6 +99,7 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 					id: "issue-123",
 					identifier: "TEST-1",
 					title: "Test Issue",
+					branchName: "test-branch",
 				},
 				workspace: { path: "/test/workspace", isGitWorktree: false },
 				claudeSessionId: "claude-123",
@@ -117,7 +124,13 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 		it("should expose disallowAllTools when at verbose-summary subroutine", () => {
 			// Create a custom procedure with verbose-summary for testing
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "session-456",
+				id: "session-456",
+				externalSessionId: "session-456",
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-456",
+					issueIdentifier: "TEST-2",
+				},
 				type: "comment_thread" as const,
 				status: "active" as const,
 				context: "comment_thread" as const,
@@ -128,6 +141,7 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 					id: "issue-456",
 					identifier: "TEST-2",
 					title: "Test Issue",
+					branchName: "test-branch",
 				},
 				workspace: { path: "/test/workspace", isGitWorktree: false },
 				claudeSessionId: "claude-456",
@@ -155,7 +169,13 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 		it("should expose disallowAllTools for question-answer in simple-question procedure", () => {
 			const procedure = PROCEDURES["simple-question"];
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "session-789",
+				id: "session-789",
+				externalSessionId: "session-789",
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-789",
+					issueIdentifier: "TEST-3",
+				},
 				type: "comment_thread" as const,
 				status: "active" as const,
 				context: "comment_thread" as const,
@@ -166,6 +186,7 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 					id: "issue-789",
 					identifier: "TEST-3",
 					title: "Test Question",
+					branchName: "test-branch",
 				},
 				workspace: { path: "/test/workspace", isGitWorktree: false },
 				claudeSessionId: "claude-789",
@@ -185,7 +206,13 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 		it("should expose disallowAllTools for plan-summary in plan-mode procedure", () => {
 			const procedure = PROCEDURES["plan-mode"];
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "session-101",
+				id: "session-101",
+				externalSessionId: "session-101",
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-101",
+					issueIdentifier: "TEST-4",
+				},
 				type: "comment_thread" as const,
 				status: "active" as const,
 				context: "comment_thread" as const,
@@ -196,6 +223,7 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 					id: "issue-101",
 					identifier: "TEST-4",
 					title: "Test Planning",
+					branchName: "test-branch",
 				},
 				workspace: { path: "/test/workspace", isGitWorktree: false },
 				claudeSessionId: "claude-101",
@@ -215,7 +243,13 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 		it("should NOT expose disallowAllTools for non-summary subroutines", () => {
 			const procedure = PROCEDURES["full-development"];
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "session-202",
+				id: "session-202",
+				externalSessionId: "session-202",
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-202",
+					issueIdentifier: "TEST-5",
+				},
 				type: "comment_thread" as const,
 				status: "active" as const,
 				context: "comment_thread" as const,
@@ -226,6 +260,7 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 					id: "issue-202",
 					identifier: "TEST-5",
 					title: "Test Issue",
+					branchName: "test-branch",
 				},
 				workspace: { path: "/test/workspace", isGitWorktree: false },
 				claudeSessionId: "claude-202",

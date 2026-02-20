@@ -5,14 +5,11 @@ describe("linear_get_child_issues tool integration", () => {
 	it("should create cyrus tools server with expected structure", () => {
 		const server = createCyrusToolsServer("test-token");
 
-		// Verify the server has the expected MCP structure
+		// Verify the server has the expected MCP SDK structure
 		expect(server).toBeDefined();
-		expect(server.type).toBe("sdk");
-		expect(server.name).toBe("cyrus-tools");
-		expect(server.instance).toBeDefined();
-
-		// The actual McpServer instance should exist
-		expect(server.instance).toBeDefined();
+		expect(server.server).toBeDefined();
+		expect(typeof server.connect).toBe("function");
+		expect(typeof server.close).toBe("function");
 	});
 
 	it("should have created server with proper configuration", () => {
@@ -29,8 +26,7 @@ describe("linear_get_child_issues tool integration", () => {
 
 		// Basic server structure check
 		expect(server).toBeDefined();
-		expect(server.type).toBe("sdk");
-		expect(server.name).toBe("cyrus-tools");
+		expect(server.server).toBeDefined();
 	});
 
 	it("should verify tool exists through successful server creation", () => {

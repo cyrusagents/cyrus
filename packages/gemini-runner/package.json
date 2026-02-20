@@ -22,7 +22,7 @@
 		"cyrus-simple-agent-runner": "workspace:*",
 		"dotenv": "^16.6.1",
 		"fs-extra": "^11.3.0",
-		"zod": "^4.3.5"
+		"zod": "^4.3.6"
 	},
 	"devDependencies": {
 		"@google/gemini-cli-core": "0.17.0",

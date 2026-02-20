@@ -1,4 +1,8 @@
-import { LinearClient } from "@linear/sdk";
+import {
+	AgentSessionStatus,
+	AgentSessionType,
+	LinearClient,
+} from "@linear/sdk";
 import type { CyrusAgentSession } from "cyrus-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
@@ -119,8 +123,18 @@ describe("EdgeWorker - Orchestrator Label Rerouting", () => {
 			});
 
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "agent-session-123",
-				issueId: "issue-123",
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
+				type: AgentSessionType.CommentThread,
+				status: AgentSessionStatus.Active,
+				context: AgentSessionType.CommentThread,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
 				workspace: { path: "/test/workspaces/TEST-123", isGitWorktree: false },
 				metadata: {},
 			};
@@ -165,8 +179,18 @@ describe("EdgeWorker - Orchestrator Label Rerouting", () => {
 		it("should use AI routing when Orchestrator label is NOT present", async () => {
 			// Arrange - Mock issue WITHOUT Orchestrator label (default)
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "agent-session-123",
-				issueId: "issue-123",
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
+				type: AgentSessionType.CommentThread,
+				status: AgentSessionStatus.Active,
+				context: AgentSessionType.CommentThread,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
 				workspace: { path: "/test/workspaces/TEST-123", isGitWorktree: false },
 				metadata: {},
 			};
@@ -216,8 +240,18 @@ describe("EdgeWorker - Orchestrator Label Rerouting", () => {
 			});
 
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "agent-session-123",
-				issueId: "issue-123",
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
+				type: AgentSessionType.CommentThread,
+				status: AgentSessionStatus.Active,
+				context: AgentSessionType.CommentThread,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
 				workspace: { path: "/test/workspaces/TEST-123", isGitWorktree: false },
 				metadata: {},
 			};
@@ -271,8 +305,18 @@ describe("EdgeWorker - Orchestrator Label Rerouting", () => {
 			});
 
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "agent-session-123",
-				issueId: "issue-123",
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
+				type: AgentSessionType.CommentThread,
+				status: AgentSessionStatus.Active,
+				context: AgentSessionType.CommentThread,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
 				workspace: { path: "/test/workspaces/TEST-123", isGitWorktree: false },
 				metadata: {},
 			};
@@ -319,8 +363,18 @@ Work completed on subtask TEST-124.
 			mockLinearClient.issue.mockRejectedValue(new Error("Linear API error"));
 
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "agent-session-123",
-				issueId: "issue-123",
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
+				type: AgentSessionType.CommentThread,
+				status: AgentSessionStatus.Active,
+				context: AgentSessionType.CommentThread,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
 				workspace: { path: "/test/workspaces/TEST-123", isGitWorktree: false },
 				metadata: {},
 			};
@@ -365,8 +419,18 @@ Work completed on subtask TEST-124.
 			});
 
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "agent-session-123",
-				issueId: "issue-123",
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
+				type: AgentSessionType.CommentThread,
+				status: AgentSessionStatus.Active,
+				context: AgentSessionType.CommentThread,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
 				workspace: { path: "/test/workspaces/TEST-123", isGitWorktree: false },
 				metadata: {},
 			};
@@ -411,8 +475,18 @@ Work completed on subtask TEST-124.
 			});
 
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "agent-session-123",
-				issueId: "issue-123",
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
+				type: AgentSessionType.CommentThread,
+				status: AgentSessionStatus.Active,
+				context: AgentSessionType.CommentThread,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
 				workspace: { path: "/test/workspaces/TEST-123", isGitWorktree: false },
 				metadata: {},
 			};
@@ -496,8 +570,18 @@ Work completed on subtask TEST-124.
 			});
 
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "agent-session-123",
-				issueId: "issue-123",
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
+				type: AgentSessionType.CommentThread,
+				status: AgentSessionStatus.Active,
+				context: AgentSessionType.CommentThread,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
 				workspace: { path: "/test/workspaces/TEST-123", isGitWorktree: false },
 				metadata: {},
 			};
@@ -580,8 +664,18 @@ Work completed on subtask TEST-124.
 			});
 
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "agent-session-123",
-				issueId: "issue-123",
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
+				type: AgentSessionType.CommentThread,
+				status: AgentSessionStatus.Active,
+				context: AgentSessionType.CommentThread,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
 				workspace: { path: "/test/workspaces/TEST-123", isGitWorktree: false },
 				metadata: {},
 			};
@@ -664,8 +758,18 @@ Work completed on subtask TEST-124.
 			});
 
 			const session: CyrusAgentSession = {
-				linearAgentActivitySessionId: "agent-session-123",
-				issueId: "issue-123",
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
+				type: AgentSessionType.CommentThread,
+				status: AgentSessionStatus.Active,
+				context: AgentSessionType.CommentThread,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
 				workspace: { path: "/test/workspaces/TEST-123", isGitWorktree: false },
 				metadata: {},
 			};

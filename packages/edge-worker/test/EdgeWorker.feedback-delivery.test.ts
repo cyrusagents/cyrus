@@ -1,6 +1,7 @@
 import { LinearClient } from "@linear/sdk";
-import { ClaudeRunner, createCyrusToolsServer } from "cyrus-claude-runner";
+import { ClaudeRunner } from "cyrus-claude-runner";
 import { LinearEventTransport } from "cyrus-linear-event-transport";
+import { createCyrusToolsServer } from "cyrus-mcp-tools";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
@@ -10,6 +11,8 @@ import type { EdgeWorkerConfig, RepositoryConfig } from "../src/types.js";
 // Mock all dependencies
 vi.mock("fs/promises");
 vi.mock("cyrus-claude-runner");
+vi.mock("cyrus-mcp-tools");
+vi.mock("cyrus-codex-runner");
 vi.mock("cyrus-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js");
@@ -67,13 +70,9 @@ describe("EdgeWorker - Feedback Delivery", () => {
 				mockOnSessionCreated = options.onSessionCreated;
 			}
 
-			// Return a mock structure that matches what the real function returns
+			// Return a mock MCP server shape
 			return {
-				type: "sdk" as const,
-				name: "cyrus-tools",
-				instance: {
-					_options: options,
-				},
+				server: {},
 			} as any;
 		});
 
@@ -316,7 +315,9 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			expect(result).toBe(false);
 			expect(resumeAgentSessionSpy).not.toHaveBeenCalled();
 			expect(console.error).toHaveBeenCalledWith(
-				`[EdgeWorker] Child session ${childSessionId} not found in any repository`,
+				expect.stringContaining(
+					`Child session ${childSessionId} not found in any repository`,
+				),
 			);
 		});
 
@@ -343,7 +344,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			expect(result).toBe(false);
 			expect(resumeAgentSessionSpy).not.toHaveBeenCalled();
 			expect(console.error).toHaveBeenCalledWith(
-				`[EdgeWorker] Child session ${childSessionId} not found`,
+				expect.stringContaining(`Child session ${childSessionId} not found`),
 			);
 		});
 
@@ -379,7 +380,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 
 			// The error is logged asynchronously
 			expect(console.error).toHaveBeenCalledWith(
-				`[EdgeWorker] Failed to process feedback in child session:`,
+				expect.stringContaining(`Failed to process feedback in child session:`),
 				expect.any(Error),
 			);
 		});
@@ -466,6 +467,58 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			// Verify the callbacks were captured
 			expect(mockOnFeedbackDelivery).toBeDefined();
 			expect(mockOnSessionCreated).toBeDefined();
+		});
+
+		it("should include CYRUS_API_KEY as Authorization header for cyrus-tools MCP config", () => {
+			const previousApiKey = process.env.CYRUS_API_KEY;
+			process.env.CYRUS_API_KEY = "test-cyrus-api-key";
+
+			try {
+				const mcpConfig = (edgeWorker as any).buildMcpConfig(
+					mockRepository,
+					"parent-session-123",
+				);
+				const cyrusToolsConfig = mcpConfig["cyrus-tools"] as {
+					headers?: Record<string, string>;
+				};
+
+				expect(cyrusToolsConfig.headers?.Authorization).toBe(
+					"Bearer test-cyrus-api-key",
+				);
+			} finally {
+				if (previousApiKey === undefined) {
+					delete process.env.CYRUS_API_KEY;
+				} else {
+					process.env.CYRUS_API_KEY = previousApiKey;
+				}
+			}
+		});
+
+		it("should validate cyrus-tools MCP Authorization header against CYRUS_API_KEY", () => {
+			const previousApiKey = process.env.CYRUS_API_KEY;
+			process.env.CYRUS_API_KEY = "test-cyrus-api-key";
+
+			try {
+				expect(
+					(edgeWorker as any).isCyrusToolsMcpAuthorizationValid(
+						"Bearer test-cyrus-api-key",
+					),
+				).toBe(true);
+				expect(
+					(edgeWorker as any).isCyrusToolsMcpAuthorizationValid(
+						"Bearer wrong-key",
+					),
+				).toBe(false);
+				expect(
+					(edgeWorker as any).isCyrusToolsMcpAuthorizationValid(undefined),
+				).toBe(false);
+			} finally {
+				if (previousApiKey === undefined) {
+					delete process.env.CYRUS_API_KEY;
+				} else {
+					process.env.CYRUS_API_KEY = previousApiKey;
+				}
+			}
 		});
 	});
 });

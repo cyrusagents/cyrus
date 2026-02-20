@@ -43,15 +43,17 @@ export class ConfigService {
 
 		// Strip promptTemplatePath from all repositories to ensure built-in template is used
 		if (config.repositories) {
-			config.repositories = config.repositories.map((repo) => {
-				const { promptTemplatePath, ...repoWithoutTemplate } = repo;
-				if (promptTemplatePath) {
-					this.logger.info(
-						`Ignoring custom prompt template for repository: ${repo.name} (using built-in template)`,
-					);
-				}
-				return repoWithoutTemplate;
-			});
+			config.repositories = config.repositories.map(
+				(repo: EdgeConfig["repositories"][number]) => {
+					const { promptTemplatePath, ...repoWithoutTemplate } = repo;
+					if (promptTemplatePath) {
+						this.logger.info(
+							`Ignoring custom prompt template for repository: ${repo.name} (using built-in template)`,
+						);
+					}
+					return repoWithoutTemplate;
+				},
+			);
 		}
 
 		// Run migrations on loaded config
@@ -66,6 +68,31 @@ export class ConfigService {
 	 */
 	private migrateConfig(config: EdgeConfig): EdgeConfig {
 		let configModified = false;
+
+		// Migration: Rename legacy global model fields to Claude-specific names
+		// Keep old values but move them to the new keys and remove deprecated fields.
+		if (config.defaultModel !== undefined) {
+			if (!config.claudeDefaultModel) {
+				config.claudeDefaultModel = config.defaultModel;
+				this.logger.info(
+					`[Migration] Moved "defaultModel" to "claudeDefaultModel"`,
+				);
+			}
+			delete (config as EdgeConfig & { defaultModel?: string }).defaultModel;
+			configModified = true;
+		}
+
+		if (config.defaultFallbackModel !== undefined) {
+			if (!config.claudeDefaultFallbackModel) {
+				config.claudeDefaultFallbackModel = config.defaultFallbackModel;
+				this.logger.info(
+					`[Migration] Moved "defaultFallbackModel" to "claudeDefaultFallbackModel"`,
+				);
+			}
+			delete (config as EdgeConfig & { defaultFallbackModel?: string })
+				.defaultFallbackModel;
+			configModified = true;
+		}
 
 		// Migration: Add "Skill" to allowedTools arrays that don't have it
 		// This enables Claude Skills functionality for existing configurations

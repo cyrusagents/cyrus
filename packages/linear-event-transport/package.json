@@ -11,16 +11,19 @@
 	"scripts": {
 		"build": "tsc",
 		"dev": "tsc --watch",
+		"test": "vitest",
+		"test:run": "vitest run",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@linear/sdk": "^64.0.0",
 		"cyrus-core": "workspace:*",
-		"fastify": "^5.2.0"
+		"fastify": "^5.7.3"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
-		"typescript": "^5.3.3"
+		"typescript": "^5.3.3",
+		"vitest": "^3.2.4"
 	},
 	"publishConfig": {
 		"access": "public"

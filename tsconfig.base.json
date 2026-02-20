@@ -25,7 +25,14 @@
 			"cyrus-linear-client": ["packages/linear-client"],
 			"cyrus-history-stream": ["packages/history-stream"],
 			"cyrus-edge-worker": ["packages/edge-worker"],
-			"cyrus-claude-runner": ["packages/claude-runner"]
+			"cyrus-claude-runner": ["packages/claude-runner"],
+			"cyrus-codex-runner": ["packages/codex-runner"],
+			"cyrus-cursor-runner": ["packages/cursor-runner"],
+			"cyrus-gemini-runner": ["packages/gemini-runner"],
+			"cyrus-mcp-tools": ["packages/mcp-tools"],
+			"cyrus-simple-agent-runner": ["packages/simple-agent-runner"],
+			"cyrus-config-updater": ["packages/config-updater"],
+			"cyrus-linear-event-transport": ["packages/linear-event-transport"]
 		}
 	},
 	"exclude": ["node_modules", "dist", "build"]

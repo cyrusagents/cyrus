@@ -173,7 +173,7 @@ describe("EdgeWorker - Native Attachments", () => {
 			const attachmentsDir = "/tmp/test-attachments";
 
 			// Mock downloadAttachment method
-			(edgeWorker as any).downloadAttachment = vi
+			(edgeWorker as any).attachmentService.downloadAttachment = vi
 				.fn()
 				.mockResolvedValueOnce({
 					success: true,
@@ -187,7 +187,9 @@ describe("EdgeWorker - Native Attachments", () => {
 				});
 
 			// Mock countExistingImages
-			(edgeWorker as any).countExistingImages = vi.fn().mockResolvedValue(0);
+			(edgeWorker as any).attachmentService.countExistingImages = vi
+				.fn()
+				.mockResolvedValue(0);
 
 			const result = await (edgeWorker as any).downloadCommentAttachments(
 				commentBody,
@@ -208,7 +210,7 @@ describe("EdgeWorker - Native Attachments", () => {
 			const attachmentsDir = "/tmp/test-attachments";
 
 			// Mock successful downloads
-			(edgeWorker as any).downloadAttachment = vi
+			(edgeWorker as any).attachmentService.downloadAttachment = vi
 				.fn()
 				.mockResolvedValue({ success: true, fileType: ".png", isImage: true });
 
@@ -220,7 +222,9 @@ describe("EdgeWorker - Native Attachments", () => {
 			);
 
 			expect(result.totalNewAttachments).toBe(1);
-			expect((edgeWorker as any).downloadAttachment).toHaveBeenCalledTimes(1);
+			expect(
+				(edgeWorker as any).attachmentService.downloadAttachment,
+			).toHaveBeenCalledTimes(1);
 		});
 
 		it("should handle no attachments in comment", async () => {
@@ -244,7 +248,7 @@ describe("EdgeWorker - Native Attachments", () => {
 			const attachmentsDir = "/tmp/test-attachments";
 
 			// Mock download failure
-			(edgeWorker as any).downloadAttachment = vi
+			(edgeWorker as any).attachmentService.downloadAttachment = vi
 				.fn()
 				.mockResolvedValue({ success: false });
 
@@ -265,12 +269,14 @@ describe("EdgeWorker - Native Attachments", () => {
 				"Check this: [file.png](https://uploads.linear.app/ee2a1136-fe42-47ac-897f-f4ee8e824eb8/f43efb28-7db5-485b-aba1-bd5998bd46bc/a2e99ac8-337e-4b69-887e-e4cf0ddc42ab](https://uploads.linear.app/ee2a1136-fe42-47ac-897f-f4ee8e824eb8/f43efb28-7db5-485b-aba1-bd5998bd46bc/duplicate-url";
 
 			// Mock successful download for the correctly extracted URLs
-			(edgeWorker as any).downloadAttachment = vi
+			(edgeWorker as any).attachmentService.downloadAttachment = vi
 				.fn()
 				.mockResolvedValue({ success: true, fileType: ".png", isImage: true });
 
 			// Mock countExistingImages
-			(edgeWorker as any).countExistingImages = vi.fn().mockResolvedValue(0);
+			(edgeWorker as any).attachmentService.countExistingImages = vi
+				.fn()
+				.mockResolvedValue(0);
 
 			const result = await (edgeWorker as any).downloadCommentAttachments(
 				commentBody,
@@ -281,10 +287,13 @@ describe("EdgeWorker - Native Attachments", () => {
 
 			// Should extract exactly 2 valid URLs (not the malformed concatenated one)
 			expect(result.totalNewAttachments).toBe(2);
-			expect((edgeWorker as any).downloadAttachment).toHaveBeenCalledTimes(2);
+			expect(
+				(edgeWorker as any).attachmentService.downloadAttachment,
+			).toHaveBeenCalledTimes(2);
 
 			// Verify the URLs passed to downloadAttachment don't contain brackets or malformed parts
-			const downloadCalls = (edgeWorker as any).downloadAttachment.mock.calls;
+			const downloadCalls = (edgeWorker as any).attachmentService
+				.downloadAttachment.mock.calls;
 			downloadCalls.forEach((call: any[]) => {
 				const url = call[0];
 				expect(url).toMatch(
@@ -374,9 +383,9 @@ describe("EdgeWorker - Native Attachments", () => {
 				],
 			};
 
-			const manifest = (edgeWorker as any).generateAttachmentManifest(
-				downloadResult,
-			);
+			const manifest = (
+				edgeWorker as any
+			).attachmentService.generateAttachmentManifest(downloadResult);
 
 			expect(manifest).toContain("### Linear Issue Links");
 			expect(manifest).toContain("1. Sentry Error");
@@ -407,9 +416,9 @@ describe("EdgeWorker - Native Attachments", () => {
 				],
 			};
 
-			const manifest = (edgeWorker as any).generateAttachmentManifest(
-				downloadResult,
-			);
+			const manifest = (
+				edgeWorker as any
+			).attachmentService.generateAttachmentManifest(downloadResult);
 
 			// Should include all sections
 			expect(manifest).toContain("### Linear Issue Links");

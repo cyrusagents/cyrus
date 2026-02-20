@@ -162,8 +162,8 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 		cyrusHome: CYRUS_HOME,
 		serverPort: CYRUS_PORT,
 		serverHost: "localhost",
-		defaultModel: "sonnet",
-		defaultFallbackModel: "haiku",
+		claudeDefaultModel: "sonnet",
+		claudeDefaultFallbackModel: "haiku",
 		// Enable all tools including Edit(**), Bash, etc. for full testing capability
 		defaultAllowedTools: getAllTools(),
 	};

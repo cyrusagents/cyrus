@@ -3,6 +3,7 @@ import {
 	type IncomingMessage,
 	type ServerResponse,
 } from "node:http";
+import { createLogger, type ILogger } from "cyrus-core";
 
 /**
  * Shared webhook server that can handle multiple Linear tokens
@@ -20,10 +21,16 @@ export class SharedWebhookServer {
 	private port: number;
 	private host: string;
 	private isListening = false;
+	private logger: ILogger;
 
-	constructor(port: number = 3456, host: string = "localhost") {
+	constructor(
+		port: number = 3456,
+		host: string = "localhost",
+		logger?: ILogger,
+	) {
 		this.port = port;
 		this.host = host;
+		this.logger = logger ?? createLogger({ component: "SharedWebhookServer" });
 	}
 
 	/**
@@ -41,8 +48,8 @@ export class SharedWebhookServer {
 
 			this.server.listen(this.port, this.host, () => {
 				this.isListening = true;
-				console.log(
-					`🔗 Shared webhook server listening on http://${this.host}:${this.port}`,
+				this.logger.info(
+					`Shared webhook server listening on http://${this.host}:${this.port}`,
 				);
 				resolve();
 			});
@@ -62,7 +69,7 @@ export class SharedWebhookServer {
 			return new Promise((resolve) => {
 				this.server!.close(() => {
 					this.isListening = false;
-					console.log("🔗 Shared webhook server stopped");
+					this.logger.info("Shared webhook server stopped");
 					resolve();
 				});
 			});
@@ -78,8 +85,8 @@ export class SharedWebhookServer {
 		handler: (body: string, signature: string, timestamp?: string) => boolean,
 	): void {
 		this.webhookHandlers.set(token, { secret, handler });
-		console.log(
-			`🔗 Registered webhook handler for token ending in ...${token.slice(-4)}`,
+		this.logger.info(
+			`Registered webhook handler for token ending in ...${token.slice(-4)}`,
 		);
 	}
 
@@ -88,8 +95,8 @@ export class SharedWebhookServer {
 	 */
 	unregisterWebhookHandler(token: string): void {
 		this.webhookHandlers.delete(token);
-		console.log(
-			`🔗 Unregistered webhook handler for token ending in ...${token.slice(-4)}`,
+		this.logger.info(
+			`Unregistered webhook handler for token ending in ...${token.slice(-4)}`,
 		);
 	}
 
@@ -108,17 +115,17 @@ export class SharedWebhookServer {
 		res: ServerResponse,
 	): Promise<void> {
 		try {
-			console.log(`🔗 Incoming webhook request: ${req.method} ${req.url}`);
+			this.logger.debug(`Incoming webhook request: ${req.method} ${req.url}`);
 
 			if (req.method !== "POST") {
-				console.log(`🔗 Rejected non-POST request: ${req.method}`);
+				this.logger.debug(`Rejected non-POST request: ${req.method}`);
 				res.writeHead(405, { "Content-Type": "text/plain" });
 				res.end("Method Not Allowed");
 				return;
 			}
 
 			if (req.url !== "/webhook") {
-				console.log(`🔗 Rejected request to wrong URL: ${req.url}`);
+				this.logger.debug(`Rejected request to wrong URL: ${req.url}`);
 				res.writeHead(404, { "Content-Type": "text/plain" });
 				res.end("Not Found");
 				return;
@@ -135,12 +142,12 @@ export class SharedWebhookServer {
 					const signature = req.headers["x-webhook-signature"] as string;
 					const timestamp = req.headers["x-webhook-timestamp"] as string;
 
-					console.log(
-						`🔗 Webhook received with ${body.length} bytes, ${this.webhookHandlers.size} registered handlers`,
+					this.logger.debug(
+						`Webhook received with ${body.length} bytes, ${this.webhookHandlers.size} registered handlers`,
 					);
 
 					if (!signature) {
-						console.log("🔗 Webhook rejected: Missing signature header");
+						this.logger.debug("Webhook rejected: Missing signature header");
 						res.writeHead(400, { "Content-Type": "text/plain" });
 						res.end("Missing signature");
 						return;
@@ -155,39 +162,39 @@ export class SharedWebhookServer {
 								// Handler verified signature and processed webhook
 								res.writeHead(200, { "Content-Type": "text/plain" });
 								res.end("OK");
-								console.log(
-									`🔗 Webhook delivered to token ending in ...${token.slice(-4)} (attempt ${handlerAttempts}/${this.webhookHandlers.size})`,
+								this.logger.debug(
+									`Webhook delivered to token ending in ...${token.slice(-4)} (attempt ${handlerAttempts}/${this.webhookHandlers.size})`,
 								);
 								return;
 							}
 						} catch (error) {
-							console.error(
-								`🔗 Error in webhook handler for token ...${token.slice(-4)}:`,
+							this.logger.error(
+								`Error in webhook handler for token ...${token.slice(-4)}:`,
 								error,
 							);
 						}
 					}
 
 					// No handler could verify the signature
-					console.error(
-						`🔗 Webhook signature verification failed for all ${this.webhookHandlers.size} registered handlers`,
+					this.logger.error(
+						`Webhook signature verification failed for all ${this.webhookHandlers.size} registered handlers`,
 					);
 					res.writeHead(401, { "Content-Type": "text/plain" });
 					res.end("Unauthorized");
 				} catch (error) {
-					console.error("🔗 Error processing webhook:", error);
+					this.logger.error("Error processing webhook:", error);
 					res.writeHead(400, { "Content-Type": "text/plain" });
 					res.end("Bad Request");
 				}
 			});
 
 			req.on("error", (error) => {
-				console.error("🔗 Request error:", error);
+				this.logger.error("Request error:", error);
 				res.writeHead(500, { "Content-Type": "text/plain" });
 				res.end("Internal Server Error");
 			});
 		} catch (error) {
-			console.error("🔗 Webhook request error:", error);
+			this.logger.error("Webhook request error:", error);
 			res.writeHead(500, { "Content-Type": "text/plain" });
 			res.end("Internal Server Error");
 		}

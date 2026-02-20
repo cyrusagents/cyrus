@@ -78,7 +78,8 @@ export class SelfAuthCommand extends BaseCommand {
 			this.overwriteRepoConfigTokens(config, configPath, tokens, workspace);
 
 			const updatedCount = config.repositories.filter(
-				(r) => r.linearWorkspaceId === workspace.id,
+				(r: EdgeConfig["repositories"][number]) =>
+					r.linearWorkspaceId === workspace.id,
 			).length;
 			this.logSuccess(`Updated ${updatedCount} repository/repositories`);
 

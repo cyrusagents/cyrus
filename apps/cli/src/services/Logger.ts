@@ -1,14 +1,12 @@
-/**
- * Log levels in order of severity
- */
-export enum LogLevel {
-	DEBUG = 0,
-	INFO = 1,
-	SUCCESS = 2,
-	WARN = 3,
-	ERROR = 4,
-	SILENT = 5,
-}
+import {
+	createLogger,
+	type ILogger,
+	type LogContext,
+	type LogLevel,
+} from "cyrus-core";
+
+// Re-export LogLevel from cyrus-core so existing consumers don't break
+export { LogLevel } from "cyrus-core";
 
 /**
  * Logger configuration options
@@ -16,117 +14,67 @@ export enum LogLevel {
 export interface LoggerOptions {
 	/** Minimum log level to output */
 	level?: LogLevel;
-	/** Prefix to add to all log messages */
+	/** Prefix to add to all log messages (used as component name) */
 	prefix?: string;
 	/** Whether to include timestamps */
 	timestamps?: boolean;
 }
 
 /**
- * Simple, zero-dependency logger service with structured logging
+ * CLI-specific logger that wraps the core ILogger.
+ *
+ * Provides CLI-presentation features (emoji formatting, raw output,
+ * dividers, child loggers) on top of the standard core logging interface.
+ *
+ * Implements ILogger so it can be passed to packages that expect the core interface.
  */
-export class Logger {
-	private level: LogLevel;
+export class Logger implements ILogger {
+	private coreLogger: ILogger;
 	private prefix: string;
 	private timestamps: boolean;
 
 	constructor(options: LoggerOptions = {}) {
-		this.level = options.level ?? this.getLogLevelFromEnv();
 		this.prefix = options.prefix ?? "";
 		this.timestamps = options.timestamps ?? false;
-	}
-
-	/**
-	 * Get log level from environment variable
-	 */
-	private getLogLevelFromEnv(): LogLevel {
-		const envLevel = process.env.CYRUS_LOG_LEVEL?.toUpperCase();
-		switch (envLevel) {
-			case "DEBUG":
-				return LogLevel.DEBUG;
-			case "INFO":
-				return LogLevel.INFO;
-			case "SUCCESS":
-				return LogLevel.SUCCESS;
-			case "WARN":
-				return LogLevel.WARN;
-			case "ERROR":
-				return LogLevel.ERROR;
-			case "SILENT":
-				return LogLevel.SILENT;
-			default:
-				return LogLevel.INFO;
-		}
-	}
-
-	/**
-	 * Format a log message with optional prefix and timestamp
-	 */
-	private format(message: string): string {
-		let formatted = message;
-
-		if (this.prefix) {
-			formatted = `[${this.prefix}] ${formatted}`;
-		}
-
-		if (this.timestamps) {
-			const timestamp = new Date().toISOString();
-			formatted = `${timestamp} ${formatted}`;
-		}
-
-		return formatted;
-	}
-
-	/**
-	 * Check if a log level should be output
-	 */
-	private shouldLog(level: LogLevel): boolean {
-		return level >= this.level;
+		this.coreLogger = createLogger({
+			component: this.prefix || "CLI",
+			level: options.level,
+		});
 	}
 
 	/**
 	 * Debug log (lowest priority)
 	 */
 	debug(message: string, ...args: any[]): void {
-		if (this.shouldLog(LogLevel.DEBUG)) {
-			console.log(this.format(`🔍 ${message}`), ...args);
-		}
+		this.coreLogger.debug(message, ...args);
 	}
 
 	/**
 	 * Info log (normal priority)
 	 */
 	info(message: string, ...args: any[]): void {
-		if (this.shouldLog(LogLevel.INFO)) {
-			console.log(this.format(message), ...args);
-		}
+		this.coreLogger.info(message, ...args);
 	}
 
 	/**
-	 * Success log (positive outcome)
+	 * Success log - maps to info level with check mark prefix
 	 */
 	success(message: string, ...args: any[]): void {
-		if (this.shouldLog(LogLevel.SUCCESS)) {
-			console.log(this.format(`✅ ${message}`), ...args);
-		}
+		this.coreLogger.info(message, ...args);
 	}
 
 	/**
 	 * Warning log
 	 */
 	warn(message: string, ...args: any[]): void {
-		if (this.shouldLog(LogLevel.WARN)) {
-			console.warn(this.format(`⚠️  ${message}`), ...args);
-		}
+		this.coreLogger.warn(message, ...args);
 	}
 
 	/**
 	 * Error log (highest priority)
 	 */
 	error(message: string, ...args: any[]): void {
-		if (this.shouldLog(LogLevel.ERROR)) {
-			console.error(this.format(`❌ ${message}`), ...args);
-		}
+		this.coreLogger.error(message, ...args);
 	}
 
 	/**
@@ -141,7 +89,7 @@ export class Logger {
 	 */
 	child(prefix: string): Logger {
 		return new Logger({
-			level: this.level,
+			level: this.coreLogger.getLevel(),
 			prefix: this.prefix ? `${this.prefix}:${prefix}` : prefix,
 			timestamps: this.timestamps,
 		});
@@ -151,21 +99,29 @@ export class Logger {
 	 * Print a divider line
 	 */
 	divider(length = 70): void {
-		this.raw("─".repeat(length));
+		this.raw("\u2500".repeat(length));
+	}
+
+	/**
+	 * Create a new logger with additional context.
+	 * Delegates to the core logger's withContext.
+	 */
+	withContext(context: LogContext): ILogger {
+		return this.coreLogger.withContext(context);
 	}
 
 	/**
 	 * Set log level dynamically
 	 */
 	setLevel(level: LogLevel): void {
-		this.level = level;
+		this.coreLogger.setLevel(level);
 	}
 
 	/**
 	 * Get current log level
 	 */
 	getLevel(): LogLevel {
-		return this.level;
+		return this.coreLogger.getLevel();
 	}
 }
 

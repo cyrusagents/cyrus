@@ -1,11 +1,18 @@
 /**
  * ProcedureAnalyzer - Intelligent analysis of agent sessions to determine procedures
  *
- * Uses a SimpleAgentRunner (Claude or Gemini) to analyze requests and determine
- * which procedure (sequence of subroutines) should be executed.
+ * Uses a SimpleAgentRunner (Claude, Gemini, Codex, or Cursor) to analyze requests
+ * and determine which procedure (sequence of subroutines) should be executed.
  */
 
-import type { CyrusAgentSession, ISimpleAgentRunner } from "cyrus-core";
+import { SimpleCodexRunner } from "cyrus-codex-runner";
+import {
+	type CyrusAgentSession,
+	createLogger,
+	type ILogger,
+	type ISimpleAgentRunner,
+} from "cyrus-core";
+import { SimpleCursorRunner } from "cyrus-cursor-runner";
 import { SimpleGeminiRunner } from "cyrus-gemini-runner";
 import { SimpleClaudeRunner } from "cyrus-simple-agent-runner";
 import { getProcedureForClassification, PROCEDURES } from "./registry.js";
@@ -17,28 +24,42 @@ import type {
 	SubroutineDefinition,
 } from "./types.js";
 
-export type SimpleRunnerType = "claude" | "gemini";
+export type SimpleRunnerType = "claude" | "gemini" | "codex" | "cursor";
 
 export interface ProcedureAnalyzerConfig {
 	cyrusHome: string;
 	model?: string;
 	timeoutMs?: number;
-	runnerType?: SimpleRunnerType; // Default: "gemini"
+	runnerType?: SimpleRunnerType; // Default: "claude"
+	logger?: ILogger;
 }
 
 export class ProcedureAnalyzer {
 	private analysisRunner: ISimpleAgentRunner<RequestClassification>;
 	private procedures: Map<string, ProcedureDefinition> = new Map();
+	private logger: ILogger;
 
 	constructor(config: ProcedureAnalyzerConfig) {
+		this.logger =
+			config.logger ?? createLogger({ component: "ProcedureAnalyzer" });
+
 		// Determine which runner to use
-		const runnerType = config.runnerType || "gemini";
+		const runnerType = config.runnerType || "claude";
 
 		// Use runner-specific default models if not provided
-		const defaultModel =
-			runnerType === "claude" ? "haiku" : "gemini-2.5-flash-lite";
-		const defaultFallbackModel =
-			runnerType === "claude" ? "sonnet" : "gemini-2.0-flash-exp";
+		const defaultModels: Record<
+			SimpleRunnerType,
+			{ model: string; fallback: string }
+		> = {
+			claude: { model: "haiku", fallback: "sonnet" },
+			gemini: {
+				model: "gemini-2.5-flash-lite",
+				fallback: "gemini-2.0-flash-exp",
+			},
+			codex: { model: "gpt-5", fallback: "gpt-5" },
+			cursor: { model: "gpt-5", fallback: "gpt-5" },
+		};
+		const defaults = defaultModels[runnerType];
 
 		// Create runner configuration
 		const runnerConfig = {
@@ -54,8 +75,8 @@ export class ProcedureAnalyzer {
 				"release",
 			] as const,
 			cyrusHome: config.cyrusHome,
-			model: config.model || defaultModel,
-			fallbackModel: defaultFallbackModel,
+			model: config.model || defaults.model,
+			fallbackModel: defaults.fallback,
 			systemPrompt: this.buildAnalysisSystemPrompt(),
 			maxTurns: 1,
 			timeoutMs: config.timeoutMs || 10000,
@@ -65,7 +86,11 @@ export class ProcedureAnalyzer {
 		this.analysisRunner =
 			runnerType === "claude"
 				? new SimpleClaudeRunner(runnerConfig)
-				: new SimpleGeminiRunner(runnerConfig);
+				: runnerType === "gemini"
+					? new SimpleGeminiRunner(runnerConfig)
+					: runnerType === "codex"
+						? new SimpleCodexRunner(runnerConfig)
+						: new SimpleCursorRunner(runnerConfig);
 
 		// Load all predefined procedures from registry
 		this.loadPredefinedProcedures();
@@ -165,7 +190,7 @@ IMPORTANT: Respond with ONLY the classification word, nothing else.`;
 			};
 		} catch (error) {
 			// Fallback to full-development on error
-			console.log("[ProcedureAnalyzer] Error during analysis:", error);
+			this.logger.info("Error during analysis:", error);
 			const fallbackProcedure = this.procedures.get("full-development");
 
 			if (!fallbackProcedure) {
@@ -197,8 +222,8 @@ IMPORTANT: Respond with ONLY the classification word, nothing else.`;
 		const procedure = this.procedures.get(procedureMetadata.procedureName);
 
 		if (!procedure) {
-			console.error(
-				`[ProcedureAnalyzer] Procedure "${procedureMetadata.procedureName}" not found`,
+			this.logger.error(
+				`Procedure "${procedureMetadata.procedureName}" not found`,
 			);
 			return null;
 		}
@@ -280,14 +305,17 @@ IMPORTANT: Respond with ONLY the classification word, nothing else.`;
 
 		if (currentSubroutine) {
 			// Determine which type of session ID this is
-			const isGeminiSession = session.geminiSessionId !== undefined;
+			const isCodexSession = session.codexSessionId !== undefined;
+			const isGeminiSession =
+				!isCodexSession && session.geminiSessionId !== undefined;
 
 			// Record completion with the appropriate session ID
 			procedureMetadata.subroutineHistory.push({
 				subroutine: currentSubroutine.name,
 				completedAt: Date.now(),
-				claudeSessionId: isGeminiSession ? null : sessionId,
+				claudeSessionId: isGeminiSession || isCodexSession ? null : sessionId,
 				geminiSessionId: isGeminiSession ? sessionId : null,
+				codexSessionId: isCodexSession ? sessionId : null,
 				...(result !== undefined && { result }),
 			});
 		}

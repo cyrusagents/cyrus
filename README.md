@@ -17,9 +17,9 @@
 
 [![Discord](https://img.shields.io/discord/1443747721910685792?label=Discord&logo=discord&logoColor=white)](https://discord.gg/prrtADHYTt)
 
-Your Claude Code powered Linear agent. Cyrus monitors Linear issues assigned to it, creates isolated Git worktrees for each issue, runs Claude Code sessions to process them, and streams detailed agent activity updates back to Linear, along with rich interactions like dropdown selects and approvals.
+Your (Claude Code|Codex|Cursor|Gemini) powered (Linear|Github|Slack) agent. Cyrus monitors (Linear|Github) issues assigned to it, creates isolated Git worktrees for each issue, runs (Claude Code|Codex|Cursor|Gemini) sessions to process them, and streams detailed agent activity updates back to (Linear|Github), along with rich interactions like dropdown selects and approvals.
 
-**Note:** Cyrus requires you to bring your own Claude Code keys/billing.
+**Note:** Cyrus requires you to bring your own keys/billing for tokens.
 
 ---
 

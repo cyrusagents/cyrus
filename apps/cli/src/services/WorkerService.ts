@@ -200,11 +200,22 @@ export class WorkerService {
 			defaultDisallowedTools:
 				process.env.DISALLOWED_TOOLS?.split(",").map((t) => t.trim()) ||
 				undefined,
-			// Model configuration: environment variables take precedence over config file
-			defaultModel: process.env.CYRUS_DEFAULT_MODEL || edgeConfig.defaultModel,
-			defaultFallbackModel:
+			// Model configuration: environment variables take precedence over config file.
+			// Legacy env vars/keys are still accepted for backwards compatibility.
+			claudeDefaultModel:
+				process.env.CYRUS_CLAUDE_DEFAULT_MODEL ||
+				process.env.CYRUS_DEFAULT_MODEL ||
+				edgeConfig.claudeDefaultModel ||
+				edgeConfig.defaultModel,
+			claudeDefaultFallbackModel:
+				process.env.CYRUS_CLAUDE_DEFAULT_FALLBACK_MODEL ||
 				process.env.CYRUS_DEFAULT_FALLBACK_MODEL ||
+				edgeConfig.claudeDefaultFallbackModel ||
 				edgeConfig.defaultFallbackModel,
+			geminiDefaultModel:
+				process.env.CYRUS_GEMINI_DEFAULT_MODEL || edgeConfig.geminiDefaultModel,
+			codexDefaultModel:
+				process.env.CYRUS_CODEX_DEFAULT_MODEL || edgeConfig.codexDefaultModel,
 			webhookBaseUrl: process.env.CYRUS_BASE_URL,
 			serverPort: parsePort(process.env.CYRUS_SERVER_PORT, DEFAULT_SERVER_PORT),
 			serverHost: isExternalHost ? "0.0.0.0" : "localhost",

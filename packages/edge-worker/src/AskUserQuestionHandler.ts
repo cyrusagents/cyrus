@@ -20,8 +20,9 @@ import type {
 	AskUserQuestionInput,
 	AskUserQuestionResult,
 	IIssueTrackerService,
+	ILogger,
 } from "cyrus-core";
-import { AgentActivitySignal } from "cyrus-core";
+import { AgentActivitySignal, createLogger } from "cyrus-core";
 
 /**
  * Pending question data stored while awaiting user response
@@ -65,6 +66,7 @@ export interface AskUserQuestionHandlerConfig {
  */
 export class AskUserQuestionHandler {
 	private deps: AskUserQuestionHandlerDeps;
+	private logger: ILogger;
 
 	/**
 	 * Map of agent session ID to pending question data.
@@ -72,8 +74,10 @@ export class AskUserQuestionHandler {
 	 */
 	private pendingQuestions: Map<string, PendingQuestion> = new Map();
 
-	constructor(deps: AskUserQuestionHandlerDeps) {
+	constructor(deps: AskUserQuestionHandlerDeps, logger?: ILogger) {
 		this.deps = deps;
+		this.logger =
+			logger ?? createLogger({ component: "AskUserQuestionHandler" });
 	}
 
 	/**
@@ -98,8 +102,8 @@ export class AskUserQuestionHandler {
 	): Promise<AskUserQuestionResult> {
 		// Validate: only 1 question at a time
 		if (!input.questions || input.questions.length !== 1) {
-			console.error(
-				`[AskUserQuestionHandler] Invalid input: expected exactly 1 question, got ${input.questions?.length ?? 0}`,
+			this.logger.error(
+				`Invalid input: expected exactly 1 question, got ${input.questions?.length ?? 0}`,
 			);
 			return {
 				answered: false,
@@ -109,8 +113,8 @@ export class AskUserQuestionHandler {
 		}
 
 		const question = input.questions[0]!;
-		console.log(
-			`[AskUserQuestionHandler] Handling question for session ${linearAgentSessionId}: ${question.header}`,
+		this.logger.debug(
+			`Handling question for session ${linearAgentSessionId}: ${question.header}`,
 		);
 
 		// Check if already cancelled
@@ -124,8 +128,8 @@ export class AskUserQuestionHandler {
 		// Get issue tracker
 		const issueTracker = this.deps.getIssueTracker(organizationId);
 		if (!issueTracker) {
-			console.error(
-				`[AskUserQuestionHandler] No issue tracker found for organization ${organizationId}`,
+			this.logger.error(
+				`No issue tracker found for organization ${organizationId}`,
 			);
 			return {
 				answered: false,
@@ -135,8 +139,8 @@ export class AskUserQuestionHandler {
 
 		// Check for existing pending question for this session
 		if (this.pendingQuestions.has(linearAgentSessionId)) {
-			console.warn(
-				`[AskUserQuestionHandler] Replacing existing pending question for session ${linearAgentSessionId}`,
+			this.logger.warn(
+				`Replacing existing pending question for session ${linearAgentSessionId}`,
 			);
 			this.cancelPendingQuestion(
 				linearAgentSessionId,
@@ -172,14 +176,12 @@ export class AskUserQuestionHandler {
 				signalMetadata: { options },
 			});
 
-			console.log(
-				`[AskUserQuestionHandler] Posted elicitation with ${options.length} options for session ${linearAgentSessionId}`,
+			this.logger.debug(
+				`Posted elicitation with ${options.length} options for session ${linearAgentSessionId}`,
 			);
 		} catch (error) {
 			const errorMessage = (error as Error).message || String(error);
-			console.error(
-				`[AskUserQuestionHandler] Failed to post elicitation: ${errorMessage}`,
-			);
+			this.logger.error(`Failed to post elicitation: ${errorMessage}`);
 			return {
 				answered: false,
 				message: `Failed to present question to user: ${errorMessage}`,
@@ -191,8 +193,8 @@ export class AskUserQuestionHandler {
 		return new Promise<AskUserQuestionResult>((resolve) => {
 			// Setup abort handler for session cancellation
 			const abortHandler = () => {
-				console.log(
-					`[AskUserQuestionHandler] Question cancelled for session ${linearAgentSessionId}`,
+				this.logger.debug(
+					`Question cancelled for session ${linearAgentSessionId}`,
 				);
 				this.pendingQuestions.delete(linearAgentSessionId);
 				resolve({
@@ -232,14 +234,14 @@ export class AskUserQuestionHandler {
 	): boolean {
 		const pendingQuestion = this.pendingQuestions.get(linearAgentSessionId);
 		if (!pendingQuestion) {
-			console.log(
-				`[AskUserQuestionHandler] No pending question found for session ${linearAgentSessionId}`,
+			this.logger.debug(
+				`No pending question found for session ${linearAgentSessionId}`,
 			);
 			return false;
 		}
 
-		console.log(
-			`[AskUserQuestionHandler] User responded to question for session ${linearAgentSessionId}: ${selectedValue}`,
+		this.logger.debug(
+			`User responded to question for session ${linearAgentSessionId}: ${selectedValue}`,
 		);
 
 		// Build the answers map
@@ -276,8 +278,8 @@ export class AskUserQuestionHandler {
 	cancelPendingQuestion(linearAgentSessionId: string, reason: string): void {
 		const pendingQuestion = this.pendingQuestions.get(linearAgentSessionId);
 		if (pendingQuestion) {
-			console.log(
-				`[AskUserQuestionHandler] Cancelling pending question for session ${linearAgentSessionId}: ${reason}`,
+			this.logger.debug(
+				`Cancelling pending question for session ${linearAgentSessionId}: ${reason}`,
 			);
 			pendingQuestion.resolve({
 				answered: false,

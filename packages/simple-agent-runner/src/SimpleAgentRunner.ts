@@ -1,5 +1,4 @@
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { ISimpleAgentRunner } from "cyrus-core";
+import type { ISimpleAgentRunner, SDKMessage } from "cyrus-core";
 import {
 	InvalidResponseError,
 	SimpleAgentError,

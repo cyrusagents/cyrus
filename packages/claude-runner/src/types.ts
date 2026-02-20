@@ -10,7 +10,7 @@ import type {
 	SDKSystemMessage,
 	SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { OnAskUserQuestion } from "cyrus-core";
+import type { ILogger, OnAskUserQuestion } from "cyrus-core";
 
 export type { OnAskUserQuestion } from "cyrus-core";
 
@@ -36,6 +36,7 @@ export interface ClaudeRunnerConfig {
 	maxTurns?: number; // Maximum number of turns before completing the session
 	tools?: string[]; // Built-in tools available in model context (empty array disables all tools)
 	cyrusHome: string; // Cyrus home directory
+	logger?: ILogger; // Optional logger instance
 	promptVersions?: {
 		// Optional prompt template version information
 		userPromptVersion?: string;

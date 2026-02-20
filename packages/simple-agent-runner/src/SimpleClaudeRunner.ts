@@ -1,5 +1,5 @@
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeRunner } from "cyrus-claude-runner";
+import type { SDKMessage } from "cyrus-core";
 import { NoResponseError, SessionError } from "./errors.js";
 import { SimpleAgentRunner } from "./SimpleAgentRunner.js";
 import type { SimpleAgentQueryOptions } from "./types.js";

@@ -1,0 +1,33 @@
+{
+	"name": "cyrus-mcp-tools",
+	"version": "0.2.21",
+	"description": "Runner-neutral MCP tool servers for Cyrus",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"test": "vitest",
+		"test:run": "vitest run --passWithNoTests",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@linear/sdk": "^64.0.0",
+		"@modelcontextprotocol/sdk": "^1.25.2",
+		"fs-extra": "^11.3.2",
+		"zod": "^4.3.5"
+	},
+	"devDependencies": {
+		"@types/fs-extra": "^11.0.4",
+		"@types/node": "^20.0.0",
+		"typescript": "^5.3.3",
+		"vitest": "^3.1.4"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}

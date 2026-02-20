@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { CloudflareTunnelClient } from "cyrus-cloudflare-tunnel-client";
+import { createLogger, type ILogger } from "cyrus-core";
 import Fastify, { type FastifyInstance } from "fastify";
 
 /**
@@ -50,15 +51,19 @@ export class SharedApplicationServer {
 	private isListening = false;
 	private tunnelClient: CloudflareTunnelClient | null = null;
 	private skipTunnel: boolean;
+	private logger: ILogger;
 
 	constructor(
 		port: number = 3456,
 		host: string = "localhost",
 		skipTunnel: boolean = false,
+		logger?: ILogger,
 	) {
 		this.port = port;
 		this.host = host;
 		this.skipTunnel = skipTunnel;
+		this.logger =
+			logger ?? createLogger({ component: "SharedApplicationServer" });
 	}
 
 	/**
@@ -92,8 +97,8 @@ export class SharedApplicationServer {
 			});
 
 			this.isListening = true;
-			console.log(
-				`🔗 Shared application server listening on http://${this.host}:${this.port}`,
+			this.logger.info(
+				`Shared application server listening on http://${this.host}:${this.port}`,
 			);
 
 			// Start Cloudflare tunnel if CLOUDFLARE_TOKEN is set and tunnel is not skipped
@@ -122,30 +127,30 @@ export class SharedApplicationServer {
 			// Listen for connection events (Cloudflare establishes 4 connections per tunnel)
 			this.tunnelClient.on("connected", () => {
 				connectionCount++;
-				console.log(
-					`🔗 Cloudflare tunnel connection ${connectionCount}/${requiredConnections} established`,
+				this.logger.info(
+					`Cloudflare tunnel connection ${connectionCount}/${requiredConnections} established`,
 				);
 
 				if (connectionCount === requiredConnections) {
-					console.log("✅ Cloudflare tunnel fully connected and ready");
+					this.logger.info("Cloudflare tunnel fully connected and ready");
 					resolve();
 				}
 			});
 
 			// Listen for ready event to get tunnel URL
 			this.tunnelClient.on("ready", (tunnelUrl: string) => {
-				console.log(`🔗 Cloudflare tunnel URL: ${tunnelUrl}`);
+				this.logger.info(`Cloudflare tunnel URL: ${tunnelUrl}`);
 			});
 
 			// Listen for error events
 			this.tunnelClient.on("error", (error: Error) => {
-				console.error("❌ Cloudflare tunnel error:", error);
+				this.logger.error("Cloudflare tunnel error:", error);
 				reject(error);
 			});
 
 			// Listen for disconnect events
 			this.tunnelClient.on("disconnect", (reason: string) => {
-				console.log(`🔗 Cloudflare tunnel disconnected: ${reason}`);
+				this.logger.info(`Cloudflare tunnel disconnected: ${reason}`);
 			});
 
 			// Start the tunnel
@@ -171,8 +176,8 @@ export class SharedApplicationServer {
 		// Reject all pending approvals before shutdown
 		for (const [sessionId, approval] of this.pendingApprovals) {
 			approval.reject(new Error("Server shutting down"));
-			console.log(
-				`🔐 Rejected pending approval for session ${sessionId} due to shutdown`,
+			this.logger.debug(
+				`Rejected pending approval for session ${sessionId} due to shutdown`,
 			);
 		}
 		this.pendingApprovals.clear();
@@ -181,13 +186,13 @@ export class SharedApplicationServer {
 		if (this.tunnelClient) {
 			this.tunnelClient.disconnect();
 			this.tunnelClient = null;
-			console.log("🔗 Cloudflare tunnel stopped");
+			this.logger.info("Cloudflare tunnel stopped");
 		}
 
 		if (this.app && this.isListening) {
 			await this.app.close();
 			this.isListening = false;
-			console.log("🔗 Shared application server stopped");
+			this.logger.info("Shared application server stopped");
 		}
 	}
 
@@ -225,14 +230,14 @@ export class SharedApplicationServer {
 		if (typeof secretOrHandler === "string" && handler) {
 			// ndjson-client style registration
 			this.webhookHandlers.set(token, { secret: secretOrHandler, handler });
-			console.log(
-				`🔗 Registered webhook handler (proxy-style) for token ending in ...${token.slice(-4)}`,
+			this.logger.debug(
+				`Registered webhook handler (proxy-style) for token ending in ...${token.slice(-4)}`,
 			);
 		} else if (typeof secretOrHandler === "function") {
 			// Legacy direct registration
 			this.linearWebhookHandlers.set(token, secretOrHandler);
-			console.log(
-				`🔗 Registered webhook handler (legacy direct-style) for token ending in ...${token.slice(-4)}`,
+			this.logger.debug(
+				`Registered webhook handler (legacy direct-style) for token ending in ...${token.slice(-4)}`,
 			);
 		} else {
 			throw new Error("Invalid webhook handler registration parameters");
@@ -246,8 +251,8 @@ export class SharedApplicationServer {
 		const hadProxyHandler = this.webhookHandlers.delete(token);
 		const hadDirectHandler = this.linearWebhookHandlers.delete(token);
 		if (hadProxyHandler || hadDirectHandler) {
-			console.log(
-				`🔗 Unregistered webhook handler for token ending in ...${token.slice(-4)}`,
+			this.logger.debug(
+				`Unregistered webhook handler for token ending in ...${token.slice(-4)}`,
 			);
 		}
 	}
@@ -282,14 +287,14 @@ export class SharedApplicationServer {
 			if (useDirectOAuth) {
 				// Use local OAuth authorize endpoint
 				authUrl = `${callbackBaseUrl}/oauth/authorize?callback=${encodeURIComponent(`${callbackBaseUrl}/callback`)}`;
-				console.log(`\n🔐 Using direct OAuth mode (CYRUS_HOST_EXTERNAL=true)`);
+				this.logger.info(`Using direct OAuth mode (CYRUS_HOST_EXTERNAL=true)`);
 			} else {
 				// Use proxy OAuth endpoint
 				authUrl = `${proxyUrl}/oauth/authorize?callback=${encodeURIComponent(`${callbackBaseUrl}/callback`)}`;
 			}
 
-			console.log(`\n👉 Opening your browser to authorize with Linear...`);
-			console.log(`If the browser doesn't open, visit: ${authUrl}`);
+			this.logger.info(`Opening your browser to authorize with Linear...`);
+			this.logger.info(`If the browser doesn't open, visit: ${authUrl}`);
 
 			// Timeout after 5 minutes
 			setTimeout(
@@ -349,8 +354,8 @@ export class SharedApplicationServer {
 		// Generate approval URL
 		const url = `http://${this.host}:${this.port}/approval?session=${encodeURIComponent(sessionId)}`;
 
-		console.log(
-			`🔐 Registered approval request for session ${sessionId}: ${url}`,
+		this.logger.debug(
+			`Registered approval request for session ${sessionId}: ${url}`,
 		);
 
 		return { promise, url };

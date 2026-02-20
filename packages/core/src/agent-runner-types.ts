@@ -118,6 +118,11 @@ export type OnAskUserQuestion = (
  * Message Formatter Interface
  *
  * Forward declaration - implemented by each runner (e.g., ClaudeMessageFormatter, GeminiMessageFormatter)
+ *
+ * Formatter output is UI-facing activity content, not model input. These strings
+ * are consumed by the edge worker session pipeline (AgentSessionManager) and then
+ * posted to the issue tracker via `createAgentActivity` for timeline rendering
+ * (for example in Linear agent activity entries).
  */
 export interface IMessageFormatter {
 	/**
@@ -281,6 +286,17 @@ export interface IAgentRunner {
 	 * ```
 	 */
 	completeStream?(): void;
+
+	/**
+	 * Check if the session is in streaming mode and still accepting messages
+	 *
+	 * Returns true only when the session was started with `startStreaming()`,
+	 * the stream has not been completed, and the session is running.
+	 * Use this to guard calls to `addStreamMessage()`.
+	 *
+	 * Only available when `supportsStreamingInput` is true.
+	 */
+	isStreaming?(): boolean;
 
 	/**
 	 * Stop the current agent session

@@ -859,4 +859,47 @@ describe("ConfigService - Skill Migration", () => {
 			'[Migration] Added "Skill" to allowedTools for repository: repo-without-skill',
 		);
 	});
+
+	it("should migrate legacy defaultModel fields to Claude-specific keys", async () => {
+		mockExistsSync.mockReturnValue(true);
+
+		const existingConfig = {
+			repositories: [],
+			defaultModel: "sonnet",
+			defaultFallbackModel: "haiku",
+		};
+		mockReadFileSync.mockReturnValue(JSON.stringify(existingConfig));
+
+		const { ConfigService } = await import("./src/services/ConfigService.js");
+
+		const mockLogger = {
+			info: vi.fn(),
+			error: vi.fn(),
+			warn: vi.fn(),
+			success: vi.fn(),
+			debug: vi.fn(),
+			raw: vi.fn(),
+			divider: vi.fn(),
+		};
+
+		const configService = new ConfigService(
+			"/home/user/.cyrus",
+			mockLogger as any,
+		);
+		const config = configService.load();
+
+		expect(config.claudeDefaultModel).toBe("sonnet");
+		expect(config.claudeDefaultFallbackModel).toBe("haiku");
+		expect((config as any).defaultModel).toBeUndefined();
+		expect((config as any).defaultFallbackModel).toBeUndefined();
+		expect(mockWriteFileSync).toHaveBeenCalled();
+
+		const savedConfig = JSON.parse(
+			mockWriteFileSync.mock.calls[0][1] as string,
+		);
+		expect(savedConfig.claudeDefaultModel).toBe("sonnet");
+		expect(savedConfig.claudeDefaultFallbackModel).toBe("haiku");
+		expect(savedConfig.defaultModel).toBeUndefined();
+		expect(savedConfig.defaultFallbackModel).toBeUndefined();
+	});
 });

@@ -61,6 +61,8 @@ const _mockConsoleError = vi
 // Import after mocks
 import { SelfAuthCommand } from "./SelfAuthCommand.js";
 
+type RouteHandler = (...args: unknown[]) => unknown;
+
 // Mock Application
 const createMockApp = () => ({
 	cyrusHome: "/home/user/.cyrus",
@@ -218,11 +220,11 @@ describe("SelfAuthCommand", () => {
 		});
 
 		it("should open browser with correct OAuth URL", async () => {
-			let routeHandler: Function;
+			let routeHandler: RouteHandler;
 
 			// Capture the route handler when get() is called
 			mocks.mockFastifyInstance.get.mockImplementation(
-				(_path: string, handler: Function) => {
+				(_path: string, handler: RouteHandler) => {
 					routeHandler = handler;
 				},
 			);
@@ -265,11 +267,11 @@ describe("SelfAuthCommand", () => {
 		});
 
 		it("should handle OAuth error response", async () => {
-			let routeHandler: Function;
+			let routeHandler: RouteHandler;
 
 			// Capture the route handler when get() is called
 			mocks.mockFastifyInstance.get.mockImplementation(
-				(_path: string, handler: Function) => {
+				(_path: string, handler: RouteHandler) => {
 					routeHandler = handler;
 				},
 			);
@@ -308,11 +310,11 @@ describe("SelfAuthCommand", () => {
 		});
 
 		it("should exchange code for tokens with correct parameters", async () => {
-			let routeHandler: Function;
+			let routeHandler: RouteHandler;
 
 			// Capture the route handler when get() is called
 			mocks.mockFastifyInstance.get.mockImplementation(
-				(_path: string, handler: Function) => {
+				(_path: string, handler: RouteHandler) => {
 					routeHandler = handler;
 				},
 			);
@@ -359,11 +361,11 @@ describe("SelfAuthCommand", () => {
 		});
 
 		it("should error on invalid access token format", async () => {
-			let routeHandler: Function;
+			let routeHandler: RouteHandler;
 
 			// Capture the route handler when get() is called
 			mocks.mockFastifyInstance.get.mockImplementation(
-				(_path: string, handler: Function) => {
+				(_path: string, handler: RouteHandler) => {
 					routeHandler = handler;
 				},
 			);
@@ -413,9 +415,9 @@ describe("SelfAuthCommand", () => {
 				}),
 			);
 
-			let routeHandler: Function;
+			let routeHandler: RouteHandler;
 			mocks.mockFastifyInstance.get.mockImplementation(
-				(_path: string, handler: Function) => {
+				(_path: string, handler: RouteHandler) => {
 					routeHandler = handler;
 				},
 			);
@@ -481,9 +483,9 @@ describe("SelfAuthCommand", () => {
 				}),
 			);
 
-			let routeHandler: Function;
+			let routeHandler: RouteHandler;
 			mocks.mockFastifyInstance.get.mockImplementation(
-				(_path: string, handler: Function) => {
+				(_path: string, handler: RouteHandler) => {
 					routeHandler = handler;
 				},
 			);

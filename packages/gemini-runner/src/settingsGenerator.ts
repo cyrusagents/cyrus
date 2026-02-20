@@ -11,9 +11,22 @@ import { join } from "node:path";
 import type { McpServerConfig } from "cyrus-core";
 import type { GeminiMcpServerConfig } from "./types.js";
 
-const GEMINI_DIR = join(homedir(), ".gemini");
-const SETTINGS_PATH = join(GEMINI_DIR, "settings.json");
-const BACKUP_PATH = join(GEMINI_DIR, "settings.json.backup");
+interface GeminiSettingsPaths {
+	geminiDir: string;
+	settingsPath: string;
+	backupPath: string;
+}
+
+function resolveGeminiSettingsPaths(projectRoot?: string): GeminiSettingsPaths {
+	const geminiDir = projectRoot
+		? join(projectRoot, ".gemini")
+		: join(homedir(), ".gemini");
+	return {
+		geminiDir,
+		settingsPath: join(geminiDir, "settings.json"),
+		backupPath: join(geminiDir, "settings.json.backup"),
+	};
+}
 
 /**
  * Gemini settings.json structure
@@ -42,7 +55,9 @@ export interface GeminiSettingsOptions {
 
 /**
  * Convert McpServerConfig (cyrus-core format) to GeminiMcpServerConfig (Gemini CLI format)
- * https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/configuration.md
+ * Gemini MCP config reference:
+ * - https://geminicli.com/docs/cli/tutorials/mcp-setup/#how-to-configure-gemini-cli
+ * - https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/configuration.md
  *
  * Gemini CLI supports three transport types:
  * - stdio: command-based (spawns subprocess)
@@ -265,14 +280,15 @@ function generateSettings(options: GeminiSettingsOptions): GeminiSettings {
  * Backup existing settings.json if it exists
  * Returns true if backup was created, false if no file to backup
  */
-export function backupGeminiSettings(): boolean {
-	if (!existsSync(SETTINGS_PATH)) {
+export function backupGeminiSettings(projectRoot?: string): boolean {
+	const { settingsPath, backupPath } = resolveGeminiSettingsPaths(projectRoot);
+	if (!existsSync(settingsPath)) {
 		return false;
 	}
 
 	// Create backup
-	copyFileSync(SETTINGS_PATH, BACKUP_PATH);
-	console.log(`[GeminiRunner] Backed up settings.json to ${BACKUP_PATH}`);
+	copyFileSync(settingsPath, backupPath);
+	console.log(`[GeminiRunner] Backed up settings.json to ${backupPath}`);
 	return true;
 }
 
@@ -280,14 +296,15 @@ export function backupGeminiSettings(): boolean {
  * Restore settings.json from backup
  * Returns true if restored, false if no backup exists
  */
-export function restoreGeminiSettings(): boolean {
-	if (!existsSync(BACKUP_PATH)) {
+export function restoreGeminiSettings(projectRoot?: string): boolean {
+	const { settingsPath, backupPath } = resolveGeminiSettingsPaths(projectRoot);
+	if (!existsSync(backupPath)) {
 		return false;
 	}
 
 	// Restore from backup
-	copyFileSync(BACKUP_PATH, SETTINGS_PATH);
-	unlinkSync(BACKUP_PATH);
+	copyFileSync(backupPath, settingsPath);
+	unlinkSync(backupPath);
 	console.log(`[GeminiRunner] Restored settings.json from backup`);
 	return true;
 }
@@ -295,28 +312,34 @@ export function restoreGeminiSettings(): boolean {
 /**
  * Delete settings.json (used when no backup existed)
  */
-export function deleteGeminiSettings(): void {
-	if (existsSync(SETTINGS_PATH)) {
-		unlinkSync(SETTINGS_PATH);
+export function deleteGeminiSettings(projectRoot?: string): void {
+	const { settingsPath } = resolveGeminiSettingsPaths(projectRoot);
+	if (existsSync(settingsPath)) {
+		unlinkSync(settingsPath);
 		console.log(`[GeminiRunner] Deleted temporary settings.json`);
 	}
 }
 
 /**
  * Write settings.json with specified options
- * Creates ~/.gemini directory if it doesn't exist
+ * Creates project-local .gemini directory if `projectRoot` is set.
+ * Otherwise falls back to ~/.gemini.
  *
  * @param options - Settings options including maxSessionTurns, mcpServers, etc.
  */
-export function writeGeminiSettings(options: GeminiSettingsOptions): void {
-	// Create ~/.gemini directory if it doesn't exist
-	if (!existsSync(GEMINI_DIR)) {
-		mkdirSync(GEMINI_DIR, { recursive: true });
+export function writeGeminiSettings(
+	options: GeminiSettingsOptions,
+	projectRoot?: string,
+): void {
+	const { geminiDir, settingsPath } = resolveGeminiSettingsPaths(projectRoot);
+
+	if (!existsSync(geminiDir)) {
+		mkdirSync(geminiDir, { recursive: true });
 	}
 
 	// Generate and write settings
 	const settings = generateSettings(options);
-	writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), "utf-8");
+	writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
 
 	const parts: string[] = [];
 	if (options.maxSessionTurns !== undefined) {
@@ -338,18 +361,19 @@ export function writeGeminiSettings(options: GeminiSettingsOptions): void {
  */
 export function setupGeminiSettings(
 	options: GeminiSettingsOptions,
+	projectRoot?: string,
 ): () => void {
-	const hadBackup = backupGeminiSettings();
+	const hadBackup = backupGeminiSettings(projectRoot);
 
 	// Write settings
-	writeGeminiSettings(options);
+	writeGeminiSettings(options, projectRoot);
 
 	// Return cleanup function
 	return () => {
 		if (hadBackup) {
-			restoreGeminiSettings();
+			restoreGeminiSettings(projectRoot);
 		} else {
-			deleteGeminiSettings();
+			deleteGeminiSettings(projectRoot);
 		}
 	};
 }

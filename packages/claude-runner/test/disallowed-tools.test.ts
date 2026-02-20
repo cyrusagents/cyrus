@@ -1,4 +1,5 @@
 import * as claudeCode from "@anthropic-ai/claude-agent-sdk";
+import { createLogger, LogLevel } from "cyrus-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClaudeRunner } from "../src/ClaudeRunner";
 import type { ClaudeRunnerConfig } from "../src/types";
@@ -146,6 +147,10 @@ describe("ClaudeRunner - disallowedTools", () => {
 			workingDirectory: "/test",
 			disallowedTools: ["Bash", "SystemAccess", "DangerousTool"],
 			cyrusHome: "/test/cyrus",
+			logger: createLogger({
+				component: "ClaudeRunner",
+				level: LogLevel.DEBUG,
+			}),
 		};
 
 		// Mock the query to capture arguments and return a session ID message
@@ -162,9 +167,9 @@ describe("ClaudeRunner - disallowedTools", () => {
 		const runner = new ClaudeRunner(config);
 		await runner.start("Test");
 
-		// Check that disallowedTools were logged
+		// Check that disallowedTools were logged (now at DEBUG level via logger)
 		expect(consoleSpy).toHaveBeenCalledWith(
-			"[ClaudeRunner] Disallowed tools configured:",
+			"[DEBUG] [ClaudeRunner] Disallowed tools configured:",
 			["Bash", "SystemAccess", "DangerousTool"],
 		);
 

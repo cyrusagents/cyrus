@@ -590,10 +590,10 @@ describe("ClaudeRunner", () => {
 
 			expect(sessionInfo.sessionId).toBe("first-session-id");
 			expect(logSpy).toHaveBeenCalledWith(
-				"[ClaudeRunner] Session ID assigned by Claude: first-session-id",
+				"[INFO ] [ClaudeRunner] Session ID assigned by Claude: first-session-id",
 			);
 			expect(logSpy).not.toHaveBeenCalledWith(
-				"[ClaudeRunner] Session ID assigned by Claude: second-session-id",
+				"[INFO ] [ClaudeRunner] Session ID assigned by Claude: second-session-id",
 			);
 		});
 	});

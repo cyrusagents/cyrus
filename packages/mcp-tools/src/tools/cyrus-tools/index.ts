@@ -1,6 +1,6 @@
 import { basename, extname } from "node:path";
-import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
-import { IssueRelationType, type LinearClient } from "@linear/sdk";
+import { IssueRelationType, LinearClient } from "@linear/sdk";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import fs from "fs-extra";
 import { z } from "zod";
 
@@ -93,40 +93,49 @@ export interface CyrusToolsOptions {
 }
 
 /**
- * Create an SDK MCP server with the inline Cyrus tools
+ * Create a standard MCP SDK server with Cyrus tools.
  */
 export function createCyrusToolsServer(
 	linearClient: LinearClient,
 	options: CyrusToolsOptions = {},
-) {
-	// Create tools with bound linear client
-	const uploadTool = tool(
+): McpServer {
+	const linearClient = new LinearClient({ apiKey: linearApiToken });
+	const server = new McpServer({
+		name: "cyrus-tools",
+		version: "1.0.0",
+	});
+
+	server.registerTool(
 		"linear_upload_file",
-		"Upload a file to Linear. Returns an asset URL that can be used in issue descriptions or comments.",
 		{
-			filePath: z.string().describe("The absolute path to the file to upload"),
-			filename: z
-				.string()
-				.optional()
-				.describe(
-					"The filename to use in Linear (optional, defaults to basename of filePath)",
-				),
-			contentType: z
-				.string()
-				.optional()
-				.describe(
-					"MIME type of the file (optional, auto-detected if not provided)",
-				),
-			makePublic: z
-				.boolean()
-				.optional()
-				.describe(
-					"Whether to make the file publicly accessible (default: false)",
-				),
+			description:
+				"Upload a file to Linear. Returns an asset URL that can be used in issue descriptions or comments.",
+			inputSchema: {
+				filePath: z
+					.string()
+					.describe("The absolute path to the file to upload"),
+				filename: z
+					.string()
+					.optional()
+					.describe(
+						"The filename to use in Linear (optional, defaults to basename of filePath)",
+					),
+				contentType: z
+					.string()
+					.optional()
+					.describe(
+						"MIME type of the file (optional, auto-detected if not provided)",
+					),
+				makePublic: z
+					.boolean()
+					.optional()
+					.describe(
+						"Whether to make the file publicly accessible (default: false)",
+					),
+			},
 		},
 		async ({ filePath, filename, contentType, makePublic }) => {
 			try {
-				// Read file and get stats
 				const stats = await fs.stat(filePath);
 				if (!stats.isFile()) {
 					return {
@@ -147,12 +156,6 @@ export function createCyrusToolsServer(
 				const finalContentType = contentType || getMimeType(finalFilename);
 				const size = stats.size;
 
-				// Step 1: Request upload URL from Linear
-				console.log(
-					`Requesting upload URL for ${finalFilename} (${size} bytes, ${finalContentType})`,
-				);
-
-				// Use LinearClient's fileUpload method directly
 				const uploadPayload = await linearClient.fileUpload(
 					finalContentType,
 					finalFilename,
@@ -175,23 +178,14 @@ export function createCyrusToolsServer(
 				}
 
 				const { uploadUrl, headers, assetUrl } = uploadPayload.uploadFile;
-
-				// Step 2: Upload the file to the provided URL
-				console.log(`Uploading file to Linear cloud storage...`);
-
-				// Create headers following Linear's documentation exactly
 				const uploadHeaders: Record<string, string> = {
 					"Content-Type": finalContentType,
 					"Cache-Control": "public, max-age=31536000",
 				};
 
-				// Then add the headers from Linear's response
-				// These override any defaults we set above
 				for (const header of headers) {
 					uploadHeaders[header.key] = header.value;
 				}
-
-				console.log(`Headers being sent:`, uploadHeaders);
 
 				const uploadResponse = await fetch(uploadUrl, {
 					method: "PUT",
@@ -214,9 +208,6 @@ export function createCyrusToolsServer(
 					};
 				}
 
-				console.log(`File uploaded successfully: ${assetUrl}`);
-
-				// Return the asset URL and metadata
 				return {
 					content: [
 						{
@@ -247,26 +238,27 @@ export function createCyrusToolsServer(
 		},
 	);
 
-	const agentSessionTool = tool(
+	server.registerTool(
 		"linear_agent_session_create",
-		"Create an agent session on a Linear issue to track AI/bot activity.",
 		{
-			issueId: z
-				.string()
-				.describe(
-					'The ID or identifier of the Linear issue (e.g., "ABC-123" or UUID)',
-				),
-			externalLink: z
-				.string()
-				.optional()
-				.describe(
-					"Optional URL of an external agent-hosted page associated with this session",
-				),
+			description:
+				"Create an agent session on a Linear issue to track AI/bot activity.",
+			inputSchema: {
+				issueId: z
+					.string()
+					.describe(
+						'The ID or identifier of the Linear issue (e.g., "ABC-123" or UUID)',
+					),
+				externalLink: z
+					.string()
+					.optional()
+					.describe(
+						"Optional URL of an external agent-hosted page associated with this session",
+					),
+			},
 		},
 		async ({ issueId, externalLink }) => {
 			try {
-				// Use raw GraphQL through the Linear client
-				// Access the underlying GraphQL client
 				const graphQLClient = (linearClient as any).client;
 
 				const mutation = `
@@ -288,10 +280,7 @@ export function createCyrusToolsServer(
 					},
 				};
 
-				console.log(`Creating agent session for issue ${issueId}`);
-
 				const response = await graphQLClient.rawRequest(mutation, variables);
-
 				const result = response.data.agentSessionCreateOnIssue;
 
 				if (!result.success) {
@@ -309,13 +298,7 @@ export function createCyrusToolsServer(
 				}
 
 				const agentSessionId = result.agentSession.id;
-				console.log(`Agent session created successfully: ${agentSessionId}`);
-
-				// Register the child-to-parent mapping if we have a parent session
 				if (options.parentSessionId && options.onSessionCreated) {
-					console.log(
-						`[CyrusTools] Mapping child session ${agentSessionId} to parent ${options.parentSessionId}`,
-					);
 					options.onSessionCreated(agentSessionId, options.parentSessionId);
 				}
 
@@ -347,26 +330,27 @@ export function createCyrusToolsServer(
 		},
 	);
 
-	const agentSessionOnCommentTool = tool(
+	server.registerTool(
 		"linear_agent_session_create_on_comment",
-		"Create an agent session on a Linear root comment (not a reply) to trigger a sub-agent for processing child issues or tasks. See Linear API docs: https://studio.apollographql.com/public/Linear-API/variant/current/schema/reference/inputs/AgentSessionCreateOnComment",
 		{
-			commentId: z
-				.string()
-				.describe(
-					"The ID of the Linear root comment (not a reply) to create the session on",
-				),
-			externalLink: z
-				.string()
-				.optional()
-				.describe(
-					"Optional URL of an external agent-hosted page associated with this session",
-				),
+			description:
+				"Create an agent session on a Linear root comment (not a reply) to trigger a sub-agent for processing child issues or tasks. See Linear API docs: https://studio.apollographql.com/public/Linear-API/variant/current/schema/reference/inputs/AgentSessionCreateOnComment",
+			inputSchema: {
+				commentId: z
+					.string()
+					.describe(
+						"The ID of the Linear root comment (not a reply) to create the session on",
+					),
+				externalLink: z
+					.string()
+					.optional()
+					.describe(
+						"Optional URL of an external agent-hosted page associated with this session",
+					),
+			},
 		},
 		async ({ commentId, externalLink }) => {
 			try {
-				// Use raw GraphQL through the Linear client
-				// Access the underlying GraphQL client
 				const graphQLClient = (linearClient as any).client;
 
 				const mutation = `
@@ -388,10 +372,7 @@ export function createCyrusToolsServer(
 					},
 				};
 
-				console.log(`Creating agent session for comment ${commentId}`);
-
 				const response = await graphQLClient.rawRequest(mutation, variables);
-
 				const result = response.data.agentSessionCreateOnComment;
 
 				if (!result.success) {
@@ -409,15 +390,7 @@ export function createCyrusToolsServer(
 				}
 
 				const agentSessionId = result.agentSession.id;
-				console.log(
-					`Agent session created successfully on comment: ${agentSessionId}`,
-				);
-
-				// Register the child-to-parent mapping if we have a parent session
 				if (options.parentSessionId && options.onSessionCreated) {
-					console.log(
-						`[CyrusTools] Mapping child session ${agentSessionId} to parent ${options.parentSessionId}`,
-					);
 					options.onSessionCreated(agentSessionId, options.parentSessionId);
 				}
 
@@ -449,19 +422,21 @@ export function createCyrusToolsServer(
 		},
 	);
 
-	const giveFeedbackTool = tool(
+	server.registerTool(
 		"linear_agent_give_feedback",
-		"Provide feedback to a child agent session to continue its processing.",
 		{
-			agentSessionId: z
-				.string()
-				.describe("The ID of the child agent session to provide feedback to"),
-			message: z
-				.string()
-				.describe("The feedback message to send to the child agent session"),
+			description:
+				"Provide feedback to a child agent session to continue its processing.",
+			inputSchema: {
+				agentSessionId: z
+					.string()
+					.describe("The ID of the child agent session to provide feedback to"),
+				message: z
+					.string()
+					.describe("The feedback message to send to the child agent session"),
+			},
 		},
 		async ({ agentSessionId, message }) => {
-			// Validate parameters
 			if (!agentSessionId) {
 				return {
 					content: [
@@ -490,31 +465,14 @@ export function createCyrusToolsServer(
 				};
 			}
 
-			// Deliver the feedback through the callback if provided
 			if (options.onFeedbackDelivery) {
-				console.log(
-					`[CyrusTools] Delivering feedback to child session ${agentSessionId}`,
-				);
 				try {
-					const delivered = await options.onFeedbackDelivery(
-						agentSessionId,
-						message,
-					);
-					if (delivered) {
-						console.log(
-							`[CyrusTools] Feedback delivered successfully to parent session`,
-						);
-					} else {
-						console.log(
-							`[CyrusTools] No parent session found for child ${agentSessionId}`,
-						);
-					}
+					await options.onFeedbackDelivery(agentSessionId, message);
 				} catch (error) {
-					console.error(`[CyrusTools] Failed to deliver feedback:`, error);
+					console.error("[CyrusTools] Failed to deliver feedback:", error);
 				}
 			}
 
-			// Return success - feedback has been queued for delivery
 			return {
 				content: [
 					{
@@ -528,33 +486,31 @@ export function createCyrusToolsServer(
 		},
 	);
 
-	const setIssueRelationTool = tool(
+	server.registerTool(
 		"linear_set_issue_relation",
-		"Create a relationship between two Linear issues. Use this to set 'blocks', 'related', or 'duplicate' relationships. For Graphite stacking workflows, use 'blocks' type where the blocking issue is the one that must be completed first.",
 		{
-			issueId: z
-				.string()
-				.describe(
-					"The BLOCKING issue (the one that must complete first). For 'blocks' type: this issue blocks relatedIssueId. Example: 'PROJ-123' or UUID",
-				),
-			relatedIssueId: z
-				.string()
-				.describe(
-					"The BLOCKED issue (the one that depends on issueId). For 'blocks' type: this issue is blocked by issueId. Example: 'PROJ-124' or UUID",
-				),
-			type: z
-				.enum(["blocks", "related", "duplicate"])
-				.describe(
-					"The type of relation: 'blocks' (issueId blocks relatedIssueId - use for Graphite stacking), 'related' (issues are related), 'duplicate' (issueId is a duplicate of relatedIssue)",
-				),
+			description:
+				"Create a relationship between two Linear issues. Use this to set 'blocks', 'related', or 'duplicate' relationships. For Graphite stacking workflows, use 'blocks' type where the blocking issue is the one that must be completed first.",
+			inputSchema: {
+				issueId: z
+					.string()
+					.describe(
+						"The BLOCKING issue (the one that must complete first). For 'blocks' type: this issue blocks relatedIssueId. Example: 'PROJ-123' or UUID",
+					),
+				relatedIssueId: z
+					.string()
+					.describe(
+						"The BLOCKED issue (the one that depends on issueId). For 'blocks' type: this issue is blocked by issueId. Example: 'PROJ-124' or UUID",
+					),
+				type: z
+					.enum(["blocks", "related", "duplicate"])
+					.describe(
+						"The type of relation: 'blocks' (issueId blocks relatedIssueId - use for Graphite stacking), 'related' (issues are related), 'duplicate' (issueId is a duplicate of relatedIssue)",
+					),
+			},
 		},
 		async ({ issueId, relatedIssueId, type }) => {
 			try {
-				console.log(
-					`Creating ${type} relation: ${issueId} -> ${relatedIssueId} (${issueId} blocks ${relatedIssueId})`,
-				);
-
-				// Resolve issue identifiers to UUIDs if needed
 				const issue = await linearClient.issue(issueId);
 				const relatedIssue = await linearClient.issue(relatedIssueId);
 
@@ -586,7 +542,6 @@ export function createCyrusToolsServer(
 					};
 				}
 
-				// Map string type to IssueRelationType enum
 				const relationTypeMap: Record<
 					"blocks" | "related" | "duplicate",
 					IssueRelationType
@@ -597,7 +552,6 @@ export function createCyrusToolsServer(
 				};
 				const relationType = relationTypeMap[type];
 
-				// Create the issue relation
 				const result = await linearClient.createIssueRelation({
 					issueId: issue.id,
 					relatedIssueId: relatedIssue.id,
@@ -605,10 +559,6 @@ export function createCyrusToolsServer(
 				});
 
 				const relation = await result.issueRelation;
-
-				console.log(
-					`Created ${type} relation: ${issue.identifier} ${type} ${relatedIssue.identifier}`,
-				);
 
 				return {
 					content: [
@@ -623,7 +573,6 @@ export function createCyrusToolsServer(
 					],
 				};
 			} catch (error) {
-				console.error(`Error creating issue relation for ${issueId}:`, error);
 				return {
 					content: [
 						{
@@ -639,29 +588,36 @@ export function createCyrusToolsServer(
 		},
 	);
 
-	const getChildIssuesTool = tool(
+	server.registerTool(
 		"linear_get_child_issues",
-		"Get all child issues (sub-issues) for a given Linear issue. Takes an issue identifier like 'CYHOST-91' and returns a list of child issue ids and their titles.",
 		{
-			issueId: z
-				.string()
-				.describe(
-					"The ID or identifier of the parent issue (e.g., 'CYHOST-91' or UUID)",
-				),
-			limit: z
-				.number()
-				.optional()
-				.describe(
-					"Maximum number of child issues to return (default: 50, max: 250)",
-				),
-			includeCompleted: z
-				.boolean()
-				.optional()
-				.describe("Whether to include completed child issues (default: true)"),
-			includeArchived: z
-				.boolean()
-				.optional()
-				.describe("Whether to include archived child issues (default: false)"),
+			description:
+				"Get all child issues (sub-issues) for a given Linear issue. Takes an issue identifier like 'CYHOST-91' and returns a list of child issue ids and their titles.",
+			inputSchema: {
+				issueId: z
+					.string()
+					.describe(
+						"The ID or identifier of the parent issue (e.g., 'CYHOST-91' or UUID)",
+					),
+				limit: z
+					.number()
+					.optional()
+					.describe(
+						"Maximum number of child issues to return (default: 50, max: 250)",
+					),
+				includeCompleted: z
+					.boolean()
+					.optional()
+					.describe(
+						"Whether to include completed child issues (default: true)",
+					),
+				includeArchived: z
+					.boolean()
+					.optional()
+					.describe(
+						"Whether to include archived child issues (default: false)",
+					),
+			},
 		},
 		async ({
 			issueId,
@@ -670,14 +626,7 @@ export function createCyrusToolsServer(
 			includeArchived = false,
 		}) => {
 			try {
-				// Validate and clamp limit
 				const finalLimit = Math.min(Math.max(1, limit), 250);
-
-				console.log(
-					`Getting child issues for ${issueId} (limit: ${finalLimit})`,
-				);
-
-				// Fetch the parent issue first
 				const issue = await linearClient.issue(issueId);
 
 				if (!issue) {
@@ -694,27 +643,20 @@ export function createCyrusToolsServer(
 					};
 				}
 
-				// Build the filter for child issues
 				const filter: any = {};
-
 				if (!includeCompleted) {
 					filter.state = { type: { neq: "completed" } };
 				}
-
 				if (!includeArchived) {
 					filter.archivedAt = { null: true };
 				}
 
-				// Get child issues using the children() method
 				const childrenConnection = await issue.children({
 					first: finalLimit,
 					...(Object.keys(filter).length > 0 && { filter }),
 				});
-
-				// Extract the child issues from the connection
 				const children = await childrenConnection.nodes;
 
-				// Process each child to get detailed information
 				const childrenData = await Promise.all(
 					children.map(async (child) => {
 						const [state, assignee] = await Promise.all([
@@ -740,8 +682,6 @@ export function createCyrusToolsServer(
 					}),
 				);
 
-				console.log(`Found ${childrenData.length} child issues for ${issueId}`);
-
 				return {
 					content: [
 						{
@@ -765,7 +705,6 @@ export function createCyrusToolsServer(
 					],
 				};
 			} catch (error) {
-				console.error(`Error getting child issues for ${issueId}:`, error);
 				return {
 					content: [
 						{
@@ -781,40 +720,43 @@ export function createCyrusToolsServer(
 		},
 	);
 
-	const getAgentSessionsTool = tool(
+	server.registerTool(
 		"linear_get_agent_sessions",
-		"Get all agent sessions. Returns a paginated list of agent sessions with their details including status, timestamps, and associated issues.",
 		{
-			first: z
-				.number()
-				.optional()
-				.describe(
-					"Number of items to fetch from the beginning (default: 50, max: 250)",
-				),
-			after: z
-				.string()
-				.optional()
-				.describe("Cursor to start fetching items after"),
-			before: z
-				.string()
-				.optional()
-				.describe("Cursor to start fetching items before"),
-			last: z
-				.number()
-				.optional()
-				.describe("Number of items to fetch from the end"),
-			includeArchived: z
-				.boolean()
-				.optional()
-				.describe(
-					"Whether to include archived agent sessions (default: false)",
-				),
-			orderBy: z
-				.enum(["createdAt", "updatedAt"])
-				.optional()
-				.describe(
-					"Field to order results by (default: updatedAt). Can be 'createdAt' or 'updatedAt'",
-				),
+			description:
+				"Get all agent sessions. Returns a paginated list of agent sessions with their details including status, timestamps, and associated issues.",
+			inputSchema: {
+				first: z
+					.number()
+					.optional()
+					.describe(
+						"Number of items to fetch from the beginning (default: 50, max: 250)",
+					),
+				after: z
+					.string()
+					.optional()
+					.describe("Cursor to start fetching items after"),
+				before: z
+					.string()
+					.optional()
+					.describe("Cursor to start fetching items before"),
+				last: z
+					.number()
+					.optional()
+					.describe("Number of items to fetch from the end"),
+				includeArchived: z
+					.boolean()
+					.optional()
+					.describe(
+						"Whether to include archived agent sessions (default: false)",
+					),
+				orderBy: z
+					.enum(["createdAt", "updatedAt"])
+					.optional()
+					.describe(
+						"Field to order results by (default: updatedAt). Can be 'createdAt' or 'updatedAt'",
+					),
+			},
 		},
 		async ({
 			first = 50,
@@ -825,22 +767,11 @@ export function createCyrusToolsServer(
 			orderBy,
 		}) => {
 			try {
-				// Validate and clamp first/last
 				const finalFirst = first
 					? Math.min(Math.max(1, first), 250)
 					: undefined;
 				const finalLast = last ? Math.min(Math.max(1, last), 250) : undefined;
 
-				console.log("Fetching agent sessions with params:", {
-					first: finalFirst,
-					after,
-					before,
-					last: finalLast,
-					includeArchived,
-					orderBy,
-				});
-
-				// Build variables for the query
 				const variables: any = {};
 				if (finalFirst !== undefined) variables.first = finalFirst;
 				if (after) variables.after = after;
@@ -850,11 +781,9 @@ export function createCyrusToolsServer(
 					variables.includeArchived = includeArchived;
 				if (orderBy) variables.orderBy = orderBy;
 
-				// Fetch agent sessions using the Linear SDK
 				const sessionsConnection = await linearClient.agentSessions(variables);
 				const sessions = await sessionsConnection.nodes;
 
-				// Process each session to get detailed information
 				const sessionsData = sessions.map((session) => ({
 					id: session.id,
 					createdAt: session.createdAt.toISOString(),
@@ -870,8 +799,6 @@ export function createCyrusToolsServer(
 				}));
 
 				const pageInfo = await sessionsConnection.pageInfo;
-
-				console.log(`Found ${sessionsData.length} agent sessions`);
 
 				return {
 					content: [
@@ -896,7 +823,6 @@ export function createCyrusToolsServer(
 					],
 				};
 			} catch (error) {
-				console.error("Error fetching agent sessions:", error);
 				return {
 					content: [
 						{
@@ -912,19 +838,19 @@ export function createCyrusToolsServer(
 		},
 	);
 
-	const getAgentSessionTool = tool(
+	server.registerTool(
 		"linear_get_agent_session",
-		"Get a single agent session by ID. Returns detailed information about the agent session including its status, timestamps, associated issue, and metadata.",
 		{
-			sessionId: z
-				.string()
-				.describe("The ID of the agent session to retrieve (UUID)"),
+			description:
+				"Get a single agent session by ID. Returns detailed information about the agent session including its status, timestamps, associated issue, and metadata.",
+			inputSchema: {
+				sessionId: z
+					.string()
+					.describe("The ID of the agent session to retrieve (UUID)"),
+			},
 		},
 		async ({ sessionId }) => {
 			try {
-				console.log(`Fetching agent session: ${sessionId}`);
-
-				// Fetch the agent session using the Linear SDK
 				const session = await linearClient.agentSession(sessionId);
 
 				if (!session) {
@@ -941,7 +867,6 @@ export function createCyrusToolsServer(
 					};
 				}
 
-				// Get related entities
 				const [issue, creator, appUser, comment, sourceComment, dismissedBy] =
 					await Promise.all([
 						session.issue,
@@ -1012,8 +937,6 @@ export function createCyrusToolsServer(
 						: null,
 				};
 
-				console.log(`Successfully fetched agent session: ${sessionId}`);
-
 				return {
 					content: [
 						{
@@ -1030,7 +953,6 @@ export function createCyrusToolsServer(
 					],
 				};
 			} catch (error) {
-				console.error(`Error fetching agent session ${sessionId}:`, error);
 				return {
 					content: [
 						{
@@ -1046,18 +968,5 @@ export function createCyrusToolsServer(
 		},
 	);
 
-	return createSdkMcpServer({
-		name: "cyrus-tools",
-		version: "1.0.0",
-		tools: [
-			uploadTool,
-			agentSessionTool,
-			agentSessionOnCommentTool,
-			giveFeedbackTool,
-			setIssueRelationTool,
-			getChildIssuesTool,
-			getAgentSessionsTool,
-			getAgentSessionTool,
-		],
-	});
+	return server;
 }

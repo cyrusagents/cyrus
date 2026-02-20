@@ -115,7 +115,11 @@ export class SelfAddRepoCommand extends BaseCommand {
 			}
 
 			// Check for duplicate
-			if (config.repositories.some((r) => r.name === repoName)) {
+			if (
+				config.repositories.some(
+					(r: EdgeConfig["repositories"][number]) => r.name === repoName,
+				)
+			) {
 				this.logError(`Repository '${repoName}' already exists in config`);
 				process.exit(1);
 			}

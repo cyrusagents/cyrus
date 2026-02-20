@@ -1,4 +1,4 @@
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { SDKMessage } from "cyrus-core";
 
 /**
  * Error codes for SimpleAgentRunner operations

@@ -48,22 +48,39 @@ export async function handleCyrusConfig(
 		const { restartCyrus, backupConfig, ...edgeConfig } = payload;
 
 		// Process repositories to apply defaults
-		const repositories = edgeConfig.repositories.map((repo) => {
-			return {
-				...repo,
-				// Set workspaceBaseDir (use provided or default to ~/.cyrus/workspaces)
-				workspaceBaseDir:
-					repo.workspaceBaseDir || join(cyrusHome, "workspaces"),
-				// Set isActive (defaults to true)
-				isActive: repo.isActive !== false,
-				// Ensure teamKeys is always an array
-				teamKeys: repo.teamKeys || [],
-			};
-		});
+		const repositories = edgeConfig.repositories.map(
+			(repo: CyrusConfigPayload["repositories"][number]) => {
+				return {
+					...repo,
+					// Set workspaceBaseDir (use provided or default to ~/.cyrus/workspaces)
+					workspaceBaseDir:
+						repo.workspaceBaseDir || join(cyrusHome, "workspaces"),
+					// Set isActive (defaults to true)
+					isActive: repo.isActive !== false,
+					// Ensure teamKeys is always an array
+					teamKeys: repo.teamKeys || [],
+				};
+			},
+		);
+
+		// Backwards compatibility: migrate legacy global model keys to Claude-specific keys
+		const normalizedEdgeConfig = {
+			...edgeConfig,
+			claudeDefaultModel:
+				edgeConfig.claudeDefaultModel || edgeConfig.defaultModel,
+			claudeDefaultFallbackModel:
+				edgeConfig.claudeDefaultFallbackModel ||
+				edgeConfig.defaultFallbackModel,
+		} as EdgeConfig & {
+			defaultModel?: string;
+			defaultFallbackModel?: string;
+		};
+		delete normalizedEdgeConfig.defaultModel;
+		delete normalizedEdgeConfig.defaultFallbackModel;
 
 		// Build complete config by spreading EdgeConfig fields and overriding repositories
 		const config: EdgeConfig = {
-			...edgeConfig,
+			...normalizedEdgeConfig,
 			repositories,
 		};
 

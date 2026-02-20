@@ -1,29 +1,25 @@
 import type { SDKSystemMessage } from "cyrus-claude-runner";
-import type { IIssueTrackerService } from "cyrus-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
+import type { IActivitySink } from "../src/sinks/IActivitySink";
 
 describe("AgentSessionManager - Model Notification", () => {
 	let manager: AgentSessionManager;
-	let mockIssueTracker: IIssueTrackerService;
-	let createAgentActivitySpy: any;
+	let mockActivitySink: IActivitySink;
+	let postActivitySpy: any;
 	const sessionId = "test-session-123";
 	const issueId = "issue-123";
 
 	beforeEach(() => {
-		// Create mock IIssueTrackerService
-		mockIssueTracker = {
-			createAgentActivity: vi.fn().mockResolvedValue({
-				success: true,
-				agentActivity: Promise.resolve({ id: "activity-123" }),
-			}),
-			fetchIssue: vi.fn(),
-			getIssueLabels: vi.fn().mockResolvedValue([]),
-		} as any;
+		mockActivitySink = {
+			id: "test-workspace",
+			postActivity: vi.fn().mockResolvedValue({ activityId: "activity-123" }),
+			createAgentSession: vi.fn().mockResolvedValue("session-123"),
+		};
 
-		createAgentActivitySpy = vi.spyOn(mockIssueTracker, "createAgentActivity");
+		postActivitySpy = vi.spyOn(mockActivitySink, "postActivity");
 
-		manager = new AgentSessionManager(mockIssueTracker);
+		manager = new AgentSessionManager(mockActivitySink);
 
 		// Create a test session
 		manager.createLinearAgentSession(
@@ -58,22 +54,18 @@ describe("AgentSessionManager - Model Notification", () => {
 		// Handle the system message
 		await manager.handleClaudeMessage(sessionId, systemMessage);
 
-		// Verify that createAgentActivity was called twice:
-		// 1. First for any other activities
-		// 2. Second for the model notification
-		const modelNotificationCall = createAgentActivitySpy.mock.calls.find(
+		// Verify that postActivity was called with model notification
+		// postActivity(sessionId, content, options)
+		const modelNotificationCall = postActivitySpy.mock.calls.find(
 			(call: any) =>
-				call[0].content.type === "thought" &&
-				call[0].content.body.includes("Using model:"),
+				call[1].type === "thought" && call[1].body.includes("Using model:"),
 		);
 
 		expect(modelNotificationCall).toBeTruthy();
-		expect(modelNotificationCall[0]).toEqual({
-			agentSessionId: sessionId,
-			content: {
-				type: "thought",
-				body: "Using model: claude-3-opus-20240229",
-			},
+		expect(modelNotificationCall[0]).toBe(sessionId);
+		expect(modelNotificationCall[1]).toEqual({
+			type: "thought",
+			body: "Using model: claude-3-opus-20240229",
 		});
 	});
 
@@ -93,10 +85,9 @@ describe("AgentSessionManager - Model Notification", () => {
 		await manager.handleClaudeMessage(sessionId, systemMessage);
 
 		// Verify that no model notification was posted
-		const modelNotificationCall = createAgentActivitySpy.mock.calls.find(
+		const modelNotificationCall = postActivitySpy.mock.calls.find(
 			(call: any) =>
-				call[0].content.type === "thought" &&
-				call[0].content.body.includes("Using model:"),
+				call[1]?.type === "thought" && call[1]?.body?.includes("Using model:"),
 		);
 
 		expect(modelNotificationCall).toBeFalsy();
@@ -124,11 +115,8 @@ describe("AgentSessionManager - Model Notification", () => {
 	});
 
 	it("should handle error when posting model notification fails", async () => {
-		// Mock createAgentActivity to fail
-		createAgentActivitySpy.mockResolvedValueOnce({
-			success: false,
-			error: "Failed to create activity",
-		});
+		// Mock postActivity to throw
+		postActivitySpy.mockRejectedValueOnce(new Error("Failed to post"));
 
 		// Spy on console.error
 		const consoleErrorSpy = vi
@@ -151,8 +139,8 @@ describe("AgentSessionManager - Model Notification", () => {
 
 		// Verify error was logged
 		expect(consoleErrorSpy).toHaveBeenCalledWith(
-			"[AgentSessionManager] Failed to post model notification:",
-			expect.objectContaining({ success: false }),
+			expect.stringContaining("Error creating model notification:"),
+			expect.any(Error),
 		);
 
 		// Clean up

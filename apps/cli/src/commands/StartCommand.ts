@@ -1,4 +1,5 @@
 import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
+import type { EdgeConfig } from "cyrus-core";
 import { BaseCommand } from "./ICommand.js";
 
 /**
@@ -63,7 +64,7 @@ export class StartCommand extends BaseCommand {
 			}
 
 			this.logger.info(`\n📦 Managing ${repositories.length} repositories:`);
-			repositories.forEach((repo) => {
+			repositories.forEach((repo: EdgeConfig["repositories"][number]) => {
 				this.logger.info(`   • ${repo.name} (${repo.repositoryPath})`);
 			});
 			this.logger.divider(70);

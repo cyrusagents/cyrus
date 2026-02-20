@@ -2,7 +2,9 @@ import {
 	AgentActivitySignal,
 	type AgentSessionCreatedWebhook,
 	type AgentSessionPromptedWebhook,
+	createLogger,
 	type IIssueTrackerService,
+	type ILogger,
 	type RepositoryConfig,
 	type Webhook,
 } from "cyrus-core";
@@ -70,7 +72,14 @@ export class RepositoryRouter {
 	/** Pending repository selections awaiting user response */
 	private pendingSelections = new Map<string, PendingRepositorySelection>();
 
-	constructor(private deps: RepositoryRouterDeps) {}
+	private logger: ILogger;
+
+	constructor(
+		private deps: RepositoryRouterDeps,
+		logger?: ILogger,
+	) {
+		this.logger = logger ?? createLogger({ component: "RepositoryRouter" });
+	}
 
 	/**
 	 * Get cached repository for an issue
@@ -89,24 +98,22 @@ export class RepositoryRouter {
 	): RepositoryConfig | null {
 		const cachedRepositoryId = this.issueRepositoryCache.get(issueId);
 		if (!cachedRepositoryId) {
-			console.log(
-				`[RepositoryRouter] No cached repository found for issue ${issueId}`,
-			);
+			this.logger.debug(`No cached repository found for issue ${issueId}`);
 			return null;
 		}
 
 		const cachedRepository = repositoriesMap.get(cachedRepositoryId);
 		if (!cachedRepository) {
 			// Repository no longer exists, remove from cache
-			console.warn(
-				`[RepositoryRouter] Cached repository ${cachedRepositoryId} no longer exists, removing from cache`,
+			this.logger.warn(
+				`Cached repository ${cachedRepositoryId} no longer exists, removing from cache`,
 			);
 			this.issueRepositoryCache.delete(issueId);
 			return null;
 		}
 
-		console.log(
-			`[RepositoryRouter] Using cached repository ${cachedRepository.name} for issue ${issueId}`,
+		this.logger.debug(
+			`Using cached repository ${cachedRepository.name} for issue ${issueId}`,
 		);
 		return cachedRepository;
 	}
@@ -144,8 +151,8 @@ export class RepositoryRouter {
 		if (issueId) {
 			for (const repo of repos) {
 				if (this.deps.hasActiveSession(issueId, repo.id)) {
-					console.log(
-						`[RepositoryRouter] Repository selected: ${repo.name} (existing active session)`,
+					this.logger.info(
+						`Repository selected: ${repo.name} (existing active session)`,
 					);
 					return {
 						type: "selected",
@@ -169,8 +176,8 @@ export class RepositoryRouter {
 			workspaceId,
 		);
 		if (descriptionTagRepo) {
-			console.log(
-				`[RepositoryRouter] Repository selected: ${descriptionTagRepo.name} (description-tag routing)`,
+			this.logger.info(
+				`Repository selected: ${descriptionTagRepo.name} (description-tag routing)`,
 			);
 			return {
 				type: "selected",
@@ -186,8 +193,8 @@ export class RepositoryRouter {
 			workspaceId,
 		);
 		if (labelMatchedRepo) {
-			console.log(
-				`[RepositoryRouter] Repository selected: ${labelMatchedRepo.name} (label-based routing)`,
+			this.logger.info(
+				`Repository selected: ${labelMatchedRepo.name} (label-based routing)`,
 			);
 			return {
 				type: "selected",
@@ -204,8 +211,8 @@ export class RepositoryRouter {
 				workspaceId,
 			);
 			if (projectMatchedRepo) {
-				console.log(
-					`[RepositoryRouter] Repository selected: ${projectMatchedRepo.name} (project-based routing)`,
+				this.logger.info(
+					`Repository selected: ${projectMatchedRepo.name} (project-based routing)`,
 				);
 				return {
 					type: "selected",
@@ -222,8 +229,8 @@ export class RepositoryRouter {
 				workspaceRepos,
 			);
 			if (teamMatchedRepo) {
-				console.log(
-					`[RepositoryRouter] Repository selected: ${teamMatchedRepo.name} (team-based routing)`,
+				this.logger.info(
+					`Repository selected: ${teamMatchedRepo.name} (team-based routing)`,
 				);
 				return {
 					type: "selected",
@@ -240,8 +247,8 @@ export class RepositoryRouter {
 			if (prefix) {
 				const repo = this.findRepositoryByTeamKey(prefix, workspaceRepos);
 				if (repo) {
-					console.log(
-						`[RepositoryRouter] Repository selected: ${repo.name} (team prefix routing)`,
+					this.logger.info(
+						`Repository selected: ${repo.name} (team prefix routing)`,
 					);
 					return {
 						type: "selected",
@@ -262,8 +269,8 @@ export class RepositoryRouter {
 		);
 
 		if (catchAllRepo) {
-			console.log(
-				`[RepositoryRouter] Repository selected: ${catchAllRepo.name} (workspace catch-all)`,
+			this.logger.info(
+				`Repository selected: ${catchAllRepo.name} (workspace catch-all)`,
 			);
 			return {
 				type: "selected",
@@ -274,8 +281,8 @@ export class RepositoryRouter {
 
 		// Multiple repositories with no routing match - request user selection
 		if (workspaceRepos.length > 1) {
-			console.log(
-				`[RepositoryRouter] Multiple repositories (${workspaceRepos.length}) found with no routing match - requesting user selection`,
+			this.logger.info(
+				`Multiple repositories (${workspaceRepos.length}) found with no routing match - requesting user selection`,
 			);
 			return { type: "needs_selection", workspaceRepos };
 		}
@@ -283,8 +290,8 @@ export class RepositoryRouter {
 		// Final fallback to first workspace repo
 		const fallbackRepo = workspaceRepos[0];
 		if (fallbackRepo) {
-			console.log(
-				`[RepositoryRouter] Repository selected: ${fallbackRepo.name} (workspace fallback)`,
+			this.logger.info(
+				`Repository selected: ${fallbackRepo.name} (workspace fallback)`,
 			);
 			return {
 				type: "selected",
@@ -317,7 +324,7 @@ export class RepositoryRouter {
 
 			for (const repo of reposWithRoutingLabels) {
 				if (
-					repo.routingLabels?.some((routingLabel) =>
+					repo.routingLabels?.some((routingLabel: string) =>
 						labels.includes(routingLabel),
 					)
 				) {
@@ -325,10 +332,7 @@ export class RepositoryRouter {
 				}
 			}
 		} catch (error) {
-			console.error(
-				`[RepositoryRouter] Failed to fetch labels for routing:`,
-				error,
-			);
+			this.logger.error(`Failed to fetch labels for routing:`, error);
 		}
 
 		return null;
@@ -363,45 +367,38 @@ export class RepositoryRouter {
 			const repoTag = this.parseRepoTagFromDescription(description);
 			if (!repoTag) return null;
 
-			console.log(
-				`[RepositoryRouter] Found [repo=${repoTag}] tag in issue description`,
-			);
+			this.logger.debug(`Found [repo=${repoTag}] tag in issue description`);
 
 			// Try to match against repositories
 			for (const repo of repos) {
 				// Match by GitHub URL containing the tag value (e.g., "org/repo-name")
 				if (repo.githubUrl?.includes(repoTag)) {
-					console.log(
-						`[RepositoryRouter] Matched repo tag "${repoTag}" to repository ${repo.name} via GitHub URL`,
+					this.logger.debug(
+						`Matched repo tag "${repoTag}" to repository ${repo.name} via GitHub URL`,
 					);
 					return repo;
 				}
 
 				// Match by repository name (exact match, case-insensitive)
 				if (repo.name.toLowerCase() === repoTag.toLowerCase()) {
-					console.log(
-						`[RepositoryRouter] Matched repo tag "${repoTag}" to repository ${repo.name} via name`,
+					this.logger.debug(
+						`Matched repo tag "${repoTag}" to repository ${repo.name} via name`,
 					);
 					return repo;
 				}
 
 				// Match by repository ID
 				if (repo.id === repoTag) {
-					console.log(
-						`[RepositoryRouter] Matched repo tag "${repoTag}" to repository ${repo.name} via ID`,
+					this.logger.debug(
+						`Matched repo tag "${repoTag}" to repository ${repo.name} via ID`,
 					);
 					return repo;
 				}
 			}
 
-			console.log(
-				`[RepositoryRouter] No repository matched [repo=${repoTag}] tag`,
-			);
+			this.logger.debug(`No repository matched [repo=${repoTag}] tag`);
 		} catch (error) {
-			console.error(
-				`[RepositoryRouter] Failed to fetch description for routing:`,
-				error,
-			);
+			this.logger.error(`Failed to fetch description for routing:`, error);
 		}
 
 		return null;
@@ -453,8 +450,8 @@ export class RepositoryRouter {
 			try {
 				const issueTracker = this.deps.getIssueTracker(workspaceId);
 				if (!issueTracker) {
-					console.warn(
-						`[RepositoryRouter] No issue tracker found for workspace ${workspaceId}`,
+					this.logger.warn(
+						`No issue tracker found for workspace ${workspaceId}`,
 					);
 					continue;
 				}
@@ -462,23 +459,23 @@ export class RepositoryRouter {
 				const fullIssue = await issueTracker.fetchIssue(issueId);
 				const project = await fullIssue?.project;
 				if (!project || !project.name) {
-					console.warn(
-						`[RepositoryRouter] No project name found for issue ${issueId} in repository ${repo.name}`,
+					this.logger.debug(
+						`No project name found for issue ${issueId} in repository ${repo.name}`,
 					);
 					continue;
 				}
 
 				const projectName = project.name;
 				if (repo.projectKeys.includes(projectName)) {
-					console.log(
-						`[RepositoryRouter] Matched issue ${issueId} to repository ${repo.name} via project: ${projectName}`,
+					this.logger.debug(
+						`Matched issue ${issueId} to repository ${repo.name} via project: ${projectName}`,
 					);
 					return repo;
 				}
 			} catch (error) {
 				// Continue to next repository if this one fails
-				console.debug(
-					`[RepositoryRouter] Failed to fetch project for issue ${issueId} from repository ${repo.name}:`,
+				this.logger.debug(
+					`Failed to fetch project for issue ${issueId} from repository ${repo.name}:`,
 					error,
 				);
 			}
@@ -499,14 +496,12 @@ export class RepositoryRouter {
 		const { issue } = agentSession;
 
 		if (!issue) {
-			console.error(
-				"[RepositoryRouter] Cannot elicit repository selection without issue",
-			);
+			this.logger.error("Cannot elicit repository selection without issue");
 			return;
 		}
 
-		console.log(
-			`[RepositoryRouter] Posting repository selection elicitation for issue ${issue.identifier}`,
+		this.logger.info(
+			`Posting repository selection elicitation for issue ${issue.identifier}`,
 		);
 
 		// Store pending selection
@@ -518,17 +513,15 @@ export class RepositoryRouter {
 		// Validate we have repositories to offer
 		const firstRepo = workspaceRepos[0];
 		if (!firstRepo) {
-			console.error(
-				"[RepositoryRouter] No repositories available for selection elicitation",
-			);
+			this.logger.error("No repositories available for selection elicitation");
 			return;
 		}
 
 		// Get issue tracker for the workspace
 		const issueTracker = this.deps.getIssueTracker(webhook.organizationId);
 		if (!issueTracker) {
-			console.error(
-				`[RepositoryRouter] No issue tracker found for workspace ${webhook.organizationId}`,
+			this.logger.error(
+				`No issue tracker found for workspace ${webhook.organizationId}`,
 			);
 			return;
 		}
@@ -550,12 +543,12 @@ export class RepositoryRouter {
 				signalMetadata: { options },
 			});
 
-			console.log(
-				`[RepositoryRouter] Posted repository selection elicitation with ${options.length} options`,
+			this.logger.info(
+				`Posted repository selection elicitation with ${options.length} options`,
 			);
 		} catch (error) {
-			console.error(
-				`[RepositoryRouter] Failed to post repository selection elicitation:`,
+			this.logger.error(
+				`Failed to post repository selection elicitation:`,
 				error,
 			);
 
@@ -588,12 +581,12 @@ export class RepositoryRouter {
 					body: `Failed to display repository selection: ${errorMessage}`,
 				},
 			});
-			console.log(
-				`[RepositoryRouter] Posted error activity for repository selection failure`,
+			this.logger.info(
+				`Posted error activity for repository selection failure`,
 			);
 		} catch (postError) {
-			console.error(
-				`[RepositoryRouter] Failed to post error activity (may be due to same underlying issue):`,
+			this.logger.error(
+				`Failed to post error activity (may be due to same underlying issue):`,
 				postError,
 			);
 		}
@@ -609,8 +602,8 @@ export class RepositoryRouter {
 	): Promise<RepositoryConfig | null> {
 		const pendingData = this.pendingSelections.get(agentSessionId);
 		if (!pendingData) {
-			console.log(
-				`[RepositoryRouter] No pending repository selection found for agent session ${agentSessionId}`,
+			this.logger.debug(
+				`No pending repository selection found for agent session ${agentSessionId}`,
 			);
 			return null;
 		}
@@ -628,20 +621,18 @@ export class RepositoryRouter {
 		// Fallback to first repository if not found
 		const repository = selectedRepo || pendingData.workspaceRepos[0];
 		if (!repository) {
-			console.error(
-				`[RepositoryRouter] No repository found for selection: ${selectedRepositoryName}`,
+			this.logger.error(
+				`No repository found for selection: ${selectedRepositoryName}`,
 			);
 			return null;
 		}
 
 		if (!selectedRepo) {
-			console.log(
-				`[RepositoryRouter] Repository "${selectedRepositoryName}" not found, falling back to ${repository.name}`,
+			this.logger.info(
+				`Repository "${selectedRepositoryName}" not found, falling back to ${repository.name}`,
 			);
 		} else {
-			console.log(
-				`[RepositoryRouter] User selected repository: ${repository.name}`,
-			);
+			this.logger.info(`User selected repository: ${repository.name}`);
 		}
 
 		return repository;

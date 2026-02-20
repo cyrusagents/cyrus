@@ -118,7 +118,7 @@ describe("SelfAddRepoCommand", () => {
 
 			// Mock readline to provide URL
 			mocks.mockQuestion.mockImplementation(
-				(_question: string, callback: Function) => {
+				(_question: string, callback: (answer: string) => void) => {
 					callback("https://github.com/user/prompted-repo.git");
 				},
 			);
@@ -139,7 +139,7 @@ describe("SelfAddRepoCommand", () => {
 			);
 
 			mocks.mockQuestion.mockImplementation(
-				(_question: string, callback: Function) => {
+				(_question: string, callback: (answer: string) => void) => {
 					callback(""); // Empty URL
 				},
 			);
@@ -327,7 +327,7 @@ describe("SelfAddRepoCommand", () => {
 			);
 
 			mocks.mockQuestion.mockImplementation(
-				(_question: string, callback: Function) => {
+				(_question: string, callback: (answer: string) => void) => {
 					callback("2"); // Select second workspace
 				},
 			);
@@ -443,7 +443,7 @@ describe("SelfAddRepoCommand", () => {
 			);
 
 			mocks.mockQuestion.mockImplementation(
-				(_question: string, callback: Function) => {
+				(_question: string, callback: (answer: string) => void) => {
 					callback("99"); // Invalid selection
 				},
 			);

@@ -10,6 +10,7 @@
  */
 
 import type { FastifyInstance } from "fastify";
+import type { InternalMessage } from "../messages/index.js";
 import type { AgentEvent } from "./AgentEvent.js";
 
 /**
@@ -73,8 +74,16 @@ export interface AgentEventTransportEvents {
 	/**
 	 * Emitted when a valid agent event is received.
 	 * @param event - The verified agent event
+	 * @deprecated Use the 'message' event for new code. This event is maintained for backward compatibility.
 	 */
 	event: (event: AgentEvent) => void;
+
+	/**
+	 * Emitted when a valid internal message is received.
+	 * This is the new unified message format that all platforms translate to.
+	 * @param message - The translated internal message
+	 */
+	message: (message: InternalMessage) => void;
 
 	/**
 	 * Emitted when an error occurs during event processing.
@@ -91,6 +100,11 @@ export interface AgentEventTransportEvents {
  * handles platform-specific details like HTTP endpoints, authentication, and
  * payload structures.
  *
+ * Events:
+ * - 'event': Legacy event emitted with platform-specific payload (deprecated)
+ * - 'message': New unified internal message format (preferred)
+ * - 'error': Emitted when an error occurs during event processing
+ *
  * @example
  * ```typescript
  * // Create transport from issue tracker service
@@ -103,7 +117,12 @@ export interface AgentEventTransportEvents {
  * // Register HTTP endpoints
  * transport.register();
  *
- * // Listen for events
+ * // Listen for unified messages (preferred)
+ * transport.on('message', (message: InternalMessage) => {
+ *   console.log('Received message:', message.action);
+ * });
+ *
+ * // Legacy: Listen for events (deprecated)
  * transport.on('event', (event: AgentEvent) => {
  *   console.log('Received event:', event.action);
  * });

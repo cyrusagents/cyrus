@@ -1,3 +1,8 @@
+// Logging
+
+export type { ILogger, LogContext } from "./logging/index.js";
+export { createLogger, LogLevel } from "./logging/index.js";
+
 // export { Session } from './Session.js'
 // export type { SessionOptions, , NarrativeItem } from './Session.js'
 // export { ClaudeSessionManager as SessionManager } from './ClaudeSessionManager.js'
@@ -28,6 +33,7 @@ export type {
 export type {
 	CyrusAgentSession,
 	CyrusAgentSessionEntry,
+	IssueContext,
 	IssueMinimal,
 	Workspace,
 } from "./CyrusAgentSession.js";
@@ -126,7 +132,52 @@ export {
 	isIssueUnassignedWebhook,
 	isNewCommentEvent,
 } from "./issue-tracker/index.js";
-
+// Internal Message Bus
+export type {
+	ContentChanges,
+	ContentUpdateMessage,
+	GitHubPlatformRef,
+	GitHubSessionStartPlatformData,
+	GitHubUserPromptPlatformData,
+	GuidanceItem,
+	IMessageTranslator,
+	InternalMessage,
+	InternalMessageBase,
+	LinearContentUpdatePlatformData,
+	LinearPlatformRef,
+	LinearSessionStartPlatformData,
+	LinearStopSignalPlatformData,
+	LinearUnassignPlatformData,
+	LinearUserPromptPlatformData,
+	MessageAction,
+	MessageAuthor,
+	MessageSource,
+	SessionStartMessage,
+	SlackPlatformRef,
+	SlackSessionStartPlatformData,
+	SlackUserPromptPlatformData,
+	StopSignalMessage,
+	TranslationContext,
+	TranslationResult,
+	UnassignMessage,
+	UserPromptMessage,
+} from "./messages/index.js";
+export {
+	hasGitHubSessionStartPlatformData,
+	hasGitHubUserPromptPlatformData,
+	hasLinearSessionStartPlatformData,
+	hasLinearUserPromptPlatformData,
+	hasSlackSessionStartPlatformData,
+	hasSlackUserPromptPlatformData,
+	isContentUpdateMessage,
+	isGitHubMessage,
+	isLinearMessage,
+	isSessionStartMessage,
+	isSlackMessage,
+	isStopSignalMessage,
+	isUnassignMessage,
+	isUserPromptMessage,
+} from "./messages/index.js";
 // Linear adapters have been moved to cyrus-linear-event-transport package
 // Import them directly from that package instead of from cyrus-core
 export type {
@@ -134,8 +185,12 @@ export type {
 	SerializedCyrusAgentSession,
 	SerializedCyrusAgentSessionEntry,
 } from "./PersistenceManager.js";
-export { PersistenceManager } from "./PersistenceManager.js";
+export {
+	PERSISTENCE_VERSION,
+	PersistenceManager,
+} from "./PersistenceManager.js";
 export { StreamingPrompt } from "./StreamingPrompt.js";
+
 // Simple Agent Runner types
 export type {
 	IAgentProgressEvent,

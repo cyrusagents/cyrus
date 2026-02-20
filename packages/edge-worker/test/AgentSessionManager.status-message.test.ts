@@ -1,29 +1,25 @@
 import type { SDKStatusMessage } from "cyrus-claude-runner";
-import type { IIssueTrackerService } from "cyrus-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
+import type { IActivitySink } from "../src/sinks/IActivitySink";
 
 describe("AgentSessionManager - Status Messages", () => {
 	let manager: AgentSessionManager;
-	let mockIssueTracker: IIssueTrackerService;
-	let createAgentActivitySpy: any;
+	let mockActivitySink: IActivitySink;
+	let postActivitySpy: any;
 	const sessionId = "test-session-123";
 	const issueId = "issue-123";
 
 	beforeEach(() => {
-		// Create mock IIssueTrackerService
-		mockIssueTracker = {
-			createAgentActivity: vi.fn().mockResolvedValue({
-				success: true,
-				agentActivity: Promise.resolve({ id: "activity-123" }),
-			}),
-			fetchIssue: vi.fn(),
-			getIssueLabels: vi.fn().mockResolvedValue([]),
-		} as any;
+		mockActivitySink = {
+			id: "test-workspace",
+			postActivity: vi.fn().mockResolvedValue({ activityId: "activity-123" }),
+			createAgentSession: vi.fn().mockResolvedValue("session-123"),
+		};
 
-		createAgentActivitySpy = vi.spyOn(mockIssueTracker, "createAgentActivity");
+		postActivitySpy = vi.spyOn(mockActivitySink, "postActivity");
 
-		manager = new AgentSessionManager(mockIssueTracker);
+		manager = new AgentSessionManager(mockActivitySink);
 
 		// Create a test session
 		manager.createLinearAgentSession(
@@ -55,15 +51,16 @@ describe("AgentSessionManager - Status Messages", () => {
 		// Handle the status message
 		await manager.handleClaudeMessage(sessionId, statusMessage);
 
-		// Verify that createAgentActivity was called with ephemeral thought
-		expect(createAgentActivitySpy).toHaveBeenCalledWith({
-			agentSessionId: sessionId,
-			content: {
+		// Verify that postActivity was called with ephemeral thought
+		// postActivity(sessionId, content, options)
+		expect(postActivitySpy).toHaveBeenCalledWith(
+			sessionId,
+			{
 				type: "thought",
 				body: "Compacting conversation history…",
 			},
-			ephemeral: true,
-		});
+			{ ephemeral: true },
+		);
 	});
 
 	it("should post non-ephemeral activity when status is cleared (null)", async () => {
@@ -77,7 +74,7 @@ describe("AgentSessionManager - Status Messages", () => {
 		await manager.handleClaudeMessage(sessionId, compactingMessage);
 
 		// Clear the mock calls
-		createAgentActivitySpy.mockClear();
+		postActivitySpy.mockClear();
 
 		// Now send a status clear message
 		const statusClearMessage: SDKStatusMessage = {
@@ -90,15 +87,15 @@ describe("AgentSessionManager - Status Messages", () => {
 		// Handle the status clear message
 		await manager.handleClaudeMessage(sessionId, statusClearMessage);
 
-		// Verify that createAgentActivity was called with non-ephemeral thought
-		expect(createAgentActivitySpy).toHaveBeenCalledWith({
-			agentSessionId: sessionId,
-			content: {
+		// Verify that postActivity was called with non-ephemeral thought
+		expect(postActivitySpy).toHaveBeenCalledWith(
+			sessionId,
+			{
 				type: "thought",
 				body: "Conversation history compacted",
 			},
-			ephemeral: false,
-		});
+			{ ephemeral: false },
+		);
 	});
 
 	it("should handle compacting status followed by clear status", async () => {
@@ -112,17 +109,17 @@ describe("AgentSessionManager - Status Messages", () => {
 		await manager.handleClaudeMessage(sessionId, compactingMessage);
 
 		// Verify ephemeral activity was created
-		expect(createAgentActivitySpy).toHaveBeenCalledWith({
-			agentSessionId: sessionId,
-			content: {
+		expect(postActivitySpy).toHaveBeenCalledWith(
+			sessionId,
+			{
 				type: "thought",
 				body: "Compacting conversation history…",
 			},
-			ephemeral: true,
-		});
+			{ ephemeral: true },
+		);
 
 		// Clear the mock calls
-		createAgentActivitySpy.mockClear();
+		postActivitySpy.mockClear();
 
 		// Send status clear
 		const statusClearMessage: SDKStatusMessage = {
@@ -134,22 +131,19 @@ describe("AgentSessionManager - Status Messages", () => {
 		await manager.handleClaudeMessage(sessionId, statusClearMessage);
 
 		// Verify non-ephemeral activity was created
-		expect(createAgentActivitySpy).toHaveBeenCalledWith({
-			agentSessionId: sessionId,
-			content: {
+		expect(postActivitySpy).toHaveBeenCalledWith(
+			sessionId,
+			{
 				type: "thought",
 				body: "Conversation history compacted",
 			},
-			ephemeral: false,
-		});
+			{ ephemeral: false },
+		);
 	});
 
 	it("should handle error when posting compacting status fails", async () => {
-		// Mock createAgentActivity to fail
-		createAgentActivitySpy.mockResolvedValueOnce({
-			success: false,
-			error: "Failed to create activity",
-		});
+		// Mock postActivity to throw
+		postActivitySpy.mockRejectedValueOnce(new Error("Failed to post"));
 
 		// Spy on console.error
 		const consoleErrorSpy = vi
@@ -169,8 +163,8 @@ describe("AgentSessionManager - Status Messages", () => {
 
 		// Verify error was logged
 		expect(consoleErrorSpy).toHaveBeenCalledWith(
-			"[AgentSessionManager] Failed to post compacting status:",
-			expect.objectContaining({ success: false }),
+			expect.stringContaining("Error creating compacting status:"),
+			expect.any(Error),
 		);
 
 		// Clean up
@@ -187,11 +181,8 @@ describe("AgentSessionManager - Status Messages", () => {
 		};
 		await manager.handleClaudeMessage(sessionId, compactingMessage);
 
-		// Mock createAgentActivity to fail for the next call
-		createAgentActivitySpy.mockResolvedValueOnce({
-			success: false,
-			error: "Failed to create activity",
-		});
+		// Mock postActivity to throw for the next call
+		postActivitySpy.mockRejectedValueOnce(new Error("Failed to post"));
 
 		// Spy on console.error
 		const consoleErrorSpy = vi
@@ -211,8 +202,8 @@ describe("AgentSessionManager - Status Messages", () => {
 
 		// Verify error was logged
 		expect(consoleErrorSpy).toHaveBeenCalledWith(
-			"[AgentSessionManager] Failed to post status clear:",
-			expect.objectContaining({ success: false }),
+			expect.stringContaining("Error creating status clear:"),
+			expect.any(Error),
 		);
 
 		// Clean up
@@ -220,11 +211,6 @@ describe("AgentSessionManager - Status Messages", () => {
 	});
 
 	it("should not crash if session is not found", async () => {
-		// Spy on console.warn
-		const consoleWarnSpy = vi
-			.spyOn(console, "warn")
-			.mockImplementation(() => {});
-
 		// Create a status message for a non-existent session
 		const statusMessage: SDKStatusMessage = {
 			type: "system",
@@ -233,18 +219,10 @@ describe("AgentSessionManager - Status Messages", () => {
 			session_id: "claude-session-123",
 		};
 
-		// Handle the status message for a non-existent session
+		// Handle the status message for a non-existent session — should not throw
 		await manager.handleClaudeMessage("non-existent-session", statusMessage);
 
-		// Verify warning was logged
-		expect(consoleWarnSpy).toHaveBeenCalledWith(
-			"[AgentSessionManager] No Linear session ID for session non-existent-session",
-		);
-
-		// Verify createAgentActivity was not called
-		expect(createAgentActivitySpy).not.toHaveBeenCalled();
-
-		// Clean up
-		consoleWarnSpy.mockRestore();
+		// Verify postActivity was not called
+		expect(postActivitySpy).not.toHaveBeenCalled();
 	});
 });

@@ -6,28 +6,8 @@ import {
 	readFileSync,
 } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import { createLogger, type ILogger } from "cyrus-core";
 import ignore, { type Ignore } from "ignore";
-
-/**
- * Logger interface for WorktreeIncludeService
- */
-export interface WorktreeIncludeLogger {
-	info(message: string, ...args: unknown[]): void;
-	warn(message: string, ...args: unknown[]): void;
-	error(message: string, ...args: unknown[]): void;
-}
-
-/**
- * Default console-based logger implementation
- */
-const defaultLogger: WorktreeIncludeLogger = {
-	info: (message: string, ...args: unknown[]) =>
-		console.log(`[WorktreeIncludeService] ${message}`, ...args),
-	warn: (message: string, ...args: unknown[]) =>
-		console.warn(`[WorktreeIncludeService] ${message}`, ...args),
-	error: (message: string, ...args: unknown[]) =>
-		console.error(`[WorktreeIncludeService] ${message}`, ...args),
-};
 
 /**
  * Service responsible for handling .worktreeinclude file processing
@@ -39,10 +19,11 @@ const defaultLogger: WorktreeIncludeLogger = {
  * This ensures only intended ignored files are duplicated.
  */
 export class WorktreeIncludeService {
-	private logger: WorktreeIncludeLogger;
+	private logger: ILogger;
 
-	constructor(logger?: WorktreeIncludeLogger) {
-		this.logger = logger ?? defaultLogger;
+	constructor(logger?: ILogger) {
+		this.logger =
+			logger ?? createLogger({ component: "WorktreeIncludeService" });
 	}
 
 	/**

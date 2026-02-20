@@ -27,8 +27,7 @@ describe("CYPACK-478: Zod v3 vs v4 peer dependency mismatch", () => {
 
 		// Verify server was created
 		expect(server).toBeDefined();
-		expect(server.type).toBe("sdk");
-		expect(server.name).toBe("cyrus-tools");
+		expect(server.server).toBeDefined();
 
 		// The error only occurs when Claude actually tries to invoke the tool
 		// and the SDK attempts to validate the tool parameters against the schema

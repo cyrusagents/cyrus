@@ -28,6 +28,7 @@ export interface ConfigApiResponse {
  * Client for retrieving configuration from cyrus-hosted
  * Authenticates using auth keys provided during onboarding
  */
+// biome-ignore lint/complexity/noStaticOnlyClass: Static utility client keeps existing callsites stable.
 export class ConfigApiClient {
 	/**
 	 * Get the config API URL, respecting CYRUS_APP_URL environment variable

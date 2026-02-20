@@ -1,11 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { LinearClient } from "@linear/sdk";
 import { ClaudeRunner } from "cyrus-claude-runner";
+import { CodexRunner } from "cyrus-codex-runner";
 import type { LinearAgentSessionCreatedWebhook } from "cyrus-core";
 import {
 	isAgentSessionCreatedWebhook,
 	isAgentSessionPromptedWebhook,
 } from "cyrus-core";
+import { CursorRunner } from "cyrus-cursor-runner";
 import { GeminiRunner } from "cyrus-gemini-runner";
 import { LinearEventTransport } from "cyrus-linear-event-transport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,6 +26,8 @@ vi.mock("fs/promises", () => ({
 
 // Mock dependencies
 vi.mock("cyrus-claude-runner");
+vi.mock("cyrus-codex-runner");
+vi.mock("cyrus-cursor-runner");
 vi.mock("cyrus-gemini-runner");
 vi.mock("cyrus-linear-event-transport");
 vi.mock("@linear/sdk");
@@ -48,9 +52,12 @@ describe("EdgeWorker - Runner Selection Based on Labels", () => {
 	let mockConfig: EdgeWorkerConfig;
 	let mockLinearClient: any;
 	let mockClaudeRunner: any;
+	let mockCodexRunner: any;
+	let mockCursorRunner: any;
 	let mockGeminiRunner: any;
 	let mockAgentSessionManager: any;
-	let capturedRunnerType: "claude" | "gemini" | null = null;
+	let capturedRunnerType: "claude" | "gemini" | "codex" | "cursor" | null =
+		null;
 	let capturedRunnerConfig: any = null;
 
 	const mockRepository: RepositoryConfig = {
@@ -65,12 +72,15 @@ describe("EdgeWorker - Runner Selection Based on Labels", () => {
 		allowedTools: ["Read", "Edit"],
 	};
 
-	function createMockIssueWithLabels(labels: string[]) {
+	function createMockIssueWithLabels(
+		labels: string[],
+		description: string = "Test description",
+	) {
 		return {
 			id: "issue-123",
 			identifier: "TEST-123",
 			title: "Test Issue",
-			description: "Test description",
+			description,
 			url: "https://linear.app/test/issue/TEST-123",
 			branchName: "test-branch",
 			state: { name: "Todo" },
@@ -141,6 +151,42 @@ describe("EdgeWorker - Runner Selection Based on Labels", () => {
 			capturedRunnerType = "gemini";
 			capturedRunnerConfig = config;
 			return mockGeminiRunner;
+		});
+
+		// Mock CodexRunner
+		mockCodexRunner = {
+			supportsStreamingInput: false,
+			start: vi.fn().mockResolvedValue({ sessionId: "codex-session-123" }),
+			startStreaming: vi
+				.fn()
+				.mockResolvedValue({ sessionId: "codex-session-123" }),
+			stop: vi.fn(),
+			isStreaming: vi.fn().mockReturnValue(false),
+			addStreamMessage: vi.fn(),
+			updatePromptVersions: vi.fn(),
+		};
+		vi.mocked(CodexRunner).mockImplementation((config: any) => {
+			capturedRunnerType = "codex";
+			capturedRunnerConfig = config;
+			return mockCodexRunner;
+		});
+
+		// Mock CursorRunner
+		mockCursorRunner = {
+			supportsStreamingInput: false,
+			start: vi.fn().mockResolvedValue({ sessionId: "cursor-session-123" }),
+			startStreaming: vi
+				.fn()
+				.mockResolvedValue({ sessionId: "cursor-session-123" }),
+			stop: vi.fn(),
+			isStreaming: vi.fn().mockReturnValue(false),
+			addStreamMessage: vi.fn(),
+			updatePromptVersions: vi.fn(),
+		};
+		vi.mocked(CursorRunner).mockImplementation((config: any) => {
+			capturedRunnerType = "cursor";
+			capturedRunnerConfig = config;
+			return mockCursorRunner;
 		});
 
 		// Mock AgentSessionManager
@@ -353,6 +399,246 @@ Issue: {{issue_identifier}}`;
 			expect(capturedRunnerType).toBe("gemini");
 			expect(GeminiRunner).toHaveBeenCalled();
 			expect(capturedRunnerConfig.model).toBe("gemini-3-pro-preview");
+		});
+	});
+
+	describe("Codex Runner Selection", () => {
+		it("should select Codex runner when 'codex' label is present", async () => {
+			const mockIssue = createMockIssueWithLabels(["codex"]);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("codex");
+			expect(CodexRunner).toHaveBeenCalled();
+			// ClaudeRunner is called once for the classifier (ProcedureAnalyzer uses Claude by default)
+			expect(ClaudeRunner).toHaveBeenCalledTimes(1);
+		});
+
+		it("should select Codex runner with gpt-5-codex model when 'gpt-5-codex' label is present", async () => {
+			const mockIssue = createMockIssueWithLabels(["gpt-5-codex"]);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("codex");
+			expect(CodexRunner).toHaveBeenCalled();
+			expect(capturedRunnerConfig.model).toBe("gpt-5-codex");
+		});
+
+		it("should select Codex runner with gpt-5.2-codex model when both agent and model labels are present", async () => {
+			const mockIssue = createMockIssueWithLabels(["codex", "gpt-5.2-codex"]);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("codex");
+			expect(CodexRunner).toHaveBeenCalled();
+			expect(capturedRunnerConfig.model).toBe("gpt-5.2-codex");
+		});
+	});
+
+	describe("Cursor Runner Selection", () => {
+		it("should select Cursor runner when 'cursor' label is present", async () => {
+			const mockIssue = createMockIssueWithLabels(["cursor"]);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("cursor");
+			expect(CursorRunner).toHaveBeenCalled();
+		});
+	});
+
+	describe("Description Tag Selection", () => {
+		it("should select agent from [agent=...] description tag", async () => {
+			const mockIssue = createMockIssueWithLabels(
+				["bug"],
+				"Work item\\n\\n[agent=codex]",
+			);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("codex");
+			expect(CodexRunner).toHaveBeenCalled();
+		});
+
+		it("should select Cursor runner from [agent=cursor] description tag", async () => {
+			const mockIssue = createMockIssueWithLabels(
+				["bug"],
+				"Work item\\n\\n[agent=cursor]",
+			);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("cursor");
+			expect(CursorRunner).toHaveBeenCalled();
+		});
+
+		it("should select model from [model=...] description tag and infer runner", async () => {
+			const mockIssue = createMockIssueWithLabels(
+				["bug"],
+				"Work item\\n\\n[model=gpt-5.2-codex]",
+			);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("codex");
+			expect(CodexRunner).toHaveBeenCalled();
+			expect(capturedRunnerConfig.model).toBe("gpt-5.2-codex");
+		});
+
+		it("should let description tags override labels", async () => {
+			const mockIssue = createMockIssueWithLabels(
+				["claude", "sonnet"],
+				"Work item\\n\\n[agent=gemini]\\n[model=gemini-2.5-flash]",
+			);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("gemini");
+			expect(GeminiRunner).toHaveBeenCalled();
+			expect(capturedRunnerConfig.model).toBe("gemini-2.5-flash");
 		});
 	});
 
@@ -584,7 +870,7 @@ Issue: {{issue_identifier}}`;
 			const labels = ["opus"]; // Claude model label
 
 			// Act
-			const runnerSelection = (edgeWorker as any).determineRunnerFromLabels(
+			const runnerSelection = (edgeWorker as any).determineRunnerSelection(
 				labels,
 			);
 
@@ -601,7 +887,7 @@ Issue: {{issue_identifier}}`;
 			const labels = ["gemini-3-pro"];
 
 			// Act
-			const runnerSelection = (edgeWorker as any).determineRunnerFromLabels(
+			const runnerSelection = (edgeWorker as any).determineRunnerSelection(
 				labels,
 			);
 
@@ -615,7 +901,7 @@ Issue: {{issue_identifier}}`;
 		it("should correctly identify runner type mismatch between label and session", () => {
 			// This test verifies the logic that would run in resumeAgentSession
 			const labels = ["sonnet"]; // Claude label
-			const runnerSelection = (edgeWorker as any).determineRunnerFromLabels(
+			const runnerSelection = (edgeWorker as any).determineRunnerSelection(
 				labels,
 			);
 
@@ -630,6 +916,52 @@ Issue: {{issue_identifier}}`;
 			expect(labelRunnerType).not.toBe(actualRunnerType);
 
 			// This mismatch would trigger the warning in resumeAgentSession
+		});
+
+		it("should preserve explicit agent and ignore conflicting model", () => {
+			const runnerSelection = (edgeWorker as any).determineRunnerSelection([
+				"claude",
+				"gpt-5-codex",
+			]);
+
+			expect(runnerSelection.runnerType).toBe("claude");
+			expect(runnerSelection.modelOverride).toBe("opus");
+		});
+	});
+
+	describe("Session Continuation", () => {
+		it("should pass cursorSessionId as resumeSessionId for cursor continuations", async () => {
+			const mockIssue = createMockIssueWithLabels(["cursor"]);
+			vi.spyOn(edgeWorker as any, "fetchFullIssueDetails").mockResolvedValue(
+				mockIssue,
+			);
+			vi.spyOn(edgeWorker as any, "buildSessionPrompt").mockResolvedValue(
+				"Resume this session",
+			);
+			vi.spyOn(edgeWorker as any, "savePersistedState").mockResolvedValue(
+				undefined,
+			);
+
+			const session: any = {
+				issueId: "issue-123",
+				workspace: { path: "/test/workspaces/TEST-123" },
+				issue: { identifier: "TEST-123" },
+				cursorSessionId: "cursor-session-existing",
+			};
+
+			await (edgeWorker as any).resumeAgentSession(
+				session,
+				mockRepository,
+				"agent-session-123",
+				mockAgentSessionManager,
+				"follow-up prompt",
+			);
+
+			expect(capturedRunnerType).toBe("cursor");
+			expect(capturedRunnerConfig.resumeSessionId).toBe(
+				"cursor-session-existing",
+			);
+			expect(mockCursorRunner.start).toHaveBeenCalledOnce();
 		});
 	});
 });

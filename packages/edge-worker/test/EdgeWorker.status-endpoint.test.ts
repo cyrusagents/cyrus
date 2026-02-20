@@ -13,6 +13,7 @@ vi.mock("fs/promises", () => ({
 
 // Mock dependencies
 vi.mock("cyrus-claude-runner");
+vi.mock("cyrus-codex-runner");
 vi.mock("cyrus-gemini-runner");
 vi.mock("cyrus-linear-event-transport");
 vi.mock("@linear/sdk");

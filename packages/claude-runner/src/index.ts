@@ -22,10 +22,6 @@ export {
 	type IMessageFormatter,
 } from "./formatter.js";
 export {
-	type CyrusToolsOptions,
-	createCyrusToolsServer,
-} from "./tools/cyrus-tools/index.js";
-export {
 	createImageToolsServer,
 	type ImageToolsOptions,
 } from "./tools/image-tools/index.js";

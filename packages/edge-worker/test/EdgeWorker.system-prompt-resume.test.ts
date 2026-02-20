@@ -26,6 +26,7 @@ vi.mock("fs/promises", () => ({
 
 // Mock dependencies
 vi.mock("cyrus-claude-runner");
+vi.mock("cyrus-codex-runner");
 vi.mock("cyrus-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js");
@@ -126,7 +127,21 @@ describe("EdgeWorker - System Prompt Resume", () => {
 		mockAgentSessionManager = {
 			createLinearAgentSession: vi.fn(),
 			getSession: vi.fn().mockReturnValue({
+				id: "agent-session-123",
+				externalSessionId: "agent-session-123",
 				claudeSessionId: "claude-session-123",
+				issueId: "issue-123",
+				issueContext: {
+					trackerId: "linear",
+					issueId: "issue-123",
+					issueIdentifier: "TEST-123",
+				},
+				issue: {
+					id: "issue-123",
+					identifier: "TEST-123",
+					title: "Test Issue with Bug",
+					branchName: "test-branch",
+				},
 				workspace: { path: "/test/workspaces/TEST-123" },
 				claudeRunner: mockClaudeRunner,
 			}),
