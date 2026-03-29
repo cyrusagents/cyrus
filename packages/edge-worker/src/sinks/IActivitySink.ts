@@ -1,4 +1,4 @@
-import type { AgentActivityContent } from "cyrus-core";
+import type { AgentActivityContent, AgentPlanStep } from "cyrus-core";
 
 /**
  * String literal type for activity signals.
@@ -66,4 +66,13 @@ export interface IActivitySink {
 	 * @returns Promise that resolves with the created session ID
 	 */
 	createAgentSession(issueId: string): Promise<string>;
+
+	/**
+	 * Update the agent session plan (progress checklist).
+	 * Optional: only implemented by platforms that support agent session plans (e.g. Linear).
+	 *
+	 * @param sessionId - The agent session ID to update
+	 * @param plan - Full plan array to replace the current plan
+	 */
+	updatePlan?(sessionId: string, plan: AgentPlanStep[]): Promise<void>;
 }

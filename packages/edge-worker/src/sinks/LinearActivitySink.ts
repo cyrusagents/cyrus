@@ -1,6 +1,7 @@
 import {
 	type AgentActivityContent,
 	AgentActivitySignal,
+	type AgentPlanStep,
 	type IIssueTrackerService,
 } from "cyrus-core";
 import type {
@@ -103,6 +104,14 @@ export class LinearActivitySink implements IActivitySink {
 		}
 
 		return {};
+	}
+
+	/**
+	 * Update the agent session plan by delegating to the issue tracker service.
+	 * Only posts if the underlying service supports updateAgentSessionPlan.
+	 */
+	async updatePlan(sessionId: string, plan: AgentPlanStep[]): Promise<void> {
+		await this.issueTracker.updateAgentSessionPlan?.(sessionId, plan);
 	}
 
 	/**

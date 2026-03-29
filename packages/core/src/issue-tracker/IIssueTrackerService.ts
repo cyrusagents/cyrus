@@ -37,6 +37,26 @@ import type {
 } from "./types.js";
 
 /**
+ * Status of a step in an agent session plan.
+ */
+export type AgentPlanStepStatus =
+	| "pending"
+	| "inProgress"
+	| "completed"
+	| "canceled";
+
+/**
+ * A single step in the agent session plan checklist.
+ * The plan is visible in the Linear Agent Session panel.
+ */
+export interface AgentPlanStep {
+	/** Human-readable description of this step */
+	content: string;
+	/** Current status of the step */
+	status: AgentPlanStepStatus;
+}
+
+/**
  * Main interface for issue tracking platform operations.
  *
  * Implementations of this interface provide platform-specific logic for Linear,
@@ -649,6 +669,34 @@ export interface IIssueTrackerService {
 	 * ```
 	 */
 	emitStopSignalEvent(sessionId: string): Promise<void>;
+
+	/**
+	 * Update the agent session plan (progress checklist) visible in the agent panel.
+	 *
+	 * The plan is a checklist of steps that renders in the Linear Agent Session panel.
+	 * Every update replaces the entire plan array — individual steps cannot be updated.
+	 *
+	 * @param sessionId - The agent session ID to update
+	 * @param plan - Full plan array to replace the current plan
+	 * @returns Promise that resolves when the plan is updated
+	 *
+	 * @remarks
+	 * Optional: not all platforms support agent session plans.
+	 * Implementations should log and continue if the update fails — never throw.
+	 *
+	 * @example
+	 * ```typescript
+	 * await service.updateAgentSessionPlan(sessionId, [
+	 *   { content: 'Implement changes', status: 'completed' },
+	 *   { content: 'Run tests', status: 'inProgress' },
+	 *   { content: 'Open PR', status: 'pending' },
+	 * ]);
+	 * ```
+	 */
+	updateAgentSessionPlan?(
+		sessionId: string,
+		plan: AgentPlanStep[],
+	): Promise<void>;
 
 	// ========================================================================
 	// AGENT ACTIVITY OPERATIONS

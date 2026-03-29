@@ -11,6 +11,7 @@ import type {
 	SDKUserMessage,
 } from "cyrus-claude-runner";
 import {
+	type AgentPlanStep,
 	AgentSessionStatus,
 	AgentSessionType,
 	type CyrusAgentSession,
@@ -146,6 +147,60 @@ export class AgentSessionManager extends EventEmitter {
 	 */
 	private getActivitySink(sessionId: string): IActivitySink | undefined {
 		return this.activitySinks.get(sessionId);
+	}
+
+	/**
+	 * Post the initial agent plan when a procedure starts (first subroutine is about to run).
+	 * Marks step 0 as inProgress and the rest as pending.
+	 * Safe to call from EdgeWorker after initializeProcedureMetadata.
+	 */
+	async postInitialPlan(sessionId: string): Promise<void> {
+		await this.postPlanUpdate(sessionId, false);
+	}
+
+	/**
+	 * Build and post the current plan state to the activity sink.
+	 * @param allCompleted - When true, marks all steps as completed (procedure done).
+	 *                       Otherwise, marks up to currentIndex-1 as completed,
+	 *                       currentIndex as inProgress, and the rest as pending.
+	 */
+	private async postPlanUpdate(
+		sessionId: string,
+		allCompleted: boolean,
+	): Promise<void> {
+		if (!this.procedureAnalyzer) return;
+
+		const session = this.sessions.get(sessionId);
+		if (!session) return;
+
+		const subroutines = this.procedureAnalyzer.getProcedureSubroutines(session);
+		if (subroutines.length === 0) return;
+
+		const currentIndex =
+			session.metadata?.procedure?.currentSubroutineIndex ?? 0;
+
+		const plan: AgentPlanStep[] = subroutines.map((sub, i) => ({
+			content:
+				(sub as { description?: string; name: string }).description ?? sub.name,
+			status: allCompleted
+				? "completed"
+				: i < currentIndex
+					? "completed"
+					: i === currentIndex
+						? "inProgress"
+						: "pending",
+		}));
+
+		const sink = this.getActivitySink(sessionId);
+		if (!sink?.updatePlan) return;
+
+		try {
+			await sink.updatePlan(sessionId, plan);
+		} catch (err) {
+			this.sessionLog(sessionId).warn(
+				`Failed to update agent session plan: ${err}`,
+			);
+		}
 	}
 
 	/**
@@ -648,6 +703,9 @@ export class AgentSessionManager extends EventEmitter {
 				subroutineResult,
 			);
 
+			// Update plan: mark completed subroutine as done, next as inProgress
+			await this.postPlanUpdate(sessionId, false);
+
 			// Emit event for EdgeWorker to handle subroutine transition
 			// This replaces the callback pattern and allows EdgeWorker to subscribe
 			this.emit("subroutineComplete", {
@@ -655,7 +713,8 @@ export class AgentSessionManager extends EventEmitter {
 				session,
 			});
 		} else {
-			// Procedure complete - post final result
+			// Procedure complete - mark all steps as completed, then post final result
+			await this.postPlanUpdate(sessionId, true);
 			log.info(`All subroutines completed, posting final result to Linear`);
 			await this.addResultEntry(sessionId, resultMessage);
 

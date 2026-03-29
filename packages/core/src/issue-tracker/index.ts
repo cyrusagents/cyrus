@@ -43,7 +43,11 @@
 // MAIN INTERFACE
 // ============================================================================
 
-export type { IIssueTrackerService } from "./IIssueTrackerService.js";
+export type {
+	AgentPlanStep,
+	AgentPlanStepStatus,
+	IIssueTrackerService,
+} from "./IIssueTrackerService.js";
 
 // ============================================================================
 // EVENT TRANSPORT
