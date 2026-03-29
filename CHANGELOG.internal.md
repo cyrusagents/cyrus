@@ -4,6 +4,13 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Added
+- Added `AgentPlanStep` type and optional `updateAgentSessionPlan?` method to `IIssueTrackerService` interface; exported from `cyrus-core`. ([BRI-856](https://linear.app/brilliantio/issue/BRI-856), [#1](https://github.com/Brilliantio/cyrus-agent/pull/1))
+- Implemented `updateAgentSessionPlan` in `LinearIssueTrackerService` using raw `agentSessionUpdate` GraphQL mutation (Linear SDK only exposes `agentSessionUpdateExternalUrl`). ([BRI-856](https://linear.app/brilliantio/issue/BRI-856), [#1](https://github.com/Brilliantio/cyrus-agent/pull/1))
+- Added optional `updatePlan?` method to `IActivitySink` interface and implemented it in `LinearActivitySink`. ([BRI-856](https://linear.app/brilliantio/issue/BRI-856), [#1](https://github.com/Brilliantio/cyrus-agent/pull/1))
+- Added `getProcedureSubroutines(session)` helper to `ProcedureAnalyzer` for retrieving all subroutine definitions in the session's current procedure. ([BRI-856](https://linear.app/brilliantio/issue/BRI-856), [#1](https://github.com/Brilliantio/cyrus-agent/pull/1))
+- Added `postInitialPlan` (public) and `postPlanUpdate` (private) to `AgentSessionManager`; EdgeWorker calls `postInitialPlan` after `initializeProcedureMetadata`, and `AgentSessionManager` calls `postPlanUpdate` after each `advanceToNextSubroutine` and once more when the procedure completes. ([BRI-856](https://linear.app/brilliantio/issue/BRI-856), [#1](https://github.com/Brilliantio/cyrus-agent/pull/1))
+
 ## [0.2.38] - 2026-03-25
 
 ### Added
