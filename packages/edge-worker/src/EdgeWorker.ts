@@ -3833,6 +3833,9 @@ ${taskSection}`;
 		// Initialize procedure metadata in session with final decision
 		this.procedureAnalyzer.initializeProcedureMetadata(session, finalProcedure);
 
+		// Post initial plan: step 0 = inProgress, rest = pending
+		await agentSessionManager.postInitialPlan(sessionId);
+
 		// Post single procedure selection result (replaces ephemeral routing thought)
 		await agentSessionManager.postProcedureSelectionThought(
 			sessionId,
@@ -6107,6 +6110,9 @@ ${input.userComment}
 			session,
 			selectedProcedure,
 		);
+
+		// Post initial plan: step 0 = inProgress, rest = pending
+		await agentSessionManager.postInitialPlan(sessionId);
 
 		// Post procedure selection result (replaces ephemeral routing thought)
 		await agentSessionManager.postProcedureSelectionThought(

@@ -366,4 +366,20 @@ IMPORTANT: Respond with ONLY the classification word, nothing else.`;
 	getProcedure(name: string): ProcedureDefinition | undefined {
 		return this.procedures.get(name);
 	}
+
+	/**
+	 * Get all subroutines for the session's current procedure.
+	 * Returns empty array if procedure is not found or session has no procedure metadata.
+	 */
+	getProcedureSubroutines(session: CyrusAgentSession): SubroutineDefinition[] {
+		const procedureMetadata = session.metadata?.procedure as
+			| ProcedureMetadata
+			| undefined;
+		if (!procedureMetadata) return [];
+
+		const procedure = this.procedures.get(procedureMetadata.procedureName);
+		if (!procedure) return [];
+
+		return procedure.subroutines as SubroutineDefinition[];
+	}
 }

@@ -30,6 +30,7 @@ import type {
 	AgentActivityCreateInput,
 	AgentActivityPayload,
 	AgentEventTransportConfig,
+	AgentPlanStep,
 	AgentSessionCreateOnCommentInput,
 	AgentSessionCreateOnIssueInput,
 	Comment,
@@ -817,6 +818,27 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 		input: AgentActivityCreateInput,
 	): Promise<AgentActivityPayload> {
 		return await this.linearClient.createAgentActivity(input);
+	}
+
+	/**
+	 * Update the agent session plan (progress checklist) via raw GraphQL.
+	 * The Linear SDK does not expose agentSessionUpdate directly, so we use rawRequest.
+	 */
+	async updateAgentSessionPlan(
+		sessionId: string,
+		plan: AgentPlanStep[],
+	): Promise<void> {
+		const mutation = `
+			mutation AgentSessionUpdate($id: String!, $input: AgentSessionUpdateInput!) {
+				agentSessionUpdate(id: $id, input: $input) {
+					success
+				}
+			}
+		`;
+		await this.linearClient.client.rawRequest<
+			{ agentSessionUpdate: { success: boolean } },
+			{ id: string; input: { plan: AgentPlanStep[] } }
+		>(mutation, { id: sessionId, input: { plan } });
 	}
 
 	// ========================================================================

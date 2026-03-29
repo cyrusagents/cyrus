@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Live Agent Plan progress checklist in Linear Agent Session panel** - Cyrus now posts a real-time progress checklist to the Linear Agent Session panel as it executes subroutines. Each procedure step (e.g. "Implementing code changes", "Running tests", "Creating or updating pull request") shows as pending, in progress, or completed so you can track execution status without checking GitHub or SSH. ([BRI-856](https://linear.app/brilliantio/issue/BRI-856), [#1](https://github.com/Brilliantio/cyrus-agent/pull/1))
+
 ### Changed
 - **Updated `@anthropic-ai/claude-agent-sdk` to v0.2.86** - Keeps AI SDK dependency up to date. v0.2.86 adds `getContextUsage()` for token distribution visibility, makes `session_id` optional in `SDKUserMessage`, and fixes TypeScript type resolution. v0.2.85 adds `reloadPlugins()` for dynamic plugin refresh and fixes PreToolUse hooks with `"ask"` permission decisions. See SDK changelog: [claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1016](https://linear.app/ceedar/issue/CYPACK-1016), [#1045](https://github.com/ceedaragents/cyrus/pull/1045))
 

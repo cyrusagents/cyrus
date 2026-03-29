@@ -85,6 +85,8 @@ export type {
 	AgentEvent,
 	AgentEventTransportConfig,
 	AgentEventTransportEvents,
+	AgentPlanStep,
+	AgentPlanStepStatus,
 	AgentSession,
 	AgentSessionCreatedWebhook,
 	AgentSessionCreateOnCommentInput,
