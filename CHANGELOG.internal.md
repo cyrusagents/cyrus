@@ -5,6 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Added
+- Deployed Firecrawl self-hosted (firecrawl-simple via `trieve/firecrawl`) on VPS as a Docker stack with dedicated Redis, puppeteer service, and worker — internal-only on port 3002, isolated `firecrawl` bridge network. Added `infra/firecrawl/docker-compose.yml` and `.env.example` to repo. `FIRECRAWL_API_KEY` added to `~/.cyrus/shared.env` and n8n environment. ([BRI-881](https://linear.app/brilliantio/issue/BRI-881), [#6](https://github.com/Brilliantio/cyrus-agent/pull/6))
 - Added `ElicitationManager` class in `cyrus-edge-worker` for pause/resume elicitation workflows between Claude Code runs. Supports file-based persistence (`pending-elicitations.json`), configurable timeout, and `select` signal posting to Linear. ([BRI-857](https://linear.app/brilliantio/issue/BRI-857), [#2](https://github.com/Brilliantio/cyrus-agent/pull/2))
 - Added `testFailureElicitation` event to `AgentSessionManagerEvents`, emitted when validation loop exhausts max iterations. Falls back to original behavior when no listeners are registered. ([BRI-857](https://linear.app/brilliantio/issue/BRI-857), [#2](https://github.com/Brilliantio/cyrus-agent/pull/2))
 - Added `createSelectElicitation()` method to `AgentSessionManager` for posting elicitations with `select` signal and clickable options. ([BRI-857](https://linear.app/brilliantio/issue/BRI-857), [#2](https://github.com/Brilliantio/cyrus-agent/pull/2))
