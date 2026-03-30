@@ -4,29 +4,35 @@
 		{
 			"parameters": {
 				"formTitle": "Book Market Research",
-				"formDescription": "Scrape Amazon listings via Firecrawl and analyse with Claude",
+				"formDescription": "Research books by natural language topic or by specific ASINs. Use 'topic' mode to describe a subject; use 'asins' mode to provide specific Amazon product IDs.",
 				"formFields": {
 					"values": [
 						{
-							"fieldLabel": "research_type",
+							"fieldLabel": "mode",
 							"fieldType": "dropdown",
 							"fieldOptions": {
 								"values": [
 									{
-										"option": "asins"
+										"option": "topic"
 									},
 									{
-										"option": "category"
+										"option": "asins"
 									}
 								]
 							},
 							"requiredField": true
 						},
 						{
+							"fieldLabel": "topic",
+							"fieldType": "text",
+							"placeholder": "e.g. documentary filmmaking, British trivia quiz books, sourdough bread recipes",
+							"requiredField": false
+						},
+						{
 							"fieldLabel": "input",
 							"fieldType": "text",
-							"placeholder": "Comma-separated ASINs e.g. B0GTQQNVVZ,B09XYZ or category URL",
-							"requiredField": true
+							"placeholder": "ASINs (comma-separated, e.g. B0GTQQNVVZ,B09XYZ) — only used in asins mode",
+							"requiredField": false
 						},
 						{
 							"fieldLabel": "market",
@@ -42,6 +48,12 @@
 								]
 							},
 							"requiredField": true
+						},
+						{
+							"fieldLabel": "max_results",
+							"fieldType": "number",
+							"placeholder": "15",
+							"requiredField": false
 						}
 					]
 				}
@@ -51,37 +63,57 @@
 			"type": "n8n-nodes-base.formTrigger",
 			"typeVersion": 2.2,
 			"position": [0, 300],
-			"webhookId": "book-market-research-trigger-bri882"
+			"webhookId": "book-market-research-trigger-bri885"
 		},
 		{
 			"parameters": {
-				"jsCode": "// === SCRAPE & EXTRACT ===\n// Uses Node.js http/https modules (no URL class, no fetch).\n\nconst http = require('http');\nconst https = require('https');\n\nconst FIRECRAWL_KEY = $env.FIRECRAWL_API_KEY || 'fc-brilliantio-local';\nconst ANTHROPIC_KEY = $env.ANTHROPIC_API_KEY;\nif (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not set in n8n environment');\n\nconst data = $input.first().json;\nconst researchType = data['research_type'] || 'asins';\nconst rawInput = data['input'] || '';\nconst market = (data['market'] || 'uk').toLowerCase().trim();\nconst domain = market === 'us' ? 'www.amazon.com' : 'www.amazon.co.uk';\n\nlet targets = [];\nif (researchType === 'asins') {\n  const asins = rawInput.split(',').map(s => s.trim()).filter(Boolean).slice(0, 30);\n  targets = asins.map(asin => ({ url: `https://${domain}/dp/${asin}`, asin }));\n} else {\n  targets = [{ url: rawInput.trim(), asin: null }];\n}\n\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\n\nfunction post(useHttps, hostname, port, path, bodyStr, headers) {\n  return new Promise((resolve, reject) => {\n    const lib = useHttps ? https : http;\n    const opts = {\n      hostname, port, path, method: 'POST',\n      headers: { ...headers, 'Content-Length': Buffer.byteLength(bodyStr) }\n    };\n    const req = lib.request(opts, res => {\n      let buf = '';\n      res.on('data', c => buf += c);\n      res.on('end', () => {\n        try { resolve(JSON.parse(buf)); } catch(e) { resolve({ _raw: buf.substring(0,500) }); }\n      });\n    });\n    req.on('error', reject);\n    req.write(bodyStr);\n    req.end();\n  });\n}\n\nasync function firecrawlScrape(url) {\n  try {\n    const body = JSON.stringify({ url, formats: ['markdown'], onlyMainContent: true });\n    const result = await post(false, 'firecrawl-api', 3002, '/v1/scrape', body, {\n      'Authorization': `Bearer ${FIRECRAWL_KEY}`,\n      'Content-Type': 'application/json'\n    });\n    const md = result?.data?.markdown || '';\n    if (!result.success || !md || md.includes('Continue shopping') || md.length < 200) {\n      return { success: false, error: result?.error || 'Blocked or empty (Amazon bot protection)' };\n    }\n    return { success: true, markdown: md };\n  } catch(e) {\n    return { success: false, error: e.message };\n  }\n}\n\nasync function extractWithHaiku(url, markdown) {\n  const schema = '{\"title\":null,\"subtitle\":null,\"author\":null,\"price_current\":null,\"price_paperback\":null,\"price_ebook\":null,\"rating\":null,\"review_count\":null,\"bsr_main\":null,\"bsr_categories\":[],\"categories\":[],\"bullets\":[],\"description\":null,\"page_count\":null,\"pub_date\":null,\"asin\":null}';\n  const content = `Extract structured product data from this Amazon book listing. Return ONLY valid JSON matching this schema (no markdown fences, no explanation). Schema: ${schema}\\n\\nURL: ${url}\\n\\nMarkdown:\\n${markdown.substring(0, 8000)}`;\n  try {\n    const body = JSON.stringify({\n      model: 'claude-haiku-4-5-20251001',\n      max_tokens: 1024,\n      messages: [{ role: 'user', content }]\n    });\n    const result = await post(true, 'api.anthropic.com', 443, '/v1/messages', body, {\n      'x-api-key': ANTHROPIC_KEY,\n      'anthropic-version': '2023-06-01',\n      'content-type': 'application/json'\n    });\n    const text = result?.content?.[0]?.text || '';\n    const cleaned = text.replace(/^```json\\s*/m,'').replace(/^```\\s*/m,'').replace(/\\s*```$/m,'').trim();\n    return { success: true, data: JSON.parse(cleaned) };\n  } catch(e) {\n    return { success: false, data: { extraction_error: e.message } };\n  }\n}\n\nconst listings = [];\nfor (let i = 0; i < targets.length; i++) {\n  const { url, asin } = targets[i];\n  const entry = { url, asin };\n  const scrapeResult = await firecrawlScrape(url);\n  if (i < targets.length - 1) await sleep(2000);\n  if (scrapeResult.success) {\n    const extraction = await extractWithHaiku(url, scrapeResult.markdown);\n    Object.assign(entry, extraction.data);\n  } else {\n    entry.scrape_error = scrapeResult.error;\n  }\n  listings.push(entry);\n}\n\nreturn [{ json: { listings, count: listings.length, market } }];\n"
+				"jsCode": "// === TOPIC TO URL ===\n// If mode=topic, call Claude Haiku to generate an Amazon search URL for the given topic.\n// If mode=asins, pass data through unchanged for the next node to handle.\n\nconst https = require('https');\nconst ANTHROPIC_KEY = $env.ANTHROPIC_API_KEY;\nif (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not set in n8n environment');\n\nconst data = $input.first().json;\nconst mode = (data['mode'] || 'topic').toLowerCase().trim();\nconst topic = (data['topic'] || '').trim();\nconst market = (data['market'] || 'uk').toLowerCase().trim();\nconst maxResults = Math.max(1, Math.min(50, parseInt(data['max_results'] || '15', 10) || 15));\n\n// Pass-through for asins mode — next node handles ASIN list\nif (mode === 'asins') {\n  return [{ json: { ...data, mode, market, max_results: maxResults, category_url: null } }];\n}\n\n// Topic mode: ask Haiku for an Amazon search URL\nif (!topic) throw new Error('The \"topic\" field is required when mode=topic');\n\nfunction httpsPost(hostname, path, bodyStr, headers) {\n  return new Promise((resolve, reject) => {\n    const opts = {\n      hostname, port: 443, path, method: 'POST',\n      headers: { ...headers, 'Content-Length': Buffer.byteLength(bodyStr) }\n    };\n    const req = https.request(opts, res => {\n      let buf = '';\n      res.on('data', c => buf += c);\n      res.on('end', () => {\n        try { resolve(JSON.parse(buf)); } catch(e) { resolve({ _raw: buf.substring(0, 500) }); }\n      });\n    });\n    req.on('error', reject);\n    req.write(bodyStr);\n    req.end();\n  });\n}\n\nconst prompt = `Given this book topic, generate an Amazon search URL. Use amazon.co.uk for UK market, amazon.com for US market. Return ONLY the URL, nothing else — no explanation, no quotes, no markdown. Topic: ${topic}, Market: ${market}`;\n\nconst body = JSON.stringify({\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 256,\n  messages: [{ role: 'user', content: prompt }]\n});\n\nconst result = await httpsPost('api.anthropic.com', '/v1/messages', body, {\n  'x-api-key': ANTHROPIC_KEY,\n  'anthropic-version': '2023-06-01',\n  'content-type': 'application/json'\n});\n\nconst rawUrl = (result?.content?.[0]?.text || '').trim().replace(/^[\"']|[\"']$/g, '');\n\nif (!rawUrl || !rawUrl.startsWith('http')) {\n  throw new Error(`Haiku returned an unexpected value instead of a URL: ${rawUrl || '(empty)'}`);\n}\n\nreturn [{ json: { ...data, mode, market, max_results: maxResults, topic, category_url: rawUrl } }];\n"
 			},
-			"id": "node-scrape-extract",
-			"name": "Scrape & Extract",
+			"id": "node-topic-to-url",
+			"name": "Topic to URL",
 			"type": "n8n-nodes-base.code",
 			"typeVersion": 2,
 			"position": [340, 300]
 		},
 		{
 			"parameters": {
-				"jsCode": "// === ANALYSE with Claude Sonnet ===\nconst https = require('https');\nconst ANTHROPIC_KEY = $env.ANTHROPIC_API_KEY;\nif (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not set');\n\nconst { listings, count, market } = $input.first().json;\n\nfunction httpsPost(hostname, path, bodyStr, headers) {\n  return new Promise((resolve, reject) => {\n    const opts = {\n      hostname, port: 443, path, method: 'POST',\n      headers: { ...headers, 'Content-Length': Buffer.byteLength(bodyStr) }\n    };\n    const req = https.request(opts, res => {\n      let buf = '';\n      res.on('data', c => buf += c);\n      res.on('end', () => {\n        try { resolve(JSON.parse(buf)); } catch(e) { resolve({ _raw: buf.substring(0, 500) }); }\n      });\n    });\n    req.on('error', reject);\n    req.write(bodyStr);\n    req.end();\n  });\n}\n\nconst allBlocked = count === 0 || listings.every(l => l.scrape_error);\nconst scrapeNote = allBlocked\n  ? '\\n\\n> **Note:** Amazon scraping was blocked (bot protection). Analysis based on general KDP market knowledge for these ASINs.'\n  : '';\n\nconst prompt = `You are a KDP market research analyst. Analyse these Amazon book listings and write a comprehensive Markdown research report.\\n\\n## 1. Price Positioning\\n## 2. Common Keywords & Themes\\n## 3. Review Distribution\\n## 4. Differentiation Opportunities\\n## 5. Recommended Positioning\\n## Summary Table\\n| Title | Author | Price | Rating | Reviews | BSR |\\n|-------|--------|-------|--------|---------|-----|\\n\\nMarket: ${market}${scrapeNote}\\nListings: ${count}\\n\\nData:\\n${JSON.stringify(listings, null, 2).substring(0, 15000)}`;\n\nconst body = JSON.stringify({\n  model: 'claude-sonnet-4-20250514',\n  max_tokens: 4096,\n  messages: [{ role: 'user', content: prompt }]\n});\n\nconst result = await httpsPost('api.anthropic.com', '/v1/messages', body, {\n  'x-api-key': ANTHROPIC_KEY,\n  'anthropic-version': '2023-06-01',\n  'content-type': 'application/json'\n});\n\nconst analysisText = result?.content?.[0]?.text || result?._raw || 'No analysis';\nreturn [{ json: { analysisText, listingCount: count, market } }];\n"
+				"jsCode": "// === SCRAPE CATEGORY & PARSE ASINs ===\n// topic/category mode: Firecrawl scrapes the Amazon search results page, then\n//   ASIN product links are extracted and limited to max_results.\n// asins mode: product URL targets are built directly from the comma-separated 'input' field.\n\nconst http = require('http');\nconst https = require('https');\n\nconst FIRECRAWL_KEY = $env.FIRECRAWL_API_KEY || 'fc-brilliantio-local';\n\nconst data = $input.first().json;\nconst mode = (data['mode'] || 'topic').toLowerCase().trim();\nconst market = (data['market'] || 'uk').toLowerCase().trim();\nconst maxResults = Math.max(1, Math.min(50, parseInt(data['max_results'] || '15', 10) || 15));\nconst domain = market === 'us' ? 'www.amazon.com' : 'www.amazon.co.uk';\n\nfunction post(useHttps, hostname, port, path, bodyStr, headers) {\n  return new Promise((resolve, reject) => {\n    const lib = useHttps ? https : http;\n    const opts = {\n      hostname, port, path, method: 'POST',\n      headers: { ...headers, 'Content-Length': Buffer.byteLength(bodyStr) }\n    };\n    const req = lib.request(opts, res => {\n      let buf = '';\n      res.on('data', c => buf += c);\n      res.on('end', () => {\n        try { resolve(JSON.parse(buf)); } catch(e) { resolve({ _raw: buf.substring(0, 500) }); }\n      });\n    });\n    req.on('error', reject);\n    req.write(bodyStr);\n    req.end();\n  });\n}\n\n// ASINS mode: build product URL targets directly from comma-separated ASINs\nif (mode === 'asins') {\n  const rawInput = data['input'] || '';\n  if (!rawInput.trim()) throw new Error('The \"input\" field (comma-separated ASINs) is required when mode=asins');\n  const asins = rawInput.split(',').map(s => s.trim()).filter(Boolean).slice(0, maxResults);\n  const targets = asins.map(asin => ({ url: `https://${domain}/dp/${asin}`, asin }));\n  return [{ json: { targets, market, count: targets.length, topic: null, category_url: null } }];\n}\n\n// Topic mode: scrape the Amazon search results page via Firecrawl\nconst categoryUrl = data['category_url'];\nif (!categoryUrl) throw new Error('No category URL was produced by the Topic to URL node');\n\nconst scrapeBody = JSON.stringify({ url: categoryUrl, formats: ['markdown'], onlyMainContent: true });\nconst scrapeResult = await post(false, 'host.docker.internal', 3002, '/v1/scrape', scrapeBody, {\n  'Authorization': `Bearer ${FIRECRAWL_KEY}`,\n  'Content-Type': 'application/json'\n});\n\nconst markdown = scrapeResult?.data?.markdown || '';\nif (!scrapeResult.success || !markdown || markdown.length < 100) {\n  throw new Error(`Firecrawl failed to scrape the search results page: ${scrapeResult?.error || 'Empty or blocked response'}. ` +\n    'If this keeps failing, configure a residential proxy in Firecrawl (see PR description for DataImpulse setup instructions).');\n}\n\n// Extract ASINs from markdown links — Amazon product links contain /dp/ASIN or /gp/product/ASIN\nconst asinPattern = /\\/(?:dp|gp\\/product)\\/([A-Z0-9]{10})/g;\nconst seenAsins = new Set();\nconst targets = [];\nlet match;\nwhile ((match = asinPattern.exec(markdown)) !== null) {\n  const asin = match[1];\n  if (!seenAsins.has(asin) && targets.length < maxResults) {\n    seenAsins.add(asin);\n    targets.push({ url: `https://${domain}/dp/${asin}`, asin });\n  }\n}\n\nif (targets.length === 0) {\n  throw new Error('No ASINs found in the scraped search results page. ' +\n    'Amazon may have blocked the request — configure a residential proxy in Firecrawl to fix this (see PR description).');\n}\n\nreturn [{ json: { targets, market, count: targets.length, topic: data['topic'] || null, category_url: categoryUrl } }];\n"
 			},
-			"id": "node-analyse",
-			"name": "Analyse with Sonnet",
+			"id": "node-scrape-category",
+			"name": "Scrape Category & Parse ASINs",
 			"type": "n8n-nodes-base.code",
 			"typeVersion": 2,
 			"position": [680, 300]
 		},
 		{
 			"parameters": {
-				"jsCode": "const { analysisText, listingCount, market } = $input.first().json;\nconst now = new Date();\nconst ts = now.toISOString().replace(/[:.]/g,'-').replace('T','_').slice(0,19);\nconst filename = `report-${ts}.md`;\nconst filepath = `/opt/firecrawl/research-cache/${filename}`;\n\nconst report = `# Book Market Research Report\\n\\n**Generated:** ${now.toISOString()}  \\n**Market:** ${market}  \\n**Listings analysed:** ${listingCount}\\n\\n---\\n\\n${analysisText}\\n`;\n\nconst base64 = Buffer.from(report,'utf-8').toString('base64');\nreturn [{\n  json: { filepath, filename, reportLength: report.length },\n  binary: {\n    report: {\n      data: base64,\n      mimeType: 'text/markdown',\n      fileName: filename,\n      fileExtension: 'md'\n    }\n  }\n}];\n"
+				"jsCode": "// === SCRAPE & EXTRACT ===\n// Receives a targets array [{url, asin}] from the previous node.\n// Scrapes each product page via Firecrawl and extracts structured data with Claude Haiku.\n\nconst http = require('http');\nconst https = require('https');\n\nconst FIRECRAWL_KEY = $env.FIRECRAWL_API_KEY || 'fc-brilliantio-local';\nconst ANTHROPIC_KEY = $env.ANTHROPIC_API_KEY;\nif (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not set in n8n environment');\n\nconst data = $input.first().json;\nconst targets = data.targets || [];\nconst market = data.market || 'uk';\n\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\n\nfunction post(useHttps, hostname, port, path, bodyStr, headers) {\n  return new Promise((resolve, reject) => {\n    const lib = useHttps ? https : http;\n    const opts = {\n      hostname, port, path, method: 'POST',\n      headers: { ...headers, 'Content-Length': Buffer.byteLength(bodyStr) }\n    };\n    const req = lib.request(opts, res => {\n      let buf = '';\n      res.on('data', c => buf += c);\n      res.on('end', () => {\n        try { resolve(JSON.parse(buf)); } catch(e) { resolve({ _raw: buf.substring(0,500) }); }\n      });\n    });\n    req.on('error', reject);\n    req.write(bodyStr);\n    req.end();\n  });\n}\n\nasync function firecrawlScrape(url) {\n  try {\n    const body = JSON.stringify({ url, formats: ['markdown'], onlyMainContent: true });\n    const result = await post(false, 'host.docker.internal', 3002, '/v1/scrape', body, {\n      'Authorization': `Bearer ${FIRECRAWL_KEY}`,\n      'Content-Type': 'application/json'\n    });\n    const md = result?.data?.markdown || '';\n    if (!result.success || !md || md.includes('Continue shopping') || md.length < 200) {\n      return { success: false, error: result?.error || 'Blocked or empty (Amazon bot protection)' };\n    }\n    return { success: true, markdown: md };\n  } catch(e) {\n    return { success: false, error: e.message };\n  }\n}\n\nasync function extractWithHaiku(url, markdown) {\n  const schema = '{\"title\":null,\"subtitle\":null,\"author\":null,\"price_current\":null,\"price_paperback\":null,\"price_ebook\":null,\"rating\":null,\"review_count\":null,\"bsr_main\":null,\"bsr_categories\":[],\"categories\":[],\"bullets\":[],\"description\":null,\"page_count\":null,\"pub_date\":null,\"asin\":null}';\n  const content = `Extract structured product data from this Amazon book listing. Return ONLY valid JSON matching this schema (no markdown fences, no explanation). Schema: ${schema}\\n\\nURL: ${url}\\n\\nMarkdown:\\n${markdown.substring(0, 8000)}`;\n  try {\n    const body = JSON.stringify({\n      model: 'claude-haiku-4-5-20251001',\n      max_tokens: 1024,\n      messages: [{ role: 'user', content }]\n    });\n    const result = await post(true, 'api.anthropic.com', 443, '/v1/messages', body, {\n      'x-api-key': ANTHROPIC_KEY,\n      'anthropic-version': '2023-06-01',\n      'content-type': 'application/json'\n    });\n    const text = result?.content?.[0]?.text || '';\n    const cleaned = text.replace(/^```json\\s*/m,'').replace(/^```\\s*/m,'').replace(/\\s*```$/m,'').trim();\n    return { success: true, data: JSON.parse(cleaned) };\n  } catch(e) {\n    return { success: false, data: { extraction_error: e.message } };\n  }\n}\n\nconst listings = [];\nfor (let i = 0; i < targets.length; i++) {\n  const { url, asin } = targets[i];\n  const entry = { url, asin };\n  const scrapeResult = await firecrawlScrape(url);\n  if (i < targets.length - 1) await sleep(2000);\n  if (scrapeResult.success) {\n    const extraction = await extractWithHaiku(url, scrapeResult.markdown);\n    Object.assign(entry, extraction.data);\n  } else {\n    entry.scrape_error = scrapeResult.error;\n  }\n  listings.push(entry);\n}\n\nreturn [{ json: { listings, count: listings.length, market, topic: data.topic || null } }];\n"
+			},
+			"id": "node-scrape-extract",
+			"name": "Scrape & Extract",
+			"type": "n8n-nodes-base.code",
+			"typeVersion": 2,
+			"position": [1020, 300]
+		},
+		{
+			"parameters": {
+				"jsCode": "// === ANALYSE with Claude Sonnet ===\nconst https = require('https');\nconst ANTHROPIC_KEY = $env.ANTHROPIC_API_KEY;\nif (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not set');\n\nconst { listings, count, market, topic } = $input.first().json;\n\nfunction httpsPost(hostname, path, bodyStr, headers) {\n  return new Promise((resolve, reject) => {\n    const opts = {\n      hostname, port: 443, path, method: 'POST',\n      headers: { ...headers, 'Content-Length': Buffer.byteLength(bodyStr) }\n    };\n    const req = https.request(opts, res => {\n      let buf = '';\n      res.on('data', c => buf += c);\n      res.on('end', () => {\n        try { resolve(JSON.parse(buf)); } catch(e) { resolve({ _raw: buf.substring(0, 500) }); }\n      });\n    });\n    req.on('error', reject);\n    req.write(bodyStr);\n    req.end();\n  });\n}\n\nconst allBlocked = count === 0 || listings.every(l => l.scrape_error);\nconst scrapeNote = allBlocked\n  ? '\\n\\n> **Note:** Amazon scraping was blocked (bot protection). Analysis based on general KDP market knowledge for these listings.'\n  : '';\n\nconst topicNote = topic ? `\\nResearch Topic: ${topic}` : '';\n\nconst prompt = `You are a KDP market research analyst. Analyse these Amazon book listings and write a comprehensive Markdown research report.\\n\\n## 1. Price Positioning\\n## 2. Common Keywords & Themes\\n## 3. Review Distribution\\n## 4. Differentiation Opportunities\\n## 5. Recommended Positioning\\n## Summary Table\\n| Title | Author | Price | Rating | Reviews | BSR |\\n|-------|--------|-------|--------|---------|-----|\\n\\nMarket: ${market}${topicNote}${scrapeNote}\\nListings: ${count}\\n\\nData:\\n${JSON.stringify(listings, null, 2).substring(0, 15000)}`;\n\nconst body = JSON.stringify({\n  model: 'claude-sonnet-4-20250514',\n  max_tokens: 4096,\n  messages: [{ role: 'user', content: prompt }]\n});\n\nconst result = await httpsPost('api.anthropic.com', '/v1/messages', body, {\n  'x-api-key': ANTHROPIC_KEY,\n  'anthropic-version': '2023-06-01',\n  'content-type': 'application/json'\n});\n\nconst analysisText = result?.content?.[0]?.text || result?._raw || 'No analysis';\nreturn [{ json: { analysisText, listingCount: count, market, topic: topic || null } }];\n"
+			},
+			"id": "node-analyse",
+			"name": "Analyse with Sonnet",
+			"type": "n8n-nodes-base.code",
+			"typeVersion": 2,
+			"position": [1360, 300]
+		},
+		{
+			"parameters": {
+				"jsCode": "const { analysisText, listingCount, market, topic } = $input.first().json;\nconst now = new Date();\nconst ts = now.toISOString().replace(/[:.]/g,'-').replace('T','_').slice(0,19);\nconst topicSlug = topic ? '-' + topic.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30) : '';\nconst filename = `report-${ts}${topicSlug}.md`;\nconst filepath = `/opt/firecrawl/research-cache/${filename}`;\n\nconst topicLine = topic ? `**Topic:** ${topic}  \\n` : '';\nconst report = `# Book Market Research Report\\n\\n**Generated:** ${now.toISOString()}  \\n**Market:** ${market}  \\n${topicLine}**Listings analysed:** ${listingCount}\\n\\n---\\n\\n${analysisText}\\n`;\n\nconst base64 = Buffer.from(report,'utf-8').toString('base64');\nreturn [{\n  json: { filepath, filename, reportLength: report.length },\n  binary: {\n    report: {\n      data: base64,\n      mimeType: 'text/markdown',\n      fileName: filename,\n      fileExtension: 'md'\n    }\n  }\n}];\n"
 			},
 			"id": "node-prepare",
 			"name": "Prepare Report",
 			"type": "n8n-nodes-base.code",
 			"typeVersion": 2,
-			"position": [1020, 300]
+			"position": [1700, 300]
 		},
 		{
 			"parameters": {
@@ -91,7 +123,7 @@
 			"name": "Save Report",
 			"type": "n8n-nodes-base.code",
 			"typeVersion": 2,
-			"position": [1280, 300]
+			"position": [1960, 300]
 		},
 		{
 			"parameters": {
@@ -101,11 +133,33 @@
 			"name": "Done",
 			"type": "n8n-nodes-base.code",
 			"typeVersion": 2,
-			"position": [1540, 300]
+			"position": [2220, 300]
 		}
 	],
 	"connections": {
 		"Manual Trigger": {
+			"main": [
+				[
+					{
+						"node": "Topic to URL",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Topic to URL": {
+			"main": [
+				[
+					{
+						"node": "Scrape Category & Parse ASINs",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Scrape Category & Parse ASINs": {
 			"main": [
 				[
 					{
@@ -167,10 +221,30 @@
 	"staticData": null,
 	"tags": [],
 	"triggerCount": 1,
-	"versionId": "bri-882-v7",
+	"versionId": "bri-885-v1",
 	"_meta": {
 		"n8n_workflow_id": "rTGaVYBYZ6QJXKAG",
 		"deployed_at": "2026-03-30",
-		"notes": "Amazon scraping blocked by bot protection \u2014 scrape_error is gracefully handled. Analysis falls back to general KDP market knowledge. To enable real scraping, configure Firecrawl with residential proxies."
+		"bri_issue": "BRI-885",
+		"notes": "Upgraded from BRI-882: added natural language topic input mode. Two modes: 'topic' (describe a subject, Haiku generates Amazon search URL, Firecrawl scrapes results, ASINs extracted) and 'asins' (direct ASIN list fallback). Added max_results field (default 15). Report filenames now include topic slug.",
+		"proxy_setup_instructions": {
+			"status": "MANUAL STEPS REQUIRED — proxy account cannot be created programmatically",
+			"summary": "Firecrawl currently has no residential proxy configured. Amazon product page scraping may be blocked by bot protection. To fix this, complete the DataImpulse proxy setup below.",
+			"steps": [
+				"1. Sign up at https://dataimpulse.com (pay-as-you-go, ~$1/GB, credits never expire). Purchase minimum $5-10 credit.",
+				"2. Obtain proxy credentials from your DataImpulse dashboard: host, port, username, password.",
+				"3. SSH to the VPS, then edit /opt/firecrawl/.env and add the following three lines (replace placeholders with your actual credentials):",
+				"   PROXY_SERVER=http://username:password@proxy-host:port",
+				"   PROXY_USERNAME=username",
+				"   PROXY_PASSWORD=password",
+				"4. Edit /opt/firecrawl/docker-compose.yml — add proxy env vars to the puppeteer-service container's environment block:",
+				"   environment:",
+				"     - PROXY_SERVER=${PROXY_SERVER}",
+				"     - PROXY_USERNAME=${PROXY_USERNAME}",
+				"     - PROXY_PASSWORD=${PROXY_PASSWORD}",
+				"5. Restart Firecrawl: cd /opt/firecrawl && docker compose down && docker compose up -d",
+				"6. Test by running this workflow in topic mode with 'documentary filmmaking', market=uk, max_results=10. Without a proxy, the Scrape Category & Parse ASINs node will throw an error with a reminder to complete these steps."
+			]
+		}
 	}
 }
