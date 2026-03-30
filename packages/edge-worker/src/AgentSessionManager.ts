@@ -1099,9 +1099,27 @@ export class AgentSessionManager extends EventEmitter {
 		// Append model info to the comment so it's visible on Linear
 		const modelName = session?.metadata?.model || "unknown";
 		const modelLine = `\n\n**Model:** ${modelName}`;
+
+		// Calculate and append session duration
+		const endTime = Date.now();
+		const startTime = session?.createdAt;
+		let durationLine = "";
+		if (startTime && Number.isFinite(startTime) && endTime > startTime) {
+			const durationMs = endTime - startTime;
+			const totalSeconds = Math.floor(durationMs / 1000);
+			const minutes = Math.floor(totalSeconds / 60);
+			const seconds = totalSeconds % 60;
+			const durationFormatted =
+				minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+			durationLine = `\n**Session duration:** ${durationFormatted}`;
+			this.logger.info(
+				`Session duration: ${durationFormatted} (${durationMs}ms)`,
+			);
+		}
+
 		const content = rawContent
-			? `${rawContent}${modelLine}`
-			: modelLine.trimStart();
+			? `${rawContent}${modelLine}${durationLine}`
+			: `${modelLine.trimStart()}${durationLine}`;
 
 		const resultEntry: CyrusAgentSessionEntry = {
 			// Set the appropriate session ID based on runner type
