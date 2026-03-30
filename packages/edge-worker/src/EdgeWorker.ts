@@ -39,6 +39,7 @@ import type {
 	WebhookIssue,
 } from "cyrus-core";
 import {
+	AgentSessionStatus,
 	CLIIssueTrackerService,
 	CLIRPCServer,
 	createLogger,
@@ -758,6 +759,9 @@ export class EdgeWorker extends EventEmitter {
 
 		// 5. Register /version endpoint for CLI version info
 		this.registerVersionEndpoint();
+
+		// 6. Register /health endpoint for detailed system health and queue status
+		this.registerHealthEndpoint();
 	}
 
 	/**
@@ -791,6 +795,112 @@ export class EdgeWorker extends EventEmitter {
 
 		this.logger.info("✅ Version endpoint registered");
 		this.logger.info("   Route: GET /version");
+	}
+
+	/**
+	 * Register the /health endpoint for detailed system health, queue status, and system metrics.
+	 * More detailed than /status — intended for dashboards and monitoring.
+	 * No authentication required.
+	 */
+	private registerHealthEndpoint(): void {
+		const fastify = this.sharedApplicationServer.getFastifyInstance();
+
+		fastify.get("/health", async (_request, reply) => {
+			const health = this.computeHealth();
+			return reply.status(200).send(health);
+		});
+
+		this.logger.info("✅ Health endpoint registered");
+		this.logger.info("   Route: GET /health");
+	}
+
+	/**
+	 * Compute detailed health data for the /health endpoint.
+	 */
+	private computeHealth() {
+		const allSessions = this.agentSessionManager.getAllSessions();
+		const activeSessions = allSessions.filter(
+			(s) => s.status === AgentSessionStatus.Active,
+		);
+
+		// Active session info — report the most recently started active session
+		let activeSession: {
+			issueId: string | null;
+			repo: string | null;
+			startedAt: string;
+			durationSeconds: number;
+		} | null = null;
+		if (activeSessions.length > 0) {
+			const newest = activeSessions.reduce((a, b) =>
+				a.createdAt > b.createdAt ? a : b,
+			);
+			const repoConfig = this.config.repositories.find(
+				(r) => r.id === newest.repositories[0]?.repositoryId,
+			);
+			const now = Date.now();
+			activeSession = {
+				issueId:
+					newest.issueContext?.issueIdentifier ??
+					newest.issueContext?.issueId ??
+					newest.issueId ??
+					null,
+				repo: repoConfig?.name ?? newest.repositories[0]?.repositoryId ?? null,
+				startedAt: new Date(newest.createdAt).toISOString(),
+				durationSeconds: Math.floor((now - newest.createdAt) / 1000),
+			};
+		}
+
+		// Queue length per repo: number of active sessions per repo
+		const queueLength: Record<string, number> = {};
+		for (const session of activeSessions) {
+			for (const repoCtx of session.repositories) {
+				const repoConfig = this.config.repositories.find(
+					(r) => r.id === repoCtx.repositoryId,
+				);
+				const key = repoConfig?.name ?? repoCtx.repositoryId;
+				queueLength[key] = (queueLength[key] ?? 0) + 1;
+			}
+		}
+
+		// Last completed session timestamp
+		const completedSessions = allSessions.filter(
+			(s) =>
+				s.status === AgentSessionStatus.Complete ||
+				s.status === AgentSessionStatus.Error,
+		);
+		let lastCompletedAt: string | null = null;
+		if (completedSessions.length > 0) {
+			const latest = completedSessions.reduce((a, b) =>
+				a.updatedAt > b.updatedAt ? a : b,
+			);
+			lastCompletedAt = new Date(latest.updatedAt).toISOString();
+		}
+
+		// Determine overall status
+		const busyStatus = this.computeStatus();
+		const hasErrors = completedSessions.some(
+			(s) => s.status === AgentSessionStatus.Error,
+		);
+		const status: "healthy" | "degraded" | "error" =
+			busyStatus === "idle" && hasErrors ? "degraded" : "healthy";
+
+		const mem = process.memoryUsage();
+
+		return {
+			status,
+			uptime: Math.floor(process.uptime()),
+			activeSession,
+			queueLength,
+			lastCompletedAt,
+			version: this.config.version ?? null,
+			model: this.config.claudeDefaultModel ?? null,
+			memoryUsage: {
+				rss: mem.rss,
+				heapUsed: mem.heapUsed,
+				heapTotal: mem.heapTotal,
+				external: mem.external,
+			},
+		};
 	}
 
 	/**
