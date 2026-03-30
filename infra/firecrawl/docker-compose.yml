@@ -1,0 +1,69 @@
+networks:
+  firecrawl:
+    driver: bridge
+
+services:
+  firecrawl-redis:
+    image: redis:7-alpine
+    container_name: firecrawl-redis
+    networks:
+      - firecrawl
+    volumes:
+      - firecrawl_redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  puppeteer-service:
+    image: trieve/puppeteer-service-ts:v0.0.13
+    container_name: firecrawl-puppeteer
+    networks:
+      - firecrawl
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+    depends_on:
+      firecrawl-redis:
+        condition: service_healthy
+
+  firecrawl-worker:
+    image: trieve/firecrawl:v0.0.55
+    container_name: firecrawl-worker
+    networks:
+      - firecrawl
+    env_file:
+      - .env
+    environment:
+      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-puppeteer:3000/scrape
+    command: ["pnpm", "run", "workers"]
+    restart: unless-stopped
+    depends_on:
+      firecrawl-redis:
+        condition: service_healthy
+      puppeteer-service:
+        condition: service_started
+
+  firecrawl-api:
+    image: trieve/firecrawl:v0.0.55
+    container_name: firecrawl-api
+    networks:
+      - firecrawl
+    ports:
+      - "127.0.0.1:3002:3002"
+    env_file:
+      - .env
+    environment:
+      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-puppeteer:3000/scrape
+    restart: unless-stopped
+    depends_on:
+      firecrawl-redis:
+        condition: service_healthy
+      puppeteer-service:
+        condition: service_started
+
+volumes:
+  firecrawl_redis_data:
+    driver: local
