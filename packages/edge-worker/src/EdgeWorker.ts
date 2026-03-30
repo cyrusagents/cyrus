@@ -125,6 +125,11 @@ import { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
 import { AttachmentService } from "./AttachmentService.js";
 import { ChatSessionHandler } from "./ChatSessionHandler.js";
 import { ConfigManager, type RepositoryChanges } from "./ConfigManager.js";
+import {
+	ElicitationManager,
+	type ElicitationOption,
+	type ElicitationResult,
+} from "./ElicitationManager.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { McpConfigService } from "./McpConfigService.js";
@@ -207,6 +212,8 @@ export class EdgeWorker extends EventEmitter {
 	private activeWebhookCount = 0; // Track number of webhooks currently being processed
 	/** Handler for AskUserQuestion tool invocations via Linear select signal */
 	private askUserQuestionHandler: AskUserQuestionHandler;
+	/** Manager for elicitation (clickable choices) workflows between Claude Code runs */
+	private elicitationManager: ElicitationManager;
 	/** User access control for whitelisting/blacklisting Linear users */
 	private userAccessControl: UserAccessControl;
 	private logger: ILogger;
@@ -313,6 +320,18 @@ export class EdgeWorker extends EventEmitter {
 				return this.getIssueTrackerForWorkspace(linearWorkspaceId) ?? null;
 			},
 		});
+
+		// Initialize ElicitationManager for pause/resume workflows (e.g., test failure choices)
+		this.elicitationManager = new ElicitationManager(
+			{
+				getIssueTracker: (linearWorkspaceId: string) => {
+					return this.getIssueTrackerForWorkspace(linearWorkspaceId) ?? null;
+				},
+			},
+			{
+				persistencePath: join(this.cyrusHome, "pending-elicitations.json"),
+			},
+		);
 
 		// Initialize shared application server
 		const serverPort = config.serverPort || config.webhookPort || 3456;
@@ -423,6 +442,18 @@ export class EdgeWorker extends EventEmitter {
 					session,
 					repo,
 					this.agentSessionManager,
+				);
+			},
+		);
+
+		this.agentSessionManager.on(
+			"testFailureElicitation",
+			async ({ sessionId, session, failureReason, iterations }) => {
+				await this.handleTestFailureElicitation(
+					sessionId,
+					session,
+					failureReason,
+					iterations,
 				);
 			},
 		);
@@ -2458,6 +2489,166 @@ ${taskSection}`;
 	}
 
 	/**
+	 * Handle test failure elicitation — present choices when validation loop is exhausted.
+	 *
+	 * This is the first concrete elicitation point: when tests fail after max retries,
+	 * present the user with clickable options:
+	 * 1. "Fix the failing test" — run one more fixer attempt
+	 * 2. "Skip tests and open PR anyway" — advance past verification
+	 * 3. "Abort and report the error" — stop the session
+	 *
+	 * The Claude Code process is NOT running during this elicitation.
+	 */
+	private async handleTestFailureElicitation(
+		sessionId: string,
+		session: CyrusAgentSession,
+		failureReason: string,
+		iterations: number,
+	): Promise<void> {
+		const log = this.logger.withContext({ sessionId });
+		log.info(
+			`Test failure elicitation: ${iterations} iterations exhausted, presenting choices`,
+		);
+
+		// Resolve the workspace ID for this session
+		const repoId = this.sessionRepositories.get(sessionId);
+		const repo = repoId ? this.repositories.get(repoId) : undefined;
+		if (!repo) {
+			log.error(
+				`No repository found for session during test failure elicitation`,
+			);
+			return;
+		}
+
+		const linearWorkspaceId = requireLinearWorkspaceId(repo);
+
+		// Build the elicitation body with failure context
+		const body = `Tests failed after ${iterations} attempt(s). Last failure:\n\n${failureReason}\n\nHow would you like to proceed?`;
+
+		const options: ElicitationOption[] = [
+			{ value: "Fix the failing test" },
+			{ value: "Skip tests and open PR anyway" },
+			{ value: "Abort and report the error" },
+		];
+
+		// Post a thought about the failure first
+		await this.agentSessionManager.createThoughtActivity(
+			sessionId,
+			`Validation loop exhausted after ${iterations} attempts. Asking user how to proceed.`,
+		);
+
+		// Emit the elicitation and wait for response (or timeout)
+		let result: ElicitationResult;
+		try {
+			result = await this.elicitationManager.emitElicitation(
+				sessionId,
+				linearWorkspaceId,
+				body,
+				options,
+				"test-failure",
+			);
+		} catch (error) {
+			log.error(`Failed to emit test failure elicitation:`, error);
+			// Fall back to original behavior: continue to next subroutine
+			await this.agentSessionManager.createThoughtActivity(
+				sessionId,
+				`Failed to present choices. Continuing to next step.`,
+			);
+			this.agentSessionManager.clearValidationLoopState(session);
+			this.agentSessionManager.emit("subroutineComplete", {
+				sessionId,
+				session,
+			});
+			return;
+		}
+
+		// Handle the user's response (or timeout)
+		if (!result.responded) {
+			// Timeout or cancellation
+			log.info(`Test failure elicitation: no response — ${result.reason}`);
+			await this.agentSessionManager.createThoughtActivity(
+				sessionId,
+				`No response received for test failure elicitation. ${result.reason || ""}`,
+			);
+			// Leave session in current state (awaitingInput) — don't advance
+			return;
+		}
+
+		const selectedValue = result.selectedValue || "";
+		log.info(`Test failure elicitation response: "${selectedValue}"`);
+
+		if (selectedValue === "Fix the failing test") {
+			// Run one more fixer attempt
+			log.info(`User chose to fix — running fixer`);
+			await this.agentSessionManager.createThoughtActivity(
+				sessionId,
+				`User chose: Fix the failing test`,
+			);
+
+			// Re-enter validation loop with one more try
+			const validationLoop = session.metadata?.procedure?.validationLoop;
+			if (validationLoop) {
+				validationLoop.inFixerMode = true;
+			}
+
+			// Get the last failure reason for the fixer prompt
+			const fixerPrompt = `The user has requested another attempt to fix the failing tests.\n\nLast failure reason:\n${failureReason}\n\nPlease analyze and fix the failing tests.`;
+
+			// Use the validation loop fixer path
+			await this.handleValidationLoopFixer(
+				sessionId,
+				session,
+				repo,
+				this.agentSessionManager,
+				fixerPrompt,
+				iterations,
+			);
+		} else if (selectedValue === "Skip tests and open PR anyway") {
+			// Advance past verification to next subroutine
+			log.info(`User chose to skip tests — advancing`);
+			await this.agentSessionManager.createThoughtActivity(
+				sessionId,
+				`User chose: Skip tests and open PR anyway`,
+			);
+			this.agentSessionManager.clearValidationLoopState(session);
+
+			// Trigger normal subroutine advancement
+			const runnerSessionId =
+				session.claudeSessionId ||
+				session.geminiSessionId ||
+				session.codexSessionId ||
+				session.cursorSessionId;
+			if (runnerSessionId) {
+				this.procedureAnalyzer.advanceToNextSubroutine(
+					session,
+					runnerSessionId,
+					undefined,
+				);
+			}
+			this.agentSessionManager.emit("subroutineComplete", {
+				sessionId,
+				session,
+			});
+		} else if (selectedValue === "Abort and report the error") {
+			// Stop the session
+			log.info(`User chose to abort`);
+			await this.agentSessionManager.createResponseActivity(
+				sessionId,
+				`Session aborted by user after test failures.\n\nLast failure: ${failureReason}`,
+			);
+		} else {
+			// Unrecognized response — treat as abort
+			log.warn(
+				`Unrecognized elicitation response: "${selectedValue}", aborting`,
+			);
+			await this.agentSessionManager.createResponseActivity(
+				sessionId,
+				`Unrecognized choice: "${selectedValue}". Session stopped.\n\nLast failure: ${failureReason}`,
+			);
+		}
+	}
+
+	/**
 	 * Add new repositories to the running EdgeWorker
 	 */
 	private async addNewRepositories(repos: RepositoryConfig[]): Promise<void> {
@@ -4183,6 +4374,49 @@ ${taskSection}`;
 	}
 
 	/**
+	 * Handle an elicitation response from the "prompted" webhook.
+	 * Branch 2.75 of agentSessionPrompted — responses to clickable choices
+	 * emitted between Claude Code runs (e.g., test failure options).
+	 */
+	private async handleElicitationResponse(
+		webhook: AgentSessionPromptedWebhook,
+	): Promise<void> {
+		const { agentSession, agentActivity } = webhook;
+		const agentSessionId = agentSession.id;
+
+		if (!agentActivity) {
+			this.logger.warn(
+				"Cannot handle elicitation response without agentActivity",
+			);
+			this.elicitationManager.cancelPendingElicitation(
+				agentSessionId,
+				"No agent activity in webhook",
+			);
+			return;
+		}
+
+		const selectedValue = agentActivity.content?.body || "";
+		const elicitationType =
+			this.elicitationManager.getPendingElicitationType(agentSessionId);
+
+		this.logger.info(
+			`Processing elicitation response for session ${agentSessionId} (type: ${elicitationType}): "${selectedValue}"`,
+		);
+
+		// Resolve the pending elicitation — the promise in handleTestFailureElicitation() resolves
+		const handled = this.elicitationManager.handleUserResponse(
+			agentSessionId,
+			selectedValue,
+		);
+
+		if (!handled) {
+			this.logger.warn(
+				`Elicitation response not handled for session ${agentSessionId} (no pending elicitation)`,
+			);
+		}
+	}
+
+	/**
 	 * Handle normal prompted activity (existing session continuation)
 	 * Branch 3 of agentSessionPrompted (see packages/CLAUDE.md)
 	 */
@@ -4432,6 +4666,13 @@ ${taskSection}`;
 		// The response is passed to the pending promise resolver.
 		if (this.askUserQuestionHandler.hasPendingQuestion(agentSessionId)) {
 			await this.handleAskUserQuestionResponse(webhook);
+			return;
+		}
+
+		// Branch 2.75: Handle elicitation response (e.g., test failure choices)
+		// This handles responses to elicitations emitted between Claude Code runs.
+		if (this.elicitationManager.hasPendingElicitation(agentSessionId)) {
+			await this.handleElicitationResponse(webhook);
 			return;
 		}
 

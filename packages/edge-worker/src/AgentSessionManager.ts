@@ -70,6 +70,18 @@ export interface AgentSessionManagerEvents {
 		/** Current iteration (1-based) */
 		iteration: number;
 	}) => void;
+	/**
+	 * Emitted when validation loop is exhausted and user should choose how to proceed.
+	 * The EdgeWorker should present an elicitation with choices and wait for response.
+	 */
+	testFailureElicitation: (data: {
+		sessionId: string;
+		session: CyrusAgentSession;
+		/** Human-readable failure reason from the last validation attempt */
+		failureReason: string;
+		/** Number of validation iterations attempted */
+		iterations: number;
+	}) => void;
 }
 
 /**
@@ -813,9 +825,24 @@ export class AgentSessionManager extends EventEmitter {
 		// Check if we've exceeded max retries
 		if (newIteration >= maxIterations) {
 			log.info(
-				`Validation failed after ${newIteration} iterations, continuing anyway`,
+				`Validation failed after ${newIteration} iterations, emitting test failure elicitation`,
 			);
-			// Post a thought about the failures
+
+			// Emit event for EdgeWorker to present user with choices
+			const hasTestFailureListeners = this.emit("testFailureElicitation", {
+				sessionId,
+				session,
+				failureReason: validationResult.reason,
+				iterations: newIteration,
+			});
+
+			if (hasTestFailureListeners) {
+				// EdgeWorker will handle the elicitation and resume/abort as needed
+				return true; // Elicitation took over control flow
+			}
+
+			// No listeners registered — fall back to original behavior
+			log.info(`No testFailureElicitation listeners, falling back to continue`);
 			await this.createThoughtActivity(
 				sessionId,
 				`Validation loop exhausted after ${newIteration} attempts. Last failure: ${validationResult.reason}`,
@@ -878,7 +905,7 @@ export class AgentSessionManager extends EventEmitter {
 	/**
 	 * Clear validation loop state from session metadata
 	 */
-	private clearValidationLoopState(session: CyrusAgentSession): void {
+	clearValidationLoopState(session: CyrusAgentSession): void {
 		if (session.metadata?.procedure) {
 			delete session.metadata.procedure.validationLoop;
 		}
@@ -1952,6 +1979,26 @@ export class AgentSessionManager extends EventEmitter {
 				signalMetadata: { url: approvalUrl },
 			},
 			"approval elicitation",
+		);
+	}
+
+	/**
+	 * Create a select elicitation activity with clickable options.
+	 * Used for presenting choices to the user (e.g., test failure handling).
+	 */
+	async createSelectElicitation(
+		sessionId: string,
+		body: string,
+		options: Array<{ value: string }>,
+	): Promise<void> {
+		await this.postActivity(
+			sessionId,
+			{
+				content: { type: "elicitation", body },
+				signal: "select",
+				signalMetadata: { options },
+			},
+			"select elicitation",
 		);
 	}
 

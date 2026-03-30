@@ -23,6 +23,13 @@ export type {
 } from "./ChatSessionHandler.js";
 export { ChatSessionHandler } from "./ChatSessionHandler.js";
 export { EdgeWorker } from "./EdgeWorker.js";
+export type {
+	ElicitationManagerConfig,
+	ElicitationManagerDeps,
+	ElicitationOption,
+	ElicitationResult,
+} from "./ElicitationManager.js";
+export { ElicitationManager } from "./ElicitationManager.js";
 export type { CreateGitWorktreeOptions } from "./GitService.js";
 export { GitService } from "./GitService.js";
 export type { SerializedGlobalRegistryState } from "./GlobalSessionRegistry.js";
