@@ -1086,7 +1086,7 @@ export class AgentSessionManager extends EventEmitter {
 						: "claude";
 
 		// For error results, content may be in errors[] rather than result
-		const content =
+		const rawContent =
 			"result" in resultMessage && typeof resultMessage.result === "string"
 				? resultMessage.result
 				: resultMessage.is_error &&
@@ -1095,6 +1095,13 @@ export class AgentSessionManager extends EventEmitter {
 						resultMessage.errors.length > 0
 					? resultMessage.errors.join("\n")
 					: "";
+
+		// Append model info to the comment so it's visible on Linear
+		const modelName = session?.metadata?.model || "unknown";
+		const modelLine = `\n\n**Model:** ${modelName}`;
+		const content = rawContent
+			? `${rawContent}${modelLine}`
+			: modelLine.trimStart();
 
 		const resultEntry: CyrusAgentSessionEntry = {
 			// Set the appropriate session ID based on runner type

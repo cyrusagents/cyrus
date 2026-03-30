@@ -158,6 +158,8 @@ describe("AgentSessionManager stop-session behavior", () => {
 			(call: any[]) => call[1]?.type === "error",
 		);
 		expect(errorActivity).toBeDefined();
-		expect(errorActivity![1].body).toBe(usageLimitError);
+		expect(errorActivity![1].body).toBe(
+			`${usageLimitError}\n\n**Model:** unknown`,
+		);
 	});
 });

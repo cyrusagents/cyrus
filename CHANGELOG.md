@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Model name in completion comments** - Cyrus now appends `**Model:** {model}` to every completion and failure comment it posts on Linear issues, showing exactly which AI model handled the session (e.g. `claude-sonnet-4-6`). Gives immediate visibility into model routing without checking logs. ([BRI-858](https://linear.app/brilliantio/issue/BRI-858), [#3](https://github.com/Brilliantio/cyrus-agent/pull/3))
 - **Clickable choices for test failure handling** - When tests fail after all retry attempts, Cyrus now presents clickable options in Linear instead of silently continuing: "Fix the failing test", "Skip tests and open PR anyway", or "Abort and report the error". Your choice resumes or stops the session accordingly. Includes a 30-minute response timeout and survives restarts. ([BRI-857](https://linear.app/brilliantio/issue/BRI-857), [#2](https://github.com/Brilliantio/cyrus-agent/pull/2))
 - **Live Agent Plan progress checklist in Linear Agent Session panel** - Cyrus now posts a real-time progress checklist to the Linear Agent Session panel as it executes subroutines. Each procedure step (e.g. "Implementing code changes", "Running tests", "Creating or updating pull request") shows as pending, in progress, or completed so you can track execution status without checking GitHub or SSH. ([BRI-856](https://linear.app/brilliantio/issue/BRI-856), [#1](https://github.com/Brilliantio/cyrus-agent/pull/1))
 
