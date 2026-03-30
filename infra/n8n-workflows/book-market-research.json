@@ -1,0 +1,176 @@
+{
+	"name": "Book Market Research (Firecrawl + Claude)",
+	"nodes": [
+		{
+			"parameters": {
+				"formTitle": "Book Market Research",
+				"formDescription": "Scrape Amazon listings via Firecrawl and analyse with Claude",
+				"formFields": {
+					"values": [
+						{
+							"fieldLabel": "research_type",
+							"fieldType": "dropdown",
+							"fieldOptions": {
+								"values": [
+									{
+										"option": "asins"
+									},
+									{
+										"option": "category"
+									}
+								]
+							},
+							"requiredField": true
+						},
+						{
+							"fieldLabel": "input",
+							"fieldType": "text",
+							"placeholder": "Comma-separated ASINs e.g. B0GTQQNVVZ,B09XYZ or category URL",
+							"requiredField": true
+						},
+						{
+							"fieldLabel": "market",
+							"fieldType": "dropdown",
+							"fieldOptions": {
+								"values": [
+									{
+										"option": "uk"
+									},
+									{
+										"option": "us"
+									}
+								]
+							},
+							"requiredField": true
+						}
+					]
+				}
+			},
+			"id": "node-trigger",
+			"name": "Manual Trigger",
+			"type": "n8n-nodes-base.formTrigger",
+			"typeVersion": 2.2,
+			"position": [0, 300],
+			"webhookId": "book-market-research-trigger-bri882"
+		},
+		{
+			"parameters": {
+				"jsCode": "// === SCRAPE & EXTRACT ===\n// Uses Node.js http/https modules (no URL class, no fetch).\n\nconst http = require('http');\nconst https = require('https');\n\nconst FIRECRAWL_KEY = $env.FIRECRAWL_API_KEY || 'fc-brilliantio-local';\nconst ANTHROPIC_KEY = $env.ANTHROPIC_API_KEY;\nif (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not set in n8n environment');\n\nconst data = $input.first().json;\nconst researchType = data['research_type'] || 'asins';\nconst rawInput = data['input'] || '';\nconst market = (data['market'] || 'uk').toLowerCase().trim();\nconst domain = market === 'us' ? 'www.amazon.com' : 'www.amazon.co.uk';\n\nlet targets = [];\nif (researchType === 'asins') {\n  const asins = rawInput.split(',').map(s => s.trim()).filter(Boolean).slice(0, 30);\n  targets = asins.map(asin => ({ url: `https://${domain}/dp/${asin}`, asin }));\n} else {\n  targets = [{ url: rawInput.trim(), asin: null }];\n}\n\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\n\nfunction post(useHttps, hostname, port, path, bodyStr, headers) {\n  return new Promise((resolve, reject) => {\n    const lib = useHttps ? https : http;\n    const opts = {\n      hostname, port, path, method: 'POST',\n      headers: { ...headers, 'Content-Length': Buffer.byteLength(bodyStr) }\n    };\n    const req = lib.request(opts, res => {\n      let buf = '';\n      res.on('data', c => buf += c);\n      res.on('end', () => {\n        try { resolve(JSON.parse(buf)); } catch(e) { resolve({ _raw: buf.substring(0,500) }); }\n      });\n    });\n    req.on('error', reject);\n    req.write(bodyStr);\n    req.end();\n  });\n}\n\nasync function firecrawlScrape(url) {\n  try {\n    const body = JSON.stringify({ url, formats: ['markdown'], onlyMainContent: true });\n    const result = await post(false, 'host.docker.internal', 3002, '/v1/scrape', body, {\n      'Authorization': `Bearer ${FIRECRAWL_KEY}`,\n      'Content-Type': 'application/json'\n    });\n    const md = result?.data?.markdown || '';\n    if (!result.success || !md || md.includes('Continue shopping') || md.length < 200) {\n      return { success: false, error: result?.error || 'Blocked or empty (Amazon bot protection)' };\n    }\n    return { success: true, markdown: md };\n  } catch(e) {\n    return { success: false, error: e.message };\n  }\n}\n\nasync function extractWithHaiku(url, markdown) {\n  const schema = '{\"title\":null,\"subtitle\":null,\"author\":null,\"price_current\":null,\"price_paperback\":null,\"price_ebook\":null,\"rating\":null,\"review_count\":null,\"bsr_main\":null,\"bsr_categories\":[],\"categories\":[],\"bullets\":[],\"description\":null,\"page_count\":null,\"pub_date\":null,\"asin\":null}';\n  const content = `Extract structured product data from this Amazon book listing. Return ONLY valid JSON matching this schema (no markdown fences, no explanation). Schema: ${schema}\\n\\nURL: ${url}\\n\\nMarkdown:\\n${markdown.substring(0, 8000)}`;\n  try {\n    const body = JSON.stringify({\n      model: 'claude-haiku-4-5-20251001',\n      max_tokens: 1024,\n      messages: [{ role: 'user', content }]\n    });\n    const result = await post(true, 'api.anthropic.com', 443, '/v1/messages', body, {\n      'x-api-key': ANTHROPIC_KEY,\n      'anthropic-version': '2023-06-01',\n      'content-type': 'application/json'\n    });\n    const text = result?.content?.[0]?.text || '';\n    const cleaned = text.replace(/^```json\\s*/m,'').replace(/^```\\s*/m,'').replace(/\\s*```$/m,'').trim();\n    return { success: true, data: JSON.parse(cleaned) };\n  } catch(e) {\n    return { success: false, data: { extraction_error: e.message } };\n  }\n}\n\nconst listings = [];\nfor (let i = 0; i < targets.length; i++) {\n  const { url, asin } = targets[i];\n  const entry = { url, asin };\n  const scrapeResult = await firecrawlScrape(url);\n  if (i < targets.length - 1) await sleep(2000);\n  if (scrapeResult.success) {\n    const extraction = await extractWithHaiku(url, scrapeResult.markdown);\n    Object.assign(entry, extraction.data);\n  } else {\n    entry.scrape_error = scrapeResult.error;\n  }\n  listings.push(entry);\n}\n\nreturn [{ json: { listings, count: listings.length, market } }];\n"
+			},
+			"id": "node-scrape-extract",
+			"name": "Scrape & Extract",
+			"type": "n8n-nodes-base.code",
+			"typeVersion": 2,
+			"position": [340, 300]
+		},
+		{
+			"parameters": {
+				"jsCode": "// === ANALYSE with Claude Sonnet ===\nconst https = require('https');\nconst ANTHROPIC_KEY = $env.ANTHROPIC_API_KEY;\nif (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not set');\n\nconst { listings, count, market } = $input.first().json;\n\nfunction httpsPost(hostname, path, bodyStr, headers) {\n  return new Promise((resolve, reject) => {\n    const opts = {\n      hostname, port: 443, path, method: 'POST',\n      headers: { ...headers, 'Content-Length': Buffer.byteLength(bodyStr) }\n    };\n    const req = https.request(opts, res => {\n      let buf = '';\n      res.on('data', c => buf += c);\n      res.on('end', () => {\n        try { resolve(JSON.parse(buf)); } catch(e) { resolve({ _raw: buf.substring(0, 500) }); }\n      });\n    });\n    req.on('error', reject);\n    req.write(bodyStr);\n    req.end();\n  });\n}\n\nconst allBlocked = count === 0 || listings.every(l => l.scrape_error);\nconst scrapeNote = allBlocked\n  ? '\\n\\n> **Note:** Amazon scraping was blocked (bot protection). Analysis based on general KDP market knowledge for these ASINs.'\n  : '';\n\nconst prompt = `You are a KDP market research analyst. Analyse these Amazon book listings and write a comprehensive Markdown research report.\\n\\n## 1. Price Positioning\\n## 2. Common Keywords & Themes\\n## 3. Review Distribution\\n## 4. Differentiation Opportunities\\n## 5. Recommended Positioning\\n## Summary Table\\n| Title | Author | Price | Rating | Reviews | BSR |\\n|-------|--------|-------|--------|---------|-----|\\n\\nMarket: ${market}${scrapeNote}\\nListings: ${count}\\n\\nData:\\n${JSON.stringify(listings, null, 2).substring(0, 15000)}`;\n\nconst body = JSON.stringify({\n  model: 'claude-sonnet-4-20250514',\n  max_tokens: 4096,\n  messages: [{ role: 'user', content: prompt }]\n});\n\nconst result = await httpsPost('api.anthropic.com', '/v1/messages', body, {\n  'x-api-key': ANTHROPIC_KEY,\n  'anthropic-version': '2023-06-01',\n  'content-type': 'application/json'\n});\n\nconst analysisText = result?.content?.[0]?.text || result?._raw || 'No analysis';\nreturn [{ json: { analysisText, listingCount: count, market } }];\n"
+			},
+			"id": "node-analyse",
+			"name": "Analyse with Sonnet",
+			"type": "n8n-nodes-base.code",
+			"typeVersion": 2,
+			"position": [680, 300]
+		},
+		{
+			"parameters": {
+				"jsCode": "const { analysisText, listingCount, market } = $input.first().json;\nconst now = new Date();\nconst ts = now.toISOString().replace(/[:.]/g,'-').replace('T','_').slice(0,19);\nconst filename = `report-${ts}.md`;\nconst filepath = `/opt/firecrawl/research-cache/${filename}`;\n\nconst report = `# Book Market Research Report\\n\\n**Generated:** ${now.toISOString()}  \\n**Market:** ${market}  \\n**Listings analysed:** ${listingCount}\\n\\n---\\n\\n${analysisText}\\n`;\n\nconst base64 = Buffer.from(report,'utf-8').toString('base64');\nreturn [{\n  json: { filepath, filename, reportLength: report.length },\n  binary: {\n    report: {\n      data: base64,\n      mimeType: 'text/markdown',\n      fileName: filename,\n      fileExtension: 'md'\n    }\n  }\n}];\n"
+			},
+			"id": "node-prepare",
+			"name": "Prepare Report",
+			"type": "n8n-nodes-base.code",
+			"typeVersion": 2,
+			"position": [1020, 300]
+		},
+		{
+			"parameters": {
+				"jsCode": "// Write report to /opt/firecrawl/research-cache/ using fs module\nconst fs = require('fs');\nconst path = require('path');\n\nconst { filepath, filename, reportLength } = $input.first().json;\nconst binaryData = $input.first().binary?.report;\n\nif (!binaryData) throw new Error('No binary report data found');\n\n// Decode base64\nconst content = Buffer.from(binaryData.data, 'base64');\n\n// Ensure directory exists\nconst dir = path.dirname(filepath);\nif (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });\n\n// Write file\nfs.writeFileSync(filepath, content);\n\nreturn [{ json: { filepath, filename, reportLength, written: true } }];\n"
+			},
+			"id": "node-save",
+			"name": "Save Report",
+			"type": "n8n-nodes-base.code",
+			"typeVersion": 2,
+			"position": [1280, 300]
+		},
+		{
+			"parameters": {
+				"jsCode": "const j = $input.first().json;\nreturn [{ json: { status:'complete', report_path: j.filepath, report_size_bytes: j.reportLength, message:`Report saved to ${j.filepath}` } }];\n"
+			},
+			"id": "node-done",
+			"name": "Done",
+			"type": "n8n-nodes-base.code",
+			"typeVersion": 2,
+			"position": [1540, 300]
+		}
+	],
+	"connections": {
+		"Manual Trigger": {
+			"main": [
+				[
+					{
+						"node": "Scrape & Extract",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Scrape & Extract": {
+			"main": [
+				[
+					{
+						"node": "Analyse with Sonnet",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Analyse with Sonnet": {
+			"main": [
+				[
+					{
+						"node": "Prepare Report",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Prepare Report": {
+			"main": [
+				[
+					{
+						"node": "Save Report",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Save Report": {
+			"main": [
+				[
+					{
+						"node": "Done",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"settings": {
+		"executionOrder": "v1"
+	},
+	"staticData": null,
+	"tags": [],
+	"triggerCount": 1,
+	"versionId": "bri-882-v7",
+	"_meta": {
+		"n8n_workflow_id": "rTGaVYBYZ6QJXKAG",
+		"deployed_at": "2026-03-30",
+		"notes": "Amazon scraping blocked by bot protection \u2014 scrape_error is gracefully handled. Analysis falls back to general KDP market knowledge. To enable real scraping, configure Firecrawl with residential proxies."
+	}
+}
