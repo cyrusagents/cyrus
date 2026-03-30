@@ -19,9 +19,40 @@ services:
       timeout: 5s
       retries: 5
 
-  puppeteer-service:
-    image: trieve/puppeteer-service-ts:v0.0.13
-    container_name: firecrawl-puppeteer
+  firecrawl-rabbitmq:
+    image: rabbitmq:3-alpine
+    container_name: firecrawl-rabbitmq
+    networks:
+      - firecrawl
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  firecrawl-postgres:
+    image: ghcr.io/firecrawl/nuq-postgres:latest
+    container_name: firecrawl-postgres
+    networks:
+      - firecrawl
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    volumes:
+      - firecrawl_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  playwright-service:
+    image: ghcr.io/firecrawl/playwright-service:latest
+    container_name: firecrawl-playwright
     networks:
       - firecrawl
     restart: unless-stopped
@@ -34,25 +65,8 @@ services:
       firecrawl-redis:
         condition: service_healthy
 
-  firecrawl-worker:
-    image: trieve/firecrawl:v0.0.55
-    container_name: firecrawl-worker
-    networks:
-      - firecrawl
-    env_file:
-      - .env
-    environment:
-      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-puppeteer:3000/scrape
-    command: ["pnpm", "run", "workers"]
-    restart: unless-stopped
-    depends_on:
-      firecrawl-redis:
-        condition: service_healthy
-      puppeteer-service:
-        condition: service_started
-
   firecrawl-api:
-    image: trieve/firecrawl:v0.0.55
+    image: ghcr.io/firecrawl/firecrawl:latest
     container_name: firecrawl-api
     networks:
       - firecrawl
@@ -62,14 +76,22 @@ services:
     env_file:
       - .env
     environment:
-      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-puppeteer:3000/scrape
+      - PLAYWRIGHT_MICROSERVICE_URL=http://playwright-service:3000/scrape
+      - NUQ_RABBITMQ_URL=amqp://firecrawl-rabbitmq:5672
+      - NUQ_DATABASE_URL=postgres://postgres:postgres@firecrawl-postgres:5432/postgres
     restart: unless-stopped
     depends_on:
       firecrawl-redis:
         condition: service_healthy
-      puppeteer-service:
+      firecrawl-rabbitmq:
+        condition: service_healthy
+      firecrawl-postgres:
+        condition: service_healthy
+      playwright-service:
         condition: service_started
 
 volumes:
   firecrawl_redis_data:
+    driver: local
+  firecrawl_postgres_data:
     driver: local
