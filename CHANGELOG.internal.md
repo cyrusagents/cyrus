@@ -5,6 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Added
+- Replaced firecrawl-simple (`trieve/firecrawl`) with official Firecrawl using pre-built `ghcr.io/firecrawl` images. Official `playwright-service` correctly passes `PROXY_SERVER`/`PROXY_USERNAME`/`PROXY_PASSWORD` through to Chromium launch options — fixing the root cause of bot detection failures. New stack adds RabbitMQ and NUQ-Postgres (required by the `--start-docker` harness); RAM impact is +0.5 GiB (3.0 → 3.5 GiB, well within 6 GiB budget). Port 3002 binding, `TEST_API_KEY`, and `shared-services` network preserved. Basic scrape confirmed working; Amazon scrape returns 200 (cookie consent page — expected for Webshare datacenter IPs). ([BRI-888](https://linear.app/brilliantio/issue/BRI-888), [#11](https://github.com/Brilliantio/cyrus-agent/pull/11))
 - Wired Webshare datacenter proxy credentials into Firecrawl `docker-compose.yml` (puppeteer-service environment block) and documented in `.env.example` with placeholder values. Proxy test confirmed working (ipv4.webshare.io returns proxy IP). Amazon scrape blocked — `trieve/puppeteer-service-ts:v0.0.13` does not consume `PROXY_SERVER` env var to configure Chromium, and Webshare free tier uses datacenter IPs which Amazon blocks. Fixed invalid `onlyMainContent` field in n8n workflow Scrape & Extract node (Firecrawl v1 rejects it with 400). ([BRI-887](https://linear.app/brilliantio/issue/BRI-887), [#10](https://github.com/Brilliantio/cyrus-agent/pull/10))
 
 ### Fixed
