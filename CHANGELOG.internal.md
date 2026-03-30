@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Added
+- Wired Webshare datacenter proxy credentials into Firecrawl `docker-compose.yml` (puppeteer-service environment block) and documented in `.env.example` with placeholder values. Proxy test confirmed working (ipv4.webshare.io returns proxy IP). Amazon scrape blocked — `trieve/puppeteer-service-ts:v0.0.13` does not consume `PROXY_SERVER` env var to configure Chromium, and Webshare free tier uses datacenter IPs which Amazon blocks. Fixed invalid `onlyMainContent` field in n8n workflow Scrape & Extract node (Firecrawl v1 rejects it with 400). ([BRI-887](https://linear.app/brilliantio/issue/BRI-887), [#10](https://github.com/Brilliantio/cyrus-agent/pull/10))
+
 ### Fixed
 - Locked down Firecrawl port 3002: restored `127.0.0.1:3002:3002` binding (BRI-882 had opened it to `0.0.0.0`), created `shared-services` external Docker network joining `firecrawl-api` and `n8n` containers, and updated Book Market Research workflow to call `firecrawl-api:3002` via container DNS instead of `host.docker.internal:3002`. External access now returns connection refused; internal n8n→Firecrawl scraping confirmed working. ([BRI-883](https://linear.app/brilliantio/issue/BRI-883), [#8](https://github.com/Brilliantio/cyrus-agent/pull/8))
 

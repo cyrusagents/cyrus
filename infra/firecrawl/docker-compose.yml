@@ -27,6 +27,9 @@ services:
     restart: unless-stopped
     environment:
       - PORT=3000
+      - PROXY_SERVER=${PROXY_SERVER}
+      - PROXY_USERNAME=${PROXY_USERNAME}
+      - PROXY_PASSWORD=${PROXY_PASSWORD}
     depends_on:
       firecrawl-redis:
         condition: service_healthy
