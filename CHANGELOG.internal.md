@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Fixed
+- Locked down Firecrawl port 3002: restored `127.0.0.1:3002:3002` binding (BRI-882 had opened it to `0.0.0.0`), created `shared-services` external Docker network joining `firecrawl-api` and `n8n` containers, and updated Book Market Research workflow to call `firecrawl-api:3002` via container DNS instead of `host.docker.internal:3002`. External access now returns connection refused; internal n8n→Firecrawl scraping confirmed working. ([BRI-883](https://linear.app/brilliantio/issue/BRI-883), [#8](https://github.com/Brilliantio/cyrus-agent/pull/8))
+
 ### Added
 - Added n8n workflow `Book Market Research (Firecrawl + Claude)` at `infra/n8n-workflows/book-market-research.json`. Scrapes Amazon ASINs via Firecrawl (host.docker.internal:3002, 2s delay, 30-URL cap), extracts structured listing data with Claude Haiku, analyses market with Claude Sonnet, saves Markdown report to `/opt/firecrawl/research-cache/`. Deployed and active on VPS; also added `ANTHROPIC_API_KEY` to n8n env, mounted research-cache volume, and opened Firecrawl port to Docker bridge network. ([BRI-882](https://linear.app/brilliantio/issue/BRI-882), [#7](https://github.com/Brilliantio/cyrus-agent/pull/7))
 - Deployed Firecrawl self-hosted (firecrawl-simple via `trieve/firecrawl`) on VPS as a Docker stack with dedicated Redis, puppeteer service, and worker — internal-only on port 3002, isolated `firecrawl` bridge network. Added `infra/firecrawl/docker-compose.yml` and `.env.example` to repo. `FIRECRAWL_API_KEY` added to `~/.cyrus/shared.env` and n8n environment. ([BRI-881](https://linear.app/brilliantio/issue/BRI-881), [#6](https://github.com/Brilliantio/cyrus-agent/pull/6))

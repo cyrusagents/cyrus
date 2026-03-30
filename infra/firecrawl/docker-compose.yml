@@ -1,6 +1,8 @@
 networks:
   firecrawl:
     driver: bridge
+  shared-services:
+    external: true
 
 services:
   firecrawl-redis:
@@ -51,6 +53,7 @@ services:
     container_name: firecrawl-api
     networks:
       - firecrawl
+      - shared-services
     ports:
       - "127.0.0.1:3002:3002"
     env_file:
