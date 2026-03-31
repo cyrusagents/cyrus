@@ -96,6 +96,28 @@ For the top 10 results by relevance/review count, score each on 9 dimensions:
 
 ---
 
+## Review Barrier to Entry (Barry KDP Method)
+
+When assessing competition, examine page 1 search results (first 16-20 books). Find the book with the **lowest review count that still has meaningful BSR** (i.e., it's actually selling, not just listed — BSR under 500k US or under 100k UK). That number is the "review entry threshold" — the minimum reviews needed to compete on page 1.
+
+| Review entry threshold | Interpretation | Tier implication |
+|----------------------|----------------|------------------|
+| 0-5 reviews | No review barrier — positioning alone drives discovery | Tier 1: ads optional, organic viable |
+| 5-50 reviews | Moderate barrier — need some social proof before ads scale | Tier 2: need reviews before significant ad spend |
+| 50-200 reviews | Significant barrier — established competitors have review moats | Tier 2/3: aggressive review acquisition required |
+| 200+ reviews | Heavy barrier — entrenched competitors, very hard to break in | Tier 3: need external traffic + rapid review velocity |
+
+**Always include in output:** "Review entry threshold: {N} reviews (based on lowest-reviewed page 1 book with BSR under {X})"
+
+This metric directly determines the launch tier and review acquisition strategy. A niche with healthy demand but a review threshold of 5 is fundamentally different from one with a threshold of 200 — even if the Bernhardt demand signals are identical.
+
+**Integration with Tiered Launch Model:**
+- Tier 1 candidates: review threshold 0-5 (organic positioning works without reviews)
+- Tier 2 candidates: review threshold 5-50 (need Book Village + email automation before scaling ads)
+- Tier 3 candidates: review threshold 50+ (need all review channels maxed + external traffic)
+
+---
+
 ## Step 3: Positioning Assessment
 
 Assess:
@@ -143,6 +165,7 @@ Assess:
 ### 2. Competition Analysis
 {Top 10 competitor profiles with attack/defence scoring}
 {Competition ratio: X attack : Y defence}
+Review entry threshold: {N} reviews (based on lowest-reviewed page 1 book with BSR under {X})
 
 ### 3. Positioning Assessment
 {Positioning angle, Blue Ocean test, tier assignment}
