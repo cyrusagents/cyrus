@@ -501,3 +501,9 @@ For detailed information about Gemini CLI configuration options (settings.json s
 - **Official Documentation**: https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/configuration.md
 
 The GeminiRunner automatically generates a `~/.gemini/settings.json` file with single-turn model aliases and preview features enabled if one doesn't already exist.
+
+## Context Modules
+
+Domain-specific skill modules loaded on demand. Reference these when working on tasks in the relevant area.
+
+- `.claude/market-scanner.md` — Market Scanner skill: Bernhardt niche research framework, Apify/Firecrawl integration patterns (with correct input formats), tiered launch model, output template, and known quirks
