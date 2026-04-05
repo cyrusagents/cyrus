@@ -2130,4 +2130,192 @@ describe("RepositoryRouter", () => {
 			});
 		});
 	});
+
+	// ========================================================================
+	// BRI-1046: Label Fetch Observability and Retry Tests
+	// ========================================================================
+
+	describe("BRI-1046: Label fetch observability and retry", () => {
+		let mockLogger: {
+			debug: ReturnType<typeof vi.fn>;
+			info: ReturnType<typeof vi.fn>;
+			warn: ReturnType<typeof vi.fn>;
+			error: ReturnType<typeof vi.fn>;
+			withContext: ReturnType<typeof vi.fn>;
+			getLevel: ReturnType<typeof vi.fn>;
+			setLevel: ReturnType<typeof vi.fn>;
+		};
+
+		beforeEach(() => {
+			mockLogger = {
+				debug: vi.fn(),
+				info: vi.fn(),
+				warn: vi.fn(),
+				error: vi.fn(),
+				withContext: vi.fn().mockReturnThis(),
+				getLevel: vi.fn().mockReturnValue(0),
+				setLevel: vi.fn(),
+			};
+		});
+
+		describe("Fix 1: Log fetched labels during routing", () => {
+			it("should log fetched labels after successful label fetch", async () => {
+				// Given: A repo with routing labels and an issue with matching labels
+				const repo = env
+					.repository("repo-1", "Frontend Repo")
+					.withLabels("frontend")
+					.build();
+
+				env.issueHasLabels("issue-1", "frontend", "bug");
+
+				const router = new RepositoryRouter(env.mockDeps, mockLogger);
+
+				const webhook = env.webhook().forIssue("issue-1", "TEST-123").build();
+
+				// When: Routing the webhook
+				await router.determineRepositoryForWebhook(webhook, [repo]);
+
+				// Then: Should log the fetched labels
+				const infoCalls = mockLogger.info.mock.calls.map(
+					(c: unknown[]) => c[0] as string,
+				);
+				expect(
+					infoCalls.some(
+						(msg) => msg.includes("frontend") && msg.includes("bug"),
+					),
+				).toBe(true);
+			});
+		});
+
+		describe("Fix 2: Warn on label fetch failure fallthrough", () => {
+			it("should log a warning when label fetch fails and routing falls through", async () => {
+				// Given: A repo and label fetch will fail
+				const repo = env
+					.repository("repo-1", "Repo")
+					.withLabels("frontend")
+					.withTeams("TEST")
+					.build();
+
+				env.labelFetchingFails();
+
+				const router = new RepositoryRouter(env.mockDeps, mockLogger);
+
+				const webhook = env
+					.webhook()
+					.forIssue("issue-1", "TEST-123")
+					.inTeam("TEST")
+					.build();
+
+				// When: Routing the webhook
+				await router.determineRepositoryForWebhook(webhook, [repo]);
+
+				// Then: Should log a warning about the fallthrough (not just an error)
+				const warnCalls = mockLogger.warn.mock.calls.map(
+					(c: unknown[]) => c[0] as string,
+				);
+				expect(
+					warnCalls.some(
+						(msg) =>
+							msg.toLowerCase().includes("label") &&
+							(msg.toLowerCase().includes("fall") ||
+								msg.toLowerCase().includes("routing")),
+					),
+				).toBe(true);
+			});
+		});
+
+		describe("Fix 3: Retry on empty labels", () => {
+			it("should retry label fetch once when first call returns empty array", async () => {
+				// Given: fetchIssueLabels returns [] on first call, then valid labels on second
+				const frontendRepo = env
+					.repository("repo-frontend", "Frontend Repo")
+					.withLabels("frontend")
+					.withTeams("TEST")
+					.build();
+
+				const backendRepo = env
+					.repository("repo-backend", "Backend Repo")
+					.withLabels("backend")
+					.withTeams("TEST")
+					.build();
+
+				// First call returns empty (timing race), second call returns real labels
+				let callCount = 0;
+				env.mockDeps.fetchIssueLabels = vi.fn().mockImplementation(async () => {
+					callCount++;
+					if (callCount === 1) return [];
+					return ["frontend"];
+				});
+
+				const router = new RepositoryRouter(env.mockDeps, mockLogger);
+
+				const webhook = env
+					.webhook()
+					.forIssue("issue-1", "TEST-123")
+					.inTeam("TEST")
+					.build();
+
+				// When: Routing the webhook (use fake timers to skip 2s wait)
+				vi.useFakeTimers();
+				const routingPromise = router.determineRepositoryForWebhook(webhook, [
+					frontendRepo,
+					backendRepo,
+				]);
+				await vi.runAllTimersAsync();
+				const result = await routingPromise;
+				vi.useRealTimers();
+
+				// Then: Should have retried and routed to frontend repo via labels, NOT via team-based
+				expect(result.type).toBe("selected");
+				if (result.type === "selected") {
+					expect(result.repositories[0]?.id).toBe("repo-frontend");
+					expect(result.routingMethod).toBe("label-based");
+				}
+				// And should have called fetchIssueLabels twice
+				expect(env.mockDeps.fetchIssueLabels).toHaveBeenCalledTimes(2);
+			});
+		});
+
+		describe("Fix 4: Warn on ambiguous team routing", () => {
+			it("should warn when multiple repos match the same teamKey", async () => {
+				// Given: Two repos both matching teamKey "BRI" (the actual incident scenario)
+				const quizfredRepo = env
+					.repository("quizfred", "Quizfred")
+					.withTeams("BRI")
+					.build();
+
+				const manuscriptsRepo = env
+					.repository("kdp-manuscripts", "KDP Manuscripts")
+					.withTeams("BRI")
+					.build();
+
+				const router = new RepositoryRouter(env.mockDeps, mockLogger);
+
+				const webhook = env
+					.webhook()
+					.forIssue("issue-1", "BRI-1043")
+					.inTeam("BRI")
+					.build();
+
+				// When: Routing (no labels, no description tags — falls through to team-based)
+				await router.determineRepositoryForWebhook(webhook, [
+					quizfredRepo,
+					manuscriptsRepo,
+				]);
+
+				// Then: Should warn about ambiguous team routing
+				const warnCalls = mockLogger.warn.mock.calls.map(
+					(c: unknown[]) => c[0] as string,
+				);
+				expect(
+					warnCalls.some(
+						(msg) =>
+							msg.toLowerCase().includes("ambiguous") ||
+							(msg.toLowerCase().includes("team") &&
+								msg.toLowerCase().includes("routing")),
+					),
+				).toBe(true);
+			});
+		});
+	});
 });

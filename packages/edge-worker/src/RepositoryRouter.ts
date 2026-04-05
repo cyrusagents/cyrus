@@ -343,7 +343,17 @@ export class RepositoryRouter {
 		if (reposWithRoutingLabels.length === 0) return [];
 
 		try {
-			const labels = await this.deps.fetchIssueLabels(issueId, workspaceId);
+			let labels = await this.deps.fetchIssueLabels(issueId, workspaceId);
+
+			if (labels.length === 0) {
+				this.logger.info(
+					`No labels fetched for ${issueId} — retrying in 2s (possible timing race)`,
+				);
+				await new Promise((resolve) => setTimeout(resolve, 2000));
+				labels = await this.deps.fetchIssueLabels(issueId, workspaceId);
+			}
+
+			this.logger.info(`Fetched labels for routing: [${labels.join(", ")}]`);
 
 			const matched: RepositoryConfig[] = [];
 			for (const repo of reposWithRoutingLabels) {
@@ -358,6 +368,9 @@ export class RepositoryRouter {
 			return matched;
 		} catch (error) {
 			this.logger.error(`Failed to fetch labels for routing:`, error);
+			this.logger.warn(
+				`Label fetch failed for issue ${issueId} — falling through to team-based routing. This may route to the wrong repo.`,
+			);
 		}
 
 		return [];
@@ -550,7 +563,13 @@ export class RepositoryRouter {
 		teamKey: string,
 		repos: RepositoryConfig[],
 	): RepositoryConfig | undefined {
-		return repos.find((r) => r.teamKeys?.includes(teamKey));
+		const matches = repos.filter((r) => r.teamKeys?.includes(teamKey));
+		if (matches.length > 1) {
+			this.logger.warn(
+				`Ambiguous team routing: ${matches.length} repos match teamKey "${teamKey}". Selecting "${matches[0]!.name}" (config index 0). Consider adding a repo: label for explicit routing.`,
+			);
+		}
+		return matches[0];
 	}
 
 	/**
