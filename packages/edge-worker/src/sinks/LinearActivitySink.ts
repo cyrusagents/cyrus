@@ -115,6 +115,31 @@ export class LinearActivitySink implements IActivitySink {
 	}
 
 	/**
+	 * Close/complete the issue by transitioning it to the first 'completed' workflow state.
+	 *
+	 * Fetches the issue to determine its team, then finds the first completed-type
+	 * workflow state and updates the issue accordingly.
+	 *
+	 * @param issueId - The issue ID to close
+	 */
+	async closeIssue(issueId: string): Promise<void> {
+		const issue = await this.issueTracker.fetchIssue(issueId);
+		if (!issue.teamId) {
+			throw new Error(`Cannot close issue ${issueId}: team ID is missing`);
+		}
+		const states = await this.issueTracker.fetchWorkflowStates(issue.teamId);
+		const completedState = states.nodes.find((s) => s.type === "completed");
+		if (!completedState) {
+			throw new Error(
+				`No completed workflow state found for team ${issue.teamId}`,
+			);
+		}
+		await this.issueTracker.updateIssue(issueId, {
+			stateId: completedState.id,
+		});
+	}
+
+	/**
 	 * Create a new agent session on an issue.
 	 *
 	 * Wraps IIssueTrackerService.createAgentSessionOnIssue() to provide a simplified

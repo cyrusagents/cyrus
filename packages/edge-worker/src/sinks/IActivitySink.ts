@@ -75,4 +75,12 @@ export interface IActivitySink {
 	 * @param plan - Full plan array to replace the current plan
 	 */
 	updatePlan?(sessionId: string, plan: AgentPlanStep[]): Promise<void>;
+
+	/**
+	 * Close/complete the associated issue after a successful session with no PR.
+	 * Optional: only implemented by platforms that support issue state transitions (e.g. Linear).
+	 *
+	 * @param issueId - The issue ID to transition to the completed state
+	 */
+	closeIssue?(issueId: string): Promise<void>;
 }
