@@ -1073,6 +1073,7 @@ export class AgentSessionManager extends EventEmitter {
 		sessionId: string,
 		resultMessage: SDKResultMessage,
 	): Promise<void> {
+		const log = this.sessionLog(sessionId);
 		// Determine which runner is being used
 		const session = this.sessions.get(sessionId);
 		const runner = session?.agentRunner;
@@ -1142,6 +1143,45 @@ export class AgentSessionManager extends EventEmitter {
 		// DON'T store locally - syncEntryToActivitySink will do it
 		// Sync to Linear
 		await this.syncEntryToActivitySink(resultEntry, sessionId);
+
+		// Auto-close the issue if the session completed successfully and no PR was created.
+		// Issues with PRs are auto-closed by GitHub via "Fixes BRI-XXX" in the PR title.
+		if (!resultMessage.is_error) {
+			const issueId =
+				session?.issueContext?.issueId ?? session?.issueId ?? null;
+			if (issueId) {
+				const sessionEntries = this.entries.get(sessionId) ?? [];
+				const hasPullRequest = sessionEntries.some((e) =>
+					/https:\/\/github\.com\/[^\s/]+\/[^\s/]+\/pull\/\d+/.test(e.content),
+				);
+				if (hasPullRequest) {
+					log.info(
+						`Auto-close skipped for issue ${issueId}: PR detected in session — GitHub will close it via "Fixes" reference`,
+					);
+				} else {
+					log.info(
+						`No PR detected in session entries for issue ${issueId}, attempting auto-close`,
+					);
+					const activitySink = this.getActivitySink(sessionId);
+					if (activitySink?.closeIssue) {
+						try {
+							await activitySink.closeIssue(issueId);
+							log.info(
+								`Auto-closed issue ${issueId} after successful completion with no PR`,
+							);
+						} catch (error) {
+							log.warn(
+								`Failed to auto-close issue ${issueId}: ${error instanceof Error ? error.message : String(error)}`,
+							);
+						}
+					} else {
+						log.info(
+							`Auto-close not supported by activity sink for session ${sessionId}`,
+						);
+					}
+				}
+			}
+		}
 	}
 
 	/**
