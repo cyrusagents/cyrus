@@ -20,6 +20,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - **Wrong-repo routing when label fetch fails** - Cyrus now retries label fetching once after a 2-second delay when no labels are returned (guards against a timing race on newly-created issues). If the fetch throws, a warning is logged so the fallthrough to team-based routing is visible rather than silent. When multiple repositories share the same team key, Cyrus warns that routing is ambiguous and recommends adding a `repo:` label for explicit control. ([BRI-1046](https://linear.app/brilliantio/issue/BRI-1046), [#20](https://github.com/Brilliantio/cyrus-agent/pull/20))
 
+### Fixed
+- **Resolved all Dependabot security alerts** - Fixed 10 vulnerabilities (4 high, 6 moderate) in transitive dependencies including picomatch, path-to-regexp, yaml, brace-expansion, flatted, and @anthropic-ai/sdk. `pnpm audit` now reports 0 known vulnerabilities. ([BRI-1060](https://linear.app/brilliantio/issue/BRI-1060), [#24](https://github.com/Brilliantio/cyrus-agent/pull/24))
+
 ### Changed
 - **Updated `@anthropic-ai/claude-agent-sdk` to v0.2.86** - Keeps AI SDK dependency up to date. v0.2.86 adds `getContextUsage()` for token distribution visibility, makes `session_id` optional in `SDKUserMessage`, and fixes TypeScript type resolution. v0.2.85 adds `reloadPlugins()` for dynamic plugin refresh and fixes PreToolUse hooks with `"ask"` permission decisions. See SDK changelog: [claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1016](https://linear.app/ceedar/issue/CYPACK-1016), [#1045](https://github.com/ceedaragents/cyrus/pull/1045))
 

@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Fixed
+- Resolved 10 Dependabot security alerts (4 high, 6 moderate). Updated `@anthropic-ai/sdk` direct dep from `^0.80.0` to `^0.82.0` in claude-runner. Added pnpm overrides for transitive deps: `picomatch` (6 scoped overrides for 2.x and 4.x consumers), `path-to-regexp>=8.4.0`, `yaml>=2.8.3`, `brace-expansion>=5.0.5`, bumped `flatted` override to `>=3.4.2`. Fixed 3 `BetaMessage` → `Message` type cast incompatibilities in `AgentSessionManager.ts` caused by the SDK update. ([BRI-1060](https://linear.app/brilliantio/issue/BRI-1060), [#24](https://github.com/Brilliantio/cyrus-agent/pull/24))
+
 ### Changed
 - Deduplicated `CHANGELOG.internal.md`: merged split `### Added` sections in `[Unreleased]` into one (moving `### Fixed` to the end per Keep a Changelog convention), and removed an incomplete duplicate "Subroutine result text" entry from `[0.2.22]` (complete version with CYPACK-792/#843 attribution preserved in `[0.2.21]`). ([BRI-907](https://linear.app/brilliantio/issue/BRI-907), [#19](https://github.com/Brilliantio/cyrus-agent/pull/19))
 

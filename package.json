@@ -53,7 +53,7 @@
 			"hono": ">=4.12.7",
 			"@hono/node-server": ">=1.19.10",
 			"rollup": ">=4.59.0",
-			"flatted": ">=3.4.0",
+			"flatted": ">=3.4.2",
 			"minimatch": ">=3.1.4",
 			"test-exclude>minimatch": ">=10.2.3",
 			"nodemon>minimatch": ">=10.2.3",
@@ -63,7 +63,17 @@
 			"ajv": ">=8.18.0",
 			"diff": ">=8.0.3",
 			"@tootallnate/once": ">=3.0.1",
-			"@isaacs/brace-expansion": ">=5.0.1"
+			"@isaacs/brace-expansion": ">=5.0.1",
+			"tinyglobby>picomatch": ">=4.0.4",
+			"micromatch>picomatch": ">=4.0.4",
+			"anymatch>picomatch": ">=2.3.2",
+			"readdirp>picomatch": ">=2.3.2",
+			"vite>picomatch": ">=4.0.4",
+			"vitest>picomatch": ">=4.0.4",
+			"@google/gemini-cli-core>picomatch": ">=4.0.4",
+			"path-to-regexp": ">=8.4.0",
+			"yaml": ">=2.8.3",
+			"brace-expansion": ">=5.0.5"
 		}
 	},
 	"lint-staged": {

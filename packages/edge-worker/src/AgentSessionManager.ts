@@ -1227,8 +1227,8 @@ export class AgentSessionManager extends EventEmitter {
 	): string {
 		const message =
 			sdkMessage.type === "user"
-				? (sdkMessage.message as APIUserMessage)
-				: (sdkMessage.message as APIAssistantMessage);
+				? (sdkMessage.message as unknown as APIUserMessage)
+				: (sdkMessage.message as unknown as APIAssistantMessage);
 
 		if (typeof message.content === "string") {
 			return message.content;
@@ -1274,7 +1274,7 @@ export class AgentSessionManager extends EventEmitter {
 	private extractToolInfo(
 		sdkMessage: SDKAssistantMessage,
 	): { id: string; name: string; input: any } | null {
-		const message = sdkMessage.message as APIAssistantMessage;
+		const message = sdkMessage.message as unknown as APIAssistantMessage;
 
 		if (Array.isArray(message.content)) {
 			const toolUse = message.content.find(
@@ -1302,7 +1302,7 @@ export class AgentSessionManager extends EventEmitter {
 	private extractToolResultInfo(
 		sdkMessage: SDKUserMessage,
 	): { toolUseId: string; isError: boolean } | null {
-		const message = sdkMessage.message as APIUserMessage;
+		const message = sdkMessage.message as unknown as APIUserMessage;
 
 		if (Array.isArray(message.content)) {
 			const toolResult = message.content.find(
