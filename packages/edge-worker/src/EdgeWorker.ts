@@ -459,6 +459,13 @@ export class EdgeWorker extends EventEmitter {
 			},
 		);
 
+		this.agentSessionManager.on(
+			"procedureComplete",
+			async ({ sessionId, session }) => {
+				await this.maybeAutoCloseIssue(sessionId, session);
+			},
+		);
+
 		// Initialize repositories with path resolution
 		for (const repo of config.repositories) {
 			if (repo.isActive !== false) {
@@ -5095,6 +5102,107 @@ ${taskSection}`;
 	 */
 	getOAuthCallbackUrl(): string {
 		return this.sharedApplicationServer.getOAuthCallbackUrl();
+	}
+
+	/**
+	 * Auto-close an issue if no PR was created during the session.
+	 * Issues where a gh-pr or glab-mr subroutine ran are assumed to have a PR and are
+	 * left to be closed by GitHub's "Fixes #..." auto-close mechanism. Issues without
+	 * a PR subroutine (e.g. n8n builds, data ops, Edge Function deploys) are closed
+	 * immediately after the completion comment is posted.
+	 */
+	private async maybeAutoCloseIssue(
+		sessionId: string,
+		session: CyrusAgentSession,
+	): Promise<void> {
+		const issueId = session.issueContext?.issueId ?? session.issueId;
+		if (!issueId) {
+			this.logger.debug(
+				`[auto-close] Session ${sessionId} has no issue ID, skipping`,
+			);
+			return;
+		}
+
+		// Check if a PR subroutine ran during this session
+		const history = session.metadata?.procedure?.subroutineHistory ?? [];
+		const prSubroutineNames = new Set(["gh-pr", "glab-mr"]);
+		const prSubroutineRan = history.some((entry: { subroutine: string }) =>
+			prSubroutineNames.has(entry.subroutine),
+		);
+
+		if (prSubroutineRan) {
+			this.logger.debug(
+				`[auto-close] Session ${sessionId} created a PR; skipping auto-close (GitHub will close the issue)`,
+			);
+			return;
+		}
+
+		this.logger.info(
+			`[auto-close] No PR subroutine detected for session ${sessionId}; auto-closing issue ${issueId}`,
+		);
+
+		try {
+			const repoId = this.sessionRepositories.get(sessionId);
+			const repo = repoId ? this.repositories.get(repoId) : undefined;
+			if (!repo) {
+				this.logger.warn(
+					`[auto-close] No repository found for session ${sessionId}, skipping auto-close`,
+				);
+				return;
+			}
+
+			const linearWorkspaceId = repo.linearWorkspaceId;
+			if (!linearWorkspaceId) {
+				this.logger.warn(
+					`[auto-close] Repository ${repo.id} has no linearWorkspaceId, skipping auto-close`,
+				);
+				return;
+			}
+			const issueTracker = this.issueTrackers.get(linearWorkspaceId);
+			if (!issueTracker) {
+				this.logger.warn(
+					`[auto-close] No issue tracker found for workspace ${linearWorkspaceId}, skipping auto-close`,
+				);
+				return;
+			}
+
+			// Fetch the issue to get the team
+			const issue = await issueTracker.fetchIssue(issueId);
+			const team = await issue.team;
+			if (!team) {
+				this.logger.warn(
+					`[auto-close] No team found for issue ${issueId}, skipping auto-close`,
+				);
+				return;
+			}
+
+			// Find the "completed" workflow state for this team
+			const teamStates = await issueTracker.fetchWorkflowStates(team.id);
+			const completedState = teamStates.nodes
+				.filter((state) => state.type === "completed")
+				.sort((a, b) => a.position - b.position)[0];
+
+			if (!completedState) {
+				this.logger.warn(
+					`[auto-close] No completed state found for team ${team.id}, skipping auto-close`,
+				);
+				return;
+			}
+
+			await issueTracker.updateIssue(issueId, {
+				stateId: completedState.id,
+			});
+
+			this.logger.info(
+				`[auto-close] ✅ Auto-closed issue ${issueId} to state "${completedState.name}"`,
+			);
+		} catch (error) {
+			this.logger.error(
+				`[auto-close] Failed to auto-close issue ${issueId}:`,
+				error,
+			);
+			// Don't throw - auto-close failure should not affect the overall session result
+		}
 	}
 
 	/**

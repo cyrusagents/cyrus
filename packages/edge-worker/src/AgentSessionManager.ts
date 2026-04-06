@@ -82,6 +82,14 @@ export interface AgentSessionManagerEvents {
 		/** Number of validation iterations attempted */
 		iterations: number;
 	}) => void;
+	/**
+	 * Emitted when the entire procedure completes and the final result has been posted.
+	 * The EdgeWorker can use this to auto-close issues that have no associated PR.
+	 */
+	procedureComplete: (data: {
+		sessionId: string;
+		session: CyrusAgentSession;
+	}) => void;
 }
 
 /**
@@ -729,6 +737,9 @@ export class AgentSessionManager extends EventEmitter {
 			await this.postPlanUpdate(sessionId, true);
 			log.info(`All subroutines completed, posting final result to Linear`);
 			await this.addResultEntry(sessionId, resultMessage);
+
+			// Emit event so EdgeWorker can auto-close issues without PRs
+			this.emit("procedureComplete", { sessionId, session });
 
 			// Handle child session completion
 			const isChildSession = this.getParentSessionId?.(sessionId);
