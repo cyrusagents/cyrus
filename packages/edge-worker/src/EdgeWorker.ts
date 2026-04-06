@@ -155,6 +155,7 @@ import {
 } from "./RepositoryRouter.js";
 import { RunnerConfigBuilder } from "./RunnerConfigBuilder.js";
 import { RunnerSelectionService } from "./RunnerSelectionService.js";
+import { SessionMetricsService } from "./SessionMetricsService.js";
 import { SharedApplicationServer } from "./SharedApplicationServer.js";
 import { SlackChatAdapter } from "./SlackChatAdapter.js";
 import type { IActivitySink } from "./sinks/IActivitySink.js";
@@ -204,6 +205,7 @@ export class EdgeWorker extends EventEmitter {
 	private persistenceManager: PersistenceManager;
 	private sharedApplicationServer: SharedApplicationServer;
 	private cyrusHome: string;
+	private metricsService: SessionMetricsService;
 	private globalSessionRegistry: GlobalSessionRegistry; // Centralized session storage across all repositories
 	private procedureAnalyzer: ProcedureAnalyzer; // Intelligent workflow routing
 	private configPath?: string; // Path to config.json file
@@ -344,6 +346,9 @@ export class EdgeWorker extends EventEmitter {
 			skipTunnel,
 		);
 
+		// Initialize session metrics service for append-only JSONL logging
+		this.metricsService = new SessionMetricsService(this.cyrusHome);
+
 		// Create single AgentSessionManager instance shared across all repositories
 		this.agentSessionManager = new AgentSessionManager(
 			(childSessionId: string) => {
@@ -376,6 +381,8 @@ export class EdgeWorker extends EventEmitter {
 			},
 			this.procedureAnalyzer,
 			this.sharedApplicationServer,
+			undefined, // logger (use default)
+			this.metricsService,
 		);
 
 		// Subscribe to session events once on the single ASM
@@ -1340,6 +1347,12 @@ export class EdgeWorker extends EventEmitter {
 				],
 			);
 
+			// Register session start for metrics tracking
+			this.metricsService.notifySessionStart(
+				githubSessionId,
+				repository.name || repository.id,
+			);
+
 			// Register session-to-repo mapping and activity sink
 			this.sessionRepositories.set(githubSessionId, repository.id);
 			const activitySink = this.activitySinks.get(repository.id);
@@ -1911,6 +1924,12 @@ ${taskSection}`;
 						baseBranchName: baseBranchRef ?? repository.baseBranch,
 					},
 				],
+			);
+
+			// Register session start for metrics tracking
+			this.metricsService.notifySessionStart(
+				gitlabSessionId,
+				repository.name || repository.id,
 			);
 
 			// Register session-to-repo mapping and activity sink
@@ -3710,6 +3729,12 @@ ${taskSection}`;
 			workspace,
 			"linear",
 			repositoryContexts,
+		);
+
+		// Register session start for metrics tracking
+		this.metricsService.notifySessionStart(
+			sessionId,
+			primaryRepo.name || primaryRepo.id,
 		);
 
 		// Register session-to-repo mapping and activity sink (use primary repo)

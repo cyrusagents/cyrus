@@ -8,6 +8,7 @@ import { Command } from "commander";
 import { Application } from "./Application.js";
 import { AuthCommand } from "./commands/AuthCommand.js";
 import { CheckTokensCommand } from "./commands/CheckTokensCommand.js";
+import { MetricsCommand } from "./commands/MetricsCommand.js";
 import { RefreshTokenCommand } from "./commands/RefreshTokenCommand.js";
 import { SelfAddRepoCommand } from "./commands/SelfAddRepoCommand.js";
 import { SelfAuthCommand } from "./commands/SelfAuthCommand.js";
@@ -135,6 +136,22 @@ program
 			await new SelfAddRepoCommand(app).execute(args);
 		},
 	);
+
+// Metrics command - read and summarise session metrics log
+program
+	.command("metrics")
+	.description(
+		"Show a summary of session metrics from ~/.cyrus/session-metrics.jsonl",
+	)
+	.action(async () => {
+		const opts = program.opts();
+		const app = new Application(
+			opts.cyrusHome,
+			opts.envFile,
+			packageJson.version,
+		);
+		await new MetricsCommand(app).execute([]);
+	});
 
 // Parse and execute
 (async () => {

@@ -27,6 +27,7 @@ import {
 } from "cyrus-core";
 import type { ProcedureAnalyzer } from "./procedures/ProcedureAnalyzer.js";
 import type { ValidationLoopMetadata } from "./procedures/types.js";
+import type { SessionMetricsService } from "./SessionMetricsService.js";
 import type { SharedApplicationServer } from "./SharedApplicationServer.js";
 import type {
 	ActivityPostOptions,
@@ -128,6 +129,7 @@ export class AgentSessionManager extends EventEmitter {
 	private stopRequestedSessions: Set<string> = new Set(); // Sessions explicitly stopped by user signal
 	private procedureAnalyzer?: ProcedureAnalyzer;
 	private sharedApplicationServer?: SharedApplicationServer;
+	private metricsService?: SessionMetricsService;
 	private getParentSessionId?: (childSessionId: string) => string | undefined;
 	private resumeParentSession?: (
 		parentSessionId: string,
@@ -145,6 +147,7 @@ export class AgentSessionManager extends EventEmitter {
 		procedureAnalyzer?: ProcedureAnalyzer,
 		sharedApplicationServer?: SharedApplicationServer,
 		logger?: ILogger,
+		metricsService?: SessionMetricsService,
 	) {
 		super();
 		this.logger = logger ?? createLogger({ component: "AgentSessionManager" });
@@ -152,6 +155,7 @@ export class AgentSessionManager extends EventEmitter {
 		this.resumeParentSession = resumeParentSession;
 		this.procedureAnalyzer = procedureAnalyzer;
 		this.sharedApplicationServer = sharedApplicationServer;
+		this.metricsService = metricsService;
 	}
 
 	/**
@@ -476,11 +480,13 @@ export class AgentSessionManager extends EventEmitter {
 
 		// Handle result using procedure routing system (skip for sessions without procedures, e.g. Slack)
 		if (!this.procedureAnalyzer) {
+			await this.recordMetrics(sessionId, resultMessage);
 			log.info(`Session completed (no procedure routing)`);
 			return;
 		}
 
 		if (wasStopRequested) {
+			await this.recordMetrics(sessionId, resultMessage);
 			log.info(
 				`Session ${sessionId} was stopped by user; skipping procedure continuation`,
 			);
@@ -518,11 +524,28 @@ export class AgentSessionManager extends EventEmitter {
 					`Error result with no recoverable text (subtype: ${resultMessage.subtype}), posting error to Linear`,
 				);
 				await this.addResultEntry(sessionId, resultMessage);
+				await this.recordMetrics(sessionId, resultMessage);
 			}
 		} else if (resultMessage.subtype !== "success") {
 			// Non-recoverable errors (e.g. stop/abort) should not advance procedures.
 			await this.addResultEntry(sessionId, resultMessage);
+			await this.recordMetrics(sessionId, resultMessage);
 		}
+	}
+
+	/**
+	 * Record session metrics if a metrics service is configured.
+	 * Called only at terminal session completion points.
+	 */
+	private async recordMetrics(
+		sessionId: string,
+		resultMessage: SDKResultMessage,
+	): Promise<void> {
+		if (!this.metricsService) return;
+		const session = this.sessions.get(sessionId);
+		if (!session) return;
+		const entries = this.entries.get(sessionId) ?? [];
+		await this.metricsService.record(session, resultMessage, entries);
 	}
 
 	private shouldRecoverFromPreviousSubroutine(
@@ -737,6 +760,7 @@ export class AgentSessionManager extends EventEmitter {
 			await this.postPlanUpdate(sessionId, true);
 			log.info(`All subroutines completed, posting final result to Linear`);
 			await this.addResultEntry(sessionId, resultMessage);
+			await this.recordMetrics(sessionId, resultMessage);
 
 			// Emit event so EdgeWorker can auto-close issues without PRs
 			this.emit("procedureComplete", { sessionId, session });

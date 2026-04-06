@@ -45,6 +45,8 @@ export type {
 	IssueRunnerConfigInput,
 } from "./RunnerConfigBuilder.js";
 export { RunnerConfigBuilder } from "./RunnerConfigBuilder.js";
+export type { SessionMetricsRecord } from "./SessionMetricsService.js";
+export { SessionMetricsService } from "./SessionMetricsService.js";
 export { SharedApplicationServer } from "./SharedApplicationServer.js";
 export { SlackChatAdapter } from "./SlackChatAdapter.js";
 export type {
