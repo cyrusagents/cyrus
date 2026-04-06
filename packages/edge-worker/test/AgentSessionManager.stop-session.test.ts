@@ -130,6 +130,11 @@ describe("AgentSessionManager stop-session behavior", () => {
 		const usageLimitError =
 			"You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Feb 16th, 2026 8:09 PM.";
 
+		// Fix Date.now() to a known offset so session duration is deterministic
+		const session = manager.getSession(sessionId);
+		const knownEndTime = (session?.createdAt ?? Date.now()) + 120_000; // exactly 2 minutes later
+		const dateSpy = vi.spyOn(Date, "now").mockReturnValue(knownEndTime);
+
 		await manager.completeSession(sessionId, {
 			type: "result",
 			subtype: "error_during_execution",
@@ -153,13 +158,15 @@ describe("AgentSessionManager stop-session behavior", () => {
 			session_id: "sdk-session",
 		} as any);
 
+		dateSpy.mockRestore();
+
 		const postActivityCalls = postActivitySpy.mock.calls;
 		const errorActivity = postActivityCalls.find(
 			(call: any[]) => call[1]?.type === "error",
 		);
 		expect(errorActivity).toBeDefined();
 		expect(errorActivity![1].body).toBe(
-			`${usageLimitError}\n\n**Model:** unknown`,
+			`${usageLimitError}\n\n**Model:** unknown\n**Session duration:** 2m 0s`,
 		);
 	});
 });
