@@ -76,3 +76,11 @@ export {
 	type ValidationResult,
 } from "./validation/index.js";
 export { WorktreeIncludeService } from "./WorktreeIncludeService.js";
+export type {
+	PRFeedbackComment,
+	PRFeedbackEvent,
+	PRFeedbackHandler,
+	PRCommentPoster,
+	PRFeedbackLoopConfig,
+} from "./PRFeedbackLoopService.js";
+export { PRFeedbackLoopService } from "./PRFeedbackLoopService.js";
