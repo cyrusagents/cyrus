@@ -1,3 +1,7 @@
+// NOTE: This feature is called "readiness check" or "brief validation" in user-facing
+// contexts (logs, Linear comments). The term "pre-flight" is reserved for the
+// Claude Chat session startup sequence. See BRI-1121 naming note:
+// https://linear.app/brilliantio/issue/BRI-1121/cyrus-issue-readiness-classifier-pre-flight-gate
 /**
  * IssueReadinessClassifier — Pre-flight gate for Cyrus agent sessions.
  *
