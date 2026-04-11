@@ -267,6 +267,40 @@ export const EdgeConfigSchema = z.object({
 
 	/** Global defaults for prompt types (tool restrictions per prompt type) */
 	promptDefaults: PromptDefaultsSchema.optional(),
+
+	/**
+	 * Pre-flight readiness classifier configuration.
+	 * Runs a cheap Claude pass before the main workflow to gate issues that
+	 * lack enough information for autonomous work.
+	 */
+	readinessClassifier: z
+		.object({
+			/**
+			 * Whether the classifier is enabled.
+			 * Defaults to true when this object is present.
+			 */
+			enabled: z.boolean().optional(),
+
+			/**
+			 * Claude model to use for classification.
+			 * Defaults to "haiku" for cost efficiency.
+			 */
+			model: z.string().optional(),
+
+			/**
+			 * Linear display name or @-handle of the user to tag in failure comments.
+			 * Defaults to "@paul".
+			 */
+			notifyUser: z.string().optional(),
+
+			/**
+			 * Override the default classifier system prompt.
+			 * Must instruct the model to respond with one of:
+			 * pass | fail-vague | fail-no-files | fail-no-criteria | fail-ambiguous
+			 */
+			customPrompt: z.string().optional(),
+		})
+		.optional(),
 });
 
 /**

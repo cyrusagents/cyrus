@@ -133,6 +133,7 @@ import {
 } from "./ElicitationManager.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
+import { IssueReadinessClassifier } from "./IssueReadinessClassifier.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
 import {
@@ -163,6 +164,10 @@ import { LinearActivitySink } from "./sinks/LinearActivitySink.js";
 import { ToolPermissionResolver } from "./ToolPermissionResolver.js";
 import type { AgentSessionData, EdgeWorkerEvents } from "./types.js";
 import { UserAccessControl } from "./UserAccessControl.js";
+import {
+	PRFeedbackLoopService,
+	type PRFeedbackEvent,
+} from "./PRFeedbackLoopService.js";
 
 export declare interface EdgeWorker {
 	on<K extends keyof EdgeWorkerEvents>(
@@ -208,6 +213,7 @@ export class EdgeWorker extends EventEmitter {
 	private metricsService: SessionMetricsService;
 	private globalSessionRegistry: GlobalSessionRegistry; // Centralized session storage across all repositories
 	private procedureAnalyzer: ProcedureAnalyzer; // Intelligent workflow routing
+	private readinessClassifier: IssueReadinessClassifier; // Pre-flight readiness gate
 	private configPath?: string; // Path to config.json file
 	/** @internal - Exposed for testing only */
 	public repositoryRouter: RepositoryRouter; // Repository routing and selection
@@ -240,6 +246,8 @@ export class EdgeWorker extends EventEmitter {
 	 * Key format: `${createdAt}:${issueId}`
 	 */
 	private processedIssueUpdateKeys = new Set<string>();
+	/** PR feedback loop service — polls GitHub for review comments on Cyrus PRs */
+	private prFeedbackLoop: PRFeedbackLoopService | null = null;
 
 	constructor(config: EdgeWorkerConfig) {
 		super();
@@ -273,6 +281,14 @@ export class EdgeWorker extends EventEmitter {
 			model: simpleRunnerModel,
 			timeoutMs: 100000,
 			runnerType: simpleRunnerType,
+		});
+
+		// Initialize pre-flight readiness classifier (Haiku by default for cost efficiency)
+		const classifierConfig = this.config.readinessClassifier;
+		this.readinessClassifier = new IssueReadinessClassifier({
+			cyrusHome: this.cyrusHome,
+			model: classifierConfig?.model ?? "haiku",
+			customPrompt: classifierConfig?.customPrompt,
 		});
 
 		// Initialize repository router with dependencies
@@ -645,6 +661,9 @@ export class EdgeWorker extends EventEmitter {
 
 		// Start shared application server (this also starts Cloudflare tunnel if CLOUDFLARE_TOKEN is set)
 		await this.sharedApplicationServer.start();
+
+		// Start PR feedback loop — polls GitHub for review comments on Cyrus-created PRs
+		await this.startPRFeedbackLoop();
 	}
 
 	/**
@@ -1473,6 +1492,298 @@ export class EdgeWorker extends EventEmitter {
 			}
 		}
 		return null;
+	}
+
+	// ---------------------------------------------------------------------------
+	// PR Feedback Loop — polling-based review comment implementation
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * Initialise and start the PR feedback loop service, which polls GitHub every
+	 * 15 minutes for new review comments on Cyrus-created PRs.
+	 *
+	 * Only starts if a GITHUB_TOKEN is configured (required for API calls).
+	 */
+	private async startPRFeedbackLoop(): Promise<void> {
+		const githubToken = process.env.GITHUB_TOKEN;
+		if (!githubToken) {
+			this.logger.debug(
+				"[PRFeedbackLoop] GITHUB_TOKEN not set — feedback loop disabled",
+			);
+			return;
+		}
+
+		const repos = Array.from(this.repositories.values()).filter(
+			(r) => r.githubUrl,
+		);
+		if (repos.length === 0) {
+			this.logger.debug(
+				"[PRFeedbackLoop] No repos with githubUrl configured — feedback loop disabled",
+			);
+			return;
+		}
+
+		this.prFeedbackLoop = new PRFeedbackLoopService({
+			githubToken,
+			repositories: repos,
+			cyrusHome: this.cyrusHome,
+			onFeedback: (event, repoConfig) =>
+				this.handlePRFeedback(event, repoConfig),
+			postComment: async (owner, repo, prNumber, body, token) => {
+				if (!token) return;
+				await this.gitHubCommentService.postIssueComment({
+					token,
+					owner,
+					repo,
+					issueNumber: prNumber,
+					body,
+				});
+			},
+			logger: this.logger,
+		});
+
+		await this.prFeedbackLoop.start();
+	}
+
+	/**
+	 * Handle PR review feedback: check out the PR branch in a worktree, run Claude
+	 * to address all new review comments, then post a summary reply on the PR.
+	 *
+	 * This mirrors handleGitHubWebhook but operates on a pre-parsed PRFeedbackEvent
+	 * (no webhook payload, no mention check required).
+	 */
+	private async handlePRFeedback(
+		event: PRFeedbackEvent,
+		repoConfig: RepositoryConfig,
+	): Promise<void> {
+		this.activeWebhookCount++;
+
+		try {
+			this.logger.info(
+				`[PRFeedbackLoop] Handling ${event.comments.length} review comment(s) on ${event.owner}/${event.repo}#${event.prNumber}`,
+			);
+
+			// Create a worktree for the PR branch
+			const workspace = await this.createGitHubWorkspace(
+				repoConfig,
+				event.branchRef,
+				event.prNumber,
+			);
+			if (!workspace) {
+				this.logger.error(
+					`[PRFeedbackLoop] Failed to create workspace for ${event.owner}/${event.repo}#${event.prNumber}`,
+				);
+				return;
+			}
+
+			const sessionKey = `github-${event.owner}-${event.repo}-${event.prNumber}`;
+			const githubSessionId = `github-feedback-${event.prNumber}-${Date.now()}`;
+
+			const issueMinimal: IssueMinimal = {
+				id: sessionKey,
+				identifier: `${event.repo}#${event.prNumber}`,
+				title: event.prTitle || `PR #${event.prNumber}`,
+				branchName: event.branchRef,
+			};
+
+			const agentSessionManager = this.agentSessionManager;
+			agentSessionManager.createCyrusAgentSession(
+				githubSessionId,
+				sessionKey,
+				issueMinimal,
+				workspace,
+				"github",
+				[
+					{
+						repositoryId: repoConfig.id,
+						branchName: event.branchRef,
+						baseBranchName: event.baseBranchRef || repoConfig.baseBranch,
+					},
+				],
+			);
+
+			this.sessionRepositories.set(githubSessionId, repoConfig.id);
+			const activitySink = this.activitySinks.get(repoConfig.id);
+			if (activitySink) {
+				agentSessionManager.setActivitySink(githubSessionId, activitySink);
+			}
+
+			const session = agentSessionManager.getSession(githubSessionId);
+			if (!session) {
+				this.logger.error(
+					`[PRFeedbackLoop] Failed to create session ${githubSessionId}`,
+				);
+				return;
+			}
+
+			const systemPrompt = this.buildPRFeedbackSystemPrompt(event, repoConfig);
+
+			// Task instructions: enumerate each comment for Claude to action
+			const taskInstructions = event.comments
+				.map((c, i) => `Comment ${i + 1} (${c.type}) by @${c.user.login}:\n${c.body}`)
+				.join("\n\n---\n\n");
+
+			const allowedTools = this.buildAllowedTools(repoConfig).filter(
+				(t) => t !== "mcp__slack",
+			);
+			const disallowedTools = this.buildDisallowedTools(repoConfig);
+			const allowedDirectories = [repoConfig.repositoryPath];
+
+			const { config: runnerConfig, runnerType } =
+				this.buildAgentRunnerConfig(
+					session,
+					repoConfig,
+					githubSessionId,
+					systemPrompt,
+					allowedTools,
+					allowedDirectories,
+					disallowedTools,
+					undefined, // resumeSessionId
+					undefined, // labels
+					undefined, // issueDescription
+					200, // maxTurns
+					false, // singleTurn
+					undefined, // disallowAllTools
+					{ excludeSlackMcp: true },
+				);
+
+			const runner = this.createRunnerForType(runnerType, runnerConfig);
+			agentSessionManager.addAgentRunner(githubSessionId, runner);
+
+			await this.savePersistedState();
+
+			this.logger.info(
+				`[PRFeedbackLoop] Starting ${runnerType} runner for ${event.owner}/${event.repo}#${event.prNumber}`,
+			);
+
+			try {
+				const sessionInfo = await runner.start(taskInstructions);
+				this.logger.info(
+					`[PRFeedbackLoop] Session complete: ${sessionInfo.sessionId}`,
+				);
+				await this.postPRFeedbackReply(event, runner);
+			} catch (error) {
+				this.logger.error(
+					`[PRFeedbackLoop] Session error for ${event.owner}/${event.repo}#${event.prNumber}`,
+					error instanceof Error ? error : new Error(String(error)),
+				);
+			} finally {
+				await this.savePersistedState();
+			}
+		} catch (error) {
+			this.logger.error(
+				"[PRFeedbackLoop] Unexpected error in handlePRFeedback",
+				error instanceof Error ? error : new Error(String(error)),
+			);
+		} finally {
+			this.activeWebhookCount--;
+		}
+	}
+
+	/**
+	 * Build a system prompt for the PR feedback session.
+	 *
+	 * Includes full diff context for inline review comments so Claude understands
+	 * exactly which lines are being discussed.
+	 */
+	private buildPRFeedbackSystemPrompt(
+		event: PRFeedbackEvent,
+		repoConfig: RepositoryConfig,
+	): string {
+		const repoFullName = `${event.owner}/${event.repo}`;
+
+		const commentsSection = event.comments
+			.map((c, i) => {
+				const header =
+					c.type === "review_comment" && c.path
+						? `### Comment ${i + 1} — @${c.user.login} on \`${c.path}\`${c.line ? ` (line ${c.line})` : ""}`
+						: `### Comment ${i + 1} — @${c.user.login}`;
+
+				const diffContext = c.diff_hunk
+					? `\n\`\`\`diff\n${c.diff_hunk}\n\`\`\`\n`
+					: "";
+
+				return `${header}\n${diffContext}\n${c.body}\n\n[View on GitHub](${c.html_url})`;
+			})
+			.join("\n\n---\n\n");
+
+		return `You are addressing code review feedback on a GitHub Pull Request.
+
+## Context
+- **Repository**: ${repoFullName}
+- **PR**: #${event.prNumber} — ${event.prTitle || "Untitled"}
+- **Branch**: \`${event.branchRef}\`
+- **Base branch**: \`${event.baseBranchRef || repoConfig.baseBranch}\`
+
+## Review Comments to Address
+
+${commentsSection}
+
+## Instructions
+- You are already checked out on the PR branch \`${event.branchRef}\`
+- Implement every actionable change requested in the comments above
+- If a comment is a question you cannot answer without more information, include a clarification request in your response
+- After all changes are made, commit with a message in the format: \`Address review: [brief summary of changes]\`
+- Push the branch to origin so the PR is updated
+- Respond with a concise summary of what was changed (and any questions that need human input)`;
+	}
+
+	/**
+	 * Post the session's final assistant message back to the PR as an issue comment.
+	 */
+	private async postPRFeedbackReply(
+		event: PRFeedbackEvent,
+		runner: IAgentRunner,
+	): Promise<void> {
+		try {
+			const messages = runner.getMessages();
+			const lastAssistant = [...messages]
+				.reverse()
+				.find((m) => m.type === "assistant");
+
+			let summary =
+				"Review feedback addressed. Please check the updated branch.";
+			if (
+				lastAssistant &&
+				lastAssistant.type === "assistant" &&
+				"message" in lastAssistant
+			) {
+				const msg = lastAssistant as {
+					message: { content: Array<{ type: string; text?: string }> };
+				};
+				const textBlock = msg.message.content?.find(
+					(b) => b.type === "text" && b.text,
+				);
+				if (textBlock?.text) {
+					summary = textBlock.text;
+				}
+			}
+
+			const token = event.token;
+			if (!token) {
+				this.logger.warn(
+					"[PRFeedbackLoop] Cannot post reply — no token available",
+				);
+				return;
+			}
+
+			await this.gitHubCommentService.postIssueComment({
+				token,
+				owner: event.owner,
+				repo: event.repo,
+				issueNumber: event.prNumber,
+				body: `**Automated review addressed** ✓\n\n${summary}`,
+			});
+
+			this.logger.info(
+				`[PRFeedbackLoop] Posted reply to ${event.owner}/${event.repo}#${event.prNumber}`,
+			);
+		} catch (error) {
+			this.logger.error(
+				"[PRFeedbackLoop] Failed to post feedback reply",
+				error instanceof Error ? error : new Error(String(error)),
+			);
+		}
 	}
 
 	/**
@@ -4060,6 +4371,80 @@ ${taskSection}`;
 		const labels = await this.fetchIssueLabels(fullIssue);
 		// Lowercase labels for case-insensitive comparison
 		const lowercaseLabels = labels.map((label) => label.toLowerCase());
+
+		// -----------------------------------------------------------------------
+		// Pre-flight readiness gate
+		// -----------------------------------------------------------------------
+		// Run classifier BEFORE any real work begins. If the issue doesn't have
+		// enough information to proceed, post a comment and abort the session.
+		const classifierEnabled =
+			this.config.readinessClassifier?.enabled !== false; // default: enabled
+		if (classifierEnabled) {
+			const preFlightDecision = await this.readinessClassifier.assess(
+				issue.title,
+				fullIssue.description ?? "",
+				labels,
+			);
+
+			if (!preFlightDecision.pass) {
+				log.info(
+					`Pre-flight gate REJECTED issue ${issue.identifier}: ${preFlightDecision.classification}`,
+				);
+
+				// Post a comment on the issue explaining what is missing
+				const notifyUser =
+					this.config.readinessClassifier?.notifyUser ?? "@paul";
+				const failComment = [
+					`${notifyUser} This issue was held at the **pre-flight readiness gate** and has not been started.`,
+					"",
+					`**Reason:** ${preFlightDecision.reason}`,
+					"",
+					"Please update the issue description to address the above and re-add the `cyrus-ready` label when it is ready.",
+				].join("\n");
+
+				try {
+					await this.postComment(issue.id, failComment, linearWorkspaceId);
+				} catch (commentError) {
+					log.warn(
+						`Failed to post pre-flight failure comment: ${commentError instanceof Error ? commentError.message : String(commentError)}`,
+					);
+				}
+
+				// Move the issue back to an unstarted (Todo) state
+				try {
+					const issueTracker = this.issueTrackers.get(linearWorkspaceId);
+					if (issueTracker) {
+						const team = await fullIssue.team;
+						if (team) {
+							const teamStates = await issueTracker.fetchWorkflowStates(team.id);
+							const unstartedStates = teamStates.nodes.filter(
+								(state) => state.type === "unstarted",
+							);
+							const todoState = unstartedStates.sort(
+								(a, b) => a.position - b.position,
+							)[0];
+							if (todoState) {
+								await issueTracker.updateIssue(fullIssue.id, {
+									stateId: todoState.id,
+								});
+								log.info(
+									`Moved issue ${issue.identifier} back to "${todoState.name}" state after pre-flight rejection`,
+								);
+							}
+						}
+					}
+				} catch (stateError) {
+					log.warn(
+						`Failed to revert issue state after pre-flight rejection: ${stateError instanceof Error ? stateError.message : String(stateError)}`,
+					);
+				}
+
+				// Do not start the main workflow
+				return;
+			}
+
+			log.info(`Pre-flight gate PASSED for issue ${issue.identifier}`);
+		}
 
 		// Check for label overrides BEFORE AI routing (use primary repo for label config)
 		const debuggerConfig = primaryRepo.labelPrompts?.debugger;
