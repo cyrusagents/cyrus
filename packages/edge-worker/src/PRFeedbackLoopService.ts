@@ -510,11 +510,11 @@ export class PRFeedbackLoopService {
 			/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?(?:\/.*)?$/,
 		);
 		if (httpsMatch) {
-			return { owner: httpsMatch[1], repo: httpsMatch[2] };
+			return { owner: httpsMatch[1]!, repo: httpsMatch[2]! };
 		}
 		const simpleMatch = githubUrl.match(/^([^/]+)\/([^/]+?)(?:\.git)?$/);
 		if (simpleMatch) {
-			return { owner: simpleMatch[1], repo: simpleMatch[2] };
+			return { owner: simpleMatch[1]!, repo: simpleMatch[2]! };
 		}
 		return null;
 	}
