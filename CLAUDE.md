@@ -508,5 +508,6 @@ The GeminiRunner automatically generates a `~/.gemini/settings.json` file with s
 
 Domain-specific skill modules loaded on demand. Reference these when working on tasks in the relevant area.
 
+- `.claude/infra.md` — Cyrus dispatch/performance: context budget rule (keep under 70% of window capacity)
 - `.claude/market-scanner.md` — Market Scanner skill: Bernhardt niche research framework, Apify/Firecrawl integration patterns (with correct input formats), tiered launch model, output template, and known quirks
 - `.claude/gbq.md` — Great British Quizzes series: Charlie Mercer pen name, GBQ imprint, ISBNs for Vol 1 & 2, British English brand, product disambiguation from TriviaSeniors (US market)
