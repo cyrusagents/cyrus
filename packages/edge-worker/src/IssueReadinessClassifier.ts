@@ -15,8 +15,8 @@
  *  - Decisions logged for prompt tuning
  */
 
-import { type ILogger, createLogger } from "cyrus-core";
 import type { ISimpleAgentRunner } from "cyrus-core";
+import { createLogger, type ILogger } from "cyrus-core";
 import { SimpleClaudeRunner } from "cyrus-simple-agent-runner";
 
 // ---------------------------------------------------------------------------
@@ -76,7 +76,8 @@ export class IssueReadinessClassifier {
 	private logger: ILogger;
 
 	constructor(config: ReadinessClassifierConfig) {
-		this.logger = config.logger ?? createLogger({ component: "IssueReadinessClassifier" });
+		this.logger =
+			config.logger ?? createLogger({ component: "IssueReadinessClassifier" });
 
 		this.runner = new SimpleClaudeRunner<ReadinessClassification>({
 			validResponses: [
@@ -111,7 +112,9 @@ export class IssueReadinessClassifier {
 		const labelList = labels.length > 0 ? labels.join(", ") : "(none)";
 		const prompt = [
 			`Title: ${issueTitle}`,
-			issueDescription ? `Description:\n${issueDescription}` : "Description: (empty)",
+			issueDescription
+				? `Description:\n${issueDescription}`
+				: "Description: (empty)",
 			`Labels: ${labelList}`,
 		].join("\n\n");
 
@@ -130,7 +133,7 @@ export class IssueReadinessClassifier {
 
 			this.logger.info(
 				`[readiness-classifier] ${classification.toUpperCase()} — ${decision.reason} ` +
-				`(issue: "${issueTitle}", durationMs: ${result.durationMs}, costUSD: ${result.costUSD?.toFixed(5) ?? "n/a"})`,
+					`(issue: "${issueTitle}", durationMs: ${result.durationMs}, costUSD: ${result.costUSD?.toFixed(5) ?? "n/a"})`,
 			);
 
 			return decision;

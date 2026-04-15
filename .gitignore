@@ -2,6 +2,10 @@
 node_modules
 **/node_modules
 
+# Non-pnpm lock files (this is a pnpm monorepo — these files cause false Dependabot alerts)
+package-lock.json
+bun.lock
+
 # Build output
 dist/
 

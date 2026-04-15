@@ -420,7 +420,9 @@ export class PRFeedbackLoopService {
 				);
 				return [];
 			}
-			throw new Error(`GitHub API ${res.status} listing PRs for ${owner}/${repo}`);
+			throw new Error(
+				`GitHub API ${res.status} listing PRs for ${owner}/${repo}`,
+			);
 		}
 		return (await res.json()) as GitHubPRListItem[];
 	}

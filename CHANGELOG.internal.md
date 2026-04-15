@@ -10,6 +10,9 @@ This changelog documents internal development changes, refactors, tooling update
 - SDK bumped to claude-agent-sdk v0.2.90 + sdk v0.82.0
 - SessionMetricsService.ts patched for backward compatibility
 
+### Fixed
+- Deleted stray `package-lock.json` and `bun.lock` from this pnpm monorepo; both contained vulnerable transitive deps (picomatch@2.3.1, yaml@2.8.1) that triggered 13 Dependabot alerts. Added both to `.gitignore`. The `pnpm-lock.yaml` was already clean via `pnpm.overrides`. ([BRI-1188](https://linear.app/brilliantio/issue/BRI-1188), [#30](https://github.com/Brilliantio/cyrus-agent/pull/30))
+
 ### Changed
 - PR/MR and changelog-update skills now diff changelog entries against the base branch (not the last commit) to detect existing entries added by the current branch. Prevents duplicate entries and ensures existing entries are updated in-place. ([CYPACK-1063](https://linear.app/ceedar/issue/CYPACK-1063), [#1091](https://github.com/ceedaragents/cyrus/pull/1091))
 
