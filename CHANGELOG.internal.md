@@ -4,6 +4,12 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Upstream sync — 15 Apr 2026 (v0.2.38 → v0.2.44)
+- Merged 27 upstream commits from ceedaragents/cyrus
+- Skills architecture replaced procedures
+- SDK bumped to claude-agent-sdk v0.2.90 + sdk v0.82.0
+- SessionMetricsService.ts patched for backward compatibility
+
 ### Changed
 - PR/MR and changelog-update skills now diff changelog entries against the base branch (not the last commit) to detect existing entries added by the current branch. Prevents duplicate entries and ensures existing entries are updated in-place. ([CYPACK-1063](https://linear.app/ceedar/issue/CYPACK-1063), [#1091](https://github.com/ceedaragents/cyrus/pull/1091))
 
