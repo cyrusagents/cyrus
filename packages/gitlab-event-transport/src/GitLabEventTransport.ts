@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { TranslationContext } from "cyrus-core";
-import { createLogger, type ILogger } from "cyrus-core";
+import { createLogger, type ILogger, ipMatchesAllowlist } from "cyrus-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { GitLabMessageTranslator } from "./GitLabMessageTranslator.js";
 import type {
@@ -134,6 +134,19 @@ export class GitLabEventTransport extends EventEmitter {
 		reply: FastifyReply,
 		secret: string,
 	): Promise<void> {
+		// Validate source IP against GitLab's known webhook IPs
+		if (
+			this.config.ipAllowlist &&
+			this.config.ipAllowlist.length > 0 &&
+			!ipMatchesAllowlist(request.ip, this.config.ipAllowlist)
+		) {
+			this.logger.warn(
+				`Rejected GitLab webhook from unauthorized IP: ${request.ip}`,
+			);
+			reply.code(403).send({ error: "Forbidden: unauthorized source IP" });
+			return;
+		}
+
 		const token = request.headers["x-gitlab-token"] as string;
 		if (!token) {
 			reply.code(401).send({ error: "Missing X-Gitlab-Token header" });

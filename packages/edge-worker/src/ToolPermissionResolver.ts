@@ -4,14 +4,7 @@ import {
 	getReadOnlyTools,
 	getSafeTools,
 } from "cyrus-claude-runner";
-import type {
-	CyrusAgentSession,
-	EdgeWorkerConfig,
-	ILogger,
-	RepositoryConfig,
-} from "cyrus-core";
-
-import type { ProcedureAnalyzer } from "./procedures/index.js";
+import type { EdgeWorkerConfig, ILogger, RepositoryConfig } from "cyrus-core";
 
 /** Prompt type used for label-based tool/prompt selection */
 export type PromptType =
@@ -28,7 +21,6 @@ export type PromptType =
  * - Repository-based tool resolution (allowed/disallowed)
  * - Chat-mode read-only tool sets with MCP prefixes
  * - Workspace-level MCP tool prefixes
- * - Subroutine-level tool merging
  */
 export class ToolPermissionResolver {
 	private config: EdgeWorkerConfig;
@@ -277,36 +269,5 @@ export class ToolPermissionResolver {
 		}
 		// 5. No defaults for disallowedTools
 		return [];
-	}
-
-	/**
-	 * Merge subroutine-level disallowedTools with base disallowedTools
-	 * @param session Current agent session
-	 * @param baseDisallowedTools Base disallowed tools from repository/global config
-	 * @param logContext Context string for logging (e.g., "EdgeWorker", "resumeClaudeSession")
-	 * @param procedureAnalyzer ProcedureAnalyzer instance to resolve current subroutine
-	 * @returns Merged disallowed tools list
-	 */
-	public mergeSubroutineDisallowedTools(
-		session: CyrusAgentSession,
-		baseDisallowedTools: string[],
-		logContext: string,
-		procedureAnalyzer: ProcedureAnalyzer,
-	): string[] {
-		const currentSubroutine = procedureAnalyzer.getCurrentSubroutine(session);
-		if (currentSubroutine?.disallowedTools) {
-			const mergedTools = [
-				...new Set([
-					...baseDisallowedTools,
-					...currentSubroutine.disallowedTools,
-				]),
-			];
-			this.logger.debug(
-				`[${logContext}] Merged subroutine-level disallowedTools for ${currentSubroutine.name}:`,
-				currentSubroutine.disallowedTools,
-			);
-			return mergedTools;
-		}
-		return baseDisallowedTools;
 	}
 }

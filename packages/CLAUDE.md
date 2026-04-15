@@ -22,7 +22,7 @@ An agentSessionCreated webhook has two triggers from Linear:
 
 - Checks issue labels for debugger, orchestrator, or other custom prompts.
 
-- Falls back to procedure-based system prompt.
+- Falls back to default system prompt.
 
 ### agentSessionPrompted
 

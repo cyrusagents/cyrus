@@ -4,29 +4,344 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Changelog updates no longer create duplicate entries** — The PR/MR and changelog-update skills now diff entries against the base branch instead of only the last commit, correctly detecting entries already added by the current branch and updating them in-place. ([CYPACK-1063](https://linear.app/ceedar/issue/CYPACK-1063), [#1091](https://github.com/ceedaragents/cyrus/pull/1091))
+
 ### Added
-- **PR review feedback loop** - Cyrus now automatically implements review comments left on its own pull requests. Every 15 minutes, Cyrus polls GitHub for new comments on open Cyrus-created PRs, creates a worktree on the PR branch, runs a session to address the feedback, commits with `Address review: [summary]`, pushes the branch, and posts a confirmation reply on the PR. Approval comments (LGTM, 👍, etc.) are silently skipped. After 3 automated feedback cycles on a single PR, Cyrus escalates to manual review. Requires `GITHUB_TOKEN` to be set. ([BRI-1122](https://linear.app/brilliantio/issue/BRI-1122), [#27](https://github.com/Brilliantio/cyrus-agent/pull/27))
-- **Issue readiness pre-flight gate** - Cyrus now runs a lightweight classifier before starting work on any issue. If the issue is too vague, missing file paths for a file-editing task, lacks acceptance criteria, or contains contradictions, Cyrus posts a comment explaining exactly what is missing (tagging the issue owner), reverts the issue to Todo state, and does not begin work. Clear, specific issues pass through with no added steps. The classifier model, notify target, and prompt are all configurable. ([BRI-1121](https://linear.app/brilliantio/issue/BRI-1121), [#26](https://github.com/Brilliantio/cyrus-agent/pull/26))
-- **Auto-close issues with no PR after completion** - Cyrus now automatically closes the Linear issue when it finishes a task that produces no pull request (e.g. n8n builds, data ops, Edge Function deploys, schema changes). If a PR was created, the existing GitHub "Fixes BRI-XXX" auto-close flow is used instead. Errors and failed sessions are excluded from auto-close. ([BRI-1050](https://linear.app/brilliantio/issue/BRI-1050), [#21](https://github.com/Brilliantio/cyrus-agent/pull/21))
-- **Session metrics log** - Cyrus now appends a structured JSON record to `~/.cyrus/session-metrics.jsonl` after each session completes, capturing issue ID, repo, model, workflow, duration, files changed, PR URL, outcome (success/error/timeout), token usage, and cost. Run `cyrus metrics` to see a summary (total sessions, success rate, avg duration, PR creation rate, per-repo breakdown). The log is append-only and never sent externally. ([BRI-1055](https://linear.app/brilliantio/issue/BRI-1055), [#23](https://github.com/Brilliantio/cyrus-agent/pull/23))
-- **Session duration in completion comments** - Cyrus now appends `**Session duration:** Xm Ys` to every completion comment it posts on Linear issues, showing wall-clock time from session start to finish. Useful for tracking how long each task took. Duration is omitted if unavailable rather than showing "NaN". ([BRI-872](https://linear.app/brilliantio/issue/BRI-872), [#4](https://github.com/Brilliantio/cyrus-agent/pull/4))
-- **`/health` endpoint for system monitoring** - Cyrus now exposes a `GET /health` endpoint with detailed runtime metrics: overall health status ("healthy"/"degraded"), process uptime, active session info (issueId, repo, start time, duration), queue length per repository, last completed session timestamp, version, configured model, and memory usage. More detailed than the existing `/status` endpoint. ([BRI-871](https://linear.app/brilliantio/issue/BRI-871), [#5](https://github.com/Brilliantio/cyrus-agent/pull/5))
-- **Model name in completion comments** - Cyrus now appends `**Model:** {model}` to every completion and failure comment it posts on Linear issues, showing exactly which AI model handled the session (e.g. `claude-sonnet-4-6`). Gives immediate visibility into model routing without checking logs. ([BRI-858](https://linear.app/brilliantio/issue/BRI-858), [#3](https://github.com/Brilliantio/cyrus-agent/pull/3))
-- **Clickable choices for test failure handling** - When tests fail after all retry attempts, Cyrus now presents clickable options in Linear instead of silently continuing: "Fix the failing test", "Skip tests and open PR anyway", or "Abort and report the error". Your choice resumes or stops the session accordingly. Includes a 30-minute response timeout and survives restarts. ([BRI-857](https://linear.app/brilliantio/issue/BRI-857), [#2](https://github.com/Brilliantio/cyrus-agent/pull/2))
-- **Live Agent Plan progress checklist in Linear Agent Session panel** - Cyrus now posts a real-time progress checklist to the Linear Agent Session panel as it executes subroutines. Each procedure step (e.g. "Implementing code changes", "Running tests", "Creating or updating pull request") shows as pending, in progress, or completed so you can track execution status without checking GitHub or SSH. ([BRI-856](https://linear.app/brilliantio/issue/BRI-856), [#1](https://github.com/Brilliantio/cyrus-agent/pull/1))
+- **Webhook IP provenance validation** — Incoming webhooks from Linear, GitHub, and GitLab are now validated against each provider's known source IP ranges. Enabled automatically in self-hosted mode (`CYRUS_HOST_EXTERNAL=true`); can be toggled with the `WEBHOOK_IP_VALIDATION` environment variable. GitHub CIDRs are refreshed from the `/meta` API on startup. ([CYPACK-1056](https://linear.app/ceedar/issue/CYPACK-1056), [#1094](https://github.com/ceedaragents/cyrus/pull/1094))
 
-- **n8n book market research: natural language topic input** - The book market research workflow now accepts a plain-English topic (e.g. "documentary filmmaking") instead of requiring ASINs or URLs. New `topic` mode uses Claude Haiku to generate an Amazon search URL, scrapes the results page via Firecrawl, and extracts product listings automatically. The existing ASIN input mode is preserved as a fallback. A `max_results` field (default 15) controls how many listings are analysed. ([BRI-885](https://linear.app/brilliantio/issue/BRI-885), [#9](https://github.com/Brilliantio/cyrus-agent/pull/9))
-
-- **Auto-close issues without PRs** - When Cyrus completes a task that does not create a pull request (e.g. n8n builds, data ops, Edge Function deploys, schema changes), the Linear issue is now automatically moved to Done after the final summary comment is posted. Issues where a PR was created are left to GitHub's "Fixes #..." auto-close mechanism as before. ([BRI-1049](https://linear.app/brilliantio/issue/BRI-1049), [#22](https://github.com/Brilliantio/cyrus-agent/pull/22))
+## [0.2.44] - 2026-04-10
 
 ### Fixed
-- **Wrong-repo routing when label fetch fails** - Cyrus now retries label fetching once after a 2-second delay when no labels are returned (guards against a timing race on newly-created issues). If the fetch throws, a warning is logged so the fallthrough to team-based routing is visible rather than silent. When multiple repositories share the same team key, Cyrus warns that routing is ambiguous and recommends adding a `repo:` label for explicit control. ([BRI-1046](https://linear.app/brilliantio/issue/BRI-1046), [#20](https://github.com/Brilliantio/cyrus-agent/pull/20))
+- **Repository `.env` variables are now scoped per-session** — Previously, `.env` files were loaded into the EdgeWorker's `process.env`, causing environment poisoning across sessions and repositories. Variables are now parsed into an isolated object and merged only into the child subprocess env, so updated or removed values take effect immediately and one repo's `.env` cannot leak into another. ([CYPACK-1059](https://linear.app/ceedar/issue/CYPACK-1059), [#1086](https://github.com/ceedaragents/cyrus/pull/1086))
+- **PR/MR interaction tips now correctly reference `@cyrusagent`** — Previously, when `GITHUB_BOT_USERNAME` or `GITLAB_BOT_USERNAME` environment variables were not set, PR/MR descriptions could show an incorrect bot username. The system now defaults to `cyrusagent`. ([CYPACK-1054](https://linear.app/ceedar/issue/CYPACK-1054), [#1082](https://github.com/ceedaragents/cyrus/pull/1082))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.44
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.44
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.44
+
+#### cyrus-core
+- cyrus-core@0.2.44
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.44
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.44
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.44
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.44
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.44
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.44
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.44
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.44
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.44
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.44
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.44
+
+## [0.2.43] - 2026-04-08
 
 ### Fixed
-- **Resolved all Dependabot security alerts** - Fixed 10 vulnerabilities (4 high, 6 moderate) in transitive dependencies including picomatch, path-to-regexp, yaml, brace-expansion, flatted, and @anthropic-ai/sdk. `pnpm audit` now reports 0 known vulnerabilities. ([BRI-1060](https://linear.app/brilliantio/issue/BRI-1060), [#24](https://github.com/Brilliantio/cyrus-agent/pull/24))
+- **Slack chat sessions now see repositories added or removed at runtime** — Previously, Slack sessions used a stale snapshot of configured repositories from boot time, causing Cyrus to report missing access to repos that were actually configured. New sessions now always reflect the current repository configuration. ([CYPACK-1051](https://linear.app/ceedar/issue/CYPACK-1051), [#1078](https://github.com/ceedaragents/cyrus/pull/1078))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.43
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.43
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.43
+
+#### cyrus-core
+- cyrus-core@0.2.43
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.43
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.43
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.43
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.43
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.43
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.43
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.43
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.43
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.43
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.43
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.43
+
+## [0.2.42] - 2026-04-06
+
+### Fixed
+- **Bundled skills now resolve correctly for npm installs** - Skills shipped with the CLI were not found when installed via npm because symlinks were stripped during publishing. Skills are now resolved from the correct compiled path. ([CYPACK-1046](https://linear.app/ceedar/issue/CYPACK-1046), [#1073](https://github.com/ceedaragents/cyrus/pull/1073))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.42
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.42
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.42
+
+#### cyrus-core
+- cyrus-core@0.2.42
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.42
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.42
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.42
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.42
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.42
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.42
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.42
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.42
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.42
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.42
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.42
+
+## [0.2.41] - 2026-04-06
 
 ### Changed
+- **Skills replace rigid procedure workflows** - Agent sessions now use flexible, customizable skills instead of fixed procedure sequences. Skills are discoverable at runtime, giving the agent more natural control over its workflow. A Stop hook ensures PRs and summaries are always created before sessions end. Users can add custom skills to `~/.cyrus/skills/`. ([CYPACK-996](https://linear.app/ceedar/issue/CYPACK-996), [#1018](https://github.com/ceedaragents/cyrus/pull/1018))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.41
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.41
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.41
+
+#### cyrus-core
+- cyrus-core@0.2.41
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.41
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.41
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.41
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.41
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.41
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.41
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.41
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.41
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.41
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.41
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.41
+
+## [0.2.40] - 2026-04-02
+
+### Fixed
+- **Slack chat sessions now use fresh Linear tokens** - The Linear MCP connection in Slack chat sessions was using a token captured once at startup, so after a daily OAuth refresh new sessions would fail to reach Linear. Chat sessions now build fresh MCP config per session, matching how issue sessions already work. ([CYPACK-1029](https://linear.app/ceedar/issue/CYPACK-1029), [#1063](https://github.com/ceedaragents/cyrus/pull/1063))
+- **Logger tests updated for ISO timestamp output** - Fixed test failures caused by the ISO timestamp addition to log output in v0.2.39. Tests in `core` and `claude-runner` now correctly match the timestamped log format. ([CYPACK-1027](https://linear.app/ceedar/issue/CYPACK-1027), [#1060](https://github.com/ceedaragents/cyrus/pull/1060))
+
+### Changed
+- **Updated `@anthropic-ai/claude-agent-sdk` to v0.2.90 and `@anthropic-ai/sdk` to v0.82.0** - Upgrades from v0.2.89 / v0.81.0. v0.2.90 syncs with Claude Code v2.1.90. v0.82.0 adds structured `stop_details` to message responses and AWS Bedrock SDK API key support. See changelogs: [claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md), [anthropic-sdk](https://github.com/anthropics/anthropic-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1028](https://linear.app/ceedar/issue/CYPACK-1028), [#1062](https://github.com/ceedaragents/cyrus/pull/1062))
+- **Updated `@anthropic-ai/claude-agent-sdk` to v0.2.89 and `@anthropic-ai/sdk` to v0.81.0** - Upgrades from v0.2.87 / v0.80.0. v0.2.89 adds `startup()` for ~20x faster first queries, `listSubagents()` / `getSubagentMessages()` for subagent conversation history, fixes Zod v4 schema metadata being dropped, and fixes `side_question` returning null on resume. v0.81.0 adds `.type` field to `APIError` for error kind identification. See changelogs: [claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md), [anthropic-sdk](https://github.com/anthropics/anthropic-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1026](https://linear.app/ceedar/issue/CYPACK-1026), [#1058](https://github.com/ceedaragents/cyrus/pull/1058))
+
+### Added
+- **GitHub App webhook setup for self-hosted users** - Self-hosted users can now configure GitHub App webhooks during setup. ([#1054](https://github.com/ceedaragents/cyrus/pull/1054))
+- **ISO timestamps in log output** - Log lines now include ISO timestamps for easier debugging and correlation. ([#1055](https://github.com/ceedaragents/cyrus/pull/1055))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.40
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.40
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.40
+
+#### cyrus-core
+- cyrus-core@0.2.40
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.40
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.40
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.40
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.40
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.40
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.40
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.40
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.40
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.40
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.40
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.40
+
+## [0.2.39] - 2026-03-31
+
+### Fixed
+- **Linear OAuth tokens now stay fresh across long sessions** - When Linear access tokens are refreshed (at least once daily with OAuth 2.0), running sessions and services now automatically pick up the new token instead of continuing with a stale one. ([CYPACK-1024](https://linear.app/ceedar/issue/CYPACK-1024), [#1056](https://github.com/ceedaragents/cyrus/pull/1056))
+- **Self-auth now works with reverse proxies on other machines** - The self-auth OAuth callback server now respects `CYRUS_HOST_EXTERNAL=true` and listens on `0.0.0.0` instead of `localhost`, matching the main server's behavior. ([#1046](https://github.com/ceedaragents/cyrus/issues/1046), [CYPACK-1017](https://linear.app/ceedar/issue/CYPACK-1017), [#1047](https://github.com/ceedaragents/cyrus/pull/1047))
+
+### Added
+- **Auto-detect base branch when adding repositories** - `cyrus self-add-repo` now automatically detects the remote's default branch instead of always using `main`. Also adds a `--base-branch` flag for manual override. ([CYPACK-1015](https://linear.app/ceedar/issue/CYPACK-1015), [#1051](https://github.com/ceedaragents/cyrus/pull/1051))
+
+### Changed
+- **Skills replace rigid procedure workflows** - Agent sessions now use flexible, customizable skills instead of fixed procedure sequences. Skills are discoverable at runtime, giving the agent more natural control over its workflow. A Stop hook ensures PRs and summaries are always created before sessions end. Users can add custom skills to `~/.cyrus/skills/`. ([CYPACK-996](https://linear.app/ceedar/issue/CYPACK-996), [#1018](https://github.com/ceedaragents/cyrus/pull/1018))
+- **Renamed `cyrus self-auth` to `cyrus self-auth-linear`** - Clarifies that this command authenticates specifically with Linear OAuth. ([CYPACK-1017](https://linear.app/ceedar/issue/CYPACK-1017), [#1047](https://github.com/ceedaragents/cyrus/pull/1047))
+- **Updated `@anthropic-ai/claude-agent-sdk` to v0.2.88** - Syncs with Claude Code v2.1.88. Fixes error result messages now correctly setting `is_error: true`, MCP servers no longer getting permanently stuck after a connection race, ~50% failure rate bug in `StructuredOutput` schema cache, and `ERR_STREAM_WRITE_AFTER_END` errors with single-turn queries. Also adds `includeSystemMessages` option to `getSessionMessages()` and `includeHookEvents` option for hook lifecycle messages. See SDK changelog: [claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1023](https://linear.app/ceedar/issue/CYPACK-1023), [#1053](https://github.com/ceedaragents/cyrus/pull/1053))
+- **Updated `@anthropic-ai/claude-agent-sdk` to v0.2.87** - Syncs with Claude Code v2.1.87 (maintenance release). See SDK changelog: [claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1020](https://linear.app/ceedar/issue/CYPACK-1020), [#1050](https://github.com/ceedaragents/cyrus/pull/1050))
 - **Updated `@anthropic-ai/claude-agent-sdk` to v0.2.86** - Keeps AI SDK dependency up to date. v0.2.86 adds `getContextUsage()` for token distribution visibility, makes `session_id` optional in `SDKUserMessage`, and fixes TypeScript type resolution. v0.2.85 adds `reloadPlugins()` for dynamic plugin refresh and fixes PreToolUse hooks with `"ask"` permission decisions. See SDK changelog: [claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1016](https://linear.app/ceedar/issue/CYPACK-1016), [#1045](https://github.com/ceedaragents/cyrus/pull/1045))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.39
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.39
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.39
+
+#### cyrus-core
+- cyrus-core@0.2.39
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.39
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.39
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.39
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.39
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.39
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.39
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.39
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.39
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.39
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.39
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.39
 
 ## [0.2.38] - 2026-03-25
 

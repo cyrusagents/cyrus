@@ -49,7 +49,7 @@ At the end of the MR description (before the `<!-- generated-by-cyrus -->` marke
 ```
 ---
 
-> **Tip:** I will respond to comments that @ mention @{{gitlab_bot_username}} on this MR. You can also leave review comments, and I will automatically wake up to address each comment.
+> **Tip:** I will respond to comments that @ mention @<bot_username from agent_context> on this MR. You can also leave review comments, and I will automatically wake up to address each comment.
 ```
 
 This helps reviewers know how to interact with Cyrus directly on the MR.

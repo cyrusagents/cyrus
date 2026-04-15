@@ -475,7 +475,7 @@ describe("SelfAuthCommand", () => {
 				"Workspace",
 			);
 
-			// Repositories are NOT modified — self-auth only saves credentials
+			// Repositories are NOT modified — self-auth-linear only saves credentials
 			expect(writtenConfig.repositories).toEqual([
 				{ id: "repo-1", linearWorkspaceId: "ws-123" },
 				{ id: "repo-2", linearWorkspaceId: "ws-456" },

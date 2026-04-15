@@ -202,7 +202,7 @@ ANTHROPIC_API_KEY=your-api-key
 ### 5.1 Authorize with Linear
 
 ```bash
-cyrus self-auth
+cyrus self-auth-linear
 ```
 
 This will:

@@ -1,4 +1,5 @@
 npx lint-staged
+pnpm build
 pnpm typecheck
 
 # If config-schemas.ts was modified, verify JSON Schemas are up-to-date

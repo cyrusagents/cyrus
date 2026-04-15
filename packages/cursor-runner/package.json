@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-cursor-runner",
-	"version": "0.2.38",
+	"version": "0.2.44",
 	"description": "Cursor Agent CLI process wrapper for Cyrus",
 	"type": "module",
 	"main": "dist/index.js",

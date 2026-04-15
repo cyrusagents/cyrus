@@ -200,8 +200,6 @@ describe("EdgeWorker - Runner Selection Based on Labels", () => {
 			serializeState: vi.fn().mockReturnValue({ sessions: {}, entries: {} }),
 			restoreState: vi.fn(),
 			postAnalyzingThought: vi.fn().mockResolvedValue(null),
-			postProcedureSelectionThought: vi.fn().mockResolvedValue(undefined),
-			postInitialPlan: vi.fn().mockResolvedValue(undefined),
 			createThoughtActivity: vi.fn().mockResolvedValue(undefined),
 			setActivitySink: vi.fn(),
 			on: vi.fn(), // EventEmitter method
@@ -311,8 +309,7 @@ Issue: {{issue_identifier}}`;
 			// Assert
 			expect(capturedRunnerType).toBe("gemini");
 			expect(GeminiRunner).toHaveBeenCalled();
-			// ClaudeRunner is called once for the classifier (ProcedureAnalyzer uses Claude by default)
-			expect(ClaudeRunner).toHaveBeenCalledTimes(1);
+			expect(ClaudeRunner).not.toHaveBeenCalled();
 		});
 
 		it("should select Gemini runner with gemini-2.5-pro model when 'gemini-2.5-pro' label is present", async () => {
@@ -343,8 +340,7 @@ Issue: {{issue_identifier}}`;
 			// Assert
 			expect(capturedRunnerType).toBe("gemini");
 			expect(GeminiRunner).toHaveBeenCalled();
-			// ClaudeRunner is called once for the classifier (ProcedureAnalyzer uses Claude by default)
-			expect(ClaudeRunner).toHaveBeenCalledTimes(1);
+			expect(ClaudeRunner).not.toHaveBeenCalled();
 			expect(capturedRunnerConfig.model).toBe("gemini-2.5-pro");
 		});
 
@@ -436,8 +432,7 @@ Issue: {{issue_identifier}}`;
 
 			expect(capturedRunnerType).toBe("codex");
 			expect(CodexRunner).toHaveBeenCalled();
-			// ClaudeRunner is called once for the classifier (ProcedureAnalyzer uses Claude by default)
-			expect(ClaudeRunner).toHaveBeenCalledTimes(1);
+			expect(ClaudeRunner).not.toHaveBeenCalled();
 		});
 
 		it("should select Codex runner with gpt-5-codex model when 'gpt-5-codex' label is present", async () => {

@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { EventEmitter } from "node:events";
 import type { TranslationContext } from "cyrus-core";
-import { createLogger, type ILogger } from "cyrus-core";
+import { createLogger, type ILogger, ipMatchesAllowlist } from "cyrus-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { GitHubMessageTranslator } from "./GitHubMessageTranslator.js";
 import type {
@@ -147,6 +147,19 @@ export class GitHubEventTransport extends EventEmitter {
 		reply: FastifyReply,
 		secret: string,
 	): Promise<void> {
+		// Validate source IP against GitHub's known webhook IPs
+		if (
+			this.config.ipAllowlist &&
+			this.config.ipAllowlist.length > 0 &&
+			!ipMatchesAllowlist(request.ip, this.config.ipAllowlist)
+		) {
+			this.logger.warn(
+				`Rejected GitHub webhook from unauthorized IP: ${request.ip}`,
+			);
+			reply.code(403).send({ error: "Forbidden: unauthorized source IP" });
+			return;
+		}
+
 		const signature = request.headers["x-hub-signature-256"] as string;
 		if (!signature) {
 			reply.code(401).send({ error: "Missing x-hub-signature-256 header" });

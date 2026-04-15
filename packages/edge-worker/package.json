@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-edge-worker",
-	"version": "0.2.38",
+	"version": "0.2.44",
 	"description": "Unified edge worker for processing Linear issues with Claude",
 	"type": "module",
 	"main": "dist/index.js",
@@ -14,7 +14,7 @@
 	],
 	"scripts": {
 		"build": "tsc && npm run copy-prompts",
-		"copy-prompts": "mkdir -p dist/prompts/subroutines && cp -r src/prompts/subroutines/*.md dist/prompts/subroutines/ && cp label-prompt-template.md dist/ && cp -r prompts dist/",
+		"copy-prompts": "cp label-prompt-template.md dist/ && cp -r prompts dist/ && rm -rf dist/cyrus-skills-plugin && cp -rL cyrus-skills-plugin dist/cyrus-skills-plugin",
 		"dev": "tsc --watch",
 		"test": "vitest",
 		"test:run": "vitest run",
@@ -48,7 +48,7 @@
 	"devDependencies": {
 		"@types/node": "^20.0.0",
 		"@vitest/coverage-v8": "^3.1.4",
-		"axios": "^1.13.5",
+		"axios": "^1.15.0",
 		"typescript": "^5.3.3",
 		"vitest": "^3.1.4",
 		"vitest-mock-extended": "^3.1.0"

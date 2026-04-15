@@ -79,7 +79,7 @@ export class RefreshTokenCommand extends BaseCommand {
 
 		if (workspaceStatuses.length === 0) {
 			this.logError(
-				"No Linear workspaces configured. Run 'cyrus self-auth' first.",
+				"No Linear workspaces configured. Run 'cyrus self-auth-linear' first.",
 			);
 			process.exit(1);
 		}

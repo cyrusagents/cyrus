@@ -16,7 +16,6 @@ import {
 	type WebhookComment,
 } from "cyrus-core";
 import type { GitService } from "./GitService.js";
-import type { SubroutineDefinition } from "./procedures/index.js";
 
 /**
  * Dependencies required by the PromptBuilder
@@ -56,7 +55,7 @@ export interface PromptResult {
  *
  * Extracted from EdgeWorker to improve separation of concerns.
  * Handles label-based prompts, mention prompts, issue context prompts,
- * issue update prompts, subroutine prompt loading, and related utilities.
+ * issue update prompts, and related utilities.
  */
 export class PromptBuilder {
 	private readonly logger: ILogger;
@@ -1278,66 +1277,8 @@ ${reply.body}
 	}
 
 	// ========================================================================
-	// SUBROUTINE / SHARED INSTRUCTION LOADING
+	// SHARED INSTRUCTION LOADING
 	// ========================================================================
-
-	/**
-	 * Load a subroutine prompt file
-	 * Extracted helper to make prompt assembly more readable
-	 */
-	async loadSubroutinePrompt(
-		subroutine: SubroutineDefinition,
-		workspaceSlug?: string,
-	): Promise<string | null> {
-		// Skip loading for "primary" - it's a placeholder that doesn't have a file
-		if (subroutine.promptPath === "primary") {
-			return null;
-		}
-
-		const __filename = fileURLToPath(import.meta.url);
-		const __dirname = dirname(__filename);
-		const subroutinePromptPath = join(
-			__dirname,
-			"prompts",
-			subroutine.promptPath,
-		);
-
-		try {
-			let prompt = await readFile(subroutinePromptPath, "utf-8");
-			this.logger.debug(
-				`Loaded ${subroutine.name} subroutine prompt (${prompt.length} characters)`,
-			);
-
-			// Perform template substitution if workspace slug is provided
-			if (workspaceSlug) {
-				prompt = prompt.replace(
-					/https:\/\/linear\.app\/linear\/profiles\//g,
-					`https://linear.app/${workspaceSlug}/profiles/`,
-				);
-			}
-
-			// Replace environment variable placeholders
-			const githubBotUsername = process.env.GITHUB_BOT_USERNAME || "cyrusagent";
-			prompt = prompt.replace(
-				/\{\{github_bot_username\}\}/g,
-				githubBotUsername,
-			);
-
-			const gitlabBotUsername = process.env.GITLAB_BOT_USERNAME || "cyrusagent";
-			prompt = prompt.replace(
-				/\{\{gitlab_bot_username\}\}/g,
-				gitlabBotUsername,
-			);
-
-			return prompt;
-		} catch (error) {
-			this.logger.warn(
-				`Failed to load subroutine prompt from ${subroutinePromptPath}:`,
-				error,
-			);
-			return null;
-		}
-	}
 
 	/**
 	 * Load shared instructions that get appended to all system prompts

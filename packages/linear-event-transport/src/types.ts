@@ -22,6 +22,8 @@ export interface LinearEventTransportConfig {
 	verificationMode: VerificationMode;
 	/** Secret for verification (LINEAR_WEBHOOK_SECRET or CYRUS_API_KEY) */
 	secret: string;
+	/** Optional IP allowlist for webhook source validation (only used in direct mode) */
+	ipAllowlist?: readonly string[];
 }
 
 /**

@@ -92,7 +92,7 @@ export class SessionMetricsService {
 				issueIdentifier: session.issueContext?.issueIdentifier ?? "",
 				repo: repoName,
 				model: session.metadata?.model ?? null,
-				workflow: session.metadata?.procedure?.procedureName ?? null,
+				workflow: (session.metadata as any)?.procedure?.procedureName ?? null,
 				startedAt: new Date(session.createdAt).toISOString(),
 				endedAt: new Date().toISOString(),
 				durationSeconds,

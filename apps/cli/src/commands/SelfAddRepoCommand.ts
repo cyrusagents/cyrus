@@ -13,6 +13,41 @@ import { getDefaultWorktreesDir } from "../utils/getDefaultWorktreesDir.js";
 import { BaseCommand } from "./ICommand.js";
 
 /**
+ * Detect the default branch of a cloned repository by reading the remote HEAD ref.
+ * Falls back to DEFAULT_BASE_BRANCH ("main") if detection fails.
+ */
+export function detectDefaultBranch(repositoryPath: string): string {
+	try {
+		const ref = execSync("git symbolic-ref refs/remotes/origin/HEAD", {
+			cwd: repositoryPath,
+			encoding: "utf-8",
+			stdio: ["pipe", "pipe", "pipe"],
+		}).trim();
+		// ref looks like "refs/remotes/origin/main" — extract the branch name
+		const branch = ref.replace("refs/remotes/origin/", "");
+		if (branch) {
+			return branch;
+		}
+	} catch {
+		// symbolic-ref not set — try `git remote show origin` as fallback
+		try {
+			const output = execSync("git remote show origin", {
+				cwd: repositoryPath,
+				encoding: "utf-8",
+				stdio: ["pipe", "pipe", "pipe"],
+			});
+			const match = output.match(/HEAD branch:\s*(.+)/);
+			if (match?.[1]?.trim()) {
+				return match[1].trim();
+			}
+		} catch {
+			// Both methods failed, fall through to default
+		}
+	}
+	return DEFAULT_BASE_BRANCH;
+}
+
+/**
  * Workspace credentials extracted from existing repository configurations
  */
 interface WorkspaceCredentials {
@@ -62,8 +97,9 @@ export class SelfAddRepoCommand extends BaseCommand {
 	}
 
 	async execute(args: string[]): Promise<void> {
-		// Parse -l/--label flag for custom routing labels
+		// Parse flags
 		let customLabels: string[] | null = null;
+		let baseBranchFlag: string | null = null;
 		const positionalArgs: string[] = [];
 		for (let i = 0; i < args.length; i++) {
 			const arg = args[i];
@@ -73,6 +109,9 @@ export class SelfAddRepoCommand extends BaseCommand {
 					.map((l) => l.trim())
 					.filter((l) => l.length > 0);
 				i++; // Skip the label value
+			} else if ((arg === "-b" || arg === "--base-branch") && args[i + 1]) {
+				baseBranchFlag = args[i + 1]!;
+				i++; // Skip the branch value
 			} else {
 				positionalArgs.push(arg);
 			}
@@ -146,7 +185,7 @@ export class SelfAddRepoCommand extends BaseCommand {
 
 			if (workspaces.size === 0) {
 				this.logError(
-					"No Linear credentials found. Run 'cyrus self-auth' first.",
+					"No Linear credentials found. Run 'cyrus self-auth-linear' first.",
 				);
 				process.exit(1);
 			}
@@ -203,12 +242,18 @@ export class SelfAddRepoCommand extends BaseCommand {
 			const id = randomUUID();
 			const routingLabels = customLabels ?? [repoName];
 
+			// Determine base branch: flag > auto-detect > default
+			const baseBranch = baseBranchFlag ?? detectDefaultBranch(repositoryPath);
+			if (baseBranch !== DEFAULT_BASE_BRANCH) {
+				console.log(`Detected base branch: ${baseBranch}`);
+			}
+
 			// Detect hosting platform from URL
 			const repoConfig: EdgeConfig["repositories"][number] = {
 				id,
 				name: repoName,
 				repositoryPath,
-				baseBranch: DEFAULT_BASE_BRANCH,
+				baseBranch,
 				workspaceBaseDir: getDefaultWorktreesDir(this.app.cyrusHome),
 				linearWorkspaceId: selectedWorkspace.id,
 				isActive: true,
@@ -227,6 +272,7 @@ export class SelfAddRepoCommand extends BaseCommand {
 
 			console.log(`\nAdded: ${repoName}`);
 			console.log(`  ID: ${id}`);
+			console.log(`  Base branch: ${baseBranch}`);
 			console.log(`  Workspace: ${selectedWorkspace.name}`);
 			console.log(`  Routing labels: ${routingLabels.join(", ")}`);
 			console.log(`\nTo use different routing labels, edit ${configPath}`);

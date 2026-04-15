@@ -306,4 +306,4 @@ Each repository configuration includes these required fields:
 - `isActive` - Whether the repository is active
 - `linearWorkspaceId` - Linear workspace UUID (references a key in `linearWorkspaces`)
 
-These fields are managed automatically during setup. For self-hosted instances, use the `cyrus self-auth` and `cyrus self-add-repo` commands.
+These fields are managed automatically during setup. For self-hosted instances, use the `cyrus self-auth-linear` and `cyrus self-add-repo` commands.

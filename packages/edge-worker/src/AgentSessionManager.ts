@@ -11,7 +11,6 @@ import type {
 	SDKUserMessage,
 } from "cyrus-claude-runner";
 import {
-	type AgentPlanStep,
 	AgentSessionStatus,
 	AgentSessionType,
 	type CyrusAgentSession,
@@ -25,73 +24,18 @@ import {
 	type SerializedCyrusAgentSessionEntry,
 	type Workspace,
 } from "cyrus-core";
-import type { ProcedureAnalyzer } from "./procedures/ProcedureAnalyzer.js";
-import type { ValidationLoopMetadata } from "./procedures/types.js";
-import type { SessionMetricsService } from "./SessionMetricsService.js";
-import type { SharedApplicationServer } from "./SharedApplicationServer.js";
+
 import type {
 	ActivityPostOptions,
 	ActivitySignal,
 	IActivitySink,
 } from "./sinks/index.js";
-import {
-	DEFAULT_VALIDATION_LOOP_CONFIG,
-	parseValidationResult,
-	renderValidationFixerPrompt,
-} from "./validation/index.js";
 
 /**
  * Events emitted by AgentSessionManager
  */
-export interface AgentSessionManagerEvents {
-	subroutineComplete: (data: {
-		sessionId: string;
-		session: CyrusAgentSession;
-	}) => void;
-	/**
-	 * Emitted when validation fails and we need to run the validation-fixer
-	 * The EdgeWorker should respond by running the fixer prompt and then re-running verifications
-	 */
-	validationLoopIteration: (data: {
-		sessionId: string;
-		session: CyrusAgentSession;
-		/** The fixer prompt to run (already rendered with failure context) */
-		fixerPrompt: string;
-		/** Current iteration (1-based) */
-		iteration: number;
-		/** Maximum iterations allowed */
-		maxIterations: number;
-	}) => void;
-	/**
-	 * Emitted when we need to re-run the verifications subroutine
-	 */
-	validationLoopRerun: (data: {
-		sessionId: string;
-		session: CyrusAgentSession;
-		/** Current iteration (1-based) */
-		iteration: number;
-	}) => void;
-	/**
-	 * Emitted when validation loop is exhausted and user should choose how to proceed.
-	 * The EdgeWorker should present an elicitation with choices and wait for response.
-	 */
-	testFailureElicitation: (data: {
-		sessionId: string;
-		session: CyrusAgentSession;
-		/** Human-readable failure reason from the last validation attempt */
-		failureReason: string;
-		/** Number of validation iterations attempted */
-		iterations: number;
-	}) => void;
-	/**
-	 * Emitted when the entire procedure completes and the final result has been posted.
-	 * The EdgeWorker can use this to auto-close issues that have no associated PR.
-	 */
-	procedureComplete: (data: {
-		sessionId: string;
-		session: CyrusAgentSession;
-	}) => void;
-}
+// biome-ignore lint/complexity/noBannedTypes: Empty events type (events removed in CYPACK-996 skill refactor)
+export type AgentSessionManagerEvents = {};
 
 /**
  * Type-safe event emitter interface for AgentSessionManager
@@ -127,9 +71,6 @@ export class AgentSessionManager extends EventEmitter {
 	private taskSubjectsById: Map<string, string> = new Map(); // Cache task subjects by task ID (e.g., "1" → "Fix login bug")
 	private activeStatusActivitiesBySession: Map<string, string> = new Map(); // Maps session ID to active compacting status activity ID
 	private stopRequestedSessions: Set<string> = new Set(); // Sessions explicitly stopped by user signal
-	private procedureAnalyzer?: ProcedureAnalyzer;
-	private sharedApplicationServer?: SharedApplicationServer;
-	private metricsService?: SessionMetricsService;
 	private getParentSessionId?: (childSessionId: string) => string | undefined;
 	private resumeParentSession?: (
 		parentSessionId: string,
@@ -144,18 +85,12 @@ export class AgentSessionManager extends EventEmitter {
 			prompt: string,
 			childSessionId: string,
 		) => Promise<void>,
-		procedureAnalyzer?: ProcedureAnalyzer,
-		sharedApplicationServer?: SharedApplicationServer,
 		logger?: ILogger,
-		metricsService?: SessionMetricsService,
 	) {
 		super();
 		this.logger = logger ?? createLogger({ component: "AgentSessionManager" });
 		this.getParentSessionId = getParentSessionId;
 		this.resumeParentSession = resumeParentSession;
-		this.procedureAnalyzer = procedureAnalyzer;
-		this.sharedApplicationServer = sharedApplicationServer;
-		this.metricsService = metricsService;
 	}
 
 	/**
@@ -171,60 +106,6 @@ export class AgentSessionManager extends EventEmitter {
 	 */
 	private getActivitySink(sessionId: string): IActivitySink | undefined {
 		return this.activitySinks.get(sessionId);
-	}
-
-	/**
-	 * Post the initial agent plan when a procedure starts (first subroutine is about to run).
-	 * Marks step 0 as inProgress and the rest as pending.
-	 * Safe to call from EdgeWorker after initializeProcedureMetadata.
-	 */
-	async postInitialPlan(sessionId: string): Promise<void> {
-		await this.postPlanUpdate(sessionId, false);
-	}
-
-	/**
-	 * Build and post the current plan state to the activity sink.
-	 * @param allCompleted - When true, marks all steps as completed (procedure done).
-	 *                       Otherwise, marks up to currentIndex-1 as completed,
-	 *                       currentIndex as inProgress, and the rest as pending.
-	 */
-	private async postPlanUpdate(
-		sessionId: string,
-		allCompleted: boolean,
-	): Promise<void> {
-		if (!this.procedureAnalyzer) return;
-
-		const session = this.sessions.get(sessionId);
-		if (!session) return;
-
-		const subroutines = this.procedureAnalyzer.getProcedureSubroutines(session);
-		if (subroutines.length === 0) return;
-
-		const currentIndex =
-			session.metadata?.procedure?.currentSubroutineIndex ?? 0;
-
-		const plan: AgentPlanStep[] = subroutines.map((sub, i) => ({
-			content:
-				(sub as { description?: string; name: string }).description ?? sub.name,
-			status: allCompleted
-				? "completed"
-				: i < currentIndex
-					? "completed"
-					: i === currentIndex
-						? "inProgress"
-						: "pending",
-		}));
-
-		const sink = this.getActivitySink(sessionId);
-		if (!sink?.updatePlan) return;
-
-		try {
-			await sink.updatePlan(sessionId, plan);
-		} catch (err) {
-			this.sessionLog(sessionId).warn(
-				`Failed to update agent session plan: ${err}`,
-			);
-		}
 	}
 
 	/**
@@ -443,7 +324,8 @@ export class AgentSessionManager extends EventEmitter {
 	}
 
 	/**
-	 * Complete a session from Claude result message
+	 * Complete a session from Claude result message.
+	 * Posts the final result to the issue tracker and handles child session completion.
 	 */
 	async completeSession(
 		sessionId: string,
@@ -461,10 +343,6 @@ export class AgentSessionManager extends EventEmitter {
 		// Clear any active Task when session completes
 		this.activeTasksBySession.delete(sessionId);
 
-		// Clear tool calls tracking for this session
-		// Note: We should ideally track by session, but for now clearing all is safer
-		// to prevent memory leaks
-
 		const wasStopRequested = this.consumeStopRequest(sessionId);
 		const status = wasStopRequested
 			? AgentSessionStatus.Error
@@ -478,100 +356,21 @@ export class AgentSessionManager extends EventEmitter {
 			usage: resultMessage.usage,
 		});
 
-		// Handle result using procedure routing system (skip for sessions without procedures, e.g. Slack)
-		if (!this.procedureAnalyzer) {
-			await this.recordMetrics(sessionId, resultMessage);
-			log.info(`Session completed (no procedure routing)`);
-			return;
-		}
-
 		if (wasStopRequested) {
-			await this.recordMetrics(sessionId, resultMessage);
-			log.info(
-				`Session ${sessionId} was stopped by user; skipping procedure continuation`,
-			);
+			log.info(`Session was stopped by user`);
 			return;
 		}
 
-		if ("result" in resultMessage && resultMessage.result) {
-			await this.handleProcedureCompletion(session, sessionId, resultMessage);
-		} else if (
-			resultMessage.subtype !== "success" &&
-			this.shouldRecoverFromPreviousSubroutine(resultMessage)
-		) {
-			// Error result (e.g. error_max_turns from singleTurn subroutines) — try to
-			// recover from the last completed subroutine's result so the procedure can still complete.
-			const recoveredText =
-				this.procedureAnalyzer?.getLastSubroutineResult(session);
-			if (recoveredText) {
-				log.info(
-					`Recovered result from previous subroutine (subtype: ${resultMessage.subtype}), treating as success for procedure completion`,
-				);
-				// Create a synthetic success result for procedure routing
-				const syntheticResult: SDKResultMessage = {
-					...resultMessage,
-					subtype: "success",
-					result: recoveredText,
-					is_error: false,
-				};
-				await this.handleProcedureCompletion(
-					session,
-					sessionId,
-					syntheticResult,
-				);
-			} else {
-				log.warn(
-					`Error result with no recoverable text (subtype: ${resultMessage.subtype}), posting error to Linear`,
-				);
-				await this.addResultEntry(sessionId, resultMessage);
-				await this.recordMetrics(sessionId, resultMessage);
-			}
-		} else if (resultMessage.subtype !== "success") {
-			// Non-recoverable errors (e.g. stop/abort) should not advance procedures.
-			await this.addResultEntry(sessionId, resultMessage);
-			await this.recordMetrics(sessionId, resultMessage);
-		}
-	}
+		// Post final result to issue tracker
+		await this.addResultEntry(sessionId, resultMessage);
 
-	/**
-	 * Record session metrics if a metrics service is configured.
-	 * Called only at terminal session completion points.
-	 */
-	private async recordMetrics(
-		sessionId: string,
-		resultMessage: SDKResultMessage,
-	): Promise<void> {
-		if (!this.metricsService) return;
-		const session = this.sessions.get(sessionId);
-		if (!session) return;
-		const entries = this.entries.get(sessionId) ?? [];
-		await this.metricsService.record(session, resultMessage, entries);
-	}
-
-	private shouldRecoverFromPreviousSubroutine(
-		resultMessage: SDKResultMessage,
-	): boolean {
-		if (resultMessage.subtype === "error_max_turns") {
-			return true;
+		// Handle child session completion
+		const parentSessionId = this.getParentSessionId?.(sessionId);
+		if (parentSessionId && this.resumeParentSession) {
+			await this.handleChildSessionCompletion(sessionId, resultMessage);
 		}
 
-		const errorText = [
-			resultMessage.subtype,
-			...("errors" in resultMessage && Array.isArray(resultMessage.errors)
-				? resultMessage.errors
-				: []),
-			"result" in resultMessage && typeof resultMessage.result === "string"
-				? resultMessage.result
-				: "",
-		]
-			.join(" ")
-			.toLowerCase();
-
-		return (
-			errorText.includes("max turn") ||
-			errorText.includes("turn limit") ||
-			errorText.includes("turns limit")
-		);
+		log.info(`Session completed (subtype: ${resultMessage.subtype})`);
 	}
 
 	private consumeStopRequest(linearAgentActivitySessionId: string): boolean {
@@ -585,365 +384,6 @@ export class AgentSessionManager extends EventEmitter {
 
 	requestSessionStop(linearAgentActivitySessionId: string): void {
 		this.stopRequestedSessions.add(linearAgentActivitySessionId);
-	}
-
-	/**
-	 * Handle completion using procedure routing system
-	 */
-	private async handleProcedureCompletion(
-		session: CyrusAgentSession,
-		sessionId: string,
-		resultMessage: SDKResultMessage,
-	): Promise<void> {
-		const log = this.sessionLog(sessionId);
-		if (!this.procedureAnalyzer) {
-			throw new Error("ProcedureAnalyzer not available");
-		}
-
-		// Check if error occurred
-		if (resultMessage.subtype !== "success") {
-			log.info(
-				`Subroutine completed with error, not triggering next subroutine`,
-			);
-			return;
-		}
-
-		// Get the runner session ID (Claude, Gemini, Codex, or Cursor)
-		const runnerSessionId =
-			session.claudeSessionId ||
-			session.geminiSessionId ||
-			session.codexSessionId ||
-			session.cursorSessionId;
-		if (!runnerSessionId) {
-			log.error(`No runner session ID found for procedure session`);
-			return;
-		}
-
-		// Check if there's a next subroutine
-		const nextSubroutine = this.procedureAnalyzer.getNextSubroutine(session);
-
-		if (nextSubroutine) {
-			// More subroutines to run - check if current subroutine requires approval
-			const currentSubroutine =
-				this.procedureAnalyzer.getCurrentSubroutine(session);
-
-			if (currentSubroutine?.requiresApproval) {
-				log.info(
-					`Current subroutine "${currentSubroutine.name}" requires approval before proceeding`,
-				);
-
-				// Check if SharedApplicationServer is available
-				if (!this.sharedApplicationServer) {
-					log.error(
-						`SharedApplicationServer not available for approval workflow`,
-					);
-					await this.createErrorActivity(
-						sessionId,
-						"Approval workflow failed: Server not available",
-					);
-					return;
-				}
-
-				// Extract the final result from the completed subroutine
-				const subroutineResult =
-					"result" in resultMessage && resultMessage.result
-						? resultMessage.result
-						: "No result available";
-
-				try {
-					// Register approval request with server
-					const approvalRequest =
-						this.sharedApplicationServer.registerApprovalRequest(sessionId);
-
-					// Post approval elicitation to Linear with auth signal URL
-					const approvalMessage = `The previous step has completed. Please review the result below and approve to continue:\n\n${subroutineResult}`;
-
-					await this.createApprovalElicitation(
-						sessionId,
-						approvalMessage,
-						approvalRequest.url,
-					);
-
-					log.info(`Waiting for approval at URL: ${approvalRequest.url}`);
-
-					// Wait for approval with timeout (30 minutes)
-					const approvalTimeout = 30 * 60 * 1000;
-					const timeoutPromise = new Promise<never>((_, reject) =>
-						setTimeout(
-							() => reject(new Error("Approval timeout")),
-							approvalTimeout,
-						),
-					);
-
-					const { approved, feedback } = await Promise.race([
-						approvalRequest.promise,
-						timeoutPromise,
-					]);
-
-					if (!approved) {
-						log.info(`Approval rejected`);
-						await this.createErrorActivity(
-							sessionId,
-							`Workflow stopped: User rejected approval.${feedback ? `\n\nFeedback: ${feedback}` : ""}`,
-						);
-						return; // Stop workflow
-					}
-
-					log.info(`Approval granted, continuing to next subroutine`);
-
-					// Optionally post feedback as a thought
-					if (feedback) {
-						await this.createThoughtActivity(
-							sessionId,
-							`User feedback: ${feedback}`,
-						);
-					}
-
-					// Continue with advancement (fall through to existing code)
-				} catch (error) {
-					const errorMessage = (error as Error).message;
-					if (errorMessage === "Approval timeout") {
-						log.info(`Approval timed out`);
-						await this.createErrorActivity(
-							sessionId,
-							"Workflow stopped: Approval request timed out after 30 minutes.",
-						);
-					} else {
-						log.error(`Approval request failed:`, error);
-						await this.createErrorActivity(
-							sessionId,
-							`Workflow stopped: Approval request failed - ${errorMessage}`,
-						);
-					}
-					return; // Stop workflow
-				}
-			}
-
-			// Check if current subroutine uses validation loop
-			if (currentSubroutine?.usesValidationLoop) {
-				const handled = await this.handleValidationLoopCompletion(
-					session,
-					sessionId,
-					resultMessage,
-					runnerSessionId,
-					nextSubroutine,
-				);
-				if (handled) {
-					return; // Validation loop took over control flow
-				}
-				// If not handled (validation passed or max retries), continue with normal advancement
-			}
-
-			// Advance procedure state
-			log.info(
-				`Subroutine completed, advancing to next: ${nextSubroutine.name}`,
-			);
-			const subroutineResult =
-				"result" in resultMessage ? resultMessage.result : undefined;
-			this.procedureAnalyzer.advanceToNextSubroutine(
-				session,
-				runnerSessionId,
-				subroutineResult,
-			);
-
-			// Update plan: mark completed subroutine as done, next as inProgress
-			await this.postPlanUpdate(sessionId, false);
-
-			// Emit event for EdgeWorker to handle subroutine transition
-			// This replaces the callback pattern and allows EdgeWorker to subscribe
-			this.emit("subroutineComplete", {
-				sessionId,
-				session,
-			});
-		} else {
-			// Procedure complete - mark all steps as completed, then post final result
-			await this.postPlanUpdate(sessionId, true);
-			log.info(`All subroutines completed, posting final result to Linear`);
-			await this.addResultEntry(sessionId, resultMessage);
-			await this.recordMetrics(sessionId, resultMessage);
-
-			// Emit event so EdgeWorker can auto-close issues without PRs
-			this.emit("procedureComplete", { sessionId, session });
-
-			// Handle child session completion
-			const isChildSession = this.getParentSessionId?.(sessionId);
-			if (isChildSession && this.resumeParentSession) {
-				await this.handleChildSessionCompletion(sessionId, resultMessage);
-			}
-		}
-	}
-
-	/**
-	 * Handle validation loop completion for subroutines that use usesValidationLoop
-	 * Returns true if the validation loop took over control flow (needs fixer or retry)
-	 * Returns false if validation passed or max retries reached (continue with normal advancement)
-	 */
-	private async handleValidationLoopCompletion(
-		session: CyrusAgentSession,
-		sessionId: string,
-		resultMessage: SDKResultMessage,
-		_runnerSessionId: string,
-		_nextSubroutine: { name: string } | null,
-	): Promise<boolean> {
-		const log = this.sessionLog(sessionId);
-		const maxIterations = DEFAULT_VALIDATION_LOOP_CONFIG.maxIterations;
-
-		// Get or initialize validation loop state
-		let validationLoop = session.metadata?.procedure?.validationLoop;
-		if (!validationLoop) {
-			validationLoop = {
-				iteration: 0,
-				inFixerMode: false,
-				attempts: [],
-			};
-		}
-
-		// Check if we're coming back from the fixer
-		if (validationLoop.inFixerMode) {
-			// Fixer completed, now we need to re-run verifications
-			log.info(
-				`Validation fixer completed for iteration ${validationLoop.iteration}, re-running verifications`,
-			);
-
-			// Clear fixer mode flag
-			validationLoop.inFixerMode = false;
-			this.updateValidationLoopState(session, validationLoop);
-
-			// Emit event to re-run verifications
-			this.emit("validationLoopRerun", {
-				sessionId,
-				session,
-				iteration: validationLoop.iteration,
-			});
-
-			return true;
-		}
-
-		// Parse the validation result from the response
-		const resultText =
-			"result" in resultMessage ? resultMessage.result : undefined;
-		const structuredOutput =
-			"structured_output" in resultMessage
-				? (resultMessage as { structured_output?: unknown }).structured_output
-				: undefined;
-
-		const validationResult = parseValidationResult(
-			resultText,
-			structuredOutput,
-		);
-
-		// Record this attempt
-		const newIteration = validationLoop.iteration + 1;
-		validationLoop.iteration = newIteration;
-		validationLoop.attempts.push({
-			iteration: newIteration,
-			pass: validationResult.pass,
-			reason: validationResult.reason,
-			timestamp: Date.now(),
-		});
-
-		log.info(
-			`Validation result for iteration ${newIteration}/${maxIterations}: pass=${validationResult.pass}, reason="${validationResult.reason.substring(0, 100)}..."`,
-		);
-
-		// Update state in session
-		this.updateValidationLoopState(session, validationLoop);
-
-		// Check if validation passed
-		if (validationResult.pass) {
-			log.info(`Validation passed after ${newIteration} iteration(s)`);
-			// Clear validation loop state for next subroutine
-			this.clearValidationLoopState(session);
-			return false; // Continue with normal advancement
-		}
-
-		// Check if we've exceeded max retries
-		if (newIteration >= maxIterations) {
-			log.info(
-				`Validation failed after ${newIteration} iterations, emitting test failure elicitation`,
-			);
-
-			// Emit event for EdgeWorker to present user with choices
-			const hasTestFailureListeners = this.emit("testFailureElicitation", {
-				sessionId,
-				session,
-				failureReason: validationResult.reason,
-				iterations: newIteration,
-			});
-
-			if (hasTestFailureListeners) {
-				// EdgeWorker will handle the elicitation and resume/abort as needed
-				return true; // Elicitation took over control flow
-			}
-
-			// No listeners registered — fall back to original behavior
-			log.info(`No testFailureElicitation listeners, falling back to continue`);
-			await this.createThoughtActivity(
-				sessionId,
-				`Validation loop exhausted after ${newIteration} attempts. Last failure: ${validationResult.reason}`,
-			);
-			// Clear validation loop state for next subroutine
-			this.clearValidationLoopState(session);
-			return false; // Continue with normal advancement
-		}
-
-		// Validation failed and we have retries left - run the fixer
-		log.info(
-			`Validation failed, running fixer (iteration ${newIteration}/${maxIterations})`,
-		);
-
-		// Set fixer mode flag
-		validationLoop.inFixerMode = true;
-		this.updateValidationLoopState(session, validationLoop);
-
-		// Render the fixer prompt with context
-		const previousAttempts = validationLoop.attempts.slice(0, -1).map((a) => ({
-			iteration: a.iteration,
-			reason: a.reason,
-		}));
-
-		const fixerPrompt = renderValidationFixerPrompt({
-			failureReason: validationResult.reason,
-			iteration: newIteration,
-			maxIterations,
-			previousAttempts,
-		});
-
-		// Emit event for EdgeWorker to run the fixer
-		this.emit("validationLoopIteration", {
-			sessionId,
-			session,
-			fixerPrompt,
-			iteration: newIteration,
-			maxIterations,
-		});
-
-		return true; // Validation loop took over control flow
-	}
-
-	/**
-	 * Update validation loop state in session metadata
-	 */
-	private updateValidationLoopState(
-		session: CyrusAgentSession,
-		validationLoop: ValidationLoopMetadata,
-	): void {
-		if (!session.metadata) {
-			session.metadata = {};
-		}
-		if (!session.metadata.procedure) {
-			return; // No procedure metadata, can't update
-		}
-		session.metadata.procedure.validationLoop = validationLoop;
-	}
-
-	/**
-	 * Clear validation loop state from session metadata
-	 */
-	clearValidationLoopState(session: CyrusAgentSession): void {
-		if (session.metadata?.procedure) {
-			delete session.metadata.procedure.validationLoop;
-		}
 	}
 
 	/**
@@ -1108,7 +548,6 @@ export class AgentSessionManager extends EventEmitter {
 		sessionId: string,
 		resultMessage: SDKResultMessage,
 	): Promise<void> {
-		const log = this.sessionLog(sessionId);
 		// Determine which runner is being used
 		const session = this.sessions.get(sessionId);
 		const runner = session?.agentRunner;
@@ -1122,7 +561,7 @@ export class AgentSessionManager extends EventEmitter {
 						: "claude";
 
 		// For error results, content may be in errors[] rather than result
-		const rawContent =
+		const content =
 			"result" in resultMessage && typeof resultMessage.result === "string"
 				? resultMessage.result
 				: resultMessage.is_error &&
@@ -1131,31 +570,6 @@ export class AgentSessionManager extends EventEmitter {
 						resultMessage.errors.length > 0
 					? resultMessage.errors.join("\n")
 					: "";
-
-		// Append model info to the comment so it's visible on Linear
-		const modelName = session?.metadata?.model || "unknown";
-		const modelLine = `\n\n**Model:** ${modelName}`;
-
-		// Calculate and append session duration
-		const endTime = Date.now();
-		const startTime = session?.createdAt;
-		let durationLine = "";
-		if (startTime && Number.isFinite(startTime) && endTime > startTime) {
-			const durationMs = endTime - startTime;
-			const totalSeconds = Math.floor(durationMs / 1000);
-			const minutes = Math.floor(totalSeconds / 60);
-			const seconds = totalSeconds % 60;
-			const durationFormatted =
-				minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-			durationLine = `\n**Session duration:** ${durationFormatted}`;
-			this.logger.info(
-				`Session duration: ${durationFormatted} (${durationMs}ms)`,
-			);
-		}
-
-		const content = rawContent
-			? `${rawContent}${modelLine}${durationLine}`
-			: `${modelLine.trimStart()}${durationLine}`;
 
 		const resultEntry: CyrusAgentSessionEntry = {
 			// Set the appropriate session ID based on runner type
@@ -1178,45 +592,6 @@ export class AgentSessionManager extends EventEmitter {
 		// DON'T store locally - syncEntryToActivitySink will do it
 		// Sync to Linear
 		await this.syncEntryToActivitySink(resultEntry, sessionId);
-
-		// Auto-close the issue if the session completed successfully and no PR was created.
-		// Issues with PRs are auto-closed by GitHub via "Fixes BRI-XXX" in the PR title.
-		if (!resultMessage.is_error) {
-			const issueId =
-				session?.issueContext?.issueId ?? session?.issueId ?? null;
-			if (issueId) {
-				const sessionEntries = this.entries.get(sessionId) ?? [];
-				const hasPullRequest = sessionEntries.some((e) =>
-					/https:\/\/github\.com\/[^\s/]+\/[^\s/]+\/pull\/\d+/.test(e.content),
-				);
-				if (hasPullRequest) {
-					log.info(
-						`Auto-close skipped for issue ${issueId}: PR detected in session — GitHub will close it via "Fixes" reference`,
-					);
-				} else {
-					log.info(
-						`No PR detected in session entries for issue ${issueId}, attempting auto-close`,
-					);
-					const activitySink = this.getActivitySink(sessionId);
-					if (activitySink?.closeIssue) {
-						try {
-							await activitySink.closeIssue(issueId);
-							log.info(
-								`Auto-closed issue ${issueId} after successful completion with no PR`,
-							);
-						} catch (error) {
-							log.warn(
-								`Failed to auto-close issue ${issueId}: ${error instanceof Error ? error.message : String(error)}`,
-							);
-						}
-					} else {
-						log.info(
-							`Auto-close not supported by activity sink for session ${sessionId}`,
-						);
-					}
-				}
-			}
-		}
 	}
 
 	/**
@@ -1227,8 +602,8 @@ export class AgentSessionManager extends EventEmitter {
 	): string {
 		const message =
 			sdkMessage.type === "user"
-				? (sdkMessage.message as unknown as APIUserMessage)
-				: (sdkMessage.message as unknown as APIAssistantMessage);
+				? (sdkMessage.message as APIUserMessage)
+				: (sdkMessage.message as APIAssistantMessage);
 
 		if (typeof message.content === "string") {
 			return message.content;
@@ -1274,7 +649,7 @@ export class AgentSessionManager extends EventEmitter {
 	private extractToolInfo(
 		sdkMessage: SDKAssistantMessage,
 	): { id: string; name: string; input: any } | null {
-		const message = sdkMessage.message as unknown as APIAssistantMessage;
+		const message = sdkMessage.message as APIAssistantMessage;
 
 		if (Array.isArray(message.content)) {
 			const toolUse = message.content.find(
@@ -1302,7 +677,7 @@ export class AgentSessionManager extends EventEmitter {
 	private extractToolResultInfo(
 		sdkMessage: SDKUserMessage,
 	): { toolUseId: string; isError: boolean } | null {
-		const message = sdkMessage.message as unknown as APIUserMessage;
+		const message = sdkMessage.message as APIUserMessage;
 
 		if (Array.isArray(message.content)) {
 			const toolResult = message.content.find(
@@ -1737,20 +1112,6 @@ export class AgentSessionManager extends EventEmitter {
 					};
 			}
 
-			// Check if current subroutine has suppressThoughtPosting enabled
-			// If so, suppress thoughts and actions (but still post responses and results)
-			const currentSubroutine =
-				this.procedureAnalyzer?.getCurrentSubroutine(session);
-			if (currentSubroutine?.suppressThoughtPosting) {
-				// Only suppress thoughts and actions, not responses or results
-				if (content.type === "thought" || content.type === "action") {
-					log.debug(
-						`Suppressing ${content.type} posting for subroutine "${currentSubroutine.name}"`,
-					);
-					return; // Don't post to tracker
-				}
-			}
-
 			// Ensure we have an external session ID for activity posting
 			if (!session.externalSessionId) {
 				log.debug(
@@ -2083,26 +1444,6 @@ export class AgentSessionManager extends EventEmitter {
 	}
 
 	/**
-	 * Create a select elicitation activity with clickable options.
-	 * Used for presenting choices to the user (e.g., test failure handling).
-	 */
-	async createSelectElicitation(
-		sessionId: string,
-		body: string,
-		options: Array<{ value: string }>,
-	): Promise<void> {
-		await this.postActivity(
-			sessionId,
-			{
-				content: { type: "elicitation", body },
-				signal: "select",
-				signalMetadata: { options },
-			},
-			"select elicitation",
-		);
-	}
-
-	/**
 	 * Remove a session and all associated tracking state.
 	 * Use for immediate cleanup when a session is permanently done
 	 * (e.g., issue moved to terminal state).
@@ -2224,27 +1565,6 @@ export class AgentSessionManager extends EventEmitter {
 				ephemeral: true,
 			},
 			"analyzing thought",
-		);
-	}
-
-	/**
-	 * Post the procedure selection result as a non-ephemeral thought
-	 */
-	async postProcedureSelectionThought(
-		sessionId: string,
-		procedureName: string,
-		classification: string,
-	): Promise<void> {
-		await this.postActivity(
-			sessionId,
-			{
-				content: {
-					type: "thought",
-					body: `Selected procedure: **${procedureName}** (classified as: ${classification})`,
-				},
-				ephemeral: false,
-			},
-			"procedure selection",
 		);
 	}
 

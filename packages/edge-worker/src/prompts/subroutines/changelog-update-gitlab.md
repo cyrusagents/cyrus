@@ -27,12 +27,19 @@ ls -la CHANGELOG.md CHANGELOG.internal.md 2>/dev/null || echo "NO_CHANGELOG"
 **If no changelog files exist, complete with:** `Draft MR created at [MR URL]. No changelog files found.`
 
 ### 3. Check for Existing Changelog Entry
-If changelog files exist, check if there's already a changelog entry for this issue:
-- Look in the `## [Unreleased]` section for entries mentioning the current Linear issue identifier
-- If an entry already exists for this issue, you may update it to add the MR link, but do NOT add duplicate entries
+If changelog files exist, diff against the base branch to detect entries already added by this branch:
+
+```bash
+# See what changelog lines this branch has added compared to the base branch
+# Replace <base_branch> with the actual target branch from the issue context
+git diff <base_branch> -- CHANGELOG.md CHANGELOG.internal.md 2>/dev/null
+```
+
+- If the diff shows this branch already added a changelog entry for the current issue (matching the issue identifier), **update that entry in-place** (e.g., to add the MR link or refine the description). Do NOT add a duplicate entry.
+- If the diff shows this branch added entries for a different issue or no entries at all, add a new entry in step 4.
 
 ### 4. Update Changelog with MR Link
-If changelog files exist and no entry exists (or entry needs MR link):
+If changelog files exist and no entry exists for this issue on this branch (or the existing entry needs the MR link):
 
 **For user-facing changes (CHANGELOG.md):**
 - Add entry under `## [Unreleased]` in the appropriate subsection (`### Added`, `### Changed`, `### Fixed`, `### Removed`)

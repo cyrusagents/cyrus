@@ -22,6 +22,8 @@ export interface GitHubEventTransportConfig {
 	verificationMode: GitHubVerificationMode;
 	/** Secret for verification (CYRUS_API_KEY for proxy, GITHUB_WEBHOOK_SECRET for signature) */
 	secret: string;
+	/** Optional IP allowlist for webhook source validation (only used in signature mode) */
+	ipAllowlist?: readonly string[];
 }
 
 /**

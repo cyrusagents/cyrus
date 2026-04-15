@@ -71,6 +71,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	private formatter: IMessageFormatter;
 	private pendingResultMessage: SDKMessage | null = null;
 	private canUseToolCallback: CanUseTool | undefined;
+	private repositoryEnv: Record<string, string> = {};
 
 	constructor(config: ClaudeRunnerConfig) {
 		super();
@@ -436,6 +437,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// see: https://docs.claude.com/en/docs/claude-code/sdk/migration-guide#settings-sources-no-longer-loaded-by-default
 					settingSources: ["user", "project", "local"],
 					env: {
+						...this.repositoryEnv,
 						...process.env,
 						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
 						CLAUDE_CODE_ENABLE_TASKS: "true",
@@ -459,6 +461,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					}),
 					...(Object.keys(mcpServers).length > 0 && { mcpServers }),
 					...(this.config.hooks && { hooks: this.config.hooks }),
+					...(this.config.plugins?.length && { plugins: this.config.plugins }),
 					...(this.config.tools !== undefined && { tools: this.config.tools }),
 					...(this.config.maxTurns && { maxTurns: this.config.maxTurns }),
 					...(this.config.outputFormat && {
@@ -752,29 +755,34 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	}
 
 	/**
-	 * Load environment variables from repository .env file
-	 * Does not override existing process.env values
+	 * Load environment variables from repository .env file into an isolated
+	 * object. The parsed vars are merged only into the child subprocess env,
+	 * never into the EdgeWorker's own process.env, so different sessions
+	 * (potentially across different repositories) cannot poison each other.
+	 * Re-reads the file on every call so updated/removed vars take effect.
 	 */
 	private loadRepositoryEnv(workingDirectory: string): void {
 		try {
 			const envPath = join(workingDirectory, ".env");
 
 			if (existsSync(envPath)) {
-				// Load but don't override existing env vars
-				const result = dotenv.config({
-					path: envPath,
-					override: false, // Existing process.env takes precedence
-				});
+				const content = readFileSync(envPath, "utf8");
+				const parsed = dotenv.parse(content);
 
-				if (result.error) {
-					this.logger.warn("Failed to parse .env file:", result.error);
-				} else if (result.parsed && Object.keys(result.parsed).length > 0) {
+				// Store as isolated per-session env — replaces any previous load
+				this.repositoryEnv = parsed;
+
+				if (Object.keys(parsed).length > 0) {
 					this.logger.debug("Loaded environment variables from .env");
 				}
+			} else {
+				// No .env file — clear any previously loaded vars
+				this.repositoryEnv = {};
 			}
 		} catch (error) {
 			this.logger.warn("Error loading repository .env:", error);
 			// Don't fail the session, just warn
+			this.repositoryEnv = {};
 		}
 	}
 

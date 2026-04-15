@@ -103,32 +103,6 @@ export interface CyrusAgentSession {
 		totalCostUsd?: number;
 		usage?: any;
 		commentId?: string;
-		procedure?: {
-			procedureName: string;
-			currentSubroutineIndex: number;
-			subroutineHistory: Array<{
-				subroutine: string;
-				completedAt: number;
-				claudeSessionId: string | null;
-				geminiSessionId: string | null;
-				codexSessionId?: string | null;
-				cursorSessionId?: string | null;
-			}>;
-			/** State for validation loop (when current subroutine uses usesValidationLoop) */
-			validationLoop?: {
-				/** Current iteration (1-based) */
-				iteration: number;
-				/** Whether the loop is in fixer mode (running validation-fixer) */
-				inFixerMode: boolean;
-				/** Results from each validation attempt */
-				attempts: Array<{
-					iteration: number;
-					pass: boolean;
-					reason: string;
-					timestamp: number;
-				}>;
-			};
-		};
 	};
 }
 

@@ -182,4 +182,103 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 			expect(oauthConfig.onTokenRefresh).toBeDefined();
 		});
 	});
+
+	describe("Dynamic Linear token updates", () => {
+		it("should call setAccessToken on existing issue trackers when workspace token changes", () => {
+			edgeWorker = new EdgeWorker(mockConfig);
+
+			const issueTrackers = (edgeWorker as any).issueTrackers;
+			const issueTracker = issueTrackers.get("workspace-123");
+			const setAccessTokenSpy = vi.spyOn(issueTracker, "setAccessToken");
+
+			const newConfig: EdgeWorkerConfig = {
+				...mockConfig,
+				linearWorkspaces: {
+					"workspace-123": {
+						linearToken: "refreshed_token",
+						linearRefreshToken: "new_refresh_token",
+						linearWorkspaceName: "Test Workspace",
+					},
+				},
+			};
+
+			(edgeWorker as any).updateLinearWorkspaceTokens(newConfig);
+
+			expect(setAccessTokenSpy).toHaveBeenCalledWith("refreshed_token");
+		});
+
+		it("should not call setAccessToken when token has not changed", () => {
+			edgeWorker = new EdgeWorker(mockConfig);
+
+			const issueTrackers = (edgeWorker as any).issueTrackers;
+			const issueTracker = issueTrackers.get("workspace-123");
+			const setAccessTokenSpy = vi.spyOn(issueTracker, "setAccessToken");
+
+			// Same token as the original config
+			const newConfig: EdgeWorkerConfig = {
+				...mockConfig,
+				linearWorkspaces: {
+					"workspace-123": {
+						linearToken: "test_token",
+						linearRefreshToken: "refresh_token",
+						linearWorkspaceName: "Test Workspace",
+					},
+				},
+			};
+
+			(edgeWorker as any).updateLinearWorkspaceTokens(newConfig);
+
+			expect(setAccessTokenSpy).not.toHaveBeenCalled();
+		});
+
+		it("should update AttachmentService when workspace token changes", () => {
+			edgeWorker = new EdgeWorker(mockConfig);
+
+			const attachmentService = (edgeWorker as any).attachmentService;
+			const setLinearWorkspacesSpy = vi.spyOn(
+				attachmentService,
+				"setLinearWorkspaces",
+			);
+
+			const newWorkspaces = {
+				"workspace-123": {
+					linearToken: "refreshed_token",
+					linearRefreshToken: "new_refresh_token",
+					linearWorkspaceName: "Test Workspace",
+				},
+			};
+
+			const newConfig: EdgeWorkerConfig = {
+				...mockConfig,
+				linearWorkspaces: newWorkspaces,
+			};
+
+			(edgeWorker as any).updateLinearWorkspaceTokens(newConfig);
+
+			expect(setLinearWorkspacesSpy).toHaveBeenCalledWith(newWorkspaces);
+		});
+
+		it("should create a new issue tracker for a previously unknown workspace", () => {
+			edgeWorker = new EdgeWorker(mockConfig);
+
+			const issueTrackers = (edgeWorker as any).issueTrackers;
+			expect(issueTrackers.has("workspace-456")).toBe(false);
+
+			const newConfig: EdgeWorkerConfig = {
+				...mockConfig,
+				linearWorkspaces: {
+					...mockConfig.linearWorkspaces,
+					"workspace-456": {
+						linearToken: "new_workspace_token",
+						linearRefreshToken: "new_refresh",
+						linearWorkspaceName: "New Workspace",
+					},
+				},
+			};
+
+			(edgeWorker as any).updateLinearWorkspaceTokens(newConfig);
+
+			expect(issueTrackers.has("workspace-456")).toBe(true);
+		});
+	});
 });

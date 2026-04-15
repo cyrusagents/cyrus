@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createLogger, LogLevel } from "../../src/logging/index.js";
 
+// Matches ISO timestamp prefix like "2026-04-01T17:25:59.179Z "
+const TS = "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z ";
+
 describe("Logger", () => {
 	let logSpy: ReturnType<typeof vi.spyOn>;
 	let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -81,7 +84,11 @@ describe("Logger", () => {
 			});
 			logger.info("Starting up");
 
-			expect(logSpy).toHaveBeenCalledWith("[INFO ] [EdgeWorker] Starting up");
+			expect(logSpy).toHaveBeenCalledWith(
+				expect.stringMatching(
+					new RegExp(`^${TS}\\[INFO ] \\[EdgeWorker] Starting up$`),
+				),
+			);
 		});
 
 		it("uses console.warn for warn level", () => {
@@ -91,7 +98,11 @@ describe("Logger", () => {
 			});
 			logger.warn("Missing config");
 
-			expect(warnSpy).toHaveBeenCalledWith("[WARN ] [Router] Missing config");
+			expect(warnSpy).toHaveBeenCalledWith(
+				expect.stringMatching(
+					new RegExp(`^${TS}\\[WARN ] \\[Router] Missing config$`),
+				),
+			);
 		});
 
 		it("uses console.error for error level", () => {
@@ -101,7 +112,11 @@ describe("Logger", () => {
 			});
 			logger.error("Fatal crash");
 
-			expect(errorSpy).toHaveBeenCalledWith("[ERROR] [Runner] Fatal crash");
+			expect(errorSpy).toHaveBeenCalledWith(
+				expect.stringMatching(
+					new RegExp(`^${TS}\\[ERROR] \\[Runner] Fatal crash$`),
+				),
+			);
 		});
 
 		it("passes extra args through to console", () => {
@@ -112,7 +127,10 @@ describe("Logger", () => {
 			const extra = { key: "value" };
 			logger.info("Message", extra);
 
-			expect(logSpy).toHaveBeenCalledWith("[INFO ] [Test] Message", extra);
+			expect(logSpy).toHaveBeenCalledWith(
+				expect.stringMatching(new RegExp(`^${TS}\\[INFO ] \\[Test] Message$`)),
+				extra,
+			);
 		});
 	});
 
@@ -130,7 +148,11 @@ describe("Logger", () => {
 			logger.info("AI routing decision");
 
 			expect(logSpy).toHaveBeenCalledWith(
-				"[INFO ] [EdgeWorker] {session=abc12345, platform=linear, issue=CYPACK-456} AI routing decision",
+				expect.stringMatching(
+					new RegExp(
+						`^${TS}\\[INFO ] \\[EdgeWorker] \\{session=abc12345, platform=linear, issue=CYPACK-456\\} AI routing decision$`,
+					),
+				),
 			);
 		});
 
@@ -142,7 +164,9 @@ describe("Logger", () => {
 			logger.info("test");
 
 			expect(logSpy).toHaveBeenCalledWith(
-				"[INFO ] [Test] {session=abcdefgh} test",
+				expect.stringMatching(
+					new RegExp(`^${TS}\\[INFO ] \\[Test] \\{session=abcdefgh\\} test$`),
+				),
 			);
 		});
 
@@ -150,7 +174,11 @@ describe("Logger", () => {
 			const logger = createLogger({ component: "Test" });
 			logger.info("no context");
 
-			expect(logSpy).toHaveBeenCalledWith("[INFO ] [Test] no context");
+			expect(logSpy).toHaveBeenCalledWith(
+				expect.stringMatching(
+					new RegExp(`^${TS}\\[INFO ] \\[Test] no context$`),
+				),
+			);
 		});
 
 		it("includes repository when set", () => {
@@ -160,7 +188,11 @@ describe("Logger", () => {
 			});
 			logger.info("msg");
 
-			expect(logSpy).toHaveBeenCalledWith("[INFO ] [Test] {repo=my-repo} msg");
+			expect(logSpy).toHaveBeenCalledWith(
+				expect.stringMatching(
+					new RegExp(`^${TS}\\[INFO ] \\[Test] \\{repo=my-repo\\} msg$`),
+				),
+			);
 		});
 	});
 
@@ -180,7 +212,11 @@ describe("Logger", () => {
 			child.info("Processing");
 
 			expect(logSpy).toHaveBeenCalledWith(
-				"[INFO ] [EdgeWorker] {session=sess1234, platform=linear, issue=DEF-1} Processing",
+				expect.stringMatching(
+					new RegExp(
+						`^${TS}\\[INFO ] \\[EdgeWorker] \\{session=sess1234, platform=linear, issue=DEF-1\\} Processing$`,
+					),
+				),
 			);
 		});
 
@@ -194,7 +230,9 @@ describe("Logger", () => {
 			parent.info("unchanged");
 
 			expect(logSpy).toHaveBeenCalledWith(
-				"[INFO ] [Test] {platform=cli} unchanged",
+				expect.stringMatching(
+					new RegExp(`^${TS}\\[INFO ] \\[Test] \\{platform=cli\\} unchanged$`),
+				),
 			);
 		});
 
@@ -208,7 +246,11 @@ describe("Logger", () => {
 			updated.info("check");
 
 			expect(logSpy).toHaveBeenCalledWith(
-				"[INFO ] [Test] {platform=linear, repo=new} check",
+				expect.stringMatching(
+					new RegExp(
+						`^${TS}\\[INFO ] \\[Test] \\{platform=linear, repo=new\\} check$`,
+					),
+				),
 			);
 		});
 

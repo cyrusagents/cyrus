@@ -173,7 +173,7 @@ All three must return 1 (the `.` after `=` ensures the value is not empty). If a
 Run the OAuth authorization flow:
 
 ```bash
-cyrus self-auth
+cyrus self-auth-linear
 ```
 
 This will:
@@ -193,4 +193,4 @@ If the count is 0, authorization failed. Ask the user to check their credentials
 
 > ✓ Linear OAuth application created
 > ✓ Credentials saved to `~/.cyrus/.env`
-> ✓ Workspace authorized via `cyrus self-auth`
+> ✓ Workspace authorized via `cyrus self-auth-linear`

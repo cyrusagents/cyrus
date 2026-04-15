@@ -60,10 +60,11 @@ class Logger implements ILogger {
 	}
 
 	private formatPrefix(level: LogLevel): string {
+		const timestamp = new Date().toISOString();
 		const label = LEVEL_LABELS[level];
 		const padded = label.padEnd(5);
 		const ctx = formatContext(this.context);
-		return `[${padded}] [${this.component}]${ctx}`;
+		return `${timestamp} [${padded}] [${this.component}]${ctx}`;
 	}
 
 	debug(message: string, ...args: unknown[]): void {

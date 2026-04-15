@@ -29,9 +29,6 @@ export interface PromptAssembly {
 		/** List of components included in the prompt */
 		components: PromptComponent[];
 
-		/** Name of the subroutine prompt loaded (if any) */
-		subroutineName?: string;
-
 		/** Type of prompt builder used */
 		promptType: PromptType;
 
@@ -48,7 +45,6 @@ export interface PromptAssembly {
  */
 export type PromptComponent =
 	| "issue-context" // Issue title, description, comments, history
-	| "subroutine-prompt" // Workflow guidance (e.g., coding-activity.md)
 	| "user-comment" // User's comment text
 	| "attachment-manifest" // List of attachments
 	| "guidance-rules"; // Linear agent guidance rules

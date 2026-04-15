@@ -24,6 +24,15 @@ export class AttachmentService {
 	}
 
 	/**
+	 * Update the stored Linear workspace configs (e.g. after token refresh).
+	 */
+	setLinearWorkspaces(
+		linearWorkspaces: Record<string, LinearWorkspaceConfig>,
+	): void {
+		this.linearWorkspaces = linearWorkspaces;
+	}
+
+	/**
 	 * Get the Linear API token for a workspace
 	 */
 	private getLinearTokenForWorkspace(workspaceId: string): string {

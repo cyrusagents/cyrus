@@ -7,6 +7,7 @@ import {
 	type SlackWebhookEvent,
 	stripMention as stripSlackMention,
 } from "cyrus-slack-event-transport";
+import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
 
 /**
@@ -20,21 +21,19 @@ export class SlackChatAdapter
 	implements ChatPlatformAdapter<SlackWebhookEvent>
 {
 	readonly platformName = "slack" as const;
-	private repositoryPaths: string[];
+	private repositoryProvider: ChatRepositoryProvider;
 	private repositoryRoutingContext: string;
 	private logger: ILogger;
 	private selfBotId: string | undefined;
 
 	constructor(
-		repositoryPaths: string[] = [],
+		repositoryProvider: ChatRepositoryProvider,
 		logger?: ILogger,
 		options?: {
 			repositoryRoutingContext?: string;
 		},
 	) {
-		this.repositoryPaths = Array.from(
-			new Set(repositoryPaths.filter(Boolean)),
-		).sort();
+		this.repositoryProvider = repositoryProvider;
 		this.repositoryRoutingContext =
 			options?.repositoryRoutingContext?.trim() || "";
 		this.logger = logger ?? createLogger({ component: "SlackChatAdapter" });
@@ -85,12 +84,15 @@ export class SlackChatAdapter
 	}
 
 	buildSystemPrompt(event: SlackWebhookEvent): string {
+		const repositoryPaths = Array.from(
+			new Set(this.repositoryProvider.getRepositoryPaths().filter(Boolean)),
+		).sort();
 		const repositoryAccessSection =
-			this.repositoryPaths.length > 0
+			repositoryPaths.length > 0
 				? `
 ## Repository Access
 - You have read-only access to the following configured repositories:
-${this.repositoryPaths.map((path) => `- ${path}`).join("\n")}
+${repositoryPaths.map((path) => `- ${path}`).join("\n")}
 
 - If you need to inspect source code in one of these repositories, use:
   - Bash(git -C * pull)

@@ -4,7 +4,7 @@ import {
 	type LinearWebhookPayload,
 } from "@linear/sdk/webhooks";
 import type { IAgentEventTransport, TranslationContext } from "cyrus-core";
-import { createLogger, type ILogger } from "cyrus-core";
+import { createLogger, type ILogger, ipMatchesAllowlist } from "cyrus-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { LinearMessageTranslator } from "./LinearMessageTranslator.js";
 import type {
@@ -111,6 +111,19 @@ export class LinearEventTransport
 	): Promise<void> {
 		if (!this.linearWebhookClient) {
 			reply.code(500).send({ error: "Linear webhook client not initialized" });
+			return;
+		}
+
+		// Validate source IP against Linear's known webhook IPs
+		if (
+			this.config.ipAllowlist &&
+			this.config.ipAllowlist.length > 0 &&
+			!ipMatchesAllowlist(request.ip, this.config.ipAllowlist)
+		) {
+			this.logger.warn(
+				`Rejected Linear webhook from unauthorized IP: ${request.ip}`,
+			);
+			reply.code(403).send({ error: "Forbidden: unauthorized source IP" });
 			return;
 		}
 

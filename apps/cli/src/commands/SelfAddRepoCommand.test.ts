@@ -50,7 +50,10 @@ const mockExit = vi.spyOn(process, "exit").mockImplementation(() => {
 const mockConsoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
 
 // Import after mocks
-import { SelfAddRepoCommand } from "./SelfAddRepoCommand.js";
+import {
+	detectDefaultBranch,
+	SelfAddRepoCommand,
+} from "./SelfAddRepoCommand.js";
 
 // Mock Application
 const createMockApp = () => ({
@@ -545,8 +548,11 @@ describe("SelfAddRepoCommand", () => {
 			).rejects.toThrow("process.exit called");
 			expect(mockExit).toHaveBeenCalledWith(0);
 
-			// Should not call git clone
-			expect(mocks.mockExecSync).not.toHaveBeenCalled();
+			// Should not call git clone (but execSync may be called for branch detection)
+			expect(mocks.mockExecSync).not.toHaveBeenCalledWith(
+				expect.stringContaining("git clone"),
+				expect.anything(),
+			);
 			expect(mockConsoleLog).toHaveBeenCalledWith(
 				expect.stringContaining("already exists"),
 			);
@@ -708,6 +714,144 @@ describe("SelfAddRepoCommand", () => {
 				command.execute(["https://github.com/user/new-repo.git"]),
 			).rejects.toThrow("process.exit called");
 			expect(mockExit).toHaveBeenCalledWith(1); // No credentials
+		});
+	});
+
+	describe("Base Branch Detection", () => {
+		it("should auto-detect base branch from git symbolic-ref", async () => {
+			mocks.mockReadFileSync.mockReturnValue(
+				JSON.stringify({
+					linearWorkspaces: {
+						"ws-123": {
+							linearToken: "token",
+							linearRefreshToken: "refresh",
+							linearWorkspaceName: "Test Workspace",
+						},
+					},
+					repositories: [],
+				}),
+			);
+
+			// Make execSync return the symbolic ref for branch detection
+			mocks.mockExecSync.mockImplementation((cmd: string) => {
+				if (cmd.includes("symbolic-ref")) {
+					return "refs/remotes/origin/develop";
+				}
+				return "";
+			});
+
+			await expect(
+				command.execute(["https://github.com/user/new-repo.git"]),
+			).rejects.toThrow("process.exit called");
+			expect(mockExit).toHaveBeenCalledWith(0);
+
+			const writtenConfig = JSON.parse(
+				mocks.mockWriteFileSync.mock.calls[0][1],
+			);
+			const addedRepo = writtenConfig.repositories.find(
+				(r: any) => r.id === "generated-uuid-123",
+			);
+			expect(addedRepo.baseBranch).toBe("develop");
+		});
+
+		it("should use --base-branch flag over auto-detection", async () => {
+			mocks.mockReadFileSync.mockReturnValue(
+				JSON.stringify({
+					linearWorkspaces: {
+						"ws-123": {
+							linearToken: "token",
+							linearRefreshToken: "refresh",
+							linearWorkspaceName: "Test Workspace",
+						},
+					},
+					repositories: [],
+				}),
+			);
+
+			// Even though symbolic-ref returns "develop", the flag should win
+			mocks.mockExecSync.mockImplementation((cmd: string) => {
+				if (cmd.includes("symbolic-ref")) {
+					return "refs/remotes/origin/develop";
+				}
+				return "";
+			});
+
+			await expect(
+				command.execute([
+					"https://github.com/user/new-repo.git",
+					"-b",
+					"production",
+				]),
+			).rejects.toThrow("process.exit called");
+			expect(mockExit).toHaveBeenCalledWith(0);
+
+			const writtenConfig = JSON.parse(
+				mocks.mockWriteFileSync.mock.calls[0][1],
+			);
+			const addedRepo = writtenConfig.repositories.find(
+				(r: any) => r.id === "generated-uuid-123",
+			);
+			expect(addedRepo.baseBranch).toBe("production");
+		});
+
+		it("should fall back to 'main' when detection fails", async () => {
+			mocks.mockReadFileSync.mockReturnValue(
+				JSON.stringify({
+					linearWorkspaces: {
+						"ws-123": {
+							linearToken: "token",
+							linearRefreshToken: "refresh",
+							linearWorkspaceName: "Test Workspace",
+						},
+					},
+					repositories: [],
+				}),
+			);
+
+			// Both detection methods fail
+			mocks.mockExecSync.mockImplementation((cmd: string) => {
+				if (cmd.includes("symbolic-ref") || cmd.includes("remote show")) {
+					throw new Error("not set");
+				}
+				return "";
+			});
+
+			await expect(
+				command.execute(["https://github.com/user/new-repo.git"]),
+			).rejects.toThrow("process.exit called");
+			expect(mockExit).toHaveBeenCalledWith(0);
+
+			const writtenConfig = JSON.parse(
+				mocks.mockWriteFileSync.mock.calls[0][1],
+			);
+			const addedRepo = writtenConfig.repositories.find(
+				(r: any) => r.id === "generated-uuid-123",
+			);
+			expect(addedRepo.baseBranch).toBe("main");
+		});
+	});
+
+	describe("detectDefaultBranch", () => {
+		it("should parse branch from symbolic-ref output", () => {
+			mocks.mockExecSync.mockReturnValue("refs/remotes/origin/master\n");
+			expect(detectDefaultBranch("/some/path")).toBe("master");
+		});
+
+		it("should fall back to git remote show when symbolic-ref fails", () => {
+			mocks.mockExecSync.mockImplementation((cmd: string) => {
+				if (cmd.includes("symbolic-ref")) {
+					throw new Error("not a symbolic ref");
+				}
+				return "  HEAD branch: staging\n  Remote branches:\n";
+			});
+			expect(detectDefaultBranch("/some/path")).toBe("staging");
+		});
+
+		it("should return default when both methods fail", () => {
+			mocks.mockExecSync.mockImplementation(() => {
+				throw new Error("failed");
+			});
+			expect(detectDefaultBranch("/some/path")).toBe("main");
 		});
 	});
 

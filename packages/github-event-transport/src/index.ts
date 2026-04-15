@@ -1,3 +1,8 @@
+export type { GitHubAppTokenProviderConfig } from "./GitHubAppTokenProvider.js";
+export {
+	createAppJwt,
+	GitHubAppTokenProvider,
+} from "./GitHubAppTokenProvider.js";
 export type {
 	AddReactionParams,
 	GitHubCommentResponse,

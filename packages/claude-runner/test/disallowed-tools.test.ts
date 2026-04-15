@@ -169,7 +169,9 @@ describe("ClaudeRunner - disallowedTools", () => {
 
 		// Check that disallowedTools were logged (now at DEBUG level via logger)
 		expect(consoleSpy).toHaveBeenCalledWith(
-			"[DEBUG] [ClaudeRunner] Disallowed tools configured:",
+			expect.stringMatching(
+				/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[DEBUG] \[ClaudeRunner] Disallowed tools configured:$/,
+			),
 			["Bash", "SystemAccess", "DangerousTool"],
 		);
 

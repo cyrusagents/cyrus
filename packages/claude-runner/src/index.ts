@@ -5,6 +5,7 @@ export type {
 	HookInput,
 	HookJSONOutput,
 	PostToolUseHookInput,
+	StopHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 export { AbortError, ClaudeRunner } from "./ClaudeRunner.js";
 export {
@@ -39,4 +40,5 @@ export type {
 	SDKStatusMessage,
 	SDKSystemMessage,
 	SDKUserMessage,
+	SdkPluginConfig,
 } from "./types.js";

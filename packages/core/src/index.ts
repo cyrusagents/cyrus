@@ -214,7 +214,18 @@ export {
 	PersistenceManager,
 } from "./PersistenceManager.js";
 export { StreamingPrompt } from "./StreamingPrompt.js";
-
+export type {
+	WebhookIpValidatorOptions,
+	WebhookProvider,
+} from "./security/index.js";
+// Webhook IP validation
+export {
+	GITHUB_WEBHOOK_CIDRS_FALLBACK,
+	GITLAB_WEBHOOK_CIDRS,
+	ipMatchesAllowlist,
+	LINEAR_WEBHOOK_IPS,
+	WebhookIpValidator,
+} from "./security/index.js";
 // Simple Agent Runner types
 export type {
 	IAgentProgressEvent,

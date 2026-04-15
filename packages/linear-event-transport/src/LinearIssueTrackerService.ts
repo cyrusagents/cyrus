@@ -144,9 +144,7 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 					// or if it's not a token expiration error
 					if (isRetry || !this.isTokenExpiredError(error)) throw error;
 
-					// Coalesce ALL concurrent refresh attempts - everyone shares the same promise.
-					// The promise persists after resolution so late-arriving 401s still get
-					// the same token without triggering a new refresh.
+					// Coalesce concurrent refresh attempts - everyone shares the same promise.
 					if (!this.refreshPromise) {
 						this.refreshPromise = this.doTokenRefresh().catch(
 							(refreshError) => {
@@ -160,6 +158,9 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 
 					try {
 						const newToken = await this.refreshPromise;
+						// Clear cached promise so future token expirations trigger a fresh refresh.
+						// Workspace-level coalescing via pendingRefreshes still deduplicates concurrent calls.
+						this.refreshPromise = null;
 						client.setHeader("Authorization", `Bearer ${newToken}`);
 
 						// Retry the request with the new token (marked as retry to prevent loops)

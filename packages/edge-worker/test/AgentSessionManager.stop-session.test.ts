@@ -9,7 +9,6 @@ describe("AgentSessionManager stop-session behavior", () => {
 	let postActivitySpy: any;
 	const sessionId = "test-session-stop";
 	const issueId = "issue-stop";
-	let mockProcedureAnalyzer: any;
 
 	beforeEach(() => {
 		mockActivitySink = {
@@ -20,22 +19,7 @@ describe("AgentSessionManager stop-session behavior", () => {
 
 		postActivitySpy = vi.spyOn(mockActivitySink, "postActivity");
 
-		mockProcedureAnalyzer = {
-			getNextSubroutine: vi.fn().mockReturnValue({ name: "verifications" }),
-			getCurrentSubroutine: vi
-				.fn()
-				.mockReturnValue({ name: "coding-activity" }),
-			advanceToNextSubroutine: vi.fn(),
-			getLastSubroutineResult: vi
-				.fn()
-				.mockReturnValue("Recovered previous result"),
-		};
-
-		manager = new AgentSessionManager(
-			undefined,
-			undefined,
-			mockProcedureAnalyzer,
-		);
+		manager = new AgentSessionManager();
 
 		manager.createCyrusAgentSession(
 			sessionId,
@@ -55,10 +39,7 @@ describe("AgentSessionManager stop-session behavior", () => {
 		manager.setActivitySink(sessionId, mockActivitySink);
 	});
 
-	it("does not advance procedure when a session stop is requested", async () => {
-		const subroutineCompleteSpy = vi.fn();
-		manager.on("subroutineComplete", subroutineCompleteSpy);
-
+	it("marks session as error when a session stop is requested", async () => {
 		manager.requestSessionStop(sessionId);
 
 		await manager.completeSession(sessionId, {
@@ -84,19 +65,12 @@ describe("AgentSessionManager stop-session behavior", () => {
 			session_id: "sdk-session",
 		} as any);
 
-		expect(subroutineCompleteSpy).not.toHaveBeenCalled();
-		expect(
-			mockProcedureAnalyzer.advanceToNextSubroutine,
-		).not.toHaveBeenCalled();
 		expect(manager.getSession(sessionId)?.status).toBe(
 			AgentSessionStatus.Error,
 		);
 	});
 
-	it("does not recover-and-advance for non max-turn execution errors", async () => {
-		const subroutineCompleteSpy = vi.fn();
-		manager.on("subroutineComplete", subroutineCompleteSpy);
-
+	it("handles non max-turn execution errors gracefully", async () => {
 		await manager.completeSession(sessionId, {
 			type: "result",
 			subtype: "error_during_execution",
@@ -120,10 +94,10 @@ describe("AgentSessionManager stop-session behavior", () => {
 			session_id: "sdk-session",
 		} as any);
 
-		expect(subroutineCompleteSpy).not.toHaveBeenCalled();
-		expect(
-			mockProcedureAnalyzer.advanceToNextSubroutine,
-		).not.toHaveBeenCalled();
+		// Session should be marked as error for execution errors
+		expect(manager.getSession(sessionId)?.status).toBe(
+			AgentSessionStatus.Error,
+		);
 	});
 
 	it("posts actual error message to Linear for usage limit errors (not generic)", async () => {

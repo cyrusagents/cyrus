@@ -35,12 +35,14 @@ function createMockFastify() {
 function createMockRequest(
 	body: unknown,
 	headers: Record<string, string> = {},
+	ip: string = "127.0.0.1",
 ) {
 	const rawBody = JSON.stringify(body);
 	return {
 		body,
 		rawBody,
 		headers,
+		ip,
 	};
 }
 
@@ -703,6 +705,149 @@ describe("GitHubEventTransport", () => {
 			expect(reply.send).toHaveBeenCalledWith({
 				error: "Invalid webhook signature",
 			});
+		});
+	});
+
+	describe("IP allowlist validation", () => {
+		it("rejects webhook from unauthorized IP when allowlist is configured", async () => {
+			const secret = "test-github-webhook-secret";
+			const config: GitHubEventTransportConfig = {
+				fastifyServer:
+					mockFastify as unknown as GitHubEventTransportConfig["fastifyServer"],
+				verificationMode: "signature",
+				secret,
+				ipAllowlist: ["10.0.0.1", "10.0.0.2"],
+			};
+
+			const transport = new GitHubEventTransport(config);
+			transport.register();
+
+			const body = JSON.stringify(issueCommentPayload);
+			const signature = `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
+
+			const request = createMockRequest(
+				issueCommentPayload,
+				{
+					"x-hub-signature-256": signature,
+					"x-github-event": "issue_comment",
+					"x-github-delivery": "delivery-ip-test",
+				},
+				"192.168.1.100", // unauthorized IP
+			);
+			const reply = createMockReply();
+
+			const handler = mockFastify.routes["/github-webhook"]!;
+			await handler(request, reply);
+
+			expect(reply.code).toHaveBeenCalledWith(403);
+			expect(reply.send).toHaveBeenCalledWith({
+				error: "Forbidden: unauthorized source IP",
+			});
+		});
+
+		it("accepts webhook from authorized IP when allowlist is configured", async () => {
+			const secret = "test-github-webhook-secret";
+			const config: GitHubEventTransportConfig = {
+				fastifyServer:
+					mockFastify as unknown as GitHubEventTransportConfig["fastifyServer"],
+				verificationMode: "signature",
+				secret,
+				ipAllowlist: ["10.0.0.0/8"],
+			};
+
+			const transport = new GitHubEventTransport(config);
+			const eventListener = vi.fn();
+			transport.on("event", eventListener);
+			transport.register();
+
+			const body = JSON.stringify(issueCommentPayload);
+			const signature = `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
+
+			const request = createMockRequest(
+				issueCommentPayload,
+				{
+					"x-hub-signature-256": signature,
+					"x-github-event": "issue_comment",
+					"x-github-delivery": "delivery-ip-ok",
+				},
+				"10.5.3.1", // authorized IP within CIDR
+			);
+			const reply = createMockReply();
+
+			const handler = mockFastify.routes["/github-webhook"]!;
+			await handler(request, reply);
+
+			expect(reply.code).toHaveBeenCalledWith(200);
+			expect(eventListener).toHaveBeenCalled();
+		});
+
+		it("skips IP validation when no allowlist is configured", async () => {
+			const secret = "test-github-webhook-secret";
+			const config: GitHubEventTransportConfig = {
+				fastifyServer:
+					mockFastify as unknown as GitHubEventTransportConfig["fastifyServer"],
+				verificationMode: "signature",
+				secret,
+				// No ipAllowlist
+			};
+
+			const transport = new GitHubEventTransport(config);
+			const eventListener = vi.fn();
+			transport.on("event", eventListener);
+			transport.register();
+
+			const body = JSON.stringify(issueCommentPayload);
+			const signature = `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
+
+			const request = createMockRequest(
+				issueCommentPayload,
+				{
+					"x-hub-signature-256": signature,
+					"x-github-event": "issue_comment",
+					"x-github-delivery": "delivery-no-allowlist",
+				},
+				"1.2.3.4", // any IP should work
+			);
+			const reply = createMockReply();
+
+			const handler = mockFastify.routes["/github-webhook"]!;
+			await handler(request, reply);
+
+			expect(reply.code).toHaveBeenCalledWith(200);
+			expect(eventListener).toHaveBeenCalled();
+		});
+
+		it("does not validate IP in proxy mode", async () => {
+			const config: GitHubEventTransportConfig = {
+				fastifyServer:
+					mockFastify as unknown as GitHubEventTransportConfig["fastifyServer"],
+				verificationMode: "proxy",
+				secret: testSecret,
+				ipAllowlist: ["10.0.0.1"], // should be ignored in proxy mode
+			};
+
+			const transport = new GitHubEventTransport(config);
+			const eventListener = vi.fn();
+			transport.on("event", eventListener);
+			transport.register();
+
+			const request = createMockRequest(
+				issueCommentPayload,
+				{
+					authorization: `Bearer ${testSecret}`,
+					"x-github-event": "issue_comment",
+					"x-github-delivery": "delivery-proxy-ip",
+				},
+				"192.168.1.100", // different from allowlist
+			);
+			const reply = createMockReply();
+
+			const handler = mockFastify.routes["/github-webhook"]!;
+			await handler(request, reply);
+
+			// Should succeed because proxy mode doesn't check IPs
+			expect(reply.code).toHaveBeenCalledWith(200);
+			expect(eventListener).toHaveBeenCalled();
 		});
 	});
 });

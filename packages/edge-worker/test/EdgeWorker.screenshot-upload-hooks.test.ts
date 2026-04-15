@@ -162,8 +162,6 @@ describe("EdgeWorker - Screenshot Upload Guidance Hooks", () => {
 			serializeState: vi.fn().mockReturnValue({ sessions: {}, entries: {} }),
 			restoreState: vi.fn(),
 			postAnalyzingThought: vi.fn().mockResolvedValue(null),
-			postProcedureSelectionThought: vi.fn().mockResolvedValue(undefined),
-			postInitialPlan: vi.fn().mockResolvedValue(undefined),
 			createThoughtActivity: vi.fn().mockResolvedValue(undefined),
 			setActivitySink: vi.fn(),
 			on: vi.fn(),

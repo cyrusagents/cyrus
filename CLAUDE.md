@@ -438,6 +438,8 @@ When working on this codebase, follow these practices:
 - **Claude Execution**: `packages/claude-runner/src/ClaudeRunner.ts`
 - **Session Management**: `packages/core/src/session/`
 - **Edge Worker**: `packages/edge-worker/src/EdgeWorker.ts`
+- **GitHub Token Resolution**: `EdgeWorker.resolveGitHubToken()` — three-tier fallback: proxy-forwarded installation token → self-minted GitHub App token (via `GitHubAppTokenProvider`) → `GITHUB_TOKEN` PAT. Self-hosted users with a GitHub App use the middle tier; cloud/proxy users get tokens forwarded; legacy users fall back to a PAT.
+- **GitHub App Token Minting**: `packages/github-event-transport/src/GitHubAppTokenProvider.ts` — signs JWTs with the App's private key and exchanges them for short-lived installation tokens. Caches tokens and refreshes 5 minutes before expiry.
 - **OAuth Flow**: `apps/proxy/src/services/OAuthService.mjs`
 
 ## Testing MCP Linear Integration

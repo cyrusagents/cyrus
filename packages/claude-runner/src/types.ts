@@ -9,6 +9,7 @@ import type {
 	SDKResultMessage,
 	SDKSystemMessage,
 	SDKUserMessage,
+	SdkPluginConfig,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { ILogger, OnAskUserQuestion } from "cyrus-core";
 
@@ -43,6 +44,7 @@ export interface ClaudeRunnerConfig {
 		systemPromptVersion?: string;
 	};
 	hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>; // Claude SDK hooks
+	plugins?: SdkPluginConfig[]; // Plugins providing skills, agents, hooks, and MCP servers
 	outputFormat?: OutputFormatConfig; // Structured output format configuration
 	extraArgs?: Record<string, string | null>; // Additional CLI arguments to pass to Claude Code (e.g., { chrome: null } for --chrome flag)
 	/**
@@ -86,15 +88,14 @@ export type {
 	SDKStatusMessage,
 	SDKSystemMessage,
 	SDKUserMessage,
+	SdkPluginConfig,
 } from "@anthropic-ai/claude-agent-sdk";
 
 // Legacy alias - JsonSchema type is now part of JsonSchemaOutputFormat['schema']
 export type JsonSchema = JsonSchemaOutputFormat["schema"];
+export type { BetaMessage as APIAssistantMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages.js";
 // Re-export Anthropic API message types
-export type {
-	Message as APIAssistantMessage,
-	MessageParam as APIUserMessage,
-} from "@anthropic-ai/sdk/resources/messages.js";
+export type { MessageParam as APIUserMessage } from "@anthropic-ai/sdk/resources/messages.js";
 // Type aliases for re-export
 export type ClaudeSystemMessage = SDKSystemMessage;
 export type ClaudeUserMessage = SDKUserMessage;

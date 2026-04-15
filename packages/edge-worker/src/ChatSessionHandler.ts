@@ -1,16 +1,16 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { McpServerConfig, SDKMessage } from "cyrus-claude-runner";
+import type { SDKMessage } from "cyrus-claude-runner";
 import type {
 	AgentRunnerConfig,
 	AgentSessionInfo,
 	CyrusAgentSession,
 	IAgentRunner,
 	ILogger,
-	RepositoryConfig,
 } from "cyrus-core";
 import { createLogger } from "cyrus-core";
 import { AgentSessionManager } from "./AgentSessionManager.js";
+import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import type { RunnerConfigBuilder } from "./RunnerConfigBuilder.js";
 
 /**
@@ -55,10 +55,8 @@ export interface ChatPlatformAdapter<TEvent> {
  */
 export interface ChatSessionHandlerDeps {
 	cyrusHome: string;
-	mcpConfig?: Record<string, McpServerConfig>;
-	/** Repository to source user-configured MCP paths from (V1: first available repo) */
-	repository?: RepositoryConfig;
-	chatRepositoryPaths?: string[];
+	/** Provider for live repository paths, default repo, and workspace ID */
+	chatRepositoryProvider: ChatRepositoryProvider;
 	/** Shared RunnerConfigBuilder for constructing runner configs */
 	runnerConfigBuilder: RunnerConfigBuilder;
 	/** Factory function that creates the appropriate runner based on config.defaultRunner */
@@ -96,8 +94,6 @@ export class ChatSessionHandler<TEvent> {
 		this.sessionManager = new AgentSessionManager(
 			undefined, // No parent session lookup
 			undefined, // No resume parent session
-			undefined, // No procedure analyzer
-			undefined, // No shared application server
 		);
 	}
 
@@ -219,7 +215,7 @@ export class ChatSessionHandler<TEvent> {
 			// Track this thread → session mapping for follow-up messages
 			this.threadSessions.set(threadKey, sessionId);
 
-			// Initialize procedure metadata
+			// Initialize session metadata
 			if (!session.metadata) {
 				session.metadata = {};
 			}
@@ -398,6 +394,9 @@ export class ChatSessionHandler<TEvent> {
 			platform: this.adapter.platformName,
 		});
 
+		// Read live values from the provider at session-build time
+		const provider = this.deps.chatRepositoryProvider;
+
 		return this.deps.runnerConfigBuilder.buildChatConfig({
 			workspacePath,
 			workspaceName,
@@ -405,9 +404,9 @@ export class ChatSessionHandler<TEvent> {
 			sessionId,
 			resumeSessionId,
 			cyrusHome: this.deps.cyrusHome,
-			mcpConfig: this.deps.mcpConfig,
-			repository: this.deps.repository,
-			repositoryPaths: this.deps.chatRepositoryPaths,
+			linearWorkspaceId: provider.getDefaultLinearWorkspaceId(),
+			repository: provider.getDefaultRepository(),
+			repositoryPaths: provider.getRepositoryPaths(),
 			logger: sessionLogger,
 			onMessage: (message: SDKMessage) =>
 				this.handleAgentMessage(sessionId, message),
