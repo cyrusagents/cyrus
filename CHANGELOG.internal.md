@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Added
+- `docs/codex-hang-diagnosis.md` — root-cause diagnosis of the BRI-1410 codex-runner 4-hour zombie. Hang traced to an unbounded `mcp__linear__save_issue` `tools/call` against `https://mcp.linear.app/mcp`; codex 0.125.0 + `@openai/codex-sdk` 0.107.0 + `cyrus-codex-runner` all lack an idle-timeout / terminal-event break, so a single non-responsive remote-MCP call blocks the runner indefinitely. Recommended fix: wrapper-side idle-timeout watchdog in `runTurn()` (Tier A) plus explicit `tool_timeout_sec` overrides per MCP server (Tier B). Tier 2 contingency posture: codex runner is **not** currently shipping-grade; will be after Tier A lands. Diagnosis only; no fix in this PR. ([BRI-1411](https://linear.app/brilliantio/issue/BRI-1411), [#32](https://github.com/Brilliantio/cyrus-agent/pull/32))
+
 ### Upstream sync — 15 Apr 2026 (v0.2.38 → v0.2.44)
 - Merged 27 upstream commits from ceedaragents/cyrus
 - Skills architecture replaced procedures
