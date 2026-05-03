@@ -312,3 +312,8 @@ kill $SP
 ```
 
 If this exits with code 124 and no `task_complete` event was emitted, the bug is reproduced.
+
+---
+## Update — fix landed
+
+Tier A + Tier B implemented in BRI-1439. See `docs/codex-runner-fix-runbook.md` for apply/verify/rollback. Tier 2 contingency is now shipping-grade.

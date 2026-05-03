@@ -1,0 +1,15 @@
+# Per-MCP timeouts — see docs/codex-hang-diagnosis.md §4 Tier B (BRI-1439)
+[mcp_servers.linear]
+url = "https://mcp.linear.app/mcp"
+tool_timeout_sec = 120
+startup_timeout_sec = 30
+
+[mcp_servers.cyrus-tools]
+url = "http://127.0.0.1:3456/mcp/cyrus-tools"
+tool_timeout_sec = 120
+startup_timeout_sec = 30
+
+[mcp_servers.cyrus-docs]
+url = "https://atcyrus.com/docs/mcp"
+tool_timeout_sec = 120
+startup_timeout_sec = 30

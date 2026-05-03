@@ -1,0 +1,50 @@
+# Cyrus codex runner idle-timeout watchdog patch
+# Source file: /usr/lib/node_modules/cyrus-ai/node_modules/cyrus-codex-runner/dist/CodexRunner.js
+# Target package: cyrus-ai@0.2.49 / cyrus-codex-runner@0.2.49
+# Codex SDK: @openai/codex-sdk@0.107.0
+# Date: 2026-05-02
+# Issue: BRI-1439
+# Pre-patch SHA256: db8f556b13811a1f97e464fb6dbfa90969cd06fd9fb23e1f8f7d8f252906b2f3
+# Post-patch SHA256: 1ccc2ee554985b50dd8d43dd4134445520176cb40e49fb79d4827ca9e95b0a43
+--- CodexRunner.js
++++ CodexRunner.js
+@@ -604,8 +604,37 @@
+                 ? { outputSchema: this.config.outputSchema }
+                 : {}),
+         });
+-        for await (const event of streamedTurn.events) {
+-            this.handleEvent(event);
++        const envIdleTimeoutRaw = process.env.CYRUS_CODEX_IDLE_TIMEOUT_MS;
++        const envIdleTimeoutMs = typeof envIdleTimeoutRaw === "string"
++            ? Number.parseInt(envIdleTimeoutRaw, 10)
++            : Number.NaN;
++        const configIdleTimeoutMs = typeof this.config.idleTimeoutMs === "number"
++            ? this.config.idleTimeoutMs
++            : undefined;
++        const IDLE_TIMEOUT_MS = Number.isFinite(envIdleTimeoutMs) && envIdleTimeoutMs > 0
++            ? envIdleTimeoutMs
++            : (configIdleTimeoutMs ?? 180000);
++        let idleTimer = undefined;
++        const armIdle = () => {
++            if (idleTimer) {
++                clearTimeout(idleTimer);
++            }
++            idleTimer = setTimeout(() => {
++                this.errorMessages.push(`Codex idle timeout (${IDLE_TIMEOUT_MS}ms) — no events received; aborting.`);
++                this.abortController?.abort();
++            }, IDLE_TIMEOUT_MS);
++        };
++        armIdle();
++        try {
++            for await (const event of streamedTurn.events) {
++                armIdle();
++                this.handleEvent(event);
++            }
++        }
++        finally {
++            if (idleTimer) {
++                clearTimeout(idleTimer);
++            }
+         }
+     }
+     handleEvent(event) {
