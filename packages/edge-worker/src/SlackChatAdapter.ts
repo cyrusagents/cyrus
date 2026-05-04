@@ -284,6 +284,26 @@ Supported mrkdwn syntax:
 		});
 	}
 
+	async notifyUnavailable(
+		event: SlackWebhookEvent,
+		_threadKey: string,
+		message: string,
+	): Promise<void> {
+		const token = this.getSlackBotToken(event);
+		if (!token) {
+			return;
+		}
+
+		const threadTs = event.payload.thread_ts || event.payload.ts;
+
+		await new SlackMessageService().postMessage({
+			token,
+			channel: event.payload.channel,
+			text: message,
+			thread_ts: threadTs,
+		});
+	}
+
 	private formatThreadContext(
 		messages: SlackThreadMessage[],
 		selfBotId?: string,

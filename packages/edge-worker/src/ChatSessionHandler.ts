@@ -48,6 +48,17 @@ export interface ChatPlatformAdapter<TEvent> {
 
 	/** Notify the user that a previous request is still processing */
 	notifyBusy(event: TEvent, threadKey: string): Promise<void>;
+
+	/**
+	 * Notify the user that Cyrus can't start a new session right now (e.g.
+	 * host is under memory pressure or at concurrency cap). Expected to
+	 * post a user-visible message back to the platform.
+	 */
+	notifyUnavailable(
+		event: TEvent,
+		threadKey: string,
+		message: string,
+	): Promise<void>;
 }
 
 /**
@@ -65,6 +76,12 @@ export interface ChatSessionHandlerDeps {
 	onWebhookEnd: () => void;
 	onStateChange: () => Promise<void>;
 	onClaudeError: (error: Error) => void;
+	/**
+	 * Optional pre-flight gate evaluated before spawning a new runner.
+	 * Return `{ ok: true }` to proceed, or `{ ok: false, userMessage }`
+	 * to reject with a user-facing message. If omitted, no gating occurs.
+	 */
+	checkRunnerGate?: () => { ok: true } | { ok: false; userMessage: string };
 }
 
 /**
@@ -188,6 +205,19 @@ export class ChatSessionHandler<TEvent> {
 				this.logger.info(
 					`Previous session ${existingSessionId} for thread ${threadKey} has no runner, creating new session`,
 				);
+			}
+
+			// Pre-flight memory/concurrency gate — reject before spawning
+			if (this.deps.checkRunnerGate) {
+				const gate = this.deps.checkRunnerGate();
+				if (!gate.ok) {
+					await this.adapter.notifyUnavailable(
+						event,
+						threadKey,
+						gate.userMessage,
+					);
+					return;
+				}
 			}
 
 			// Create an empty workspace directory for this thread
@@ -329,6 +359,20 @@ export class ChatSessionHandler<TEvent> {
 		resumeSessionId: string,
 		taskInstructions: string,
 	): Promise<void> {
+		// Pre-flight memory/concurrency gate — reject before spawning
+		if (this.deps.checkRunnerGate) {
+			const gate = this.deps.checkRunnerGate();
+			if (!gate.ok) {
+				const threadKey = this.adapter.getThreadKey(event);
+				await this.adapter.notifyUnavailable(
+					event,
+					threadKey,
+					gate.userMessage,
+				);
+				return;
+			}
+		}
+
 		const systemPrompt = this.adapter.buildSystemPrompt(event);
 
 		const runnerConfig = this.buildRunnerConfig(

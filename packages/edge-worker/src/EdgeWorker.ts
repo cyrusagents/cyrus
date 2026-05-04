@@ -53,8 +53,10 @@ import type {
 import {
 	CLIIssueTrackerService,
 	CLIRPCServer,
+	checkMemoryHealth,
 	createLogger,
 	DEFAULT_PROXY_URL,
+	formatMemoryPressureMessage,
 	isAgentSessionCreatedWebhook,
 	isAgentSessionPromptedWebhook,
 	isContentUpdateMessage,
@@ -1037,6 +1039,7 @@ export class EdgeWorker extends EventEmitter {
 				},
 				onStateChange: () => this.savePersistedState(),
 				onClaudeError: (error) => this.handleClaudeError(error),
+				checkRunnerGate: () => this.checkRunnerGate(),
 			},
 			this.logger,
 		);
@@ -1369,6 +1372,30 @@ export class EdgeWorker extends EventEmitter {
 			);
 			const disallowedTools = this.buildDisallowedTools(repository);
 			const allowedDirectories: string[] = [repository.repositoryPath];
+
+			// Pre-flight memory/concurrency gate — reject before spawning a runner.
+			// GitHub posts are fire-and-forget so the webhook handler can return promptly.
+			const gateOk = await this.enforceRunnerGate((userMessage) => {
+				if (!reactionToken || !prNumber) {
+					return;
+				}
+				this.gitHubCommentService
+					.postIssueComment({
+						token: reactionToken,
+						owner: extractRepoOwner(event),
+						repo: extractRepoName(event),
+						issueNumber: prNumber,
+						body: userMessage,
+					})
+					.catch((err: unknown) => {
+						this.logger.warn(
+							`Failed to post memory-pressure rejection comment: ${err instanceof Error ? err.message : err}`,
+						);
+					});
+			});
+			if (!gateOk) {
+				return;
+			}
 
 			// Create agent runner using the standard config builder
 			const { config: runnerConfig, runnerType } =
@@ -2035,6 +2062,29 @@ ${taskSection}`;
 			);
 			const disallowedTools = this.buildDisallowedTools(repository);
 			const allowedDirectories: string[] = [repository.repositoryPath];
+
+			// Pre-flight memory/concurrency gate — reject before spawning a runner.
+			// GitLab posts are fire-and-forget so the webhook handler can return promptly.
+			const gateOk = await this.enforceRunnerGate((userMessage) => {
+				if (!reactionToken || !projectId || !mrIid) {
+					return;
+				}
+				this.gitLabCommentService
+					.postMRNote({
+						token: reactionToken,
+						projectId,
+						mrIid,
+						body: userMessage,
+					})
+					.catch((err: unknown) => {
+						this.logger.warn(
+							`Failed to post memory-pressure rejection note: ${err instanceof Error ? err.message : err}`,
+						);
+					});
+			});
+			if (!gateOk) {
+				return;
+			}
 
 			// Create agent runner using the standard config builder
 			const { config: runnerConfig, runnerType } =
@@ -4190,6 +4240,18 @@ ${taskSection}`;
 
 		const agentSessionManager = this.agentSessionManager;
 
+		// Pre-flight memory/concurrency gate — reject before any heavy setup
+		const gateOk = await this.enforceRunnerGate((userMessage) =>
+			this.activityPoster.postMemoryPressureRejection(
+				sessionId,
+				linearWorkspaceId,
+				userMessage,
+			),
+		);
+		if (!gateOk) {
+			return;
+		}
+
 		// Post instant acknowledgment thought
 		await this.postInstantAcknowledgment(sessionId, linearWorkspaceId);
 
@@ -5015,6 +5077,98 @@ ${taskSection}`;
 		return this.runnerSelectionService.getDefaultFallbackModelForRunner(
 			runnerType,
 		);
+	}
+
+	/**
+	 * Count agent runners currently executing across all platforms. Used by
+	 * the concurrency gate to decide whether a new session can start.
+	 */
+	private countActiveRunners(): number {
+		const seen = new Set<IAgentRunner>();
+		for (const runner of this.agentSessionManager.getAllAgentRunners()) {
+			seen.add(runner);
+		}
+		if (this.chatSessionHandler) {
+			for (const runner of this.chatSessionHandler.getAllRunners()) {
+				seen.add(runner);
+			}
+		}
+		let active = 0;
+		for (const runner of seen) {
+			try {
+				if (runner.isRunning()) {
+					active++;
+				}
+			} catch (err) {
+				// Defensive: treat introspection errors as inactive, but log so
+				// a broken runner silently slipping under the cap is diagnosable.
+				this.logger.debug(
+					`[EdgeWorker] runner.isRunning() threw during gate check; treating as inactive: ${err instanceof Error ? err.message : err}`,
+				);
+			}
+		}
+		return active;
+	}
+
+	/**
+	 * Evaluate the runner gate and invoke `onReject` with the user-facing
+	 * message when it fails. Returns `true` if the caller may proceed to
+	 * spawn a runner, `false` if the caller must bail out.
+	 *
+	 * Centralises the "check → reject via platform-specific channel →
+	 * return early" pattern used by every runner-spawning entry point
+	 * (Linear, GitHub, GitLab, Slack, resume).
+	 */
+	private async enforceRunnerGate(
+		onReject: (userMessage: string) => Promise<void> | void,
+	): Promise<boolean> {
+		const gate = this.checkRunnerGate();
+		if (gate.ok) {
+			return true;
+		}
+		await onReject(gate.userMessage);
+		return false;
+	}
+
+	/**
+	 * Pre-flight gate that runs before a new agent runner is spawned.
+	 * Returns ok=true when the host has capacity; otherwise returns a
+	 * user-facing message explaining why the session can't start.
+	 *
+	 * Checks:
+	 *  - memoryGate: host RSS / free memory / V8 heap pressure
+	 *  - maxConcurrentRunners: how many runners are live right now
+	 *
+	 * Uses cross-platform Node APIs so behavior is identical on Linux
+	 * and macOS.
+	 */
+	private checkRunnerGate():
+		| { ok: true }
+		| { ok: false; reason: string; userMessage: string } {
+		const { memoryGate, maxConcurrentRunners } = this.config;
+
+		const memoryResult = checkMemoryHealth(memoryGate);
+		if (!memoryResult.ok) {
+			const userMessage = formatMemoryPressureMessage();
+			this.logger.warn(
+				`[EdgeWorker] Memory gate rejected new runner: ${memoryResult.reason}`,
+			);
+			return { ok: false, reason: memoryResult.reason, userMessage };
+		}
+
+		if (typeof maxConcurrentRunners === "number" && maxConcurrentRunners > 0) {
+			const active = this.countActiveRunners();
+			if (active >= maxConcurrentRunners) {
+				const reason = `At capacity: ${active} active runner(s), limit ${maxConcurrentRunners}`;
+				const userMessage = `Cyrus is at capacity (${active}/${maxConcurrentRunners} sessions running). Please retry when one of the in-flight sessions completes.`;
+				this.logger.warn(
+					`[EdgeWorker] Concurrency gate rejected runner: ${reason}`,
+				);
+				return { ok: false, reason, userMessage };
+			}
+		}
+
+		return { ok: true };
 	}
 
 	/**
@@ -6644,6 +6798,23 @@ ${input.userComment}
 				fullPrompt = `${promptBody}\n\n${attachmentManifest}`;
 			}
 			existingRunner.addStreamMessage(fullPrompt);
+			return;
+		}
+
+		// Pre-flight memory/concurrency gate — applies whenever we'd spawn
+		// a fresh runner (existing runner is dead / session was paused)
+		const gateOk = await this.enforceRunnerGate(async (userMessage) => {
+			const linearWorkspaceIdForRejection =
+				linearWorkspaceId ?? repository.linearWorkspaceId;
+			if (linearWorkspaceIdForRejection) {
+				await this.activityPoster.postMemoryPressureRejection(
+					sessionId,
+					linearWorkspaceIdForRejection,
+					userMessage,
+				);
+			}
+		});
+		if (!gateOk) {
 			return;
 		}
 

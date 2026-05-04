@@ -14,6 +14,8 @@ export {
 	EdgeConfigSchema,
 	type LinearWorkspaceConfig,
 	LinearWorkspaceConfigSchema,
+	type MemoryGateConfig,
+	MemoryGateConfigSchema,
 	migrateEdgeConfig,
 	type NetworkPolicy,
 	NetworkPolicySchema,
