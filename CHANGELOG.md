@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **Memory-pressure gate and concurrency cap for new sessions** — Cyrus can now refuse to spin up a new session when the host is running out of memory or already at a configured session ceiling, posting a short "temporarily out of capacity" message back to Linear, GitHub, GitLab, or Slack instead of silently getting OOM-killed by the kernel or systemd. The gate is a single intuitive knob: `memoryGate: true` enables it at a default 85% pressure threshold, `memoryGate: 0.9` sets a custom threshold, and `memoryGate: false` (or omitted) disables it. "Pressure" is the worst of process RSS, V8 heap, and used system memory — a single percentage that's portable across host sizes. Combined with the new `maxConcurrentRunners` cap, both knobs use cross-platform Node built-ins so they behave identically on Linux and macOS.
 
+
 ## [0.2.51] - 2026-04-30
 
 ### Changed
