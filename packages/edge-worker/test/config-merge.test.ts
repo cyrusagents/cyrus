@@ -21,12 +21,9 @@ describe("mergeEdgeConfig — auto-propagation of disk fields", () => {
 	it("propagates memoryGate from parsed config (regression: CYPACK-1165 whitelist drop)", () => {
 		const merged = mergeEdgeConfig(baseConfig(), {
 			repositories: [],
-			memoryGate: { enabled: true, maxRssPercent: 0.8 },
+			memoryGate: 0.8,
 		});
-		expect(merged.memoryGate).toEqual({
-			enabled: true,
-			maxRssPercent: 0.8,
-		});
+		expect(merged.memoryGate).toBe(0.8);
 	});
 
 	it("propagates maxConcurrentRunners from parsed config (regression: CYPACK-1165)", () => {
@@ -110,7 +107,7 @@ describe("hasGlobalConfigChanges — structural diff", () => {
 		const before = baseConfig();
 		const after = {
 			...before,
-			memoryGate: { enabled: true, maxRssPercent: 0.8 },
+			memoryGate: 0.8,
 		} as unknown as EdgeWorkerConfig;
 		expect(hasGlobalConfigChanges(before, after, deepEqual)).toBe(true);
 	});
@@ -149,12 +146,12 @@ describe("hasGlobalConfigChanges — structural diff", () => {
 	it("returns false when nothing relevant changed", () => {
 		const before = {
 			...baseConfig(),
-			memoryGate: { enabled: true, maxRssPercent: 0.8 },
+			memoryGate: 0.8,
 			maxConcurrentRunners: 3,
 		} as unknown as EdgeWorkerConfig;
 		const after = {
 			...before,
-			memoryGate: { enabled: true, maxRssPercent: 0.8 },
+			memoryGate: 0.8,
 		} as unknown as EdgeWorkerConfig;
 		expect(hasGlobalConfigChanges(before, after, deepEqual)).toBe(false);
 	});

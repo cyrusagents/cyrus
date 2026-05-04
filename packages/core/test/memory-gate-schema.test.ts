@@ -6,52 +6,39 @@ import {
 
 /**
  * Learning tests for the Zod schema attached to MemoryGateConfig.
- * These pin down what callers can/can't pass via config.json.
+ * The gate is a single-knob value: boolean | number in (0, 1].
  */
 describe("MemoryGateConfigSchema", () => {
-	it("accepts an empty object (everything optional)", () => {
-		expect(() => MemoryGateConfigSchema.parse({})).not.toThrow();
+	it("accepts true (use default threshold)", () => {
+		expect(MemoryGateConfigSchema.parse(true)).toBe(true);
 	});
 
-	it("accepts a fully-populated valid config", () => {
-		const parsed = MemoryGateConfigSchema.parse({
-			enabled: true,
-			maxRssPercent: 0.75,
-			minAvailableMemoryMb: 512,
-			maxHeapUsagePercent: 0.9,
-		});
-		expect(parsed.enabled).toBe(true);
-		expect(parsed.maxRssPercent).toBe(0.75);
+	it("accepts false (gate disabled)", () => {
+		expect(MemoryGateConfigSchema.parse(false)).toBe(false);
 	});
 
-	it("rejects maxRssPercent above 1", () => {
-		expect(() =>
-			MemoryGateConfigSchema.parse({ maxRssPercent: 1.5 }),
-		).toThrow();
+	it("accepts a number in (0, 1]", () => {
+		expect(MemoryGateConfigSchema.parse(0.85)).toBe(0.85);
+		expect(MemoryGateConfigSchema.parse(0.5)).toBe(0.5);
+		expect(MemoryGateConfigSchema.parse(1)).toBe(1);
 	});
 
-	it("rejects maxRssPercent below 0", () => {
-		expect(() =>
-			MemoryGateConfigSchema.parse({ maxRssPercent: -0.1 }),
-		).toThrow();
+	it("rejects 0 (must be greater than 0)", () => {
+		expect(() => MemoryGateConfigSchema.parse(0)).toThrow();
 	});
 
-	it("rejects negative minAvailableMemoryMb", () => {
-		expect(() =>
-			MemoryGateConfigSchema.parse({ minAvailableMemoryMb: -1 }),
-		).toThrow();
+	it("rejects negative numbers", () => {
+		expect(() => MemoryGateConfigSchema.parse(-0.1)).toThrow();
 	});
 
-	it("rejects zero minAvailableMemoryMb (must be positive)", () => {
-		expect(() =>
-			MemoryGateConfigSchema.parse({ minAvailableMemoryMb: 0 }),
-		).toThrow();
+	it("rejects numbers above 1", () => {
+		expect(() => MemoryGateConfigSchema.parse(1.5)).toThrow();
 	});
 
-	it("rejects maxHeapUsagePercent above 1", () => {
-		expect(() =>
-			MemoryGateConfigSchema.parse({ maxHeapUsagePercent: 2 }),
-		).toThrow();
+	it("rejects non-numeric, non-boolean values", () => {
+		expect(() => MemoryGateConfigSchema.parse("0.85")).toThrow();
+		expect(() => MemoryGateConfigSchema.parse({})).toThrow();
+		expect(() => MemoryGateConfigSchema.parse(null)).toThrow();
 	});
 });
 
@@ -90,21 +77,46 @@ describe("EdgeConfigSchema — runner gate fields", () => {
 		).toThrow();
 	});
 
-	it("accepts a nested memoryGate block", () => {
+	it("accepts memoryGate=true (single-knob form)", () => {
 		const parsed = EdgeConfigSchema.parse({
 			repositories: [],
-			memoryGate: { enabled: true, maxRssPercent: 0.8 },
+			memoryGate: true,
 		});
-		expect(parsed.memoryGate?.enabled).toBe(true);
+		expect(parsed.memoryGate).toBe(true);
+	});
+
+	it("accepts memoryGate=false (single-knob form)", () => {
+		const parsed = EdgeConfigSchema.parse({
+			repositories: [],
+			memoryGate: false,
+		});
+		expect(parsed.memoryGate).toBe(false);
+	});
+
+	it("accepts memoryGate as a numeric threshold", () => {
+		const parsed = EdgeConfigSchema.parse({
+			repositories: [],
+			memoryGate: 0.9,
+		});
+		expect(parsed.memoryGate).toBe(0.9);
+	});
+
+	it("rejects the legacy verbose object form", () => {
+		expect(() =>
+			EdgeConfigSchema.parse({
+				repositories: [],
+				memoryGate: { enabled: true, maxRssPercent: 0.75 },
+			}),
+		).toThrow();
 	});
 
 	it("accepts both memoryGate and maxConcurrentRunners together", () => {
 		const parsed = EdgeConfigSchema.parse({
 			repositories: [],
-			memoryGate: { enabled: true, minAvailableMemoryMb: 256 },
+			memoryGate: 0.85,
 			maxConcurrentRunners: 3,
 		});
-		expect(parsed.memoryGate?.minAvailableMemoryMb).toBe(256);
+		expect(parsed.memoryGate).toBe(0.85);
 		expect(parsed.maxConcurrentRunners).toBe(3);
 	});
 });
