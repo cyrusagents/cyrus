@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Patched two open Dependabot advisories** — Bumped `@anthropic-ai/sdk` to `^0.91.1` in `cyrus-claude-runner` to address [GHSA-p7fg-763f-g4gf](https://github.com/anthropics/anthropic-sdk-typescript/security/advisories/GHSA-p7fg-763f-g4gf) (insecure default file permissions in the local filesystem memory tool) and added a root `pnpm.overrides` entry for `>=0.91.1` to force the transitive copy bundled inside `@anthropic-ai/claude-agent-sdk` onto the patched version. Added a root `pnpm.overrides` entry `uuid: '>=14.0.0'` to address [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) (missing buffer bounds check in v3/v5/v6) pulled in transitively via `@google/gemini-cli-core`. ([CYPACK-1170](https://linear.app/ceedar/issue/CYPACK-1170))
+
 ## [0.2.51] - 2026-04-30
 
 ### Changed
