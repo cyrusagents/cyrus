@@ -356,10 +356,10 @@ if (require.main === module) {
 }
 
 export {
-	yesNoExample,
-	multipleChoiceExample,
-	codeReviewExample,
-	sentimentAnalysisExample,
 	advancedExample,
+	codeReviewExample,
 	errorHandlingExample,
+	multipleChoiceExample,
+	sentimentAnalysisExample,
+	yesNoExample,
 };

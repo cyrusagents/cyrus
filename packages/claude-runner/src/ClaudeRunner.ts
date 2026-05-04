@@ -21,6 +21,7 @@ import {
 	createLogger,
 	type IAgentRunner,
 	type ILogger,
+	LogLevel,
 	StreamingPrompt,
 } from "cyrus-core";
 import dotenv from "dotenv";
@@ -46,6 +47,176 @@ export class AbortError extends Error {
 		super(message);
 		this.name = "AbortError";
 	}
+}
+
+/**
+ * JSON.stringify replacer for Claude query options. The SDK's query options
+ * include non-serializable members (AbortController, async iterables,
+ * callbacks, pre-warmed sessions) — replace them with diagnostic placeholders
+ * so debug logs remain valid JSON.
+ */
+function serializeQueryOptionsReplacer(_key: string, value: unknown): unknown {
+	if (typeof value === "function") {
+		return `[Function${value.name ? `: ${value.name}` : ""}]`;
+	}
+	if (value instanceof AbortController) {
+		return "[AbortController]";
+	}
+	if (
+		value !== null &&
+		typeof value === "object" &&
+		Symbol.asyncIterator in (value as object)
+	) {
+		return "[AsyncIterable]";
+	}
+	return value;
+}
+
+/**
+ * Build a Sentry-safe projection of the resolved Claude query options.
+ *
+ * Why not just stringify the full object: Sentry's server-side data scrubbing
+ * pattern-matches the entire string value of an attribute. If any substring
+ * looks token-shaped (e.g. nested env vars, MCP server header values, system
+ * prompts that mention auth/token/password keywords), Sentry replaces the
+ * whole `options` field with `[Filtered]` — costing the entire diagnostic
+ * payload, not just the offending substring.
+ *
+ * The projection drops everything that ever holds opaque secrets or
+ * unbounded prose (env, mcpServers' inner config, the prompt, system prompt
+ * append text, hook scripts, additionalEnv) and keeps only the configuration
+ * surface useful for triaging "what was Claude invoked with":
+ *   - model / fallbackModel / maxTurns / outputFormat
+ *   - system prompt SHAPE (type/preset/has-append) — not the text
+ *   - tool allowlist/denylist (counts + first 50 entries)
+ *   - resumeSessionId, workingDirectory, allowedDirectories
+ *   - mcpServer NAMES only
+ *   - presence flags for hooks/plugins/canUseTool/sandbox
+ *   - env KEY NAMES only (no values)
+ *
+ * Local DEBUG logging still emits the full untruncated JSON so on-machine
+ * troubleshooting is unaffected.
+ */
+type SanitizedQueryOptions = Record<string, unknown>;
+
+function buildSanitizedQueryOptions(
+	queryOptions: Parameters<typeof query>[0],
+): SanitizedQueryOptions {
+	const o = (queryOptions.options ?? {}) as Record<string, unknown>;
+	const out: SanitizedQueryOptions = {};
+
+	if (typeof o.model === "string") out.model = o.model;
+	if (typeof o.fallbackModel === "string") out.fallbackModel = o.fallbackModel;
+	if (typeof o.maxTurns === "number") out.maxTurns = o.maxTurns;
+	if (typeof o.outputFormat === "string") out.outputFormat = o.outputFormat;
+	if (typeof o.cwd === "string") out.cwd = o.cwd;
+	if (Array.isArray(o.allowedDirectories)) {
+		out.allowedDirectoryCount = (o.allowedDirectories as unknown[]).length;
+	}
+	if (Array.isArray(o.settingSources)) {
+		out.settingSources = o.settingSources;
+	}
+	if (typeof o.resume === "string") {
+		out.resumeSessionId = o.resume;
+	}
+	if (typeof o.permissionMode === "string") {
+		out.permissionMode = o.permissionMode;
+	}
+
+	// System prompt — keep the shape, not the prose. Append text routinely
+	// contains long form documentation that may include token/auth keywords.
+	if (o.systemPrompt && typeof o.systemPrompt === "object") {
+		const sp = o.systemPrompt as Record<string, unknown>;
+		out.systemPrompt = {
+			type: sp.type,
+			preset: sp.preset,
+			hasAppend: typeof sp.append === "string" && sp.append.length > 0,
+			appendLength: typeof sp.append === "string" ? sp.append.length : 0,
+		};
+	}
+
+	// Tool allow/deny lists — bound the size so a 5000-entry list doesn't
+	// itself blow the attribute cap. Tool names like `Read(/abs/path/**)`
+	// are diagnostic gold and don't carry secrets.
+	const TOOL_LIST_PREVIEW = 50;
+	if (Array.isArray(o.allowedTools)) {
+		const arr = o.allowedTools as string[];
+		out.allowedToolsCount = arr.length;
+		out.allowedToolsPreview = arr.slice(0, TOOL_LIST_PREVIEW);
+	}
+	if (Array.isArray(o.disallowedTools)) {
+		const arr = o.disallowedTools as string[];
+		out.disallowedToolsCount = arr.length;
+		out.disallowedToolsPreview = arr.slice(0, TOOL_LIST_PREVIEW);
+	}
+
+	// MCP servers — names only. Inner config carries auth headers, URLs with
+	// tokens in query strings, etc.
+	if (o.mcpServers && typeof o.mcpServers === "object") {
+		out.mcpServerNames = Object.keys(o.mcpServers as object);
+	}
+
+	// Env — key names only, no values. Spreads `process.env`, so values are
+	// inherently sensitive.
+	if (o.env && typeof o.env === "object") {
+		const envKeys = Object.keys(o.env as object);
+		out.envKeyCount = envKeys.length;
+		// First 100 names is plenty to confirm what flowed through.
+		out.envKeyNamesPreview = envKeys.slice(0, 100);
+	}
+
+	// Presence flags rather than payload for opaque/large fields.
+	out.hasHooks = !!o.hooks;
+	out.hasPlugins =
+		Array.isArray(o.plugins) && (o.plugins as unknown[]).length > 0;
+	out.hasCanUseTool = typeof o.canUseTool === "function";
+	out.hasSandbox = !!o.sandbox;
+	out.hasExtraArgs = !!o.extraArgs;
+	out.hasPathToClaudeCodeExecutable =
+		typeof o.pathToClaudeCodeExecutable === "string";
+
+	return out;
+}
+
+/**
+ * Flatten the sanitized query options into a set of primitive Sentry Logs
+ * attributes. Sentry attribute values must be primitives, so arrays and
+ * nested objects are joined into newline-separated strings (preview values
+ * are already bounded). Each top-level datum gets its own attribute key so a
+ * stray match in any one field can't filter the whole payload — and short
+ * scalar values rarely trip Sentry's pattern matchers in the first place.
+ */
+function flattenSanitizedQueryOptions(
+	sanitized: SanitizedQueryOptions,
+): Record<string, string | number | boolean | null | undefined> {
+	const ATTR_PREFIX = "cqo.";
+	const out: Record<string, string | number | boolean | null | undefined> = {};
+	for (const [key, value] of Object.entries(sanitized)) {
+		const attrKey = `${ATTR_PREFIX}${key}`;
+		if (value === null || value === undefined) continue;
+		if (
+			typeof value === "string" ||
+			typeof value === "number" ||
+			typeof value === "boolean"
+		) {
+			out[attrKey] = value;
+			continue;
+		}
+		if (Array.isArray(value)) {
+			out[attrKey] = (value as unknown[]).map(String).join("\n");
+			continue;
+		}
+		if (typeof value === "object") {
+			// Nested object (e.g. systemPrompt summary). Stringify but keep it
+			// short — these summaries are intentionally tiny.
+			try {
+				out[attrKey] = JSON.stringify(value);
+			} catch {
+				out[attrKey] = "[unserialisable]";
+			}
+		}
+	}
+	return out;
 }
 
 export declare interface ClaudeRunner {
@@ -82,10 +253,12 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	private pendingResultMessage: SDKMessage | null = null;
 	private canUseToolCallback: CanUseTool | undefined;
 	private repositoryEnv: Record<string, string> = {};
+	private keepSessionWarm: boolean;
 
-	constructor(config: ClaudeRunnerConfig) {
+	constructor(config: ClaudeRunnerConfig, keepSessionWarm = false) {
 		super();
 		this.config = config;
+		this.keepSessionWarm = keepSessionWarm;
 		this.logger = config.logger ?? createLogger({ component: "ClaudeRunner" });
 		this.cyrusHome = config.cyrusHome;
 		this.formatter = new ClaudeMessageFormatter();
@@ -271,9 +444,13 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 			isRunning: true,
 		};
 
-		this.logger.info(
-			"Starting new session (session ID will be assigned by Claude)",
-		);
+		const isResumed = !!this.config.resumeSessionId;
+		this.logger.event(isResumed ? "session_resumed" : "session_started", {
+			resumeSessionId: this.config.resumeSessionId,
+			workingDirectory: this.config.workingDirectory,
+			model: this.config.model,
+			fallbackModel: this.config.fallbackModel,
+		});
 		this.logger.debug("Working directory:", this.config.workingDirectory);
 
 		// Ensure working directory exists
@@ -443,6 +620,8 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 			const sandboxRequirements = checkLinuxSandboxRequirements();
 			logSandboxRequirementFailures(sandboxRequirements, this.logger);
 
+			const isDebugLogging = this.logger.getLevel() === LogLevel.DEBUG;
+
 			const queryOptions: Parameters<typeof query>[0] = {
 				prompt: promptForQuery,
 				options: {
@@ -471,6 +650,9 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 						// See: CYPACK-1108.
 						...this.repositoryEnv,
 						...this.config.additionalEnv,
+						// When logging at DEBUG level, enable the SDK's own debug output so
+						// --debug-to-stderr and DEBUG=1 propagate to the Claude subprocess.
+						...(isDebugLogging && { DEBUG_CLAUDE_AGENT_SDK: "1" }),
 					},
 					...(this.config.workingDirectory && {
 						cwd: this.config.workingDirectory,
@@ -488,6 +670,9 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					...(this.config.resumeSessionId && {
 						resume: this.config.resumeSessionId,
 					}),
+					...(this.config.sessionStore && {
+						sessionStore: this.config.sessionStore,
+					}),
 					...(Object.keys(mcpServers).length > 0 && { mcpServers }),
 					...(this.config.hooks && { hooks: this.config.hooks }),
 					...(this.config.plugins?.length && { plugins: this.config.plugins }),
@@ -501,6 +686,30 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					...(pathToClaudeCodeExecutable && { pathToClaudeCodeExecutable }),
 				},
 			};
+
+			// Local DEBUG console keeps the full untruncated payload — useful
+			// when troubleshooting on the host machine where secrets aren't an
+			// issue.
+			if (isDebugLogging) {
+				const serializedQueryOptions = JSON.stringify(
+					queryOptions,
+					serializeQueryOptionsReplacer,
+					2,
+				);
+				this.logger.debug(`Claude query options: ${serializedQueryOptions}`);
+			}
+			// What ships to Sentry is a flattened set of primitive attributes,
+			// not a single nested-JSON string. A long JSON value attached
+			// under a single key (we tried `options`) gets pattern-matched by
+			// Sentry's server-side scrubber and replaced with `[Filtered]`,
+			// wiping the entire diagnostic payload. Sending each datum as its
+			// own short, primitive attribute avoids that — short non-credential
+			// values don't trip the matcher, and a per-key filter (if it ever
+			// fires) only loses one attribute, not the whole payload.
+			const flat = flattenSanitizedQueryOptions(
+				buildSanitizedQueryOptions(queryOptions),
+			);
+			this.logger.event("claude_query_options", flat);
 
 			// Process messages from the query
 			// Use pre-warmed session if available (eliminates cold-start subprocess spawn cost).
@@ -521,9 +730,9 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 				// Extract session ID from first message if we don't have one yet
 				if (!this.sessionInfo.sessionId && message.session_id) {
 					this.sessionInfo.sessionId = message.session_id;
-					this.logger.info(
-						`Session ID assigned by Claude: ${message.session_id}`,
-					);
+					this.logger.event("claude_session_id_assigned", {
+						claudeSessionId: message.session_id,
+					});
 
 					// Update streaming prompt with session ID if it exists
 					if (this.streamingPrompt) {
@@ -552,19 +761,33 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 				}
 
 				// Emit all messages (including result) immediately in-loop.
-				// The streamingPrompt stays open for follow-up messages — we do NOT call
-				// streamingPrompt.complete() here, so the loop continues waiting.
+				// When keepSessionWarm is true, the streamingPrompt stays open for
+				// follow-up messages so the SDK session can be reused. Otherwise we
+				// complete the streaming prompt on result so the for-await loop exits
+				// and the subprocess can shut down (pre-warm-sessions behavior).
+				this.logger.event("message_emitted", {
+					messageType: message.type,
+					claudeSessionId: this.sessionInfo?.sessionId,
+				});
 				this.emit("message", message);
 				this.processMessage(message);
+				if (
+					message.type === "result" &&
+					!this.keepSessionWarm &&
+					this.streamingPrompt
+				) {
+					this.streamingPrompt.complete();
+				}
 			}
 
 			this.activeQuery = null;
 
 			// Session completed successfully - mark as not running BEFORE emitting result
 			// This ensures any code checking isRunning() during result processing sees the correct state
-			this.logger.info(
-				`Session completed with ${this.messages.length} messages`,
-			);
+			this.logger.event("session_completed", {
+				messageCount: this.messages.length,
+				claudeSessionId: this.sessionInfo?.sessionId,
+			});
 			this.sessionInfo.isRunning = false;
 
 			// Emit deferred result message after marking isRunning = false
@@ -596,9 +819,15 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 
 			if (isAbortError) {
 				// User-initiated stop - log at info level, not error
-				this.logger.info("Session stopped by user");
+				this.logger.event("session_stopped", {
+					reason: "user_abort",
+					claudeSessionId: this.sessionInfo?.sessionId,
+				});
 			} else if (isSigterm) {
-				this.logger.info("Session was terminated gracefully (SIGTERM)");
+				this.logger.event("session_stopped", {
+					reason: "sigterm",
+					claudeSessionId: this.sessionInfo?.sessionId,
+				});
 			} else {
 				// Actual error - log and emit
 				this.logger.error("Session error:", error);
@@ -681,8 +910,20 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	/**
 	 * Interrupt the current turn without killing the session.
 	 * The session stays warm and can accept new messages.
+	 *
+	 * Only safe to call on warm sessions (see {@link isWarm}). Calling
+	 * `interrupt()` on a non-warm session aborts the underlying request and
+	 * causes the SDK to emit a "Request was aborted" error. Callers should
+	 * gate on `isWarm()` and prefer `stop()` for non-warm sessions.
 	 */
 	async interrupt(): Promise<void> {
+		if (!this.keepSessionWarm) {
+			this.logger.debug(
+				"interrupt() called on non-warm session; falling back to stop()",
+			);
+			this.stop();
+			return;
+		}
 		if (this.activeQuery) {
 			this.logger.info("Interrupting current turn");
 			await this.activeQuery.interrupt();
@@ -692,11 +933,21 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	}
 
 	/**
+	 * Whether this runner keeps its SDK session warm between turns. Warm
+	 * sessions can be safely interrupted; non-warm sessions cannot.
+	 */
+	isWarm(): boolean {
+		return this.keepSessionWarm;
+	}
+
+	/**
 	 * Stop the current Claude session
 	 */
 	stop(): void {
 		if (this.abortController) {
-			this.logger.info("Stopping session");
+			this.logger.event("session_stop_requested", {
+				claudeSessionId: this.sessionInfo?.sessionId,
+			});
 			this.abortController.abort();
 			this.abortController = null;
 		}

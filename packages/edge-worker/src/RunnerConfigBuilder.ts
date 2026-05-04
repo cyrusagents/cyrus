@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import type {
 	HookCallbackMatcher,
 	HookEvent,
@@ -16,6 +17,7 @@ import type {
 	RepositoryConfig,
 	RunnerType,
 } from "cyrus-core";
+import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 
 /**
  * Subset of McpConfigService consumed by RunnerConfigBuilder.
@@ -209,10 +211,18 @@ export class RunnerConfigBuilder {
 	} {
 		const log = input.logger;
 
-		// Configure hooks: PostToolUse for screenshot tools + Stop hook for PR/summary enforcement
+		// Configure hooks: PostToolUse for screenshot tools + PR-marker enforcement,
+		// plus the Stop hook that blocks the session when work is unshipped.
 		const screenshotHooks = this.buildScreenshotHooks(log);
+		const prMarkerHook = buildPrMarkerHook(log);
 		const stopHook = this.buildStopHook(log);
-		const hooks = { ...screenshotHooks, ...stopHook };
+		const hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> = {
+			...stopHook,
+			PostToolUse: [
+				...(screenshotHooks.PostToolUse ?? []),
+				...(prMarkerHook.PostToolUse ?? []),
+			],
+		};
 
 		// Determine runner type and model override from selectors
 		const runnerSelection = this.runnerSelector.determineRunnerSelection(
@@ -311,21 +321,20 @@ export class RunnerConfigBuilder {
 			onError: input.onError,
 		};
 
-		// Cursor runner-specific wiring for offline/headless harness
+		// Cursor runner uses @cursor/sdk. Pass through API key, the same
+		// sandboxSettings shape Claude consumes (the runner translates it to
+		// Cursor's `.cursor/sandbox.json` schema), and the egress CA bundle
+		// path for MITM TLS trust in sandboxed children. SDK ≥1.0.11
+		// auto-discovers the bundled `cursorsandbox` helper from the
+		// platform-specific optionalDependency.
 		if (runnerType === "cursor") {
-			const approvalPolicy = (process.env.CYRUS_APPROVAL_POLICY || "never") as
-				| "never"
-				| "on-request"
-				| "on-failure"
-				| "untrusted";
-			config.cursorPath =
-				process.env.CURSOR_AGENT_PATH || process.env.CURSOR_PATH || undefined;
 			config.cursorApiKey = process.env.CURSOR_API_KEY || undefined;
-			config.askForApproval = approvalPolicy;
-			config.approveMcps = true;
-			config.sandbox = (process.env.CYRUS_SANDBOX || "enabled") as
-				| "enabled"
-				| "disabled";
+			if (input.sandboxSettings) {
+				config.sandboxSettings = input.sandboxSettings;
+			}
+			if (input.egressCaCertPath) {
+				config.egressCaCertPath = input.egressCaCertPath;
+			}
 		}
 
 		if (input.resumeSessionId) {
@@ -340,13 +349,15 @@ export class RunnerConfigBuilder {
 	}
 
 	/**
-	 * Build a Stop hook that ensures the agent creates a PR and posts a summary
-	 * before ending the session. Uses the `stop_hook_active` flag to prevent
-	 * infinite loops — on the first stop attempt it blocks with guidance,
-	 * on subsequent attempts (where the hook already fired) it allows the stop.
+	 * Build a Stop hook that ensures the agent creates a PR before ending the
+	 * session when code changes were made. Inspects the working tree at the
+	 * session cwd and blocks the first stop attempt if there are uncommitted
+	 * changes or commits ahead of the upstream branch. The `stop_hook_active`
+	 * flag prevents infinite loops — once the hook has already fired, the next
+	 * stop is always allowed through.
 	 */
 	private buildStopHook(
-		_log: ILogger,
+		log: ILogger,
 	): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
 		return {
 			Stop: [
@@ -356,18 +367,19 @@ export class RunnerConfigBuilder {
 						async (input) => {
 							const stopInput = input as StopHookInput;
 
-							// CRITICAL: Prevent infinite loops — if the stop hook already
-							// fired once and the agent is trying to stop again, let it through.
+							// Prevent infinite loops: if the hook already fired, allow the stop.
 							if (stopInput.stop_hook_active) {
-								return { continue: false };
+								return {};
 							}
 
-							// Block the first stop attempt and guide the agent to create a PR and summary
+							const guardrail = inspectGitGuardrail(stopInput.cwd, log);
+							if (!guardrail) {
+								return {};
+							}
+
 							return {
-								continue: true,
-								additionalContext:
-									"Before stopping, ensure you have committed and pushed all code changes and created/updated a PR (if you made any code changes).\n\n" +
-									"If you have already done this (or no code changes were made), you may stop again.",
+								decision: "block",
+								reason: guardrail,
 							};
 						},
 					],
@@ -528,4 +540,77 @@ export class RunnerConfigBuilder {
 			],
 		};
 	}
+}
+
+/**
+ * Inspect the working tree at `cwd` and return a guardrail message if there
+ * is unshipped work (uncommitted changes or commits ahead of the upstream).
+ * Returns null when the tree is clean, when `cwd` isn't a git repo, or when
+ * git is unavailable — in those cases the stop should not be blocked.
+ */
+export function inspectGitGuardrail(cwd: string, log: ILogger): string | null {
+	const runGit = (args: string): string => {
+		return execSync(`git ${args}`, {
+			cwd,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+	};
+
+	let status: string;
+	try {
+		status = runGit("status --porcelain");
+	} catch (err) {
+		log.debug(
+			`PR guardrail: skipping (cwd is not a git repo or git failed): ${(err as Error).message}`,
+		);
+		return null;
+	}
+
+	const uncommittedFiles = status
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0);
+	const hasUncommitted = uncommittedFiles.length > 0;
+
+	let unpushedCount = 0;
+	try {
+		unpushedCount = parseInt(runGit("rev-list --count @{u}..HEAD"), 10) || 0;
+	} catch {
+		// No upstream configured — fall back to comparing against origin's default branch.
+		try {
+			const baseRef = runGit("rev-parse --verify --abbrev-ref origin/HEAD");
+			if (baseRef) {
+				unpushedCount =
+					parseInt(runGit(`rev-list --count ${baseRef}..HEAD`), 10) || 0;
+			}
+		} catch {
+			// Can't determine a base — be conservative and don't block on commits alone.
+		}
+	}
+
+	if (!hasUncommitted && unpushedCount === 0) {
+		return null;
+	}
+
+	const parts: string[] = [];
+	if (hasUncommitted) {
+		parts.push(
+			`${uncommittedFiles.length} uncommitted file change${uncommittedFiles.length === 1 ? "" : "s"}`,
+		);
+	}
+	if (unpushedCount > 0) {
+		parts.push(
+			`${unpushedCount} commit${unpushedCount === 1 ? "" : "s"} not yet on the remote`,
+		);
+	}
+
+	return (
+		`You appear to be ending the session, but the working tree has ${parts.join(" and ")}. ` +
+		"Before stopping:\n" +
+		"1. Commit any uncommitted changes with a descriptive message.\n" +
+		"2. Push the branch to the remote.\n" +
+		"3. Create or update a pull request that summarizes the change.\n\n" +
+		"If the work is genuinely complete and a PR is not appropriate (for example, a question or research task with no intended code changes), you may stop again — this guardrail only blocks once per session."
+	);
 }

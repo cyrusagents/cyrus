@@ -511,6 +511,10 @@ export class EgressProxy {
 
 		return new Promise<void>((resolve, reject) => {
 			this.httpServer!.listen(this.httpProxyPort, "127.0.0.1", () => {
+				const addr = this.httpServer!.address();
+				if (addr && typeof addr !== "string") {
+					this.httpProxyPort = addr.port;
+				}
 				this.logger.debug(
 					`HTTP proxy listening on 127.0.0.1:${this.httpProxyPort}`,
 				);
@@ -781,6 +785,10 @@ export class EgressProxy {
 
 		return new Promise<void>((resolve, reject) => {
 			this.socksServer!.listen(this.socksProxyPort, "127.0.0.1", () => {
+				const addr = this.socksServer!.address();
+				if (addr && typeof addr !== "string") {
+					this.socksProxyPort = addr.port;
+				}
 				this.logger.debug(
 					`SOCKS5 proxy listening on 127.0.0.1:${this.socksProxyPort}`,
 				);
@@ -821,10 +829,9 @@ export class EgressProxy {
 
 				if (ver !== 0x05 || cmd !== 0x01) {
 					// Only support CONNECT
-					// Reply with command not supported
+					// Reply with command not supported, flush, then close
 					const reply = Buffer.from([0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0]);
-					socket.write(reply);
-					socket.destroy();
+					socket.end(reply);
 					return;
 				}
 
@@ -861,10 +868,9 @@ export class EgressProxy {
 							`[EgressProxy] ✗ BLOCKED SOCKS5 ${hostname}:${port} — domain not in allow list`,
 						);
 					}
-					// Reply with connection not allowed
+					// Reply with connection not allowed, flush, then close
 					const reply = Buffer.from([0x05, 0x02, 0x00, 0x01, 0, 0, 0, 0, 0, 0]);
-					socket.write(reply);
-					socket.destroy();
+					socket.end(reply);
 					return;
 				}
 
@@ -887,10 +893,9 @@ export class EgressProxy {
 						`[EgressProxy] SOCKS5 connection error for ${hostname}:${port}:`,
 						err,
 					);
-					// Reply with general failure
+					// Reply with general failure, flush, then close
 					const reply = Buffer.from([0x05, 0x01, 0x00, 0x01, 0, 0, 0, 0, 0, 0]);
-					socket.write(reply);
-					socket.destroy();
+					socket.end(reply);
 				});
 
 				socket.on("error", () => {

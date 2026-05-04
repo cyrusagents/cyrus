@@ -533,6 +533,12 @@
 		"codexDefaultModel": {
 			"type": "string"
 		},
+		"cursorDefaultModel": {
+			"type": "string"
+		},
+		"cursorDefaultFallbackModel": {
+			"type": "string"
+		},
 		"defaultRunner": {
 			"type": "string",
 			"enum": ["claude", "gemini", "codex", "cursor"]
@@ -917,27 +923,16 @@
 			"additionalProperties": false
 		},
 		"memoryGate": {
-			"type": "object",
-			"properties": {
-				"enabled": {
+			"anyOf": [
+				{
 					"type": "boolean"
 				},
-				"maxRssPercent": {
+				{
 					"type": "number",
-					"minimum": 0,
-					"maximum": 1
-				},
-				"minAvailableMemoryMb": {
-					"type": "number",
-					"exclusiveMinimum": 0
-				},
-				"maxHeapUsagePercent": {
-					"type": "number",
-					"minimum": 0,
+					"exclusiveMinimum": 0,
 					"maximum": 1
 				}
-			},
-			"additionalProperties": false
+			]
 		},
 		"maxConcurrentRunners": {
 			"type": "integer",

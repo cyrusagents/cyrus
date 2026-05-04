@@ -11,6 +11,7 @@ import type {
 	GitHubIssueCommentPayload,
 	GitHubPullRequestReviewCommentPayload,
 	GitHubPullRequestReviewPayload,
+	GitHubPushPayload,
 	GitHubVerificationMode,
 	GitHubWebhookEvent,
 } from "./types.js";
@@ -41,6 +42,7 @@ export declare interface GitHubEventTransport {
  * - issue_comment: Comments on PR issues (top-level PR comments)
  * - pull_request_review_comment: Inline review comments on PR diffs
  * - pull_request_review: PR review submissions (e.g., changes_requested)
+ * - push: Branch push events (used for base branch change notifications)
  */
 export class GitHubEventTransport extends EventEmitter {
 	private config: GitHubEventTransportConfig;
@@ -240,7 +242,8 @@ export class GitHubEventTransport extends EventEmitter {
 		if (
 			eventType !== "issue_comment" &&
 			eventType !== "pull_request_review_comment" &&
-			eventType !== "pull_request_review"
+			eventType !== "pull_request_review" &&
+			eventType !== "push"
 		) {
 			this.logger.debug(`Ignoring unsupported event type: ${eventType}`);
 			reply.code(200).send({ success: true, ignored: true });
@@ -250,20 +253,26 @@ export class GitHubEventTransport extends EventEmitter {
 		const payload = request.body as
 			| GitHubIssueCommentPayload
 			| GitHubPullRequestReviewCommentPayload
-			| GitHubPullRequestReviewPayload;
+			| GitHubPullRequestReviewPayload
+			| GitHubPushPayload;
 
-		// For pull_request_review, handle 'submitted' action (not 'created')
-		if (eventType === "pull_request_review") {
-			if (payload.action !== "submitted") {
+		// Push events don't have an action field — always emit them
+		if (eventType === "push") {
+			// No action filtering needed for push events
+		} else if (eventType === "pull_request_review") {
+			// For pull_request_review, handle 'submitted' action (not 'created')
+			if ((payload as GitHubPullRequestReviewPayload).action !== "submitted") {
 				this.logger.debug(
-					`Ignoring ${eventType} with action: ${payload.action}`,
+					`Ignoring ${eventType} with action: ${(payload as GitHubPullRequestReviewPayload).action}`,
 				);
 				reply.code(200).send({ success: true, ignored: true });
 				return;
 			}
-		} else if (payload.action !== "created") {
+		} else if ((payload as GitHubIssueCommentPayload).action !== "created") {
 			// For issue_comment and pull_request_review_comment, only handle 'created'
-			this.logger.debug(`Ignoring ${eventType} with action: ${payload.action}`);
+			this.logger.debug(
+				`Ignoring ${eventType} with action: ${(payload as GitHubIssueCommentPayload).action}`,
+			);
 			reply.code(200).send({ success: true, ignored: true });
 			return;
 		}

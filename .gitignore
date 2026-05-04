@@ -2,6 +2,10 @@
 node_modules
 **/node_modules
 
+# This monorepo uses pnpm — npm/yarn lockfiles should never be committed
+package-lock.json
+yarn.lock
+
 # Build output
 dist/
 
@@ -40,3 +44,6 @@ workspaces
 .edge-config.json
 
 CLAUDE.local.md
+
+# Claude Code harness runtime artifacts
+.claude/scheduled_tasks.lock

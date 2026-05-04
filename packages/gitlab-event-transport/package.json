@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-gitlab-event-transport",
-	"version": "0.2.48",
+	"version": "0.2.51",
 	"description": "GitLab event transport for receiving and verifying forwarded GitLab webhooks",
 	"type": "module",
 	"main": "dist/index.js",

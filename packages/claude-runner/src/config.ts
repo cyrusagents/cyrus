@@ -70,9 +70,6 @@ export const availableTools = [
 	"TeamCreate",
 	"TeamDelete",
 
-	// IDE/LSP integration
-	"LSP",
-
 	// Tool discovery
 	"ToolSearch",
 ] as const;

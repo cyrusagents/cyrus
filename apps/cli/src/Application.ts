@@ -1,6 +1,11 @@
 import { existsSync, mkdirSync, watch } from "node:fs";
 import { dirname, join } from "node:path";
-import { DEFAULT_PROXY_URL, type RepositoryConfig } from "cyrus-core";
+import {
+	DEFAULT_PROXY_URL,
+	type ErrorReporter,
+	NoopErrorReporter,
+	type RepositoryConfig,
+} from "cyrus-core";
 import { GitService, SharedApplicationServer } from "cyrus-edge-worker";
 import dotenv from "dotenv";
 import { DEFAULT_SERVER_PORT, parsePort } from "./config/constants.js";
@@ -19,6 +24,7 @@ export class Application {
 	public readonly worker: WorkerService;
 	public readonly logger: Logger;
 	public readonly version: string;
+	public readonly errorReporter: ErrorReporter;
 	private envWatcher?: ReturnType<typeof watch>;
 	private configWatcher?: ReturnType<typeof watch>;
 	private isInSetupWaitingMode = false;
@@ -29,12 +35,16 @@ export class Application {
 		public readonly cyrusHome: string,
 		customEnvPath?: string,
 		version?: string,
+		errorReporter: ErrorReporter = new NoopErrorReporter(),
 	) {
 		// Initialize logger first
 		this.logger = new Logger();
 
 		// Store version
 		this.version = version || "unknown";
+
+		// Error reporter (Sentry or noop). Injected so tests can supply a fake.
+		this.errorReporter = errorReporter;
 
 		// Determine the env file path: use custom path if provided, otherwise default to ~/.cyrus/.env
 		this.envFilePath = customEnvPath || join(cyrusHome, ".env");
@@ -320,6 +330,10 @@ export class Application {
 		}
 
 		await this.worker.stop();
+
+		// Flush any buffered Sentry events before exiting
+		await this.errorReporter.flush(2000).catch(() => false);
+
 		process.exit(0);
 	}
 
@@ -337,13 +351,13 @@ export class Application {
 			void this.shutdown();
 		});
 
-		// Handle uncaught exceptions and unhandled promise rejections
+		// Handle uncaught exceptions and unhandled promise rejections.
+		// Logger.error forwards the Error arg to the global ErrorReporter, so we
+		// don't need to call captureException explicitly here.
 		process.on("uncaughtException", (error) => {
-			this.logger.error(`🚨 Uncaught Exception: ${error.message}`);
-			this.logger.error(`Error type: ${error.constructor.name}`);
-			this.logger.error(`Stack: ${error.stack}`);
 			this.logger.error(
-				"This error was caught by the global handler, preventing application crash",
+				`🚨 Uncaught Exception: ${error.message} (type: ${error.constructor.name}). This error was caught by the global handler, preventing application crash.`,
+				error,
 			);
 
 			// Attempt graceful shutdown but don't wait indefinitely
@@ -354,19 +368,13 @@ export class Application {
 		});
 
 		process.on("unhandledRejection", (reason, promise) => {
-			this.logger.error(`🚨 Unhandled Promise Rejection at: ${promise}`);
-			this.logger.error(`Reason: ${reason}`);
+			const error =
+				reason instanceof Error ? reason : new Error(String(reason));
 			this.logger.error(
-				"This rejection was caught by the global handler, continuing operation",
+				`🚨 Unhandled Promise Rejection at: ${promise}. This rejection was caught by the global handler, continuing operation.`,
+				error,
 			);
-
-			// Log stack trace if reason is an Error
-			if (reason instanceof Error && reason.stack) {
-				this.logger.error(`Stack: ${reason.stack}`);
-			}
-
-			// Log the error but don't exit the process for promise rejections
-			// as they might be recoverable
+			// Don't exit for promise rejections — they might be recoverable.
 		});
 	}
 }

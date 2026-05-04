@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { NetworkPolicy, SandboxConfig } from "cyrus-core";
 import { TRUSTED_DOMAINS } from "cyrus-core";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { EgressProxy } from "../src/EgressProxy.js";
 
 const TEST_CYRUS_HOME = join(tmpdir(), `cyrus-egress-test-${Date.now()}`);
@@ -22,14 +22,10 @@ function createConfig(overrides: Partial<SandboxConfig> = {}): SandboxConfig {
 
 describe("EgressProxy", () => {
 	let proxy: EgressProxy;
-	let httpPort: number;
-	let socksPort: number;
-
-	beforeEach(() => {
-		// Use dynamic ports to avoid conflicts
-		httpPort = 19080 + Math.floor(Math.random() * 1000);
-		socksPort = 19081 + Math.floor(Math.random() * 1000);
-	});
+	// Bind to port 0 so the OS picks an ephemeral port; read the actual
+	// bound port via proxy.getHttpProxyPort()/getSocksProxyPort() after start().
+	const httpPort = 0;
+	const socksPort = 0;
 
 	afterEach(async () => {
 		if (proxy) {
@@ -68,14 +64,21 @@ describe("EgressProxy", () => {
 			expect(cert1).toEqual(cert2);
 		});
 
-		it("returns configured ports", () => {
+		it("returns actual bound ports after start", async () => {
 			proxy = new EgressProxy(
 				createConfig({ httpProxyPort: httpPort, socksProxyPort: socksPort }),
 				TEST_CYRUS_HOME,
 			);
 
-			expect(proxy.getHttpProxyPort()).toBe(httpPort);
-			expect(proxy.getSocksProxyPort()).toBe(socksPort);
+			// Before start(), getters return the configured port (0 in tests).
+			expect(proxy.getHttpProxyPort()).toBe(0);
+			expect(proxy.getSocksProxyPort()).toBe(0);
+
+			await proxy.start();
+
+			// After start(), getters return the OS-assigned ephemeral port.
+			expect(proxy.getHttpProxyPort()).toBeGreaterThan(0);
+			expect(proxy.getSocksProxyPort()).toBeGreaterThan(0);
 		});
 	});
 
@@ -130,7 +133,10 @@ describe("EgressProxy", () => {
 			);
 			await proxy.start();
 
-			const result = await connectViaProxy(httpPort, "example.com:443");
+			const result = await connectViaProxy(
+				proxy.getHttpProxyPort(),
+				"example.com:443",
+			);
 			expect(result).toBe(403);
 		});
 
@@ -156,7 +162,7 @@ describe("EgressProxy", () => {
 				const req = http.request(
 					{
 						hostname: "127.0.0.1",
-						port: httpPort,
+						port: proxy.getHttpProxyPort(),
 						method: "CONNECT",
 						path: "blocked.example.com:443",
 					},
@@ -194,7 +200,7 @@ describe("EgressProxy", () => {
 			const result = await new Promise<number>((resolve) => {
 				const req = http.request({
 					hostname: "127.0.0.1",
-					port: httpPort,
+					port: proxy.getHttpProxyPort(),
 					method: "CONNECT",
 					path: "example.com:443",
 				});
@@ -233,8 +239,14 @@ describe("EgressProxy", () => {
 			await proxy.start();
 
 			// sub.example.com should be allowed, but bare example.com should be blocked
-			const subResult = await connectViaProxy(httpPort, "sub.example.com:443");
-			const bareResult = await connectViaProxy(httpPort, "example.com:443");
+			const subResult = await connectViaProxy(
+				proxy.getHttpProxyPort(),
+				"sub.example.com:443",
+			);
+			const bareResult = await connectViaProxy(
+				proxy.getHttpProxyPort(),
+				"example.com:443",
+			);
 
 			expect(subResult).not.toBe(403); // Allowed
 			expect(bareResult).toBe(403); // Blocked - wildcard doesn't match parent
@@ -258,7 +270,10 @@ describe("EgressProxy", () => {
 			await proxy.start();
 
 			// Initially, blocked.com should be blocked
-			const result1 = await connectViaProxy(httpPort, "blocked.com:443");
+			const result1 = await connectViaProxy(
+				proxy.getHttpProxyPort(),
+				"blocked.com:443",
+			);
 			expect(result1).toBe(403);
 
 			// Update policy to allow blocked.com
@@ -270,7 +285,10 @@ describe("EgressProxy", () => {
 			});
 
 			// Now blocked.com should be allowed
-			const result2 = await connectViaProxy(httpPort, "blocked.com:443");
+			const result2 = await connectViaProxy(
+				proxy.getHttpProxyPort(),
+				"blocked.com:443",
+			);
 			expect(result2).not.toBe(403);
 		});
 	});
@@ -290,12 +308,15 @@ describe("EgressProxy", () => {
 			await proxy.start();
 
 			// github.com (in the trusted list) should be allowed
-			const githubResult = await connectViaProxy(httpPort, "github.com:443");
+			const githubResult = await connectViaProxy(
+				proxy.getHttpProxyPort(),
+				"github.com:443",
+			);
 			expect(githubResult).not.toBe(403);
 
 			// evil.example.com (not in the trusted list) should be blocked
 			const evilResult = await connectViaProxy(
-				httpPort,
+				proxy.getHttpProxyPort(),
 				"evil.example.com:443",
 			);
 			expect(evilResult).toBe(403);
@@ -319,21 +340,21 @@ describe("EgressProxy", () => {
 
 			// Custom domain should be allowed
 			const customResult = await connectViaProxy(
-				httpPort,
+				proxy.getHttpProxyPort(),
 				"internal.company.com:443",
 			);
 			expect(customResult).not.toBe(403);
 
 			// Trusted domain should still be allowed
 			const trustedResult = await connectViaProxy(
-				httpPort,
+				proxy.getHttpProxyPort(),
 				"registry.npmjs.org:443",
 			);
 			expect(trustedResult).not.toBe(403);
 
 			// Unknown domain should be blocked
 			const blockedResult = await connectViaProxy(
-				httpPort,
+				proxy.getHttpProxyPort(),
 				"unknown.example.com:443",
 			);
 			expect(blockedResult).toBe(403);
@@ -353,10 +374,14 @@ describe("EgressProxy", () => {
 			await proxy.start();
 
 			const result = await new Promise<Buffer>((resolve, reject) => {
-				const socket = net.connect(socksPort, "127.0.0.1", () => {
-					// Send SOCKS5 greeting: VER=5, NMETHODS=1, METHOD=0 (no auth)
-					socket.write(Buffer.from([0x05, 0x01, 0x00]));
-				});
+				const socket = net.connect(
+					proxy.getSocksProxyPort(),
+					"127.0.0.1",
+					() => {
+						// Send SOCKS5 greeting: VER=5, NMETHODS=1, METHOD=0 (no auth)
+						socket.write(Buffer.from([0x05, 0x01, 0x00]));
+					},
+				);
 
 				socket.once("data", (data) => {
 					resolve(data);
@@ -392,7 +417,11 @@ describe("EgressProxy", () => {
 			);
 			await proxy.start();
 
-			const result = await socksConnect(socksPort, "blocked.com", 443);
+			const result = await socksConnect(
+				proxy.getSocksProxyPort(),
+				"blocked.com",
+				443,
+			);
 			// Reply byte 1 should be 0x02 (connection not allowed by ruleset)
 			expect(result[1]).toBe(0x02);
 		});

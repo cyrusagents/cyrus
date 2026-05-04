@@ -4,8 +4,22 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.50] - 2026-04-30
+
+### Added
+- Added `push` event support to `GitHubEventTransport` (new `GitHubPushPayload`, `GitHubPushCommit` types, `GitHubCommentWebhookEvent` narrowing type). Push events are emitted without action filtering. Updated `extractComment*` utility functions and `GitHubMessageTranslator` to use `GitHubCommentWebhookEvent` instead of `GitHubWebhookEvent` for type safety. Added `getSessionsByBaseBranch(branchName, repositoryId)` query to `AgentSessionManager`. Added `handleGitHubPushWebhook` to `EdgeWorker` — extracts branch from `refs/heads/*`, finds repo config, looks up active sessions, streams XML rebase notification via `addStreamMessage`. ([CYPACK-978](https://linear.app/ceedar/issue/CYPACK-978), [#1004](https://github.com/ceedaragents/cyrus/pull/1004))
+- Added blocked-by dependency deferral to `EdgeWorker`: `checkBlockedByDependencies` fetches issue relations via `fetchBlockingIssues` and filters to unresolved blockers. Blocked sessions are parked in a `parkedSessions` Map (keyed by issue ID). Added `isIssueStateChangeWebhook` type guard to cyrus-core for detecting `stateId` changes in `updatedFrom`. Added `handleIssueStateChange` handler — when blocking issues complete, removes them from parked sessions and replays `initializeAgentRunner`. Added `handleParkedSessionReprompt` (Branch 1.5 in prompted handler) for re-checking blockers on user re-prompt. Added `postThoughtActivity` to `ActivityPoster`. 12 new tests (5 for `getSessionsByBaseBranch`, 7 for `isIssueStateChangeWebhook`). ([CYPACK-978](https://linear.app/ceedar/issue/CYPACK-978), [#1004](https://github.com/ceedaragents/cyrus/pull/1004))
+
 ### Changed
 - Documented dependency security policy in `CLAUDE.md`: prefer direct-dep bumps in the owning package; only use root `pnpm.overrides` when a direct-dep bump cannot reach the vulnerable transitive; remove overrides when a future bump makes them redundant. ([CYPACK-1101](https://linear.app/ceedar/issue/CYPACK-1101), [#1128](https://github.com/ceedaragents/cyrus/pull/1128))
+- Improved `ClaudeRunner` diagnostics when `CYRUS_LOG_LEVEL=DEBUG`: the child subprocess now receives `DEBUG_CLAUDE_AGENT_SDK=1` so the Claude Agent SDK's own debug output (including `--debug-to-stderr`) is forwarded, and the full `query()` options are logged as JSON before dispatch. Non-serializable members (AbortController, async iterables, callbacks) are replaced with diagnostic placeholders so the output is valid JSON. ([CYPACK-1124](https://linear.app/ceedar/issue/CYPACK-1124), [#1153](https://github.com/cyrusagents/cyrus/pull/1153))
+
+### Fixed
+- De-flaked `packages/edge-worker/test/EgressProxy.test.ts`. The `Math.random()`-based port allocation in `beforeEach` collided on CI (EADDRINUSE on `127.0.0.1:19281`); tests now bind to port `0` and read the OS-assigned port via `proxy.getHttpProxyPort()` / `proxy.getSocksProxyPort()`. In `EgressProxy.startHttpProxy` / `startSocksProxy`, the stored port is updated to the bound `server.address().port`. Also fixed a `socket.write(reply); socket.destroy()` race in the SOCKS5 handler where the async write could be truncated before the denial reply reached the client — replaced with `socket.end(reply)` so the reply is flushed before FIN. ([CYPACK-1122](https://linear.app/ceedar/issue/CYPACK-1122), [#1147](https://github.com/ceedaragents/cyrus/pull/1147))
+
+## [0.2.49] - 2026-04-22
+
+_No internal-only changes._
 
 ## [0.2.48] - 2026-04-20
 

@@ -62,7 +62,7 @@ export class RunnerSelectionService {
 			return this.config.geminiDefaultModel || "gemini-2.5-pro";
 		}
 		if (runnerType === "cursor") {
-			return "gpt-5";
+			return this.config.cursorDefaultModel || "composer-2";
 		}
 		return this.config.codexDefaultModel || "gpt-5.3-codex";
 	}
@@ -86,7 +86,7 @@ export class RunnerSelectionService {
 			return "gpt-5.2-codex";
 		}
 		if (runnerType === "cursor") {
-			return "gpt-5";
+			return this.config.cursorDefaultFallbackModel || "composer-2";
 		}
 		return "gpt-5";
 	}

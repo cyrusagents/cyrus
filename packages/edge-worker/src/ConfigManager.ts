@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
 import { watch as chokidarWatch, type FSWatcher } from "chokidar";
 import type { EdgeWorkerConfig, ILogger, RepositoryConfig } from "cyrus-core";
+import { hasGlobalConfigChanges, mergeEdgeConfig } from "./config-merge.js";
 
 /**
  * Describes the set of repository-level changes detected after a config
@@ -197,47 +198,7 @@ export class ConfigManager extends EventEmitter {
 			const configContent = await readFile(this.configPath, "utf-8");
 			const parsedConfig = JSON.parse(configContent);
 
-			// Merge with current EdgeWorker config structure
-			const newConfig: EdgeWorkerConfig = {
-				...this.config,
-				repositories: parsedConfig.repositories || [],
-				ngrokAuthToken:
-					parsedConfig.ngrokAuthToken || this.config.ngrokAuthToken,
-				linearWorkspaces:
-					parsedConfig.linearWorkspaces || this.config.linearWorkspaces,
-				claudeDefaultModel:
-					parsedConfig.claudeDefaultModel ||
-					parsedConfig.defaultModel ||
-					this.config.claudeDefaultModel ||
-					this.config.defaultModel,
-				claudeDefaultFallbackModel:
-					parsedConfig.claudeDefaultFallbackModel ||
-					parsedConfig.defaultFallbackModel ||
-					this.config.claudeDefaultFallbackModel ||
-					this.config.defaultFallbackModel,
-				geminiDefaultModel:
-					parsedConfig.geminiDefaultModel || this.config.geminiDefaultModel,
-				codexDefaultModel:
-					parsedConfig.codexDefaultModel || this.config.codexDefaultModel,
-				defaultRunner: parsedConfig.defaultRunner || this.config.defaultRunner,
-				promptDefaults:
-					parsedConfig.promptDefaults || this.config.promptDefaults,
-				// Preserve legacy fields while rolling out new config keys.
-				defaultModel: parsedConfig.defaultModel || this.config.defaultModel,
-				defaultFallbackModel:
-					parsedConfig.defaultFallbackModel || this.config.defaultFallbackModel,
-				defaultAllowedTools:
-					parsedConfig.defaultAllowedTools || this.config.defaultAllowedTools,
-				defaultDisallowedTools:
-					parsedConfig.defaultDisallowedTools ||
-					this.config.defaultDisallowedTools,
-				// Issue update trigger: use parsed value if explicitly set,
-				// otherwise keep current or default to true
-				issueUpdateTrigger:
-					parsedConfig.issueUpdateTrigger ?? this.config.issueUpdateTrigger,
-				// Sandbox / egress proxy config
-				sandbox: parsedConfig.sandbox ?? this.config.sandbox,
-			};
+			const newConfig = mergeEdgeConfig(this.config, parsedConfig);
 
 			// Basic validation
 			if (!Array.isArray(newConfig.repositories)) {
@@ -313,29 +274,11 @@ export class ConfigManager extends EventEmitter {
 	 * `defaultRunner`, `claudeDefaultModel`, `promptDefaults`, etc.
 	 */
 	private detectGlobalConfigChanges(newConfig: EdgeWorkerConfig): boolean {
-		const globalKeys: Array<keyof EdgeWorkerConfig> = [
-			"defaultRunner",
-			"claudeDefaultModel",
-			"claudeDefaultFallbackModel",
-			"geminiDefaultModel",
-			"codexDefaultModel",
-			"defaultModel",
-			"defaultFallbackModel",
-			"defaultAllowedTools",
-			"defaultDisallowedTools",
-			"promptDefaults",
-			"issueUpdateTrigger",
-			"linearWorkspaces",
-			"userAccessControl",
-			"sandbox",
-		];
-
-		for (const key of globalKeys) {
-			if (!this.deepEqual(this.config[key], newConfig[key])) {
-				return true;
-			}
-		}
-		return false;
+		return hasGlobalConfigChanges(
+			this.config,
+			newConfig,
+			this.deepEqual.bind(this),
+		);
 	}
 
 	/**

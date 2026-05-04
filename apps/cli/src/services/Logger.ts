@@ -2,6 +2,7 @@ import {
 	createLogger,
 	type ILogger,
 	type LogContext,
+	type LogEventAttributes,
 	type LogLevel,
 } from "cyrus-core";
 
@@ -75,6 +76,16 @@ export class Logger implements ILogger {
 	 */
 	error(message: string, ...args: any[]): void {
 		this.coreLogger.error(message, ...args);
+	}
+
+	/**
+	 * Emit a named major event. Delegates to the core logger so event-stream
+	 * forwarding goes through the same Sentry Logs gate as the rest of the
+	 * codebase — keeps the CLI's presentation wrapper Liskov-compatible with
+	 * the core ILogger contract.
+	 */
+	event(name: string, attributes?: LogEventAttributes): void {
+		this.coreLogger.event(name, attributes);
 	}
 
 	/**

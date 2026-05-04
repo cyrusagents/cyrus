@@ -323,6 +323,16 @@ export interface IAgentRunner {
 	interrupt?(): Promise<void>;
 
 	/**
+	 * Whether this runner keeps its session warm between turns (i.e., the
+	 * underlying SDK query stays open after a `result` so additional messages
+	 * can be streamed in). Only warm sessions can be safely interrupted —
+	 * calling `interrupt()` on a non-warm session aborts the in-flight request
+	 * and surfaces an error. Callers should branch on this to decide between
+	 * `interrupt()` and `stop()`.
+	 */
+	isWarm?(): boolean;
+
+	/**
 	 * Check if the session is currently running
 	 *
 	 * @returns True if the session is active and processing, false otherwise

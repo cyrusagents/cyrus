@@ -46,10 +46,9 @@ describe("config", () => {
 				"TaskStop",
 				"TeamCreate",
 				"TeamDelete",
-				"LSP",
 				"ToolSearch",
 			]);
-			expect(availableTools).toHaveLength(34);
+			expect(availableTools).toHaveLength(33);
 		});
 
 		it("should define read-only tools", () => {

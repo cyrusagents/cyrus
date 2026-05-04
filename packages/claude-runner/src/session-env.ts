@@ -38,14 +38,19 @@ export const CYRUS_SESSION_ENV = {
 /**
  * Build the base `env` object for a Claude SDK session.
  *
- * Forwards PATH + auth tokens from the parent process and applies the
- * shared Cyrus session flags.
- * Callers can spread additional vars on top (e.g., repository .env for live runs).
+ * Overlays the full parent `process.env` so HOME (and other inherited vars) are
+ * available to tools that depend on them — GPG-signed commits, `gh` CLI auth,
+ * etc. claude-agent-sdk v0.2.113 reverted to no longer overlaying process.env
+ * itself, so we must do it here. Then applies the shared Cyrus session flags
+ * on top. Callers can spread additional vars on top (e.g., repository .env
+ * for live runs).
  */
 export function buildBaseSessionEnv(
 	extra?: Record<string, string>,
 ): Record<string, string> {
-	const env: Record<string, string> = {};
+	const env: Record<string, string> = {
+		...(process.env as Record<string, string>),
+	};
 
 	// Forward PATH
 	if (process.env.PATH) {

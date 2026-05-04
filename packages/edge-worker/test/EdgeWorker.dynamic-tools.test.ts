@@ -36,7 +36,6 @@ vi.mock("cyrus-claude-runner", () => ({
 		"TaskStop",
 		"TeamCreate",
 		"TeamDelete",
-		"LSP",
 		"ToolSearch",
 	]),
 	getReadOnlyTools: vi.fn(() => [
@@ -90,7 +89,6 @@ vi.mock("cyrus-claude-runner", () => ({
 		"TaskStop",
 		"TeamCreate",
 		"TeamDelete",
-		"LSP",
 		"ToolSearch",
 	]),
 }));

@@ -3,6 +3,7 @@
  */
 
 import type {
+	GitHubCommentWebhookEvent,
 	GitHubIssueCommentPayload,
 	GitHubPullRequestReviewCommentPayload,
 	GitHubPullRequestReviewPayload,
@@ -107,7 +108,7 @@ export function extractPRNumber(event: GitHubWebhookEvent): number | null {
  * Extract the comment body from a GitHub webhook event.
  * For pull_request_review events, returns the review body (or empty string if null).
  */
-export function extractCommentBody(event: GitHubWebhookEvent): string {
+export function extractCommentBody(event: GitHubCommentWebhookEvent): string {
 	if (isPullRequestReviewPayload(event.payload)) {
 		return event.payload.review.body ?? "";
 	}
@@ -118,7 +119,7 @@ export function extractCommentBody(event: GitHubWebhookEvent): string {
  * Extract the comment author from a GitHub webhook event.
  * For pull_request_review events, returns the review author.
  */
-export function extractCommentAuthor(event: GitHubWebhookEvent): string {
+export function extractCommentAuthor(event: GitHubCommentWebhookEvent): string {
 	if (isPullRequestReviewPayload(event.payload)) {
 		return event.payload.review.user.login;
 	}
@@ -150,7 +151,7 @@ export function extractRepoName(event: GitHubWebhookEvent): string {
  * Extract the comment ID from a GitHub webhook event.
  * For pull_request_review events, returns the review ID.
  */
-export function extractCommentId(event: GitHubWebhookEvent): number {
+export function extractCommentId(event: GitHubCommentWebhookEvent): number {
 	if (isPullRequestReviewPayload(event.payload)) {
 		return event.payload.review.id;
 	}
@@ -226,7 +227,7 @@ export function extractPRTitle(event: GitHubWebhookEvent): string | null {
  * Extract the HTML URL for the comment.
  * For pull_request_review events, returns the review URL.
  */
-export function extractCommentUrl(event: GitHubWebhookEvent): string {
+export function extractCommentUrl(event: GitHubCommentWebhookEvent): string {
 	if (isPullRequestReviewPayload(event.payload)) {
 		return event.payload.review.html_url;
 	}

@@ -276,7 +276,7 @@ describe("GitHubEventTransport", () => {
 				{ action: "created" },
 				{
 					authorization: `Bearer ${testSecret}`,
-					"x-github-event": "push",
+					"x-github-event": "deployment",
 					"x-github-delivery": "delivery-789",
 				},
 			);

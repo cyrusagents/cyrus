@@ -1,26 +1,37 @@
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import {
+	chmodSync,
+	copyFileSync,
 	createWriteStream,
-	type Dirent,
 	existsSync,
 	mkdirSync,
-	readdirSync,
-	readFileSync,
 	renameSync,
 	unlinkSync,
 	type WriteStream,
 	writeFileSync,
 } from "node:fs";
-import {
-	join,
-	parse as pathParse,
-	relative as pathRelative,
-	resolve,
-} from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { cwd } from "node:process";
-import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
+import type {
+	McpServerConfig as CursorMcpServerConfig,
+	SDKAssistantMessage as CursorSDKAssistantMessage,
+	SDKMessage as CursorSDKMessage,
+	SDKStatusMessage as CursorSDKStatusMessage,
+	SDKThinkingMessage as CursorSDKThinkingMessage,
+	SDKToolUseMessage as CursorSDKToolUseMessage,
+	SDKUserMessageEvent as CursorSDKUserMessageEvent,
+	Run,
+	SDKAgent,
+} from "@cursor/sdk";
+// `@cursor/sdk` is loaded lazily inside `start()` rather than at module top
+// level. Its transitive deps (`@connectrpc/connect-node` -> `undici@7.x`,
+// `sqlite3@5.x`) crash at import time on Node 18 (no global `File`) and on
+// Node versions without prebuilt sqlite3 bindings. Lazy-loading lets edge-
+// worker tests that mock the cursor runner load on every supported Node
+// version, and only pays the import cost when a Cursor session actually
+// starts.
 import type {
 	IAgentRunner,
 	IMessageFormatter,
@@ -30,66 +41,32 @@ import type {
 	SDKUserMessage,
 } from "cyrus-core";
 import { CursorMessageFormatter } from "./formatter.js";
+import {
+	buildCyrusPermissionsConfig,
+	type CyrusPermissionsConfig,
+} from "./permissions.js";
+import { buildCursorSandboxJson, buildSandboxEnv } from "./sandbox.js";
 import type {
-	CursorJsonEvent,
 	CursorRunnerConfig,
 	CursorRunnerEvents,
 	CursorSessionInfo,
 } from "./types.js";
 
-const CURSOR_MCP_CONFIG_DOCS_URL =
-	"https://cursor.com/docs/context/mcp#configuration-locations";
-const CURSOR_CLI_PERMISSIONS_DOCS_URL =
-	"https://cursor.com/docs/cli/reference/permissions";
-
 type ToolInput = Record<string, unknown>;
-
-interface ParsedUsage {
-	inputTokens: number;
-	outputTokens: number;
-	cachedInputTokens: number;
-}
-
-interface ToolProjection {
-	toolUseId: string;
-	toolName: string;
-	toolInput: ToolInput;
-	result: string;
-	isError: boolean;
-}
-
-interface CursorPermissionsConfig {
-	permissions: {
-		allow: string[];
-		deny: string[];
-	};
-	[key: string]: unknown;
-}
-
-interface CursorPermissionsRestoreState {
-	configPath: string;
-	backupPath: string | null;
-}
-
-type CursorMcpServerConfig = Record<string, unknown>;
-
-interface CursorMcpConfig {
-	mcpServers: Record<string, CursorMcpServerConfig>;
-	[key: string]: unknown;
-}
-
-interface CursorMcpRestoreState {
-	configPath: string;
-	backupPath: string | null;
-}
 
 type SDKSystemInitMessage = Extract<
 	SDKMessage,
 	{ type: "system"; subtype: "init" }
 >;
 
-function toFiniteNumber(value: unknown): number {
-	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+interface CursorHooksRestoreState {
+	hooksPath: string;
+	backupPath: string | null;
+}
+
+interface CursorSandboxRestoreState {
+	sandboxPath: string;
+	backupPath: string | null;
 }
 
 function safeStringify(value: unknown): string {
@@ -100,6 +77,22 @@ function safeStringify(value: unknown): string {
 	}
 }
 
+function normalizeError(error: unknown): string {
+	if (error instanceof Error) return error.message;
+	if (typeof error === "string") return error;
+	return "Cursor execution failed";
+}
+
+function normalizeCursorModel(model?: string): string | undefined {
+	if (!model) return model;
+	// Map legacy CLI aliases to SDK model IDs. The SDK rejects `auto` and bare
+	// `gpt-5`; use `default` (server-side resolution) as a forward-compatible
+	// fallback for both. Discover real ids via `Cursor.models.list()`.
+	const lowered = model.toLowerCase();
+	if (lowered === "gpt-5" || lowered === "auto") return "default";
+	return model;
+}
+
 function createAssistantToolUseMessage(
 	toolUseId: string,
 	toolName: string,
@@ -107,12 +100,35 @@ function createAssistantToolUseMessage(
 	messageId: string = crypto.randomUUID(),
 ): SDKAssistantMessage["message"] {
 	const contentBlocks = [
-		{
-			type: "tool_use",
-			id: toolUseId,
-			name: toolName,
-			input: toolInput,
-		},
+		{ type: "tool_use", id: toolUseId, name: toolName, input: toolInput },
+	] as unknown as SDKAssistantMessage["message"]["content"];
+
+	return {
+		id: messageId,
+		type: "message",
+		role: "assistant",
+		content: contentBlocks,
+		model: "cursor-agent",
+		stop_reason: null,
+		stop_sequence: null,
+		usage: {
+			input_tokens: 0,
+			output_tokens: 0,
+			cache_creation_input_tokens: 0,
+			cache_read_input_tokens: 0,
+			cache_creation: null,
+		} as SDKAssistantMessage["message"]["usage"],
+		container: null,
+		context_management: null,
+	};
+}
+
+function createAssistantTextMessage(
+	content: string,
+	messageId: string = crypto.randomUUID(),
+): SDKAssistantMessage["message"] {
+	const contentBlocks = [
+		{ type: "text", text: content },
 	] as unknown as SDKAssistantMessage["message"]["content"];
 
 	return {
@@ -149,46 +165,33 @@ function createUserToolResultMessage(
 		},
 	] as unknown as SDKUserMessage["message"]["content"];
 
-	return {
-		role: "user",
-		content: contentBlocks,
-	};
+	return { role: "user", content: contentBlocks };
 }
 
-function createAssistantBetaMessage(
-	content: string,
-	messageId: string = crypto.randomUUID(),
-): SDKAssistantMessage["message"] {
-	const contentBlocks = [
-		{ type: "text", text: content },
-	] as unknown as SDKAssistantMessage["message"]["content"];
-
-	return {
-		id: messageId,
-		type: "message",
-		role: "assistant",
-		content: contentBlocks,
-		model: "cursor-agent",
-		stop_reason: null,
-		stop_sequence: null,
-		usage: {
-			input_tokens: 0,
-			output_tokens: 0,
-			cache_creation_input_tokens: 0,
-			cache_read_input_tokens: 0,
-			cache_creation: null,
-		} as SDKAssistantMessage["message"]["usage"],
-		container: null,
-		context_management: null,
-	};
+interface CursorTokenTotals {
+	inputTokens: number;
+	outputTokens: number;
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
 }
 
-function createResultUsage(parsed: ParsedUsage): SDKResultMessage["usage"] {
+function toFiniteNumber(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function createResultUsage(
+	totals?: CursorTokenTotals,
+): SDKResultMessage["usage"] {
 	return {
-		input_tokens: parsed.inputTokens,
-		output_tokens: parsed.outputTokens,
-		cache_creation_input_tokens: 0,
-		cache_read_input_tokens: parsed.cachedInputTokens,
+		input_tokens: totals?.inputTokens ?? 0,
+		output_tokens: totals?.outputTokens ?? 0,
+		// Cursor's `turn-ended` delta exposes `cacheWriteTokens` as a single
+		// counter that maps onto Anthropic's `cache_creation_input_tokens`. The
+		// SDK does not split ephemeral 1h vs 5m — we report 0 for both buckets
+		// and put the full count in the parent field (which is what Cyrus
+		// formatters and Linear's cost display read first).
+		cache_creation_input_tokens: totals?.cacheWriteTokens ?? 0,
+		cache_read_input_tokens: totals?.cacheReadTokens ?? 0,
 		cache_creation: {
 			ephemeral_1h_input_tokens: 0,
 			ephemeral_5m_input_tokens: 0,
@@ -196,680 +199,188 @@ function createResultUsage(parsed: ParsedUsage): SDKResultMessage["usage"] {
 	} as SDKResultMessage["usage"];
 }
 
-function normalizeError(error: unknown): string {
-	if (error instanceof Error) {
-		return error.message;
-	}
-	if (typeof error === "string") {
-		return error;
-	}
-	return "Cursor execution failed";
-}
+/**
+ * Convert the Cyrus inline MCP config (potentially containing in-process
+ * SDK servers) into the SDK's serializable McpServerConfig format. Skips
+ * entries that aren't transportable.
+ */
+function mapCyrusMcpToSdk(
+	mcpConfig: CursorRunnerConfig["mcpConfig"] | undefined,
+): Record<string, CursorMcpServerConfig> {
+	const servers: Record<string, CursorMcpServerConfig> = {};
+	if (!mcpConfig) return servers;
 
-function normalizeCursorModel(model?: string): string | undefined {
-	if (!model) {
-		return model;
-	}
-
-	// Preserve backward compatibility for selector aliases that Cursor CLI no longer accepts.
-	if (model.toLowerCase() === "gpt-5") {
-		return "auto";
-	}
-
-	return model;
-}
-
-function extractTextFromMessageContent(content: unknown): string {
-	if (!Array.isArray(content)) {
-		return "";
-	}
-
-	const text = content
-		.map((block) => {
-			if (!block || typeof block !== "object") {
-				return "";
-			}
-			const blockObj = block as Record<string, unknown>;
-			return getStringValue(blockObj, "text") || "";
-		})
-		.join("")
-		.trim();
-
-	return text;
-}
-
-function inferCommandToolName(command: string): string {
-	const normalized = command.toLowerCase();
-	if (/\brg\b|\bgrep\b/.test(normalized)) {
-		return "Grep";
-	}
-	if (/\bglob\.glob\b|\bfind\b.+\s-name\s/.test(normalized)) {
-		return "Glob";
-	}
-	if (/\bcat\b/.test(normalized) && !/>/.test(normalized)) {
-		return "Read";
-	}
-	if (
-		/<<\s*['"]?eof['"]?\s*>/i.test(command) ||
-		/\becho\b.+>/.test(normalized)
-	) {
-		return "Write";
-	}
-	return "Bash";
-}
-
-function normalizeFilePath(path: string, workingDirectory?: string): string {
-	if (!path) {
-		return path;
-	}
-
-	if (workingDirectory && path.startsWith(workingDirectory)) {
-		const relativePath = pathRelative(workingDirectory, path);
-		if (relativePath && relativePath !== ".") {
-			return relativePath;
-		}
-	}
-
-	return path;
-}
-
-function summarizeFileChanges(
-	item: Record<string, unknown>,
-	workingDirectory?: string,
-): string {
-	const changes = Array.isArray(item.changes) ? item.changes : [];
-	if (!changes.length) {
-		return item.status === "failed" ? "Patch failed" : "No file changes";
-	}
-
-	return changes
-		.map((change) => {
-			if (!change || typeof change !== "object") {
-				return null;
-			}
-			const mapped = change as Record<string, unknown>;
-			const path = typeof mapped.path === "string" ? mapped.path : "";
-			const kind = typeof mapped.kind === "string" ? mapped.kind : "update";
-			const filePath = normalizeFilePath(path, workingDirectory);
-			return `${kind} ${filePath}`;
-		})
-		.filter((line): line is string => Boolean(line))
-		.join("\n");
-}
-
-function isTodoCompleted(status: string): boolean {
-	const s = status.toLowerCase();
-	return s === "completed" || s === "todo_status_completed";
-}
-
-function isTodoInProgress(status: string): boolean {
-	const s = status.toLowerCase();
-	return s === "in_progress" || s === "todo_status_in_progress";
-}
-
-function summarizeTodoList(item: Record<string, unknown>): string {
-	const todos = Array.isArray(item.items) ? item.items : [];
-	if (!todos.length) {
-		return "No todos";
-	}
-
-	return todos
-		.map((todo) => {
-			if (!todo || typeof todo !== "object") {
-				return "- [ ] task";
-			}
-			const mapped = todo as Record<string, unknown>;
-			const text =
-				typeof mapped.content === "string"
-					? mapped.content
-					: typeof mapped.description === "string"
-						? mapped.description
-						: "task";
-			const status =
-				typeof mapped.status === "string"
-					? mapped.status.toLowerCase()
-					: "pending";
-			const marker = isTodoCompleted(status) ? "[x]" : "[ ]";
-			const suffix = isTodoInProgress(status) ? " (in progress)" : "";
-			return `- ${marker} ${text}${suffix}`;
-		})
-		.join("\n");
-}
-
-function getStringValue(
-	object: Record<string, unknown>,
-	...keys: string[]
-): string | undefined {
-	for (const key of keys) {
-		const value = object[key];
-		if (typeof value === "string" && value.trim().length > 0) {
-			return value;
-		}
-	}
-	return undefined;
-}
-
-function parseToolPattern(
-	toolPattern: string,
-): { name: string; argument: string | null } | null {
-	const trimmed = toolPattern.trim();
-	if (!trimmed) {
-		return null;
-	}
-	const match = trimmed.match(/^([A-Za-z]+)(?:\((.*)\))?$/);
-	if (!match) {
-		return null;
-	}
-	return {
-		name: match[1] || "",
-		argument: match[2]?.trim() ?? null,
-	};
-}
-
-function normalizeShellCommandBase(argument: string | null): string {
-	if (!argument || argument === "*" || argument === "**") {
-		return "*";
-	}
-	const firstRule = argument.split(",")[0]?.trim();
-	if (!firstRule) {
-		return "*";
-	}
-	const beforeColon = firstRule.split(":")[0]?.trim();
-	return beforeColon || "*";
-}
-
-function normalizePathPattern(argument: string | null): string {
-	if (!argument) {
-		// Keep file access scoped to workspace paths by default.
-		return "./**";
-	}
-	const trimmed = argument.trim();
-	if (!trimmed) {
-		return "./**";
-	}
-	// Cursor treats broad globs as permissive; anchor wildcard defaults to workspace.
-	if (trimmed === "**") {
-		return "./**";
-	}
-	return trimmed;
-}
-
-function toCursorPath(path: string): string {
-	return path.replace(/\\/g, "/");
-}
-
-function isWildcardPathArgument(argument: string | null): boolean {
-	if (!argument) {
-		return true;
-	}
-	const trimmed = argument.trim();
-	return trimmed.length === 0 || trimmed === "**";
-}
-
-function isBroadReadToolPattern(toolPattern: string): boolean {
-	const parsed = parseToolPattern(toolPattern);
-	if (!parsed) {
-		return false;
-	}
-	const toolName = parsed.name.toLowerCase();
-	if (!(toolName === "read" || toolName === "glob" || toolName === "grep")) {
-		return false;
-	}
-	return isWildcardPathArgument(parsed.argument);
-}
-
-function isBroadWriteToolPattern(toolPattern: string): boolean {
-	const parsed = parseToolPattern(toolPattern);
-	if (!parsed) {
-		return false;
-	}
-	const toolName = parsed.name.toLowerCase();
-	if (
-		!(
-			toolName === "edit" ||
-			toolName === "write" ||
-			toolName === "multiedit" ||
-			toolName === "notebookedit" ||
-			toolName === "todowrite"
-		)
-	) {
-		return false;
-	}
-	return isWildcardPathArgument(parsed.argument);
-}
-
-function buildWorkspaceSiblingDenyPermissions(
-	workspacePath: string,
-	permission: "Read" | "Write",
-): string[] {
-	const resolvedWorkspacePath = resolve(workspacePath);
-	const parsed = pathParse(resolvedWorkspacePath);
-	if (!parsed.root) {
-		return [];
-	}
-
-	const segments = resolvedWorkspacePath
-		.slice(parsed.root.length)
-		.split(/[\\/]+/)
-		.filter(Boolean);
-	if (segments.length === 0) {
-		return [];
-	}
-
-	const denyPermissions = new Set<string>();
-	let parentPath = parsed.root;
-
-	for (const segment of segments) {
-		let siblingEntries: Dirent[];
-		try {
-			siblingEntries = readdirSync(parentPath, { withFileTypes: true });
-		} catch {
-			break;
-		}
-
-		for (const sibling of siblingEntries) {
-			if (!sibling.isDirectory() || sibling.name === segment) {
-				continue;
-			}
-			const siblingPath = join(parentPath, sibling.name);
-			denyPermissions.add(`${permission}(${toCursorPath(siblingPath)}/**)`);
-		}
-
-		parentPath = join(parentPath, segment);
-	}
-
-	return [...denyPermissions];
-}
-
-function buildSystemRootDenyPermissions(
-	workspacePath: string,
-	permission: "Read" | "Write",
-): string[] {
-	const workspace = toCursorPath(resolve(workspacePath));
-	const rootCandidates = [
-		"/etc",
-		"/bin",
-		"/sbin",
-		"/usr",
-		"/opt",
-		"/System",
-		"/Library",
-		"/Applications",
-		"/dev",
-		"/proc",
-		"/sys",
-		"/Volumes",
-		"/home",
-	];
-
-	const denies: string[] = [];
-	for (const rootPath of rootCandidates) {
-		if (workspace === rootPath || workspace.startsWith(`${rootPath}/`)) {
+	for (const [name, raw] of Object.entries(mcpConfig)) {
+		const cfg = raw as Record<string, unknown>;
+		if (
+			typeof cfg.listTools === "function" ||
+			typeof cfg.callTool === "function"
+		) {
+			console.warn(
+				`[CursorRunner] Skipping MCP server '${name}' because in-process SDK server instances cannot be serialized for @cursor/sdk`,
+			);
 			continue;
 		}
-		denies.push(`${permission}(${rootPath}/**)`);
-	}
-	return denies;
-}
 
-function normalizeMcpPermissionPart(value: string | null): string {
-	if (!value) {
-		return "*";
-	}
-	const trimmed = value.trim();
-	return trimmed || "*";
-}
-
-function mapClaudeMcpToolPatternToCursorPermission(
-	toolPattern: string,
-): string | null {
-	const trimmed = toolPattern.trim();
-	if (!trimmed.toLowerCase().startsWith("mcp__")) {
-		return null;
-	}
-
-	const parts = trimmed.split("__");
-	if (parts.length < 2) {
-		return null;
-	}
-
-	const server = normalizeMcpPermissionPart(parts[1] || null);
-	const tool =
-		parts.length >= 3
-			? normalizeMcpPermissionPart(parts.slice(2).join("__"))
-			: "*";
-
-	return `Mcp(${server}:${tool})`;
-}
-
-function mapClaudeToolPatternToCursorPermission(
-	toolPattern: string,
-): string | null {
-	const mappedMcpPermission =
-		mapClaudeMcpToolPatternToCursorPermission(toolPattern);
-	if (mappedMcpPermission) {
-		return mappedMcpPermission;
-	}
-
-	const parsed = parseToolPattern(toolPattern);
-	if (!parsed) {
-		return null;
-	}
-
-	const toolName = parsed.name.toLowerCase();
-	if (toolName === "bash" || toolName === "shell") {
-		return `Shell(${normalizeShellCommandBase(parsed.argument)})`;
-	}
-	if (toolName === "read" || toolName === "glob" || toolName === "grep") {
-		return `Read(${normalizePathPattern(parsed.argument)})`;
-	}
-	if (
-		toolName === "edit" ||
-		toolName === "write" ||
-		toolName === "multiedit" ||
-		toolName === "notebookedit" ||
-		toolName === "todowrite"
-	) {
-		return `Write(${normalizePathPattern(parsed.argument)})`;
-	}
-
-	return null;
-}
-
-function parseMcpServersFromCursorListOutput(output: string): string[] {
-	const servers = new Set<string>();
-	for (const line of output.split(/\r?\n/)) {
-		const match = line.match(/^\s*([A-Za-z0-9._-]+)\s*:/);
-		const serverName = match?.[1]?.trim();
-		if (serverName) {
-			servers.add(serverName);
+		if (typeof cfg.url === "string" && cfg.url.length > 0) {
+			const headers =
+				cfg.headers &&
+				typeof cfg.headers === "object" &&
+				!Array.isArray(cfg.headers)
+					? (cfg.headers as Record<string, string>)
+					: undefined;
+			const type = (cfg.type === "sse" ? "sse" : "http") as "http" | "sse";
+			servers[name] = {
+				type,
+				url: cfg.url,
+				...(headers ? { headers } : {}),
+			};
+			continue;
 		}
-	}
-	return [...servers];
-}
 
-function getProjectionForItem(
-	item: Record<string, unknown>,
-	workingDirectory?: string,
-): ToolProjection | null {
-	const itemId = getStringValue(item, "id", "tool_id", "item_id");
-	if (!itemId) {
-		return null;
-	}
-
-	const itemType = getStringValue(item, "type");
-	const status = getStringValue(item, "status") || "completed";
-	const isError = status === "failed";
-
-	if (itemType === "command_execution") {
-		const command = getStringValue(item, "command") || "";
-		const output = getStringValue(item, "aggregated_output", "output") || "";
-		const exitCodeValue = item.exit_code;
-		const exitCode = toFiniteNumber(exitCodeValue);
-		const toolName = inferCommandToolName(command);
-		const toolInput: ToolInput = {
-			command,
-			description: command,
-		};
-		const result =
-			output ||
-			(isError
-				? `Command failed${exitCode ? ` (exit ${exitCode})` : ""}`
-				: "Command completed");
-		return {
-			toolUseId: itemId,
-			toolName,
-			toolInput,
-			result,
-			isError,
-		};
-	}
-
-	if (itemType === "file_change") {
-		const summary = summarizeFileChanges(item, workingDirectory);
-		return {
-			toolUseId: itemId,
-			toolName: "Edit",
-			toolInput: { description: summary },
-			result: summary,
-			isError,
-		};
-	}
-
-	if (itemType === "web_search") {
-		const query = getStringValue(item, "query") || "web search";
-		const actionValue = item.action;
-		let toolInput: ToolInput = { query };
-		let result = query;
-		if (actionValue && typeof actionValue === "object") {
-			const action = actionValue as Record<string, unknown>;
-			const url = getStringValue(action, "url");
-			if (url) {
-				toolInput = { url };
-				result = url;
-			}
+		if (typeof cfg.command === "string" && cfg.command.length > 0) {
+			const args = Array.isArray(cfg.args) ? (cfg.args as string[]) : undefined;
+			const env =
+				cfg.env && typeof cfg.env === "object" && !Array.isArray(cfg.env)
+					? (cfg.env as Record<string, string>)
+					: undefined;
+			servers[name] = {
+				type: "stdio",
+				command: cfg.command,
+				...(args ? { args } : {}),
+				...(env ? { env } : {}),
+				...(typeof cfg.cwd === "string" ? { cwd: cfg.cwd } : {}),
+			};
+			continue;
 		}
-		return {
-			toolUseId: itemId,
-			toolName: "WebSearch",
-			toolInput,
-			result,
-			isError,
-		};
+
+		console.warn(
+			`[CursorRunner] Skipping MCP server '${name}' because it has no serializable command/url transport`,
+		);
 	}
 
-	if (itemType === "mcp_tool_call") {
-		const server = getStringValue(item, "server") || "mcp";
-		const tool = getStringValue(item, "tool") || "tool";
-		const args =
-			item.arguments && typeof item.arguments === "object"
-				? item.arguments
-				: {};
-		const result =
-			getStringValue(item, "result") ||
-			safeStringify(item.result || "MCP tool completed");
-		return {
-			toolUseId: itemId,
-			toolName: `mcp__${server}__${tool}`,
-			toolInput: args as ToolInput,
-			result,
-			isError,
-		};
-	}
-
-	if (itemType === "todo_list") {
-		const summary = summarizeTodoList(item);
-		return {
-			toolUseId: itemId,
-			toolName: "TodoWrite",
-			toolInput: { todos: item.items },
-			result: summary,
-			isError,
-		};
-	}
-
-	return null;
+	return servers;
 }
 
-function extractToolResultFromPayload(payload: Record<string, unknown>): {
-	text: string;
+interface ToolProjection {
+	toolUseId: string;
+	toolName: string;
+	toolInput: ToolInput;
+	result: string;
 	isError: boolean;
-} {
-	const resultValue =
-		payload.result && typeof payload.result === "object"
-			? (payload.result as Record<string, unknown>)
-			: null;
-	if (!resultValue) {
-		return { text: "Tool completed", isError: false };
-	}
-
-	if (resultValue.success && typeof resultValue.success === "object") {
-		const success = resultValue.success as Record<string, unknown>;
-		const output =
-			getStringValue(
-				success,
-				"interleavedOutput",
-				"stdout",
-				"markdown",
-				"text",
-			) || safeStringify(success);
-		return { text: output, isError: false };
-	}
-
-	const failure =
-		resultValue.failure && typeof resultValue.failure === "object"
-			? (resultValue.failure as Record<string, unknown>)
-			: null;
-	if (failure) {
-		return {
-			text:
-				getStringValue(failure, "message", "stderr") || safeStringify(failure),
-			isError: true,
-		};
-	}
-
-	return { text: safeStringify(resultValue), isError: false };
 }
 
-function getProjectionForToolCallEvent(
-	event: Record<string, unknown>,
+/**
+ * Project an SDK `tool_call` event into the Claude-shaped tool_use /
+ * tool_result pair that the Cyrus formatter and timeline expect.
+ *
+ * MCP tool calls surface as the generic `name: "mcp"` in the SDK stream;
+ * this inspects `args` to extract the actual `<server>:<tool>` and
+ * re-projects them as `mcp__<server>__<tool>` to match the Claude
+ * runner's convention.
+ */
+function projectToolCall(
+	event: CursorSDKToolUseMessage,
 	workingDirectory?: string,
-): ToolProjection | null {
-	const toolUseId = getStringValue(event, "call_id");
-	if (!toolUseId) {
-		return null;
-	}
+): ToolProjection {
+	const args = (event.args ?? {}) as Record<string, unknown>;
+	const rawName = (event.name ?? "").toLowerCase();
 
-	const toolCallRaw =
-		event.tool_call && typeof event.tool_call === "object"
-			? (event.tool_call as Record<string, unknown>)
-			: null;
-	if (!toolCallRaw) {
-		return null;
-	}
+	let toolName = event.name ?? "Tool";
+	let toolInput: ToolInput = args as ToolInput;
 
-	const variantKey = Object.keys(toolCallRaw)[0];
-	if (!variantKey) {
-		return null;
-	}
-	const payloadValue = toolCallRaw[variantKey];
-	if (!payloadValue || typeof payloadValue !== "object") {
-		return null;
-	}
-	const payload = payloadValue as Record<string, unknown>;
-	const args =
-		payload.args && typeof payload.args === "object"
-			? (payload.args as Record<string, unknown>)
-			: {};
-
-	let toolName = "Tool";
-	let toolInput: ToolInput = {};
-	let resultText = "Tool completed";
-
-	if (variantKey === "shellToolCall") {
-		const command = getStringValue(args, "command") || "";
-		toolName = inferCommandToolName(command);
+	if (rawName === "shell") {
+		toolName = "Bash";
+		const command = typeof args.command === "string" ? args.command : "";
 		toolInput = { command, description: command };
-	} else if (variantKey === "readToolCall") {
+	} else if (rawName === "read") {
 		toolName = "Read";
 		toolInput = {
-			path: normalizeFilePath(
-				getStringValue(args, "path") || "",
-				workingDirectory,
-			),
+			file_path: typeof args.path === "string" ? args.path : args.file_path,
+			offset: args.offset,
 			limit: args.limit,
 		};
-	} else if (variantKey === "grepToolCall") {
+	} else if (rawName === "grep") {
 		toolName = "Grep";
 		toolInput = {
-			pattern: getStringValue(args, "pattern") || "",
-			path: normalizeFilePath(
-				getStringValue(args, "path") || "",
-				workingDirectory,
-			),
+			pattern: typeof args.pattern === "string" ? args.pattern : "",
+			path: typeof args.path === "string" ? args.path : undefined,
 		};
-	} else if (variantKey === "globToolCall") {
+	} else if (rawName === "glob") {
 		toolName = "Glob";
 		toolInput = {
-			glob: getStringValue(args, "globPattern") || "",
-			path: normalizeFilePath(
-				getStringValue(args, "targetDirectory") || "",
-				workingDirectory,
-			),
+			pattern:
+				typeof args.globPattern === "string" ? args.globPattern : args.pattern,
+			path:
+				typeof args.targetDirectory === "string"
+					? args.targetDirectory
+					: undefined,
 		};
-	} else if (variantKey === "editToolCall") {
-		toolName = "Edit";
-		toolInput = {
-			path: normalizeFilePath(
-				getStringValue(args, "path") || "",
-				workingDirectory,
-			),
-		};
-	} else if (variantKey === "deleteToolCall") {
-		toolName = "Edit";
-		toolInput = {
-			description: `delete ${normalizeFilePath(getStringValue(args, "path") || "", workingDirectory)}`,
-		};
-	} else if (variantKey === "semSearchToolCall") {
-		toolName = "ToolSearch";
-		toolInput = { query: getStringValue(args, "query") || "" };
-	} else if (variantKey === "readLintsToolCall") {
-		toolName = "Read";
-		toolInput = { paths: args.paths };
-	} else if (variantKey === "mcpToolCall") {
-		const provider = getStringValue(args, "providerIdentifier") || "mcp";
-		const namedTool =
-			getStringValue(args, "toolName") ||
-			getStringValue(args, "name") ||
-			"tool";
-		toolName = `mcp__${provider}__${namedTool}`;
+	} else if (
+		rawName === "edit" ||
+		rawName === "write" ||
+		rawName === "delete"
+	) {
+		toolName =
+			rawName === "delete" ? "Edit" : rawName === "write" ? "Write" : "Edit";
+		toolInput = { file_path: typeof args.path === "string" ? args.path : "" };
+	} else if (rawName === "mcp") {
+		const provider =
+			typeof args.providerIdentifier === "string"
+				? args.providerIdentifier
+				: typeof (args as Record<string, unknown>).server === "string"
+					? ((args as Record<string, unknown>).server as string)
+					: "mcp";
+		const innerTool =
+			typeof args.toolName === "string"
+				? args.toolName
+				: typeof (args as Record<string, unknown>).name === "string"
+					? ((args as Record<string, unknown>).name as string)
+					: "tool";
+		toolName = `mcp__${provider}__${innerTool}`;
 		toolInput =
 			args.args && typeof args.args === "object"
 				? (args.args as ToolInput)
-				: {};
-	} else if (variantKey === "listMcpResourcesToolCall") {
-		toolName = "mcp__list_resources";
-		toolInput = {};
-	} else if (variantKey === "webFetchToolCall") {
-		toolName = "WebFetch";
-		toolInput = { url: getStringValue(args, "url") || "" };
-	} else if (variantKey === "updateTodosToolCall") {
+				: ({} as ToolInput);
+	} else if (rawName === "update_todos" || rawName === "updatetodos") {
 		toolName = "TodoWrite";
 		toolInput = { todos: args.todos };
-		resultText = summarizeTodoList({ items: args.todos });
-	} else {
-		toolName = variantKey.replace(/ToolCall$/, "");
-		toolInput = args as ToolInput;
+	} else if (rawName === "web_fetch" || rawName === "webfetch") {
+		toolName = "WebFetch";
+		toolInput = { url: typeof args.url === "string" ? args.url : "" };
 	}
 
-	const extracted = extractToolResultFromPayload(payload);
-	if (resultText === "Tool completed" || extracted.isError) {
-		resultText = extracted.text;
+	let resultText = "Tool completed";
+	const isError = event.status === "error";
+	if (event.result !== undefined && event.result !== null) {
+		if (typeof event.result === "string") {
+			resultText = event.result;
+		} else {
+			resultText = safeStringify(event.result);
+		}
+	} else if (isError) {
+		resultText = "Tool failed";
+	}
+
+	// Light path normalization: trim workingDirectory prefix on read targets.
+	if (
+		workingDirectory &&
+		toolName === "Read" &&
+		typeof toolInput.file_path === "string" &&
+		toolInput.file_path.startsWith(workingDirectory)
+	) {
+		const rel = toolInput.file_path
+			.slice(workingDirectory.length)
+			.replace(/^\//, "");
+		if (rel) toolInput = { ...toolInput, file_path: rel };
 	}
 
 	return {
-		toolUseId,
+		toolUseId: event.call_id,
 		toolName,
 		toolInput,
 		result: resultText,
-		isError: extracted.isError,
-	};
-}
-
-function extractUsageFromEvent(
-	event: Record<string, unknown>,
-): ParsedUsage | null {
-	const usageRaw =
-		event.usage && typeof event.usage === "object"
-			? (event.usage as Record<string, unknown>)
-			: null;
-	if (!usageRaw) {
-		return null;
-	}
-	return {
-		inputTokens: toFiniteNumber(usageRaw.input_tokens),
-		outputTokens: toFiniteNumber(usageRaw.output_tokens),
-		cachedInputTokens: toFiniteNumber(usageRaw.cached_input_tokens),
+		isError,
 	};
 }
 
@@ -891,25 +402,27 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 	private sessionInfo: CursorSessionInfo | null = null;
 	private messages: SDKMessage[] = [];
 	private formatter: IMessageFormatter;
-	private process: ChildProcess | null = null;
-	private readlineInterface: ReturnType<typeof createInterface> | null = null;
+	private agent: SDKAgent | null = null;
+	private currentRun: Run | null = null;
 	private pendingResultMessage: SDKResultMessage | null = null;
 	private hasInitMessage = false;
 	private lastAssistantText: string | null = null;
-	private wasStopped = false;
-	private startTimestampMs = 0;
-	private lastUsage: ParsedUsage = {
+	private assistantTextBuffer = "";
+	private tokenTotals: CursorTokenTotals = {
 		inputTokens: 0,
 		outputTokens: 0,
-		cachedInputTokens: 0,
+		cacheReadTokens: 0,
+		cacheWriteTokens: 0,
 	};
+	private wasStopped = false;
+	private startTimestampMs = 0;
 	private errorMessages: string[] = [];
 	private emittedToolUseIds = new Set<string>();
-	private fallbackOutputLines: string[] = [];
 	private logStream: WriteStream | null = null;
-	private mcpConfigRestoreState: CursorMcpRestoreState | null = null;
-	private permissionsConfigRestoreState: CursorPermissionsRestoreState | null =
-		null;
+	private hooksRestoreState: CursorHooksRestoreState | null = null;
+	private sandboxRestoreState: CursorSandboxRestoreState | null = null;
+	private sandboxEnvRestoreState: Map<string, string | undefined> | null = null;
+	private permissionsArtifactsInstalled = false;
 
 	constructor(config: CursorRunnerConfig) {
 		super();
@@ -922,11 +435,148 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 	}
 
 	async start(prompt: string): Promise<CursorSessionInfo> {
-		return this.startWithPrompt(prompt);
+		if (this.isRunning()) {
+			throw new Error("Cursor session already running");
+		}
+
+		const initialSessionId = this.config.resumeSessionId || crypto.randomUUID();
+		this.sessionInfo = {
+			sessionId: initialSessionId,
+			startedAt: new Date(),
+			isRunning: true,
+		};
+
+		this.messages = [];
+		this.pendingResultMessage = null;
+		this.hasInitMessage = false;
+		this.lastAssistantText = null;
+		this.assistantTextBuffer = "";
+		this.tokenTotals = {
+			inputTokens: 0,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		};
+		this.wasStopped = false;
+		this.startTimestampMs = Date.now();
+		this.errorMessages = [];
+		this.emittedToolUseIds.clear();
+		this.setupLogging(initialSessionId);
+
+		const workspace = resolve(this.config.workingDirectory || cwd());
+
+		try {
+			this.installPermissionsArtifacts(workspace);
+
+			// Test/CI fallback for environments where the SDK can't run.
+			if (process.env.CYRUS_CURSOR_MOCK === "1") {
+				this.emitInitMessage();
+				this.pushAssistantText("Cursor mock session completed");
+				this.pendingResultMessage = this.createSuccessResultMessage(
+					"Cursor mock session completed",
+				);
+				this.finalizeSession();
+				return this.sessionInfo;
+			}
+
+			const apiKey = this.config.cursorApiKey ?? process.env.CURSOR_API_KEY;
+			const normalizedModel = normalizeCursorModel(this.config.model);
+			const mcpServers = mapCyrusMcpToSdk(this.config.mcpConfig);
+
+			const sandboxEnabled = Boolean(this.config.sandboxSettings?.enabled);
+			const baseAgentOptions = {
+				apiKey,
+				...(normalizedModel ? { model: { id: normalizedModel } } : {}),
+				local: {
+					// `cwd` is passed as a string[] per Cyrus convention; the SDK
+					// types accept `string | string[]`.
+					cwd: [workspace],
+					settingSources: ["project" as const],
+					// SDK ≥1.0.11 auto-discovers the bundled `cursorsandbox`
+					// helper from the platform-specific optionalDependency
+					// (e.g. `@cursor/sdk-darwin-arm64`). The corresponding
+					// `.cursor/sandbox.json` policy is written by
+					// `installPermissionsArtifacts` so it is in place before
+					// the SDK reads it during agent startup.
+					sandboxOptions: { enabled: sandboxEnabled },
+				},
+				...(Object.keys(mcpServers).length > 0 ? { mcpServers } : {}),
+			};
+
+			const { Agent } = await import("@cursor/sdk");
+			let agent: SDKAgent;
+			if (this.config.resumeSessionId) {
+				console.log(
+					`[CursorRunner] Resuming agent ${this.config.resumeSessionId}`,
+				);
+				agent = await Agent.resume(
+					this.config.resumeSessionId,
+					baseAgentOptions,
+				);
+			} else {
+				agent = await Agent.create(baseAgentOptions);
+			}
+			this.agent = agent;
+
+			if (this.sessionInfo) {
+				this.sessionInfo.sessionId = agent.agentId;
+			}
+			this.emitInitMessage();
+
+			console.log(
+				`[CursorRunner] Sending prompt to agent ${agent.agentId} (resume=${Boolean(this.config.resumeSessionId)})`,
+			);
+
+			let caughtError: unknown;
+			try {
+				const run = await agent.send(prompt, {
+					onDelta: ({ update }) => {
+						// `turn-ended` is the only delta carrying token totals.
+						// Each fire is a per-turn snapshot — accumulate across
+						// turns so the final result reports the run total.
+						if (
+							update &&
+							typeof update === "object" &&
+							(update as { type?: string }).type === "turn-ended"
+						) {
+							const usage = (update as { usage?: Partial<CursorTokenTotals> })
+								.usage;
+							if (usage) {
+								this.tokenTotals.inputTokens += toFiniteNumber(
+									usage.inputTokens,
+								);
+								this.tokenTotals.outputTokens += toFiniteNumber(
+									usage.outputTokens,
+								);
+								this.tokenTotals.cacheReadTokens += toFiniteNumber(
+									usage.cacheReadTokens,
+								);
+								this.tokenTotals.cacheWriteTokens += toFiniteNumber(
+									usage.cacheWriteTokens,
+								);
+							}
+						}
+					},
+				});
+				this.currentRun = run;
+				for await (const event of run.stream()) {
+					if (this.wasStopped) break;
+					this.handleSdkEvent(event);
+				}
+			} catch (error) {
+				caughtError = error;
+			}
+
+			this.finalizeSession(caughtError);
+		} catch (error) {
+			this.finalizeSession(error);
+		}
+
+		return this.sessionInfo;
 	}
 
-	async startStreaming(initialPrompt?: string): Promise<CursorSessionInfo> {
-		return this.startWithPrompt(null, initialPrompt);
+	async startStreaming(_initialPrompt?: string): Promise<CursorSessionInfo> {
+		throw new Error("CursorRunner does not support streaming input");
 	}
 
 	addStreamMessage(_content: string): void {
@@ -937,754 +587,383 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		// No-op: CursorRunner does not support streaming input.
 	}
 
-	private async startWithPrompt(
-		stringPrompt?: string | null,
-		streamingInitialPrompt?: string,
-	): Promise<CursorSessionInfo> {
-		if (this.isRunning()) {
-			throw new Error("Cursor session already running");
+	stop(): void {
+		this.wasStopped = true;
+		const run = this.currentRun;
+		if (run && typeof run.cancel === "function") {
+			void run.cancel().catch(() => {});
 		}
-
-		const sessionId = this.config.resumeSessionId || crypto.randomUUID();
-		this.sessionInfo = {
-			sessionId,
-			startedAt: new Date(),
-			isRunning: true,
-		};
-
-		this.messages = [];
-		this.pendingResultMessage = null;
-		this.hasInitMessage = false;
-		this.lastAssistantText = null;
-		this.wasStopped = false;
-		this.startTimestampMs = Date.now();
-		this.lastUsage = {
-			inputTokens: 0,
-			outputTokens: 0,
-			cachedInputTokens: 0,
-		};
-		this.errorMessages = [];
-		this.emittedToolUseIds.clear();
-		this.fallbackOutputLines = [];
-		this.setupLogging(sessionId);
-		this.syncProjectMcpConfig();
-		this.enableCursorMcpServers();
-		this.syncProjectPermissionsConfig();
-
-		// Test/CI fallback: allow deterministic mock runs when cursor-agent cannot execute.
-		if (process.env.CYRUS_CURSOR_MOCK === "1") {
-			this.emitInitMessage();
-			this.handleEvent({
-				type: "message",
-				role: "assistant",
-				content: "Cursor mock session completed",
-			});
-			this.pendingResultMessage = this.createSuccessResultMessage(
-				"Cursor mock session completed",
-			);
-			this.finalizeSession();
-			return this.sessionInfo;
+		const agent = this.agent;
+		if (agent && typeof agent.close === "function") {
+			try {
+				agent.close();
+			} catch {}
 		}
-
-		const cursorPath = this.config.cursorPath || "cursor-agent";
-		const prompt = (stringPrompt ?? streamingInitialPrompt ?? "").trim();
-		const args = this.buildArgs(prompt);
-		const spawnLine = `[CursorRunner] Spawn: ${cursorPath} ${args.join(" ")}`;
-		console.log(spawnLine);
-		if (this.logStream) {
-			this.logStream.write(`${spawnLine}\n`);
+		if (this.sessionInfo) {
+			this.sessionInfo.isRunning = false;
 		}
-		const child = spawn(cursorPath, args, {
-			cwd: this.config.workingDirectory || cwd(),
-			env: this.buildEnv(),
-			stdio: ["ignore", "pipe", "pipe"],
-		});
+	}
 
-		this.process = child;
+	isRunning(): boolean {
+		return this.sessionInfo?.isRunning ?? false;
+	}
 
-		this.readlineInterface = createInterface({
-			input: child.stdout!,
-			crlfDelay: Infinity,
-		});
+	getMessages(): SDKMessage[] {
+		return [...this.messages];
+	}
 
-		this.readlineInterface.on("line", (line) => this.handleStdoutLine(line));
+	getFormatter(): IMessageFormatter {
+		return this.formatter;
+	}
 
-		child.stderr?.on("data", (data: Buffer) => {
-			const text = data.toString().trim();
-			if (!text) return;
-			this.errorMessages.push(text);
-		});
+	// ---------- SDK event handling ----------
 
-		let caughtError: unknown;
-		try {
-			await new Promise<void>((resolve, reject) => {
-				child.on("close", (code) => {
-					if (code === 0 || this.wasStopped) {
-						resolve();
-						return;
-					}
-					reject(new Error(`cursor-agent exited with code ${code}`));
+	private handleSdkEvent(event: CursorSDKMessage): void {
+		switch (event.type) {
+			case "system":
+				if (event.subtype === "init" && this.sessionInfo) {
+					this.sessionInfo.sessionId = event.agent_id;
+				}
+				this.emitInitMessage();
+				return;
+			case "assistant":
+				this.handleAssistantEvent(event);
+				return;
+			case "user":
+				this.flushAssistantTextBuffer();
+				this.handleUserEvent(event);
+				return;
+			case "tool_call":
+				this.flushAssistantTextBuffer();
+				this.handleToolCallEvent(event);
+				return;
+			case "thinking":
+				this.flushAssistantTextBuffer();
+				this.handleThinkingEvent(event);
+				return;
+			case "status":
+				this.flushAssistantTextBuffer();
+				this.handleStatusEvent(event);
+				return;
+			default:
+				return;
+		}
+	}
+
+	private handleAssistantEvent(event: CursorSDKAssistantMessage): void {
+		this.emitInitMessage();
+		const content = event.message?.content ?? [];
+		for (const block of content) {
+			if (!block || typeof block !== "object") continue;
+			if (block.type === "text" && typeof block.text === "string") {
+				if (block.text.length === 0) continue;
+				// Coalesce consecutive text deltas into one assistant message —
+				// the SDK streams partial text across multiple `assistant` events
+				// per turn. We flush before any non-text block (tool_use below or
+				// non-assistant event in handleSdkEvent) and at end of stream.
+				this.assistantTextBuffer += block.text;
+			} else if (block.type === "tool_use") {
+				this.flushAssistantTextBuffer();
+				const rawName = String(block.name || "Tool");
+				const lowered = rawName.toLowerCase();
+				let toolName = rawName;
+				let toolInput = (block.input ?? {}) as ToolInput;
+				// MCP tool_use blocks surface as name="mcp" — extract real id.
+				if (lowered === "mcp") {
+					const args = toolInput as Record<string, unknown>;
+					const provider =
+						typeof args.providerIdentifier === "string"
+							? args.providerIdentifier
+							: typeof args.server === "string"
+								? args.server
+								: "mcp";
+					const innerTool =
+						typeof args.toolName === "string"
+							? args.toolName
+							: typeof args.name === "string"
+								? args.name
+								: "tool";
+					toolName = `mcp__${provider}__${innerTool}`;
+					toolInput =
+						args.args && typeof args.args === "object"
+							? (args.args as ToolInput)
+							: ({} as ToolInput);
+				}
+				this.emitToolUse({
+					toolUseId: block.id,
+					toolName,
+					toolInput,
+					result: "",
+					isError: false,
 				});
-				child.on("error", reject);
-			});
-		} catch (error) {
-			caughtError = error;
-		} finally {
-			this.finalizeSession(caughtError);
+			}
 		}
-
-		return this.sessionInfo;
 	}
 
-	private buildCursorPermissionsConfig(): CursorPermissionsConfig {
-		// Cursor CLI permission tokens reference:
-		// https://cursor.com/docs/cli/reference/permissions
-		const allowedTools = this.config.allowedTools || [];
-		const disallowedTools = this.config.disallowedTools || [];
-		const workspacePath = this.config.workingDirectory;
+	private handleUserEvent(event: CursorSDKUserMessageEvent): void {
+		this.emitInitMessage();
+		const content = event.message?.content ?? [];
+		const text = content
+			.filter(
+				(b): b is { type: "text"; text: string } =>
+					Boolean(b) &&
+					typeof b === "object" &&
+					(b as { type?: string }).type === "text",
+			)
+			.map((b) => b.text)
+			.join("")
+			.trim();
+		if (!text) return;
 
-		const allow = [
-			...new Set(
-				allowedTools
-					.map(mapClaudeToolPatternToCursorPermission)
-					.filter((value): value is string => Boolean(value)),
-			),
-		];
-		const autoScopeDenyPermissions = new Set<string>();
-		if (workspacePath) {
-			if (allowedTools.some(isBroadReadToolPattern)) {
-				for (const permission of buildWorkspaceSiblingDenyPermissions(
-					workspacePath,
-					"Read",
-				)) {
-					autoScopeDenyPermissions.add(permission);
-				}
-				for (const permission of buildSystemRootDenyPermissions(
-					workspacePath,
-					"Read",
-				)) {
-					autoScopeDenyPermissions.add(permission);
-				}
-			}
-			if (allowedTools.some(isBroadWriteToolPattern)) {
-				for (const permission of buildWorkspaceSiblingDenyPermissions(
-					workspacePath,
-					"Write",
-				)) {
-					autoScopeDenyPermissions.add(permission);
-				}
-				for (const permission of buildSystemRootDenyPermissions(
-					workspacePath,
-					"Write",
-				)) {
-					autoScopeDenyPermissions.add(permission);
-				}
-			}
-		}
-
-		const mappedDisallowedPermissions = disallowedTools
-			.map(mapClaudeToolPatternToCursorPermission)
-			.filter((value): value is string => Boolean(value));
-		const deny = [
-			...new Set(
-				[...mappedDisallowedPermissions, ...autoScopeDenyPermissions].flat(),
-			),
-		];
-
-		return {
-			permissions: { allow, deny },
-		};
-	}
-
-	private buildCursorMcpServersConfig(): Record<string, CursorMcpServerConfig> {
-		const servers: Record<string, CursorMcpServerConfig> = {};
-		for (const [serverName, rawConfig] of Object.entries(
-			this.config.mcpConfig || {},
-		)) {
-			const configAny = rawConfig as Record<string, unknown>;
-			if (
-				typeof configAny.listTools === "function" ||
-				typeof configAny.callTool === "function"
-			) {
-				console.warn(
-					`[CursorRunner] Skipping MCP server '${serverName}' because in-process SDK server instances cannot be serialized to .cursor/mcp.json`,
-				);
-				continue;
-			}
-
-			const mapped: CursorMcpServerConfig = {};
-			if (typeof configAny.command === "string") {
-				mapped.command = configAny.command;
-			}
-			if (Array.isArray(configAny.args)) {
-				mapped.args = configAny.args;
-			}
-			if (
-				configAny.env &&
-				typeof configAny.env === "object" &&
-				!Array.isArray(configAny.env)
-			) {
-				mapped.env = configAny.env;
-			}
-			if (typeof configAny.cwd === "string") {
-				mapped.cwd = configAny.cwd;
-			}
-			if (typeof configAny.url === "string") {
-				mapped.url = configAny.url;
-			}
-			if (
-				configAny.headers &&
-				typeof configAny.headers === "object" &&
-				!Array.isArray(configAny.headers)
-			) {
-				mapped.headers = configAny.headers;
-			}
-			if (typeof configAny.timeout === "number") {
-				mapped.timeout = configAny.timeout;
-			}
-
-			if (!mapped.command && !mapped.url) {
-				console.warn(
-					`[CursorRunner] Skipping MCP server '${serverName}' because it has no serializable command/url transport`,
-				);
-				continue;
-			}
-
-			servers[serverName] = mapped;
-		}
-
-		return servers;
-	}
-
-	private syncProjectMcpConfig(): void {
-		const workspacePath = this.config.workingDirectory;
-		if (!workspacePath) {
-			return;
-		}
-
-		const inlineServers = this.buildCursorMcpServersConfig();
-		if (Object.keys(inlineServers).length === 0) {
-			return;
-		}
-
-		const cursorDir = join(workspacePath, ".cursor");
-		const configPath = join(cursorDir, "mcp.json");
-
-		let existingConfig: CursorMcpConfig = { mcpServers: {} };
-		try {
-			if (existsSync(configPath)) {
-				const parsed = JSON.parse(readFileSync(configPath, "utf8"));
-				if (parsed && typeof parsed === "object") {
-					existingConfig = parsed as CursorMcpConfig;
-				}
-			}
-		} catch {
-			// If existing config is malformed, overwrite with a valid mcpServers object.
-		}
-
-		const existingServers =
-			existingConfig.mcpServers &&
-			typeof existingConfig.mcpServers === "object" &&
-			!Array.isArray(existingConfig.mcpServers)
-				? (existingConfig.mcpServers as Record<string, CursorMcpServerConfig>)
-				: {};
-
-		const nextConfig: CursorMcpConfig = {
-			...existingConfig,
-			mcpServers: {
-				...existingServers,
-				...inlineServers,
+		const message: SDKUserMessage = {
+			type: "user",
+			message: {
+				role: "user",
+				content: [{ type: "text", text }],
 			},
+			parent_tool_use_id: null,
+			session_id: this.sessionInfo?.sessionId || "pending",
 		};
-
-		mkdirSync(cursorDir, { recursive: true });
-		const backupPath = existsSync(configPath)
-			? `${configPath}.cyrus-backup-${Date.now()}-${process.pid}`
-			: null;
-
-		try {
-			if (backupPath) {
-				renameSync(configPath, backupPath);
-			}
-			writeFileSync(
-				configPath,
-				`${JSON.stringify(nextConfig, null, "\t")}\n`,
-				"utf8",
-			);
-			this.mcpConfigRestoreState = {
-				configPath,
-				backupPath,
-			};
-		} catch (error) {
-			if (backupPath && existsSync(backupPath)) {
-				try {
-					renameSync(backupPath, configPath);
-				} catch {
-					// Best effort rollback; start() will surface the original failure.
-				}
-			}
-			throw error;
-		}
-
-		console.log(
-			`[CursorRunner] Synced project MCP servers at ${configPath} (servers=${Object.keys(nextConfig.mcpServers).length}, backup=${backupPath ? "yes" : "no"}; docs: ${CURSOR_MCP_CONFIG_DOCS_URL})`,
-		);
+		this.pushMessage(message);
 	}
 
-	private enableCursorMcpServers(): void {
-		const workspacePath = this.config.workingDirectory;
-		if (!workspacePath) {
-			return;
-		}
-
-		const mcpCommand = process.env.CURSOR_MCP_COMMAND || "agent";
-		const listResult = spawnSync(mcpCommand, ["mcp", "list"], {
-			cwd: workspacePath,
-			env: this.buildEnv(),
-			encoding: "utf8",
-		});
-
-		if (
-			(listResult.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT"
-		) {
-			console.warn(
-				`[CursorRunner] Skipping MCP enable preflight: '${mcpCommand}' command not found`,
-			);
-			return;
-		}
-
-		const discoveredServers =
-			(listResult.status ?? 1) === 0
-				? parseMcpServersFromCursorListOutput(
-						typeof listResult.stdout === "string" ? listResult.stdout : "",
-					)
-				: [];
-
-		if ((listResult.status ?? 1) !== 0 && !listResult.error) {
-			const detail =
-				typeof listResult.stderr === "string" && listResult.stderr.trim()
-					? listResult.stderr.trim()
-					: `exit ${listResult.status ?? "unknown"}`;
-			console.warn(
-				`[CursorRunner] MCP list preflight failed: '${mcpCommand} mcp list' (${detail})`,
-			);
-		}
-
-		// Cursor MCP enable preflight combines discovered servers and run-time inline config names.
-		// MCP location/reference: https://cursor.com/docs/context/mcp#configuration-locations
-		const inlineServers = Object.keys(this.config.mcpConfig || {});
-		const allServers = [
-			...new Set([...discoveredServers, ...inlineServers]),
-		].sort((a, b) => a.localeCompare(b));
-
-		for (const serverName of allServers) {
-			const enableResult = spawnSync(
-				mcpCommand,
-				["mcp", "enable", serverName],
-				{
-					cwd: workspacePath,
-					env: this.buildEnv(),
-					encoding: "utf8",
-				},
-			);
-
-			if (
-				(enableResult.error as NodeJS.ErrnoException | undefined)?.code ===
-				"ENOENT"
-			) {
-				console.warn(
-					`[CursorRunner] Failed enabling MCP server '${serverName}': '${mcpCommand}' command not found`,
-				);
-				return;
-			}
-
-			if ((enableResult.status ?? 1) !== 0 || enableResult.error) {
-				const detail = enableResult.error
-					? enableResult.error.message
-					: typeof enableResult.stderr === "string" &&
-							enableResult.stderr.trim()
-						? enableResult.stderr.trim()
-						: `exit ${enableResult.status ?? "unknown"}`;
-				console.warn(
-					`[CursorRunner] Failed enabling MCP server '${serverName}' via '${mcpCommand} mcp enable ${serverName}': ${detail}`,
-				);
-				continue;
-			}
-
-			console.log(
-				`[CursorRunner] Enabled MCP server '${serverName}' via '${mcpCommand} mcp enable ${serverName}'`,
-			);
-		}
-	}
-
-	private syncProjectPermissionsConfig(): void {
-		const workspacePath = this.config.workingDirectory;
-		if (!workspacePath) {
-			return;
-		}
-
-		const mappedPermissions = this.buildCursorPermissionsConfig();
-
-		const cursorDir = join(workspacePath, ".cursor");
-		const configPath = join(cursorDir, "cli.json");
-
-		let existingConfig: CursorPermissionsConfig = {
-			permissions: { allow: [], deny: [] },
-		};
-		try {
-			if (existsSync(configPath)) {
-				const parsed = JSON.parse(readFileSync(configPath, "utf8"));
-				if (parsed && typeof parsed === "object") {
-					existingConfig = parsed as CursorPermissionsConfig;
-				}
-			}
-		} catch {
-			// If existing config is malformed, overwrite with a valid permissions object.
-		}
-
-		const nextConfig: CursorPermissionsConfig = {
-			...existingConfig,
-			permissions: mappedPermissions.permissions,
-		};
-
-		mkdirSync(cursorDir, { recursive: true });
-		const backupPath = existsSync(configPath)
-			? `${configPath}.cyrus-backup-${Date.now()}-${process.pid}`
-			: null;
-
-		try {
-			if (backupPath) {
-				renameSync(configPath, backupPath);
-			}
-			writeFileSync(
-				configPath,
-				`${JSON.stringify(nextConfig, null, "\t")}\n`,
-				"utf8",
-			);
-			this.permissionsConfigRestoreState = {
-				configPath,
-				backupPath,
-			};
-		} catch (error) {
-			if (backupPath && existsSync(backupPath)) {
-				try {
-					renameSync(backupPath, configPath);
-				} catch {
-					// Best effort rollback; start() will surface the original failure.
-				}
-			}
-			throw error;
-		}
-
-		console.log(
-			`[CursorRunner] Synced project permissions at ${configPath} (allow=${nextConfig.permissions.allow.length}, deny=${nextConfig.permissions.deny.length}, backup=${backupPath ? "yes" : "no"}; docs: ${CURSOR_CLI_PERMISSIONS_DOCS_URL})`,
-		);
-	}
-
-	private restoreProjectPermissionsConfig(): void {
-		const restoreState = this.permissionsConfigRestoreState;
-		if (!restoreState) {
-			return;
-		}
-
-		try {
-			if (restoreState.backupPath) {
-				if (existsSync(restoreState.configPath)) {
-					unlinkSync(restoreState.configPath);
-				}
-				if (existsSync(restoreState.backupPath)) {
-					renameSync(restoreState.backupPath, restoreState.configPath);
-					console.log(
-						`[CursorRunner] Restored original project permissions at ${restoreState.configPath}`,
-					);
-				}
-				return;
-			}
-
-			if (existsSync(restoreState.configPath)) {
-				unlinkSync(restoreState.configPath);
-			}
-		} catch (error) {
-			const detail = error instanceof Error ? error.message : String(error);
-			console.warn(
-				`[CursorRunner] Failed to restore project permissions config at ${restoreState.configPath}: ${detail}`,
-			);
-		} finally {
-			this.permissionsConfigRestoreState = null;
-		}
-	}
-
-	private restoreProjectMcpConfig(): void {
-		const restoreState = this.mcpConfigRestoreState;
-		if (!restoreState) {
-			return;
-		}
-
-		try {
-			if (restoreState.backupPath) {
-				if (existsSync(restoreState.configPath)) {
-					unlinkSync(restoreState.configPath);
-				}
-				if (existsSync(restoreState.backupPath)) {
-					renameSync(restoreState.backupPath, restoreState.configPath);
-					console.log(
-						`[CursorRunner] Restored original project MCP config at ${restoreState.configPath}`,
-					);
-				}
-				return;
-			}
-
-			if (existsSync(restoreState.configPath)) {
-				unlinkSync(restoreState.configPath);
-			}
-		} catch (error) {
-			const detail = error instanceof Error ? error.message : String(error);
-			console.warn(
-				`[CursorRunner] Failed to restore project MCP config at ${restoreState.configPath}: ${detail}`,
-			);
-		} finally {
-			this.mcpConfigRestoreState = null;
-		}
-	}
-
-	private buildArgs(prompt: string): string[] {
-		const args: string[] = ["--print", "--output-format", "stream-json"];
-		const normalizedModel = normalizeCursorModel(this.config.model);
-
-		// needed or else it errors
-		args.push("--trust");
-
-		if (normalizedModel) {
-			args.push("--model", normalizedModel);
-		}
-
-		if (this.config.resumeSessionId) {
-			args.push("--resume", this.config.resumeSessionId);
-		}
-
-		if (this.config.workingDirectory) {
-			args.push("--workspace", this.config.workingDirectory);
-		}
-
-		if (this.config.sandbox) {
-			args.push("--sandbox", this.config.sandbox);
-		}
-
-		if (this.config.approveMcps ?? true) {
-			args.push("--approve-mcps");
-		}
-
-		if (prompt) {
-			args.push(prompt);
-		}
-
-		return args;
-	}
-
-	private buildEnv(): NodeJS.ProcessEnv {
-		const env: NodeJS.ProcessEnv = { ...process.env };
-		if (this.config.cursorApiKey) {
-			env.CURSOR_API_KEY = this.config.cursorApiKey;
-		}
-		return env;
-	}
-
-	private handleStdoutLine(line: string): void {
-		const trimmed = line.trim();
-		if (!trimmed) {
-			return;
-		}
-
-		if (this.logStream) {
-			this.logStream.write(`${trimmed}\n`);
-		}
-
-		const parsed = this.parseJsonLine(trimmed);
-		if (!parsed) {
-			this.fallbackOutputLines.push(trimmed);
-			return;
-		}
-
-		this.handleEvent(parsed);
-	}
-
-	private parseJsonLine(line: string): CursorJsonEvent | null {
-		if (!(line.startsWith("{") || line.startsWith("["))) {
-			return null;
-		}
-		try {
-			const parsed = JSON.parse(line);
-			if (!parsed || typeof parsed !== "object") {
-				return null;
-			}
-			return parsed as CursorJsonEvent;
-		} catch {
-			return null;
-		}
-	}
-
-	private handleEvent(event: CursorJsonEvent): void {
-		this.emit("streamEvent", event);
-
-		const eventObj = event as Record<string, unknown>;
-		const type = getStringValue(eventObj, "type");
-
-		if (!type) {
-			return;
-		}
-
-		if (
-			type === "init" ||
-			(type === "system" && getStringValue(eventObj, "subtype") === "init")
-		) {
-			const sessionId =
-				getStringValue(eventObj, "session_id") || this.sessionInfo?.sessionId;
-			if (sessionId && this.sessionInfo) {
-				this.sessionInfo.sessionId = sessionId;
-			}
-			this.emitInitMessage();
-			return;
-		}
-
-		if (type === "message") {
-			this.emitInitMessage();
-			this.handleMessageEvent(eventObj);
-			return;
-		}
-
-		if (type === "assistant") {
-			this.emitInitMessage();
-			const messageObj = eventObj.message;
-			const content =
-				messageObj && typeof messageObj === "object"
-					? extractTextFromMessageContent(
-							(messageObj as Record<string, unknown>).content,
-						)
-					: "";
-			if (content) {
-				this.handleMessageEvent({
-					role: "assistant",
-					content,
-				});
-			}
-			return;
-		}
-
-		if (type === "item.started" || type === "item.completed") {
-			this.emitInitMessage();
-			const item = eventObj.item;
-			if (item && typeof item === "object") {
-				this.handleItemEvent(type, item as Record<string, unknown>);
-			}
-			return;
-		}
-
-		if (type === "tool_call") {
-			this.emitInitMessage();
-			this.handleToolCallEvent(eventObj);
-			return;
-		}
-
-		if (type === "turn.completed" || type === "result") {
-			const usage = extractUsageFromEvent(eventObj);
-			if (usage) {
-				this.lastUsage = usage;
-			}
-			const stopReason = getStringValue(eventObj, "stop_reason");
-			if (stopReason?.toLowerCase().includes("max")) {
-				const result = this.createErrorResultMessage(
-					`Cursor turn limit reached: ${stopReason}`,
-				);
-				this.pendingResultMessage = result;
-			}
-			return;
-		}
-
-		if (type === "error") {
-			const message =
-				getStringValue(eventObj, "message") || "Cursor execution failed";
-			this.errorMessages.push(message);
-			this.pendingResultMessage = this.createErrorResultMessage(message);
-		}
-	}
-
-	private handleMessageEvent(event: Record<string, unknown>): void {
-		const role = getStringValue(event, "role");
-		const content = getStringValue(event, "content") || "";
-		if (!content) {
-			return;
-		}
-
-		if (role === "assistant") {
-			this.lastAssistantText = content;
-			const message: SDKAssistantMessage = {
-				type: "assistant",
-				message: createAssistantBetaMessage(content),
-				parent_tool_use_id: null,
-				uuid: crypto.randomUUID(),
-				session_id: this.sessionInfo?.sessionId || "pending",
-			};
-			this.pushMessage(message);
-			return;
-		}
-
-		if (role === "user") {
-			const message: SDKUserMessage = {
-				type: "user",
-				message: {
-					role: "user",
-					content: [{ type: "text", text: content }],
-				},
-				parent_tool_use_id: null,
-				session_id: this.sessionInfo?.sessionId || "pending",
-			};
-			this.pushMessage(message);
-		}
-	}
-
-	private handleItemEvent(type: string, item: Record<string, unknown>): void {
-		const projection = getProjectionForItem(item, this.config.workingDirectory);
-		if (!projection) {
-			return;
-		}
-
-		if (type === "item.started") {
+	private handleToolCallEvent(event: CursorSDKToolUseMessage): void {
+		this.emitInitMessage();
+		const projection = projectToolCall(event, this.config.workingDirectory);
+		if (event.status === "running") {
 			this.emitToolUse(projection);
 			return;
 		}
-
 		this.emitToolUse(projection);
 		this.emitToolResult(projection);
 	}
 
-	private handleToolCallEvent(event: Record<string, unknown>): void {
-		const projection = getProjectionForToolCallEvent(
-			event,
-			this.config.workingDirectory,
-		);
-		if (!projection) {
-			return;
-		}
+	private handleThinkingEvent(_event: CursorSDKThinkingMessage): void {
+		// cyrus-core's SDKAssistantMessage content blocks don't yet include
+		// "thinking"; intentionally drop these to avoid invalid shapes.
+	}
 
-		const subtype = getStringValue(event, "subtype") || "started";
-		if (subtype === "started") {
-			this.emitToolUse(projection);
-			return;
-		}
-
-		if (subtype === "completed" || subtype === "failed") {
-			this.emitToolUse(projection);
-			this.emitToolResult({
-				...projection,
-				isError: projection.isError || subtype === "failed",
-			});
+	private handleStatusEvent(event: CursorSDKStatusMessage): void {
+		if (event.status === "ERROR") {
+			const message = event.message || "Cursor session errored";
+			this.errorMessages.push(message);
+			this.pendingResultMessage = this.createErrorResultMessage(message);
+		} else if (event.status === "CANCELLED") {
+			this.pendingResultMessage = this.createErrorResultMessage(
+				"Cursor session cancelled",
+			);
+		} else if (event.status === "EXPIRED") {
+			this.pendingResultMessage = this.createErrorResultMessage(
+				"Cursor session expired",
+			);
 		}
 	}
 
-	private emitToolUse(projection: ToolProjection): void {
-		if (this.emittedToolUseIds.has(projection.toolUseId)) {
-			return;
+	// ---------- Permission artifacts ----------
+
+	private installPermissionsArtifacts(workspace: string): void {
+		const cursorDir = join(workspace, ".cursor");
+		mkdirSync(cursorDir, { recursive: true });
+
+		// 1. Permissions config (auto-deny is merged in by the helper). Pass
+		// the SDK-shaped MCP server map so the helper can derive a logical
+		// server name (e.g. "linear") from the command/url that the
+		// `beforeMCPExecution` payload exposes — patterns like
+		// `Mcp(linear:save_comment)` only match when we provide that lookup.
+		const sdkMcpServers = mapCyrusMcpToSdk(this.config.mcpConfig);
+		const cfg: CyrusPermissionsConfig = buildCyrusPermissionsConfig({
+			workspace,
+			allowedTools: this.config.allowedTools,
+			disallowedTools: this.config.disallowedTools,
+			mcpServers: sdkMcpServers,
+		});
+		writeFileSync(
+			join(cursorDir, "cyrus-permissions.json"),
+			`${JSON.stringify(cfg, null, "\t")}\n`,
+			"utf8",
+		);
+
+		// 2. Permission helper script (copied from package's bundled .mjs)
+		const helperDst = join(cursorDir, "cyrus-permission-check.mjs");
+		const helperSrc = this.locatePermissionCheckSource();
+		copyFileSync(helperSrc, helperDst);
+		try {
+			chmodSync(helperDst, 0o755);
+		} catch {}
+
+		// 3. Hooks config (back up any existing one)
+		const hooksPath = join(cursorDir, "hooks.json");
+		const existed = existsSync(hooksPath);
+		const backupPath = existed
+			? `${hooksPath}.cyrus-backup-${Date.now()}-${process.pid}`
+			: null;
+		if (existed && backupPath) {
+			renameSync(hooksPath, backupPath);
 		}
+		const hooksConfig = {
+			version: 1,
+			hooks: {
+				preToolUse: [
+					{ command: "./.cursor/cyrus-permission-check.mjs", failClosed: true },
+				],
+				beforeShellExecution: [
+					{ command: "./.cursor/cyrus-permission-check.mjs", failClosed: true },
+				],
+				beforeReadFile: [
+					{ command: "./.cursor/cyrus-permission-check.mjs", failClosed: true },
+				],
+				beforeMCPExecution: [
+					{ command: "./.cursor/cyrus-permission-check.mjs", failClosed: true },
+				],
+			},
+		};
+		writeFileSync(
+			hooksPath,
+			`${JSON.stringify(hooksConfig, null, "\t")}\n`,
+			"utf8",
+		);
+		this.hooksRestoreState = { hooksPath, backupPath };
+		this.permissionsArtifactsInstalled = true;
+
+		console.log(
+			`[CursorRunner] Installed Cyrus permission hooks at ${hooksPath} (allow=${cfg.allow.length}, deny=${cfg.deny.length}, backup=${backupPath ? "yes" : "no"})`,
+		);
+
+		// 4. Sandbox policy file (only when sandbox is enabled). Cursor's
+		// `local.sandboxOptions.enabled: true` engages Apple Seatbelt /
+		// Linux Landlock; the policy below extends the default
+		// `workspace_readwrite` profile with allow/deny lists translated
+		// from the Cyrus / Claude SandboxSettings shape.
+		this.installSandboxArtifacts(workspace);
+	}
+
+	private installSandboxArtifacts(workspace: string): void {
+		const sandboxJson = buildCursorSandboxJson({
+			workspace,
+			sandboxSettings: this.config.sandboxSettings,
+			egressCaCertPath: this.config.egressCaCertPath,
+			additionalReadwritePaths: this.config.allowedDirectories ?? [],
+		});
+		if (!sandboxJson) return;
+
+		const cursorDir = join(workspace, ".cursor");
+		const sandboxPath = join(cursorDir, "sandbox.json");
+		const existed = existsSync(sandboxPath);
+		const backupPath = existed
+			? `${sandboxPath}.cyrus-backup-${Date.now()}-${process.pid}`
+			: null;
+		if (existed && backupPath) {
+			renameSync(sandboxPath, backupPath);
+		}
+		writeFileSync(
+			sandboxPath,
+			`${JSON.stringify(sandboxJson, null, "\t")}\n`,
+			"utf8",
+		);
+		this.sandboxRestoreState = { sandboxPath, backupPath };
+
+		// Apply env vars on `process.env` so any child shell process spawned
+		// by the SDK inherits them. We snapshot the previous values and
+		// restore them in `uninstallSandboxArtifacts`.
+		const env = buildSandboxEnv({
+			sandboxSettings: this.config.sandboxSettings,
+			egressCaCertPath: this.config.egressCaCertPath,
+		});
+		const restore = new Map<string, string | undefined>();
+		for (const k of Object.keys(env)) {
+			restore.set(k, process.env[k]);
+			process.env[k] = env[k];
+		}
+		this.sandboxEnvRestoreState = restore;
+
+		console.log(
+			`[CursorRunner] Installed Cursor sandbox policy at ${sandboxPath} (allowReadwrite=${sandboxJson.additionalReadwritePaths.length}, allowReadonly=${sandboxJson.additionalReadonlyPaths.length}, networkAllow=${sandboxJson.networkPolicy.allow.length}, backup=${backupPath ? "yes" : "no"})`,
+		);
+	}
+
+	private uninstallSandboxArtifacts(): void {
+		const restore = this.sandboxRestoreState;
+		if (restore) {
+			try {
+				if (existsSync(restore.sandboxPath)) unlinkSync(restore.sandboxPath);
+				if (restore.backupPath && existsSync(restore.backupPath)) {
+					renameSync(restore.backupPath, restore.sandboxPath);
+				}
+			} catch (error) {
+				const detail = error instanceof Error ? error.message : String(error);
+				console.warn(
+					`[CursorRunner] Failed to restore sandbox.json at ${restore.sandboxPath}: ${detail}`,
+				);
+			}
+			this.sandboxRestoreState = null;
+		}
+		const envRestore = this.sandboxEnvRestoreState;
+		if (envRestore) {
+			for (const [k, v] of envRestore.entries()) {
+				if (v === undefined) {
+					delete process.env[k];
+				} else {
+					process.env[k] = v;
+				}
+			}
+			this.sandboxEnvRestoreState = null;
+		}
+	}
+
+	private locatePermissionCheckSource(): string {
+		const here = dirname(fileURLToPath(import.meta.url));
+		// When built, the .mjs sits next to the compiled JS in dist/.
+		const built = join(here, "permission-check.mjs");
+		if (existsSync(built)) return built;
+		// During tests against src/, fall back to the source file.
+		const fromSrc = join(here, "permission-check.mjs");
+		if (existsSync(fromSrc)) return fromSrc;
+		// Last-ditch: package root.
+		const pkgRoot = join(here, "..", "src", "permission-check.mjs");
+		if (existsSync(pkgRoot)) return pkgRoot;
+		throw new Error(
+			"[CursorRunner] could not locate cyrus permission-check.mjs helper",
+		);
+	}
+
+	private uninstallPermissionsArtifacts(): void {
+		this.uninstallSandboxArtifacts();
+		if (!this.permissionsArtifactsInstalled) return;
+		const workspace = resolve(this.config.workingDirectory || cwd());
+		const cursorDir = join(workspace, ".cursor");
+		const cfgPath = join(cursorDir, "cyrus-permissions.json");
+		const helperPath = join(cursorDir, "cyrus-permission-check.mjs");
+
+		try {
+			if (existsSync(cfgPath)) unlinkSync(cfgPath);
+		} catch {}
+		try {
+			if (existsSync(helperPath)) unlinkSync(helperPath);
+		} catch {}
+
+		const hooks = this.hooksRestoreState;
+		if (hooks) {
+			try {
+				if (existsSync(hooks.hooksPath)) unlinkSync(hooks.hooksPath);
+				if (hooks.backupPath && existsSync(hooks.backupPath)) {
+					renameSync(hooks.backupPath, hooks.hooksPath);
+				}
+			} catch (error) {
+				const detail = error instanceof Error ? error.message : String(error);
+				console.warn(
+					`[CursorRunner] Failed to restore hooks at ${hooks.hooksPath}: ${detail}`,
+				);
+			}
+		}
+
+		this.hooksRestoreState = null;
+		this.permissionsArtifactsInstalled = false;
+	}
+
+	// ---------- Internal helpers ----------
+
+	private emitToolUse(projection: ToolProjection): void {
+		if (this.emittedToolUseIds.has(projection.toolUseId)) return;
 		this.emittedToolUseIds.add(projection.toolUseId);
 		const message: SDKAssistantMessage = {
 			type: "assistant",
@@ -1705,7 +984,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 			type: "user",
 			message: createUserToolResultMessage(
 				projection.toolUseId,
-				projection.result,
+				projection.result || "Tool completed",
 				projection.isError,
 			),
 			parent_tool_use_id: projection.toolUseId,
@@ -1714,21 +993,29 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		this.pushMessage(message);
 	}
 
+	private pushAssistantText(text: string): void {
+		const message: SDKAssistantMessage = {
+			type: "assistant",
+			message: createAssistantTextMessage(text),
+			parent_tool_use_id: null,
+			uuid: crypto.randomUUID(),
+			session_id: this.sessionInfo?.sessionId || "pending",
+		};
+		this.pushMessage(message);
+	}
+
+	private flushAssistantTextBuffer(): void {
+		const text = this.assistantTextBuffer;
+		this.assistantTextBuffer = "";
+		if (text.trim().length === 0) return;
+		this.lastAssistantText = text;
+		this.pushAssistantText(text);
+	}
+
 	private emitInitMessage(): void {
-		if (this.hasInitMessage) {
-			return;
-		}
+		if (this.hasInitMessage) return;
 		this.hasInitMessage = true;
 		const sessionId = this.sessionInfo?.sessionId || crypto.randomUUID();
-		const permissionModeByCursorConfig: Record<
-			NonNullable<CursorRunnerConfig["askForApproval"]>,
-			SDKSystemInitMessage["permissionMode"]
-		> = {
-			never: "dontAsk",
-			"on-request": "default",
-			"on-failure": "default",
-			untrusted: "default",
-		};
 		const initMessage: SDKSystemInitMessage = {
 			type: "system",
 			subtype: "init",
@@ -1737,9 +1024,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 			tools: this.config.allowedTools || [],
 			mcp_servers: [],
 			model: this.config.model || "gpt-5",
-			permissionMode: this.config.askForApproval
-				? permissionModeByCursorConfig[this.config.askForApproval]
-				: "default",
+			permissionMode: "default",
 			apiKeySource: this.config.cursorApiKey ? "user" : "project",
 			claude_code_version: "cursor-agent",
 			slash_commands: [],
@@ -1764,7 +1049,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 			result,
 			stop_reason: null,
 			total_cost_usd: 0,
-			usage: createResultUsage(this.lastUsage),
+			usage: createResultUsage(this.tokenTotals),
 			modelUsage: {},
 			permission_denials: [],
 			uuid: crypto.randomUUID(),
@@ -1784,7 +1069,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 			errors: [errorMessage],
 			stop_reason: null,
 			total_cost_usd: 0,
-			usage: createResultUsage(this.lastUsage),
+			usage: createResultUsage(this.tokenTotals),
 			modelUsage: {},
 			permission_denials: [],
 			uuid: crypto.randomUUID(),
@@ -1801,24 +1086,26 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		try {
 			const logsDir = join(this.config.cyrusHome, "logs");
 			mkdirSync(logsDir, { recursive: true });
-			this.logStream = createWriteStream(
+			const stream = createWriteStream(
 				join(logsDir, `cursor-${sessionId}.jsonl`),
 				{ flags: "a" },
 			);
+			stream.on("error", () => {
+				// Swallow — logging is best-effort and must not crash the runner.
+			});
+			this.logStream = stream;
 		} catch {
 			this.logStream = null;
 		}
 	}
 
 	private finalizeSession(error?: unknown): void {
-		if (!this.sessionInfo) {
-			return;
-		}
+		if (!this.sessionInfo) return;
 
 		this.emitInitMessage();
+		this.flushAssistantTextBuffer();
 		this.sessionInfo.isRunning = false;
-		this.restoreProjectMcpConfig();
-		this.restoreProjectPermissionsConfig();
+		this.uninstallPermissionsArtifacts();
 
 		let resultMessage: SDKResultMessage;
 		if (this.pendingResultMessage) {
@@ -1830,11 +1117,8 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 				"Cursor execution failed";
 			resultMessage = this.createErrorResultMessage(message);
 		} else {
-			const fallbackOutput = this.fallbackOutputLines.join("\n").trim();
 			resultMessage = this.createSuccessResultMessage(
-				this.lastAssistantText ||
-					fallbackOutput ||
-					"Cursor session completed successfully",
+				this.lastAssistantText || "Cursor session completed successfully",
 			);
 		}
 
@@ -1853,37 +1137,14 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 	}
 
 	private cleanupRuntimeState(): void {
-		if (this.readlineInterface) {
-			this.readlineInterface.close();
-			this.readlineInterface = null;
-		}
 		if (this.logStream) {
-			this.logStream.end();
+			try {
+				this.logStream.end();
+			} catch {}
 			this.logStream = null;
 		}
-		this.process = null;
+		this.currentRun = null;
+		this.agent = null;
 		this.pendingResultMessage = null;
-	}
-
-	stop(): void {
-		this.wasStopped = true;
-		if (this.process && !this.process.killed) {
-			this.process.kill();
-		}
-		if (this.sessionInfo) {
-			this.sessionInfo.isRunning = false;
-		}
-	}
-
-	isRunning(): boolean {
-		return this.sessionInfo?.isRunning ?? false;
-	}
-
-	getMessages(): SDKMessage[] {
-		return [...this.messages];
-	}
-
-	getFormatter(): IMessageFormatter {
-		return this.formatter;
 	}
 }

@@ -42,7 +42,7 @@ export interface GitHubEventTransportEvents {
  * Processed GitHub webhook event that is emitted to listeners
  */
 export interface GitHubWebhookEvent {
-	/** The GitHub event type (e.g., 'issue_comment', 'pull_request_review_comment', 'pull_request_review') */
+	/** The GitHub event type (e.g., 'issue_comment', 'pull_request_review_comment', 'pull_request_review', 'push') */
 	eventType: GitHubEventType;
 	/** Unique webhook delivery ID */
 	deliveryId: string;
@@ -50,7 +50,8 @@ export interface GitHubWebhookEvent {
 	payload:
 		| GitHubIssueCommentPayload
 		| GitHubPullRequestReviewCommentPayload
-		| GitHubPullRequestReviewPayload;
+		| GitHubPullRequestReviewPayload
+		| GitHubPushPayload;
 	/** GitHub installation token forwarded from CYHOST (1-hour expiry) */
 	installationToken?: string;
 }
@@ -61,7 +62,27 @@ export interface GitHubWebhookEvent {
 export type GitHubEventType =
 	| "issue_comment"
 	| "pull_request_review_comment"
-	| "pull_request_review";
+	| "pull_request_review"
+	| "push";
+
+/**
+ * Comment-related GitHub event types (excludes push)
+ */
+export type GitHubCommentEventType = Exclude<GitHubEventType, "push">;
+
+/**
+ * Comment/review webhook event (excludes push events).
+ * Used by utility functions that expect a comment-bearing payload.
+ */
+export interface GitHubCommentWebhookEvent {
+	eventType: GitHubCommentEventType;
+	deliveryId: string;
+	payload:
+		| GitHubIssueCommentPayload
+		| GitHubPullRequestReviewCommentPayload
+		| GitHubPullRequestReviewPayload;
+	installationToken?: string;
+}
 
 // ============================================================================
 // GitHub Webhook Payload Types
@@ -223,6 +244,43 @@ export interface GitHubPullRequestReviewPayload {
 	review: GitHubReview;
 	pull_request: GitHubPullRequest;
 	repository: GitHubRepository;
+	sender: GitHubUser;
+	installation?: GitHubInstallation;
+}
+
+/**
+ * Commit object within a push payload (minimal)
+ * @see https://docs.github.com/en/webhooks/webhook-events-and-payloads#push
+ */
+export interface GitHubPushCommit {
+	id: string;
+	message: string;
+	timestamp: string;
+	author: { name: string; email: string; username?: string };
+	url: string;
+	added: string[];
+	removed: string[];
+	modified: string[];
+}
+
+/**
+ * Payload for push webhook events
+ * @see https://docs.github.com/en/webhooks/webhook-events-and-payloads#push
+ */
+export interface GitHubPushPayload {
+	/** Push events don't have an action field, but we add a synthetic one for consistency */
+	action?: undefined;
+	ref: string;
+	before: string;
+	after: string;
+	created: boolean;
+	deleted: boolean;
+	forced: boolean;
+	compare: string;
+	commits: GitHubPushCommit[];
+	head_commit: GitHubPushCommit | null;
+	repository: GitHubRepository;
+	pusher: { name: string; email: string };
 	sender: GitHubUser;
 	installation?: GitHubInstallation;
 }

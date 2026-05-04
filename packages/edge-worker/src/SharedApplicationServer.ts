@@ -335,7 +335,7 @@ export class SharedApplicationServer {
 	 * Get the webhook URL
 	 */
 	getWebhookUrl(): string {
-		return `http://${this.host}:${this.port}/webhook`;
+		return `http://${this.host}:${this.port}/linear-webhook`;
 	}
 
 	/**

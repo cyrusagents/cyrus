@@ -1,6 +1,26 @@
 // Logging
 
-export type { ILogger, LogContext } from "./logging/index.js";
+// Error reporting
+export type {
+	ErrorReporter,
+	ErrorReporterContext,
+	ErrorReporterLogAttributes,
+	ErrorReporterLogLevel,
+	ErrorReporterSeverity,
+} from "./error-reporting/index.js";
+export {
+	getGlobalErrorReporter,
+	getGlobalErrorTags,
+	NoopErrorReporter,
+	resetGlobalErrorReporter,
+	setGlobalErrorReporter,
+	setGlobalErrorTags,
+} from "./error-reporting/index.js";
+export type {
+	ILogger,
+	LogContext,
+	LogEventAttributes,
+} from "./logging/index.js";
 export { createLogger, LogLevel } from "./logging/index.js";
 
 // export { Session } from './Session.js'
@@ -149,6 +169,7 @@ export {
 	isIssueDeletedWebhook,
 	isIssueNewCommentWebhook,
 	isIssueStateChangeWebhook,
+	isIssueStateIdUpdateWebhook,
 	isIssueTitleOrDescriptionUpdateWebhook,
 	isIssueUnassignedEvent,
 	isIssueUnassignedWebhook,

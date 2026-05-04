@@ -146,6 +146,13 @@ export class CursorMessageFormatter implements IMessageFormatter {
 			return path;
 		}
 
+		// SDK tool calls also use file_path (Claude convention).
+		const filePath =
+			typeof input.file_path === "string" ? input.file_path : null;
+		if (filePath) {
+			return filePath;
+		}
+
 		const url = typeof input.url === "string" ? input.url : null;
 		if (url) {
 			return url;

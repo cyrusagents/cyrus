@@ -113,7 +113,7 @@ export class GitHubMessageTranslator
 
 		// Build platform data
 		const platformData: GitHubSessionStartPlatformData = {
-			eventType: event.eventType,
+			eventType: "issue_comment",
 			repository: this.buildRepositoryRef(repository),
 			issue: this.buildIssueRef(issue),
 			pullRequest: issue.pull_request
@@ -169,7 +169,7 @@ export class GitHubMessageTranslator
 
 		// Build platform data
 		const platformData: GitHubSessionStartPlatformData = {
-			eventType: event.eventType,
+			eventType: "pull_request_review_comment",
 			repository: this.buildRepositoryRef(repository),
 			pullRequest: this.buildPullRequestRef(pull_request),
 			comment: this.buildCommentRef(comment),
@@ -243,7 +243,7 @@ export class GitHubMessageTranslator
 		const sessionKey = `${repository.full_name}#${issue.number}`;
 
 		const platformData: GitHubUserPromptPlatformData = {
-			eventType: event.eventType,
+			eventType: "issue_comment",
 			repository: this.buildRepositoryRef(repository),
 			comment: this.buildCommentRef(comment),
 			installationToken: event.installationToken,
@@ -287,7 +287,7 @@ export class GitHubMessageTranslator
 		const sessionKey = `${repository.full_name}#${pull_request.number}`;
 
 		const platformData: GitHubUserPromptPlatformData = {
-			eventType: event.eventType,
+			eventType: "pull_request_review_comment",
 			repository: this.buildRepositoryRef(repository),
 			comment: this.buildCommentRef(comment),
 			installationToken: event.installationToken,
@@ -332,7 +332,7 @@ export class GitHubMessageTranslator
 		const workItemIdentifier = `${repository.full_name}#${pull_request.number}`;
 
 		const platformData: GitHubSessionStartPlatformData = {
-			eventType: event.eventType,
+			eventType: "pull_request_review",
 			repository: this.buildRepositoryRef(repository),
 			pullRequest: this.buildPullRequestRef(pull_request),
 			comment: this.buildReviewAsCommentRef(review),
@@ -379,7 +379,7 @@ export class GitHubMessageTranslator
 		const sessionKey = `${repository.full_name}#${pull_request.number}`;
 
 		const platformData: GitHubUserPromptPlatformData = {
-			eventType: event.eventType,
+			eventType: "pull_request_review",
 			repository: this.buildRepositoryRef(repository),
 			comment: this.buildReviewAsCommentRef(review),
 			installationToken: event.installationToken,

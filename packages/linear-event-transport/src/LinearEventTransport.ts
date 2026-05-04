@@ -29,8 +29,9 @@ export declare interface LinearEventTransport {
  * This class implements IAgentEventTransport to provide a platform-agnostic
  * interface for handling Linear webhooks with Linear-specific verification.
  *
- * It registers a POST /webhook endpoint with a Fastify server
- * and verifies incoming webhooks using either:
+ * It registers a POST /linear-webhook endpoint with a Fastify server, plus
+ * a POST /webhook alias retained for backward compatibility (deprecated).
+ * Incoming webhooks are verified using either:
  * 1. "direct" mode: Verifies Linear's webhook signature
  * 2. "proxy" mode: Verifies Bearer token authentication
  *
@@ -72,33 +73,52 @@ export class LinearEventTransport
 	}
 
 	/**
-	 * Register the /webhook endpoint with the Fastify server
+	 * Register the /linear-webhook endpoint (plus the deprecated /webhook alias)
+	 * with the Fastify server.
 	 */
 	register(): void {
+		const handler = async (
+			request: FastifyRequest,
+			reply: FastifyReply,
+		): Promise<void> => {
+			try {
+				// Verify based on mode
+				if (this.config.verificationMode === "direct") {
+					await this.handleDirectWebhook(request, reply);
+				} else {
+					await this.handleProxyWebhook(request, reply);
+				}
+			} catch (error) {
+				const err = new Error("Webhook error");
+				if (error instanceof Error) {
+					err.cause = error;
+				}
+				this.logger.error("Webhook error", err);
+				this.emit("error", err);
+				reply.code(500).send({ error: "Internal server error" });
+			}
+		};
+
+		this.config.fastifyServer.post("/linear-webhook", handler);
+
+		// Deprecated alias — retained so existing Linear webhook configurations
+		// continue to deliver while users migrate to /linear-webhook.
+		let deprecationWarned = false;
 		this.config.fastifyServer.post(
 			"/webhook",
 			async (request: FastifyRequest, reply: FastifyReply) => {
-				try {
-					// Verify based on mode
-					if (this.config.verificationMode === "direct") {
-						await this.handleDirectWebhook(request, reply);
-					} else {
-						await this.handleProxyWebhook(request, reply);
-					}
-				} catch (error) {
-					const err = new Error("Webhook error");
-					if (error instanceof Error) {
-						err.cause = error;
-					}
-					this.logger.error("Webhook error", err);
-					this.emit("error", err);
-					reply.code(500).send({ error: "Internal server error" });
+				if (!deprecationWarned) {
+					deprecationWarned = true;
+					this.logger.warn(
+						"POST /webhook is deprecated; update your Linear webhook URL to use /linear-webhook",
+					);
 				}
+				await handler(request, reply);
 			},
 		);
 
 		this.logger.info(
-			`Registered POST /webhook endpoint (${this.config.verificationMode} mode)`,
+			`Registered POST /linear-webhook endpoint (${this.config.verificationMode} mode); POST /webhook retained as deprecated alias`,
 		);
 	}
 

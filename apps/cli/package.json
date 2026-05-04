@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-ai",
-	"version": "0.2.48",
+	"version": "0.2.51",
 	"description": "AI-powered Linear issue automation using Claude",
 	"main": "dist/src/app.js",
 	"types": "dist/src/app.d.ts",
@@ -41,6 +41,7 @@
 	"license": "MIT",
 	"dependencies": {
 		"@linear/sdk": "^64.0.0",
+		"@sentry/node": "^9.47.1",
 		"commander": "^14.0.2",
 		"cyrus-claude-runner": "workspace:*",
 		"cyrus-cloudflare-tunnel-client": "workspace:*",

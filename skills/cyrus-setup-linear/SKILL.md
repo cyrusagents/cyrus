@@ -79,7 +79,7 @@ agent-browser fill "input[name='redirectUrls']" "<CYRUS_BASE_URL>/callback"
 
 Enable webhooks and fill webhook URL:
 ```bash
-agent-browser fill "input[name='webhookUrl']" "<CYRUS_BASE_URL>/webhook"
+agent-browser fill "input[name='webhookUrl']" "<CYRUS_BASE_URL>/linear-webhook"
 ```
 
 Check the required event types:
@@ -114,7 +114,7 @@ Guide the user through manual creation:
 >    - **Developer name:** Your name or org
 >    - **Developer URL:** `https://github.com/ceedaragents/cyrus`
 >    - **Redirect callback URLs:** `<CYRUS_BASE_URL>/callback`
->    - **Webhook URL:** `<CYRUS_BASE_URL>/webhook`
+>    - **Webhook URL:** `<CYRUS_BASE_URL>/linear-webhook`
 >    - **Webhook:** ✓ enabled
 >    - **Event types:** ✓ Agent session events, ✓ Inbox notifications, ✓ Permission changes, ✓ Issues
 >    - **Public:** ✗ leave disabled (this is a private self-hosted app)

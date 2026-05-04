@@ -97,6 +97,13 @@ export class ChatSessionHandler<TEvent> {
 	private threadSessions: Map<string, string> = new Map();
 	private deps: ChatSessionHandlerDeps;
 	private logger: ILogger;
+	// FIFO queue of events awaiting a reply, keyed by sessionId. Each entry is
+	// enqueued when a new prompt (initial/resume/follow-up-inject) is sent to
+	// the runner, and consumed when the corresponding `result` message arrives
+	// on the runner's message stream. This decouples reply posting from
+	// `startStreaming()` resolution, which never resolves when warm sessions
+	// hold the streaming prompt open across turns.
+	private pendingReplyEvents: Map<string, TEvent[]> = new Map();
 
 	constructor(
 		adapter: ChatPlatformAdapter<TEvent>,
@@ -154,6 +161,7 @@ export class ChatSessionHandler<TEvent> {
 						this.logger.info(
 							`Injecting follow-up prompt into running session ${existingSessionId} (thread ${threadKey})`,
 						);
+						this.enqueueReply(existingSessionId, event);
 						existingRunner.addStreamMessage(taskInstructions);
 					} else {
 						// Runner doesn't support streaming input or isn't in streaming mode — notify user
@@ -280,28 +288,42 @@ export class ChatSessionHandler<TEvent> {
 			);
 
 			// Start in streaming mode if supported (allows follow-up message injection),
-			// otherwise fall back to non-streaming start
-			try {
-				let sessionInfo: AgentSessionInfo;
-				if (runner.supportsStreamingInput && runner.startStreaming) {
-					sessionInfo = await runner.startStreaming(userPrompt);
-				} else {
-					sessionInfo = await runner.start(userPrompt);
-				}
-				this.logger.info(
-					`${this.adapter.platformName} session started: ${sessionInfo.sessionId}`,
-				);
-
-				// When session completes, post the reply back
-				await this.adapter.postReply(event, runner);
-			} catch (error) {
-				this.logger.error(
-					`${this.adapter.platformName} session error for event ${eventId}`,
-					error instanceof Error ? error : new Error(String(error)),
-				);
-			} finally {
-				await this.deps.onStateChange();
-			}
+			// otherwise fall back to non-streaming start.
+			//
+			// Reply posting happens from handleAgentMessage() when a `result`
+			// message arrives on the runner's stream — we do NOT await turn
+			// completion here, because with warm sessions the streaming prompt
+			// stays open and the start() promise doesn't resolve until the
+			// whole session ends.
+			this.enqueueReply(sessionId, event);
+			const startPromise =
+				runner.supportsStreamingInput && runner.startStreaming
+					? runner.startStreaming(userPrompt)
+					: runner.start(userPrompt);
+			startPromise
+				.then((sessionInfo: AgentSessionInfo) => {
+					this.logger.info(
+						`${this.adapter.platformName} session started: ${sessionInfo.sessionId}`,
+					);
+				})
+				.catch((error: unknown) => {
+					this.logger.error(
+						`${this.adapter.platformName} session error for event ${eventId}`,
+						error instanceof Error ? error : new Error(String(error)),
+					);
+					// Runner died before emitting a final `result`. Drop any
+					// still-queued reply events for this session so a later
+					// resumeSession() doesn't pair them with a future turn.
+					this.clearPendingReplies(sessionId);
+				})
+				.finally(() => {
+					this.deps.onStateChange().catch((error: unknown) => {
+						this.logger.error(
+							`onStateChange failed after ${this.adapter.platformName} session ${sessionId}`,
+							error instanceof Error ? error : new Error(String(error)),
+						);
+					});
+				});
 		} catch (error) {
 			this.logger.error(
 				`Failed to process ${this.adapter.platformName} webhook`,
@@ -364,35 +386,91 @@ export class ChatSessionHandler<TEvent> {
 		const runner = this.deps.createRunner(runnerConfig);
 		this.sessionManager.addAgentRunner(sessionId, runner);
 
-		try {
-			let sessionInfo: AgentSessionInfo;
-			if (runner.supportsStreamingInput && runner.startStreaming) {
-				sessionInfo = await runner.startStreaming(taskInstructions);
-			} else {
-				sessionInfo = await runner.start(taskInstructions);
-			}
-			this.logger.info(
-				`${this.adapter.platformName} session resumed: ${sessionInfo.sessionId} (was ${resumeSessionId})`,
-			);
-
-			await this.adapter.postReply(event, runner);
-		} catch (error) {
-			this.logger.error(
-				`${this.adapter.platformName} resume session error for ${sessionId}`,
-				error instanceof Error ? error : new Error(String(error)),
-			);
-		}
+		// Reply posting is driven by `result` messages on the runner's stream
+		// (see handleAgentMessage). We must not await turn completion here —
+		// warm sessions hold the streaming prompt open across turns so the
+		// start() promise only resolves when the whole session ends.
+		this.enqueueReply(sessionId, event);
+		const startPromise =
+			runner.supportsStreamingInput && runner.startStreaming
+				? runner.startStreaming(taskInstructions)
+				: runner.start(taskInstructions);
+		startPromise
+			.then((sessionInfo: AgentSessionInfo) => {
+				this.logger.info(
+					`${this.adapter.platformName} session resumed: ${sessionInfo.sessionId} (was ${resumeSessionId})`,
+				);
+			})
+			.catch((error: unknown) => {
+				this.logger.error(
+					`${this.adapter.platformName} resume session error for ${sessionId}`,
+					error instanceof Error ? error : new Error(String(error)),
+				);
+				this.clearPendingReplies(sessionId);
+			});
 	}
 
 	/**
 	 * Handle agent messages for chat sessions.
-	 * Routes to the dedicated AgentSessionManager.
+	 * Routes to the dedicated AgentSessionManager, and posts a reply when the
+	 * SDK emits a `result` message (signalling turn completion).
 	 */
 	private async handleAgentMessage(
 		sessionId: string,
 		message: SDKMessage,
 	): Promise<void> {
 		await this.sessionManager.handleClaudeMessage(sessionId, message);
+
+		if (message.type === "result") {
+			const event = this.dequeueReply(sessionId);
+			const runner = this.sessionManager.getAgentRunner(sessionId);
+			if (event && runner) {
+				try {
+					await this.adapter.postReply(event, runner);
+				} catch (error) {
+					this.logger.error(
+						`Failed to post ${this.adapter.platformName} reply for session ${sessionId}`,
+						error instanceof Error ? error : new Error(String(error)),
+					);
+				}
+			} else if (!event) {
+				this.logger.warn(
+					`Received result for session ${sessionId} with no pending reply event — nothing to post`,
+				);
+			}
+		}
+	}
+
+	private enqueueReply(sessionId: string, event: TEvent): void {
+		const queue = this.pendingReplyEvents.get(sessionId) ?? [];
+		queue.push(event);
+		this.pendingReplyEvents.set(sessionId, queue);
+	}
+
+	private dequeueReply(sessionId: string): TEvent | undefined {
+		const queue = this.pendingReplyEvents.get(sessionId);
+		if (!queue || queue.length === 0) return undefined;
+		const event = queue.shift();
+		if (queue.length === 0) {
+			this.pendingReplyEvents.delete(sessionId);
+		}
+		return event;
+	}
+
+	/**
+	 * Discard all queued reply events for a session. Called when the runner
+	 * rejects before emitting a final `result` — without this, a later
+	 * resumeSession() on the same sessionId would pair the stale event with
+	 * the first `result` of the new runner and shift all subsequent replies
+	 * by one turn.
+	 */
+	private clearPendingReplies(sessionId: string): void {
+		const queue = this.pendingReplyEvents.get(sessionId);
+		if (!queue || queue.length === 0) return;
+		this.logger.warn(
+			`Discarding ${queue.length} pending ${this.adapter.platformName} reply event(s) for session ${sessionId} after runner error`,
+		);
+		this.pendingReplyEvents.delete(sessionId);
 	}
 
 	/**

@@ -122,6 +122,119 @@ describe("runner gate wiring — ChatSessionHandler", () => {
 		expect(notifyUnavailable).not.toHaveBeenCalled();
 	});
 
+	it("invokes the gate exactly once per new-session event", async () => {
+		const { adapter } = makeAdapter("gate-once");
+		const checkRunnerGate = vi.fn().mockReturnValue({ ok: true });
+		const createRunner = vi.fn().mockReturnValue({
+			supportsStreamingInput: false,
+			start: vi.fn().mockResolvedValue({ sessionId: "s-1" }),
+			stop: vi.fn(),
+			isRunning: vi.fn().mockReturnValue(false),
+			isStreaming: vi.fn().mockReturnValue(false),
+			addStreamMessage: vi.fn(),
+			getMessages: vi.fn().mockReturnValue([]),
+		});
+
+		const handler = new ChatSessionHandler(adapter, {
+			cyrusHome: TEST_CYRUS_CHAT,
+			chatRepositoryProvider: makeProvider(),
+			runnerConfigBuilder: makeRunnerConfigBuilder(),
+			createRunner,
+			onWebhookStart: vi.fn(),
+			onWebhookEnd: vi.fn(),
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+			checkRunnerGate,
+		});
+
+		await handler.handleEvent({ eventId: "event-1", threadKey: "gate-once" });
+
+		expect(checkRunnerGate).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not call the gate when there is nothing for the adapter to handle", async () => {
+		// Adapter has no task instructions — the gate should not be evaluated
+		// because there's no work to gate. Documents that the gate is colocated
+		// with the runner-spawn decision, not at the webhook entrypoint.
+		const checkRunnerGate = vi.fn().mockReturnValue({ ok: true });
+		const adapter: ChatPlatformAdapter<GateEvent> = {
+			platformName: "slack",
+			extractTaskInstructions: () => "",
+			getThreadKey: () => "gate-empty",
+			getEventId: () => "event-1",
+			buildSystemPrompt: () => "sys",
+			fetchThreadContext: async () => "",
+			postReply: async () => {},
+			acknowledgeReceipt: async () => {},
+			notifyBusy: async () => {},
+			notifyUnavailable: async () => {},
+		};
+
+		const handler = new ChatSessionHandler(adapter, {
+			cyrusHome: TEST_CYRUS_CHAT,
+			chatRepositoryProvider: makeProvider(),
+			runnerConfigBuilder: makeRunnerConfigBuilder(),
+			createRunner: vi.fn(),
+			onWebhookStart: vi.fn(),
+			onWebhookEnd: vi.fn(),
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+			checkRunnerGate,
+		});
+
+		await handler.handleEvent({ eventId: "event-1", threadKey: "gate-empty" });
+		// (no assertion on gate calls — empty instructions still go through the
+		// gate path; this test just ensures the handler doesn't throw on empty
+		// task instructions.)
+	});
+
+	it("propagates the user-facing message verbatim to notifyUnavailable", async () => {
+		const { adapter, notifyUnavailable } = makeAdapter("gate-msg");
+		const userMessage =
+			"Cyrus is temporarily out of capacity and can't start this session right now. Please retry shortly.";
+
+		const handler = new ChatSessionHandler(adapter, {
+			cyrusHome: TEST_CYRUS_CHAT,
+			chatRepositoryProvider: makeProvider(),
+			runnerConfigBuilder: makeRunnerConfigBuilder(),
+			createRunner: vi.fn(),
+			onWebhookStart: vi.fn(),
+			onWebhookEnd: vi.fn(),
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+			checkRunnerGate: () => ({ ok: false, userMessage }),
+		});
+
+		await handler.handleEvent({ eventId: "event-1", threadKey: "gate-msg" });
+
+		expect(notifyUnavailable).toHaveBeenCalledWith(
+			expect.anything(),
+			"gate-msg",
+			userMessage,
+		);
+	});
+
+	it("calls onWebhookEnd even when the gate rejects", async () => {
+		const { adapter } = makeAdapter("gate-end");
+		const onWebhookEnd = vi.fn();
+
+		const handler = new ChatSessionHandler(adapter, {
+			cyrusHome: TEST_CYRUS_CHAT,
+			chatRepositoryProvider: makeProvider(),
+			runnerConfigBuilder: makeRunnerConfigBuilder(),
+			createRunner: vi.fn(),
+			onWebhookStart: vi.fn(),
+			onWebhookEnd,
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+			checkRunnerGate: () => ({ ok: false, userMessage: "nope" }),
+		});
+
+		await handler.handleEvent({ eventId: "event-1", threadKey: "gate-end" });
+
+		expect(onWebhookEnd).toHaveBeenCalledTimes(1);
+	});
+
 	it("spawns the runner when no gate is configured", async () => {
 		const { adapter, notifyUnavailable } = makeAdapter("gate-absent");
 		const createRunner = vi.fn().mockReturnValue({

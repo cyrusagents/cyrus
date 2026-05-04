@@ -427,8 +427,9 @@ export type IssueTrackerAgentSessionPayload = Pick<
  * @see {@link LinearSDK.AgentSessionStatus} - Linear's AgentSessionStatus enum
  */
 import { AgentSessionStatus } from "@linear/sdk";
-export { AgentSessionStatus };
+
 export type { AgentSessionStatus as AgentSessionStatusEnum } from "@linear/sdk";
+export { AgentSessionStatus };
 
 /**
  * Agent session type/context enumeration.
@@ -438,8 +439,9 @@ export type { AgentSessionStatus as AgentSessionStatusEnum } from "@linear/sdk";
  * @see {@link LinearSDK.AgentSessionType} - Linear's AgentSessionType enum
  */
 import { AgentSessionType } from "@linear/sdk";
-export { AgentSessionType };
+
 export type { AgentSessionType as AgentSessionTypeEnum } from "@linear/sdk";
+export { AgentSessionType };
 
 /**
  * Agent session webhook payload type.
@@ -466,8 +468,9 @@ export type AgentSessionSDK = LinearSDK.AgentSession;
  * @see {@link LinearSDK.AgentActivityType} - Linear's AgentActivityType enum
  */
 import { AgentActivityType } from "@linear/sdk";
-export { AgentActivityType };
+
 export type { AgentActivityType as AgentActivityTypeEnum } from "@linear/sdk";
+export { AgentActivityType };
 
 /**
  * Legacy alias for AgentActivityType.
@@ -493,8 +496,9 @@ export type AgentActivityContent =
  * @see {@link LinearSDK.AgentActivitySignal} - Linear's AgentActivitySignal enum
  */
 import { AgentActivitySignal } from "@linear/sdk";
-export { AgentActivitySignal };
+
 export type { AgentActivitySignal as AgentActivitySignalEnum } from "@linear/sdk";
+export { AgentActivitySignal };
 
 /**
  * Agent activity webhook payload type.
@@ -938,6 +942,33 @@ export function isIssueTitleOrDescriptionUpdateWebhook(
 		"description" in updatedFrom ||
 		"attachments" in updatedFrom
 	);
+}
+
+/**
+ * Type guard to check if webhook is an issue state ID update (e.g., moved to completed/canceled).
+ *
+ * This identifies Issue entity webhooks where the `updatedFrom` field contains
+ * a previous `stateId`, indicating the issue's workflow state was changed.
+ * Used to detect when blocking issues are resolved so parked sessions can be woken up.
+ */
+export function isIssueStateIdUpdateWebhook(
+	webhook: Webhook,
+): webhook is IssueUpdateWebhook {
+	if (webhook.type !== "Issue" || webhook.action !== "update") {
+		return false;
+	}
+
+	const entityWebhook =
+		webhook as LinearSDK.LinearDocument.EntityWebhookPayload;
+	const updatedFrom = entityWebhook.updatedFrom as
+		| { stateId?: string }
+		| undefined;
+
+	if (!updatedFrom) {
+		return false;
+	}
+
+	return "stateId" in updatedFrom;
 }
 
 /**

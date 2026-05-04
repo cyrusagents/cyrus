@@ -134,7 +134,7 @@ For Vertex AI, Azure, AWS Bedrock, and other providers, see the [Third-Party Int
 4. **Enable Webhooks** toggle
 
 5. **Configure Webhook Settings:**
-   - **Webhook URL:** `https://your-public-url.com/webhook`
+   - **Webhook URL:** `https://your-public-url.com/linear-webhook`
    - **App events** - Check these boxes:
      - **Agent session events** (REQUIRED - makes Cyrus appear as agent)
      - **Inbox notifications** (recommended)
@@ -315,7 +315,7 @@ For detailed options, see the [Configuration File Reference](./CONFIG_FILE.md).
 
 ### Webhooks Not Received
 
-- Verify Linear webhook URL matches `CYRUS_BASE_URL/webhook`
+- Verify Linear webhook URL matches `CYRUS_BASE_URL/linear-webhook` (the legacy `/webhook` path still works but is deprecated)
 - Check Cyrus logs for incoming webhook attempts
 - Ensure your public URL is accessible
 

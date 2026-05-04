@@ -40,4 +40,32 @@ describe("CursorMessageFormatter", () => {
 		});
 		expect(formatted).toBe("pnpm test");
 	});
+
+	it("formats tool parameters using file_path (Claude-shape input)", () => {
+		const formatted = formatter.formatToolParameter("Read", {
+			file_path: "src/index.ts",
+		});
+		expect(formatted).toBe("src/index.ts");
+	});
+
+	it("renders tool result as plain text when not an error", () => {
+		const formatted = formatter.formatToolResult(
+			"Read",
+			{ file_path: "x.ts" },
+			"hello",
+			false,
+		);
+		expect(formatted).toBe("hello");
+	});
+
+	it("wraps tool result in code fence when error", () => {
+		const formatted = formatter.formatToolResult(
+			"Read",
+			{ file_path: "x.ts" },
+			"boom",
+			true,
+		);
+		expect(formatted).toContain("```");
+		expect(formatted).toContain("boom");
+	});
 });

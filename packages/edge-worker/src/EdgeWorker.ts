@@ -8,11 +8,13 @@ import { LinearClient } from "@linear/sdk";
 import type {
 	McpServerConfig,
 	SDKMessage,
+	SessionStore,
 	WarmQuery,
 } from "cyrus-claude-runner";
 import {
 	buildBaseSessionEnv,
 	ClaudeRunner,
+	HttpSessionStore,
 	normalizeMcpHttpTransport,
 } from "cyrus-claude-runner";
 import { CodexRunner } from "cyrus-codex-runner";
@@ -64,6 +66,7 @@ import {
 	isIssueNewCommentWebhook,
 	isIssueStateChangeMessage,
 	isIssueStateChangeWebhook,
+	isIssueStateIdUpdateWebhook,
 	isIssueTitleOrDescriptionUpdateWebhook,
 	isIssueUnassignedWebhook,
 	isSessionStartMessage,
@@ -92,7 +95,9 @@ import {
 	extractSessionKey,
 	GitHubAppTokenProvider,
 	GitHubCommentService,
+	type GitHubCommentWebhookEvent,
 	GitHubEventTransport,
+	type GitHubPushPayload,
 	type GitHubWebhookEvent,
 	isCommentOnPullRequest,
 	isIssueCommentPayload,
@@ -250,11 +255,38 @@ export class EdgeWorker extends EventEmitter {
 	/** CA cert path for MITM TLS termination (passed per-session env, not process.env) */
 	private egressCaCertPath: string | null = null;
 	/**
+	 * Remote SessionStore that mirrors Claude SDK transcripts to the Cyrus
+	 * hosted control plane. Enabled when all three of `CYRUS_APP_URL`,
+	 * `CYRUS_API_KEY`, and `CYRUS_TEAM_ID` are set — used by any Claude
+	 * runner spawned from this worker so transcripts survive ephemeral
+	 * worktrees and are resumable from any host.
+	 */
+	private claudeSessionStore: SessionStore | null = null;
+	/**
 	 * Tracks recently processed issue-update webhook keys to prevent
 	 * duplicate deliveries from Linear's at-least-once delivery.
 	 * Key format: `${createdAt}:${issueId}`
 	 */
 	private processedIssueUpdateKeys = new Set<string>();
+
+	/**
+	 * Sessions parked due to blocked-by dependencies.
+	 * Key: Linear issue ID (the blocked issue)
+	 * Value: All data needed to replay initializeAgentRunner when unblocked
+	 */
+	private parkedSessions = new Map<
+		string,
+		{
+			agentSession: AgentSessionCreatedWebhook["agentSession"];
+			repositories: RepositoryConfig[];
+			linearWorkspaceId: string;
+			guidance?: AgentSessionCreatedWebhook["guidance"];
+			commentBody?: string | null;
+			baseBranchOverrides?: Map<string, string>;
+			routingMethod?: string;
+			blockingIssueIds: string[];
+		}
+	>();
 
 	constructor(config: EdgeWorkerConfig) {
 		super();
@@ -264,6 +296,43 @@ export class EdgeWorker extends EventEmitter {
 		this.persistenceManager = new PersistenceManager(
 			join(this.cyrusHome, "state"),
 		);
+
+		// Mirror Claude SDK session transcripts to the hosted control plane
+		// when CYRUS_APP_URL (destination), CYRUS_API_KEY (proof of team
+		// ownership), and CYRUS_TEAM_ID (which team the transcripts belong to)
+		// are all configured. If any is missing the store stays null and the
+		// SDK falls back to local JSONL only. Operators can also opt out
+		// explicitly by setting CYRUS_DISABLE_REMOTE_SESSION_STORE=1, which
+		// keeps transcripts local even when the three vars above are present.
+		const sessionStoreBaseUrl = process.env.CYRUS_APP_URL;
+		const sessionStoreApiKey = process.env.CYRUS_API_KEY;
+		const sessionStoreTeamId = process.env.CYRUS_TEAM_ID;
+		const sessionStoreDisabled = this.isRemoteSessionStoreDisabled();
+		if (
+			!sessionStoreDisabled &&
+			sessionStoreBaseUrl &&
+			sessionStoreApiKey &&
+			sessionStoreTeamId
+		) {
+			this.claudeSessionStore = new HttpSessionStore({
+				baseUrl: sessionStoreBaseUrl,
+				apiKey: sessionStoreApiKey,
+				teamId: sessionStoreTeamId,
+				logger: this.logger,
+			});
+			this.logger.info(
+				`[SessionStore] Mirroring Claude sessions to ${sessionStoreBaseUrl} for team ${sessionStoreTeamId}`,
+			);
+		} else if (
+			sessionStoreDisabled &&
+			sessionStoreBaseUrl &&
+			sessionStoreApiKey &&
+			sessionStoreTeamId
+		) {
+			this.logger.info(
+				"[SessionStore] Remote session store disabled via CYRUS_DISABLE_REMOTE_SESSION_STORE; transcripts will stay local.",
+			);
+		}
 
 		// Initialize GitHub comment service for posting replies to GitHub PRs
 		this.gitHubCommentService = new GitHubCommentService();
@@ -702,7 +771,7 @@ export class EdgeWorker extends EventEmitter {
 				this.handleError(error);
 			});
 
-			// Register the /webhook endpoint
+			// Register the /linear-webhook endpoint (with /webhook retained as a deprecated alias)
 			this.linearEventTransport.register();
 
 			this.logger.info(
@@ -813,12 +882,26 @@ export class EdgeWorker extends EventEmitter {
 
 		// Listen for legacy GitHub webhook events (deprecated, kept for backward compatibility)
 		this.gitHubEventTransport.on("event", (event: GitHubWebhookEvent) => {
-			this.handleGitHubWebhook(event).catch((error) => {
-				this.logger.error(
-					"Failed to handle GitHub webhook",
-					error instanceof Error ? error : new Error(String(error)),
+			// Route push events to the base branch notification handler
+			if (event.eventType === "push") {
+				this.handleGitHubPushWebhook(event.payload as GitHubPushPayload).catch(
+					(error) => {
+						this.logger.error(
+							"Failed to handle GitHub push webhook",
+							error instanceof Error ? error : new Error(String(error)),
+						);
+					},
 				);
-			});
+				return;
+			}
+			this.handleGitHubWebhook(event as GitHubCommentWebhookEvent).catch(
+				(error) => {
+					this.logger.error(
+						"Failed to handle GitHub webhook",
+						error instanceof Error ? error : new Error(String(error)),
+					);
+				},
+			);
 		});
 
 		// Listen for unified internal messages (new message bus)
@@ -1035,7 +1118,9 @@ export class EdgeWorker extends EventEmitter {
 		return process.env.GITHUB_TOKEN;
 	}
 
-	private async handleGitHubWebhook(event: GitHubWebhookEvent): Promise<void> {
+	private async handleGitHubWebhook(
+		event: GitHubCommentWebhookEvent,
+	): Promise<void> {
 		this.activeWebhookCount++;
 
 		try {
@@ -1374,6 +1459,98 @@ export class EdgeWorker extends EventEmitter {
 	}
 
 	/**
+	 * Handle GitHub push webhook events.
+	 * When a base branch receives new commits, find active sessions tracking that
+	 * branch and stream a rebase notification to the running agent.
+	 */
+	private async handleGitHubPushWebhook(
+		payload: GitHubPushPayload,
+	): Promise<void> {
+		// Only handle branch pushes (refs/heads/*), not tags
+		if (!payload.ref.startsWith("refs/heads/")) {
+			return;
+		}
+
+		// Ignore branch deletions
+		if (payload.deleted) {
+			return;
+		}
+
+		const branchName = payload.ref.replace("refs/heads/", "");
+		const repoFullName = payload.repository.full_name;
+
+		// Find the matching repository config
+		const repository = this.findRepositoryByGitHubUrl(repoFullName);
+		if (!repository) {
+			this.logger.debug(
+				`No repository configured for GitHub push from ${repoFullName}`,
+			);
+			return;
+		}
+
+		// Find active sessions tracking this branch as their base branch
+		const sessions = this.agentSessionManager.getSessionsByBaseBranch(
+			branchName,
+			repository.id,
+		);
+
+		if (sessions.length === 0) {
+			this.logger.debug(
+				`No active sessions tracking base branch ${branchName} for ${repository.name}`,
+			);
+			return;
+		}
+
+		// Build a notification prompt with commit summary
+		const commitCount = payload.commits.length;
+		const commitSummary = payload.commits
+			.slice(0, 5)
+			.map((c) => `- ${c.message.split("\n")[0]}`)
+			.join("\n");
+		const moreCommits =
+			commitCount > 5 ? `\n- ... and ${commitCount - 5} more` : "";
+
+		const notification = `<base_branch_update>
+<branch>${branchName}</branch>
+<repository>${repoFullName}</repository>
+<commit_count>${commitCount}</commit_count>
+<compare_url>${payload.compare}</compare_url>
+<commits>
+${commitSummary}${moreCommits}
+</commits>
+<guidance>
+Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Consider rebasing your working branch onto the updated base to avoid merge conflicts. You can do this with: \`git fetch origin && git rebase origin/${branchName}\`
+</guidance>
+</base_branch_update>`;
+
+		this.logger.info(
+			`Base branch ${branchName} updated (${commitCount} commits) — notifying ${sessions.length} active session(s)`,
+		);
+
+		// Stream notification to the first running session that supports streaming
+		const sortedSessions = [...sessions].sort(
+			(a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
+		);
+
+		for (const session of sortedSessions) {
+			const existingRunner = session.agentRunner;
+			const isRunning = existingRunner?.isRunning() || false;
+
+			if (
+				isRunning &&
+				existingRunner?.supportsStreamingInput &&
+				existingRunner.addStreamMessage
+			) {
+				existingRunner.addStreamMessage(notification);
+				this.logger.debug(
+					`[base-branch-update] Streamed notification to session ${session.id} for branch ${branchName}`,
+				);
+				break;
+			}
+		}
+	}
+
+	/**
 	 * Find a repository configuration that matches a GitHub repository URL.
 	 * Matches against the githubUrl field in repository config.
 	 */
@@ -1399,7 +1576,7 @@ export class EdgeWorker extends EventEmitter {
 	 * and must be fetched from the GitHub API.
 	 */
 	private async fetchPRBranchRefs(
-		event: GitHubWebhookEvent,
+		event: GitHubCommentWebhookEvent,
 		_repository: RepositoryConfig,
 	): Promise<{ headRef: string; baseRef: string } | null> {
 		if (!isIssueCommentPayload(event.payload)) return null;
@@ -1513,7 +1690,7 @@ export class EdgeWorker extends EventEmitter {
 	 * Build a system prompt for a GitHub PR comment session.
 	 */
 	private buildGitHubSystemPrompt(
-		event: GitHubWebhookEvent,
+		event: GitHubCommentWebhookEvent,
 		branchRef: string,
 		taskInstructions: string,
 	): string {
@@ -1546,7 +1723,7 @@ ${taskInstructions}
 	 * Build a system prompt for a GitHub PR change request review session.
 	 */
 	private buildGitHubChangeRequestSystemPrompt(
-		event: GitHubWebhookEvent,
+		event: GitHubCommentWebhookEvent,
 		branchRef: string,
 		reviewBody: string,
 	): string {
@@ -1592,7 +1769,7 @@ ${taskSection}`;
 	 * Post a reply back to the GitHub PR comment after the session completes.
 	 */
 	private async postGitHubReply(
-		event: GitHubWebhookEvent,
+		event: GitHubCommentWebhookEvent,
 		runner: IAgentRunner,
 		_repository: RepositoryConfig,
 	): Promise<void> {
@@ -2815,6 +2992,15 @@ ${taskSection}`;
 		// Track active webhook processing for status endpoint
 		this.activeWebhookCount++;
 
+		const webhookAction = (webhook as { action?: string }).action;
+		const webhookType = (webhook as { type?: string }).type;
+		this.logger.event("webhook_received", {
+			source: "linear",
+			action: webhookAction,
+			type: webhookType,
+			repoCount: repos.length,
+		});
+
 		// Log verbose webhook info if enabled
 		if (process.env.CYRUS_WEBHOOK_DEBUG === "true") {
 			this.logger.debug(
@@ -2850,6 +3036,9 @@ ${taskSection}`;
 			} else if (isIssueTitleOrDescriptionUpdateWebhook(webhook)) {
 				// Handle issue title/description/attachments updates - feed changes into active session
 				await this.handleIssueContentUpdate(webhook);
+			} else if (isIssueStateIdUpdateWebhook(webhook)) {
+				// Handle issue state changes — wake up parked sessions when blocking issues complete
+				await this.handleIssueStateChange(webhook);
 			} else {
 				if (process.env.CYRUS_WEBHOOK_DEBUG === "true") {
 					this.logger.debug(
@@ -3349,6 +3538,263 @@ ${taskSection}`;
 	 * and includes guidance for the agent to evaluate whether these changes affect
 	 * its current implementation or action plan.
 	 */
+	/**
+	 * Check if an issue has unresolved blocked-by dependencies.
+	 * Fetches the issue from Linear and checks its inverse relations for blocking issues
+	 * that haven't been completed or canceled.
+	 */
+	private async checkBlockedByDependencies(
+		agentSession: AgentSessionCreatedWebhook["agentSession"],
+		linearWorkspaceId: string,
+	): Promise<{
+		blocked: boolean;
+		blockingIssueIds: string[];
+		blockingIdentifiers: string[];
+	}> {
+		const issue = agentSession.issue;
+		if (!issue) {
+			return { blocked: false, blockingIssueIds: [], blockingIdentifiers: [] };
+		}
+
+		try {
+			const fullIssue = await this.fetchFullIssueDetails(
+				issue.id,
+				linearWorkspaceId,
+			);
+			if (!fullIssue) {
+				return {
+					blocked: false,
+					blockingIssueIds: [],
+					blockingIdentifiers: [],
+				};
+			}
+
+			const blockingIssues =
+				await this.promptBuilder.fetchBlockingIssues(fullIssue);
+			if (blockingIssues.length === 0) {
+				return {
+					blocked: false,
+					blockingIssueIds: [],
+					blockingIdentifiers: [],
+				};
+			}
+
+			// Filter to only unresolved blockers (not completed or canceled)
+			const unresolvedBlockers: Array<{
+				id: string;
+				identifier: string;
+			}> = [];
+			for (const blocker of blockingIssues) {
+				try {
+					const state = await blocker.state;
+					if (
+						state &&
+						state.type !== "completed" &&
+						state.type !== "canceled"
+					) {
+						unresolvedBlockers.push({
+							id: blocker.id,
+							identifier: blocker.identifier,
+						});
+					}
+				} catch {
+					// If we can't resolve the state, assume it's unresolved
+					unresolvedBlockers.push({
+						id: blocker.id,
+						identifier: blocker.identifier,
+					});
+				}
+			}
+
+			if (unresolvedBlockers.length === 0) {
+				return {
+					blocked: false,
+					blockingIssueIds: [],
+					blockingIdentifiers: [],
+				};
+			}
+
+			return {
+				blocked: true,
+				blockingIssueIds: unresolvedBlockers.map((b) => b.id),
+				blockingIdentifiers: unresolvedBlockers.map((b) => b.identifier),
+			};
+		} catch (error) {
+			this.logger.error(
+				`Failed to check blocked-by dependencies for ${issue.identifier}:`,
+				error,
+			);
+			// On error, don't block — proceed with normal flow
+			return { blocked: false, blockingIssueIds: [], blockingIdentifiers: [] };
+		}
+	}
+
+	/**
+	 * Handle issue state change webhooks.
+	 * When a blocking issue is completed, wake up any parked sessions that were waiting on it.
+	 */
+	private async handleIssueStateChange(
+		webhook: IssueUpdateWebhook,
+	): Promise<void> {
+		const issueData = webhook.data;
+		const completedIssueId = issueData.id;
+		const issueIdentifier = issueData.identifier;
+
+		// Only care about transitions TO completed or canceled states
+		// The IssueWebhookPayload has a stateId field — resolve the state
+		// via the issue tracker to check if it's a completion state
+		const stateId = issueData.stateId;
+		if (!stateId) {
+			return;
+		}
+
+		// Find workspace for this webhook to resolve state type
+		const linearWorkspaceId = webhook.organizationId;
+		const issueTracker = this.issueTrackers.get(linearWorkspaceId);
+		if (!issueTracker) {
+			return;
+		}
+
+		// Fetch the issue to check its current state type
+		let stateType: string | undefined;
+		try {
+			const fullIssue = await issueTracker.fetchIssue(completedIssueId);
+			const state = await fullIssue.state;
+			stateType = state?.type;
+		} catch {
+			// Can't resolve state — skip
+			return;
+		}
+
+		if (stateType !== "completed" && stateType !== "canceled") {
+			return;
+		}
+
+		this.logger.debug(
+			`Issue ${issueIdentifier} moved to ${stateType} — checking for parked sessions to wake`,
+		);
+
+		// Find parked sessions that were blocked by this issue
+		const sessionsToWake: string[] = [];
+		for (const [blockedIssueId, parked] of this.parkedSessions.entries()) {
+			if (parked.blockingIssueIds.includes(completedIssueId)) {
+				// Remove this blocker from the list
+				parked.blockingIssueIds = parked.blockingIssueIds.filter(
+					(id) => id !== completedIssueId,
+				);
+
+				// If no more blockers, wake the session
+				if (parked.blockingIssueIds.length === 0) {
+					sessionsToWake.push(blockedIssueId);
+				} else {
+					this.logger.debug(
+						`Parked session for issue ${blockedIssueId} still has ${parked.blockingIssueIds.length} remaining blocker(s)`,
+					);
+				}
+			}
+		}
+
+		// Wake up unblocked sessions
+		for (const blockedIssueId of sessionsToWake) {
+			const parked = this.parkedSessions.get(blockedIssueId);
+			if (!parked) continue;
+
+			this.parkedSessions.delete(blockedIssueId);
+
+			this.logger.info(
+				`Waking parked session for issue ${parked.agentSession.issue?.identifier} — all blockers resolved`,
+			);
+
+			// Post activity about waking up
+			await this.activityPoster.postThoughtActivity(
+				parked.agentSession.id,
+				parked.linearWorkspaceId,
+				`All blocking dependencies are now resolved — starting work.`,
+			);
+
+			// Replay the normal initializeAgentRunner flow
+			try {
+				await this.initializeAgentRunner(
+					parked.agentSession,
+					parked.repositories,
+					parked.linearWorkspaceId,
+					parked.guidance,
+					parked.commentBody,
+					parked.baseBranchOverrides,
+					parked.routingMethod,
+				);
+			} catch (error) {
+				this.logger.error(
+					`Failed to wake parked session for issue ${blockedIssueId}:`,
+					error,
+				);
+			}
+		}
+	}
+
+	/**
+	 * Handle a user re-prompt on a parked (blocked-by) session.
+	 * Re-checks blocking status: if clear, wakes the session; if still blocked, re-posts status.
+	 */
+	private async handleParkedSessionReprompt(
+		_webhook: AgentSessionPromptedWebhook,
+		issueId: string,
+	): Promise<void> {
+		const parked = this.parkedSessions.get(issueId);
+		if (!parked) return;
+
+		const blockResult = await this.checkBlockedByDependencies(
+			parked.agentSession,
+			parked.linearWorkspaceId,
+		);
+
+		if (blockResult.blocked) {
+			// Still blocked — update the parked entry and re-post status
+			parked.blockingIssueIds = blockResult.blockingIssueIds;
+			const blockerList = blockResult.blockingIdentifiers
+				.map((id) => `**${id}**`)
+				.join(", ");
+			await this.activityPoster.postThoughtActivity(
+				parked.agentSession.id,
+				parked.linearWorkspaceId,
+				`Still blocked by ${blockerList}. Will start automatically when resolved.`,
+			);
+			this.logger.info(
+				`Re-prompt on parked session for ${parked.agentSession.issue?.identifier}: still blocked by ${blockResult.blockingIdentifiers.join(", ")}`,
+			);
+			return;
+		}
+
+		// Blockers resolved — wake the session
+		this.parkedSessions.delete(issueId);
+		this.logger.info(
+			`Re-prompt cleared blockers for ${parked.agentSession.issue?.identifier} — waking session`,
+		);
+
+		await this.activityPoster.postThoughtActivity(
+			parked.agentSession.id,
+			parked.linearWorkspaceId,
+			`Blocking dependencies are now resolved — starting work.`,
+		);
+
+		try {
+			await this.initializeAgentRunner(
+				parked.agentSession,
+				parked.repositories,
+				parked.linearWorkspaceId,
+				parked.guidance,
+				parked.commentBody,
+				parked.baseBranchOverrides,
+				parked.routingMethod,
+			);
+		} catch (error) {
+			this.logger.error(
+				`Failed to wake parked session for issue ${issueId} on re-prompt:`,
+				error,
+			);
+		}
+	}
+
 	private buildIssueUpdatePrompt(
 		issueIdentifier: string,
 		issueData: {
@@ -3682,6 +4128,41 @@ ${taskSection}`;
 		const { agentSession, guidance } = webhook;
 		const commentBody = agentSession.comment?.body;
 
+		// Check for blocked-by dependencies before starting work
+		const blockResult = await this.checkBlockedByDependencies(
+			agentSession,
+			linearWorkspaceId,
+		);
+		if (blockResult.blocked) {
+			// Park the session — don't create worktree or runner
+			const parkedIssueId = agentSession.issue!.id;
+			this.parkedSessions.set(parkedIssueId, {
+				agentSession,
+				repositories,
+				linearWorkspaceId,
+				guidance,
+				commentBody,
+				baseBranchOverrides,
+				routingMethod,
+				blockingIssueIds: blockResult.blockingIssueIds,
+			});
+
+			// Post acknowledgment to the Linear agent session
+			const blockerList = blockResult.blockingIdentifiers
+				.map((id) => `**${id}**`)
+				.join(", ");
+			await this.activityPoster.postThoughtActivity(
+				agentSession.id,
+				linearWorkspaceId,
+				`Blocked by ${blockerList} — will start automatically when ${blockResult.blockingIdentifiers.length === 1 ? "it is" : "they are"} resolved.`,
+			);
+
+			log.info(
+				`Session parked: issue ${agentSession.issue!.identifier} is blocked by ${blockResult.blockingIdentifiers.join(", ")}`,
+			);
+			return;
+		}
+
 		// Initialize agent runner using shared logic (pass full repositories array)
 		await this.initializeAgentRunner(
 			agentSession,
@@ -3993,31 +4474,38 @@ ${taskSection}`;
 		const issueTitle = issue?.title || "this issue";
 		const senderName = webhook.agentSession.creator?.name || "user";
 
-		if (isDoubleStop) {
-			// Second stop within window — full kill
+		// Only warm sessions can be safely interrupted without killing the
+		// underlying request. Non-warm sessions get a single-shot full stop —
+		// calling interrupt() on them surfaces a "Request was aborted" error
+		// from the SDK (see CYPACK-1145).
+		const supportsInterrupt = Boolean(
+			existingRunner?.interrupt && existingRunner?.isWarm?.(),
+		);
+
+		if (isDoubleStop || !supportsInterrupt) {
+			// Either a second stop within window, or a non-warm runner — full kill
 			this.agentSessionManager.requestSessionStop(agentSessionId);
 			if (existingRunner) {
 				existingRunner.stop();
-				log.info(`Double-stop: fully aborted session ${agentSessionId}`);
+				log.info(
+					isDoubleStop
+						? `Double-stop: fully aborted session ${agentSessionId}`
+						: `Stopped session ${agentSessionId} (interrupt not supported)`,
+				);
 			}
 			this.lastStopTimeBySession.delete(agentSessionId);
 			await this.agentSessionManager.createResponseActivity(
 				agentSessionId,
-				`I've fully stopped working on ${issueTitle}.\n\n**Stop Signal:** Received from ${senderName} (second stop)\n**Action Taken:** Session terminated`,
+				isDoubleStop
+					? `I've fully stopped working on ${issueTitle}.\n\n**Stop Signal:** Received from ${senderName} (second stop)\n**Action Taken:** Session terminated`
+					: `I've stopped working on ${issueTitle}.\n\n**Stop Signal:** Received from ${senderName}\n**Action Taken:** Session terminated`,
 			);
 		} else {
-			// First stop — interrupt current turn, keep session warm
-			if (existingRunner?.interrupt) {
-				await existingRunner.interrupt();
-				log.info(
-					`Interrupted current turn for session ${agentSessionId} (send stop again within 10s to fully terminate)`,
-				);
-			} else if (existingRunner) {
-				// Runner doesn't support interrupt — fall back to full stop
-				this.agentSessionManager.requestSessionStop(agentSessionId);
-				existingRunner.stop();
-				log.info(`Stopped session ${agentSessionId} (no interrupt support)`);
-			}
+			// First stop on a warm session — interrupt current turn, keep session warm
+			await existingRunner!.interrupt!();
+			log.info(
+				`Interrupted current turn for session ${agentSessionId} (send stop again within 10s to fully terminate)`,
+			);
 			await this.agentSessionManager.createResponseActivity(
 				agentSessionId,
 				`Interrupted by ${senderName}\n**Tip:** Type and send "stop" within 10 seconds to fully terminate the session.`,
@@ -4376,6 +4864,18 @@ ${taskSection}`;
 			return;
 		}
 
+		// Branch 1.5: Handle re-prompt for parked (blocked-by) sessions
+		// When a user re-prompts and the session is parked, re-check blocking status.
+		// If blockers are resolved, wake the session immediately.
+		const issueIdForParkedCheck = webhook.agentSession?.issue?.id;
+		if (
+			issueIdForParkedCheck &&
+			this.parkedSessions.has(issueIdForParkedCheck)
+		) {
+			await this.handleParkedSessionReprompt(webhook, issueIdForParkedCheck);
+			return;
+		}
+
 		// Branch 2: Handle repository selection response
 		// This is the first Claude runner initialization after user selects a repository.
 		// The selection handler extracts the choice from the response (or uses fallback)
@@ -4679,8 +5179,14 @@ ${taskSection}`;
 		config: AgentRunnerConfig,
 	): IAgentRunner {
 		switch (runnerType) {
-			case "claude":
-				return new ClaudeRunner(config);
+			case "claude": {
+				// Inject the hosted SessionStore at the last moment so it only
+				// attaches to Claude runners (the field is Claude-specific).
+				const claudeConfig = this.claudeSessionStore
+					? { ...config, sessionStore: this.claudeSessionStore }
+					: config;
+				return new ClaudeRunner(claudeConfig, this.isWarmSessionsEnabled());
+			}
 			case "gemini":
 				return new GeminiRunner(config);
 			case "codex":
@@ -5853,6 +6359,22 @@ ${input.userComment}
 	 */
 	private isWarmSessionsEnabled(): boolean {
 		const raw = process.env.CYRUS_ENABLE_WARM_SESSIONS;
+		if (!raw) return false;
+		const v = raw.toLowerCase().trim();
+		return v === "1" || v === "true";
+	}
+
+	/**
+	 * Whether the remote Claude session store is explicitly disabled.
+	 *
+	 * The remote store mirrors SDK transcripts to the Cyrus hosted control
+	 * plane and is on by default whenever `CYRUS_APP_URL`, `CYRUS_API_KEY`,
+	 * and `CYRUS_TEAM_ID` are all set. Operators can opt out — without
+	 * unsetting those vars (which other features depend on) — by setting
+	 * `CYRUS_DISABLE_REMOTE_SESSION_STORE=1` (or `=true`).
+	 */
+	private isRemoteSessionStoreDisabled(): boolean {
+		const raw = process.env.CYRUS_DISABLE_REMOTE_SESSION_STORE;
 		if (!raw) return false;
 		const v = raw.toLowerCase().trim();
 		return v === "1" || v === "true";

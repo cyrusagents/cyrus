@@ -44,6 +44,27 @@ export class ActivityPoster {
 		}
 	}
 
+	async postThoughtActivity(
+		sessionId: string,
+		workspaceId: string,
+		body: string,
+	): Promise<void> {
+		const issueTracker = this.issueTrackers.get(workspaceId);
+		if (!issueTracker) {
+			this.logger.warn(`No issue tracker found for workspace ${workspaceId}`);
+			return;
+		}
+
+		await this.postActivityDirect(
+			issueTracker,
+			{
+				agentSessionId: sessionId,
+				content: { type: "thought", body },
+			},
+			"thought activity",
+		);
+	}
+
 	async postInstantAcknowledgment(
 		sessionId: string,
 		workspaceId: string,
@@ -78,11 +99,15 @@ export class ActivityPoster {
 			return;
 		}
 
+		// Emit as a response rather than a thought so Linear treats the
+		// rejection as the session's terminal message — there is no runner
+		// to follow up. Note: Linear only permits AgentActivitySignal.Stop
+		// on prompt-type activities, so we don't attach a signal here.
 		await this.postActivityDirect(
 			issueTracker,
 			{
 				agentSessionId: sessionId,
-				content: { type: "thought", body: message },
+				content: { type: "response", body: message },
 			},
 			"memory pressure rejection",
 		);

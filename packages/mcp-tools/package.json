@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-mcp-tools",
-	"version": "0.2.48",
+	"version": "0.2.51",
 	"description": "Runner-neutral MCP tool servers for Cyrus",
 	"type": "module",
 	"main": "dist/index.js",

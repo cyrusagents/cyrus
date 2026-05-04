@@ -54,9 +54,6 @@ export interface GeminiMcpServerConfig {
 	excludeTools?: string[];
 }
 
-// Re-export McpServerConfig from cyrus-core for convenience
-export type { McpServerConfig };
-
 // Re-export event types from schemas (derived from Zod schemas)
 export type {
 	GeminiErrorEvent,
@@ -93,7 +90,6 @@ export type {
 	WriteTodosToolResult,
 	WriteTodosToolUseEvent,
 } from "./schemas.js";
-
 // Re-export schemas for runtime validation
 export {
 	// Parsing utilities
@@ -165,6 +161,8 @@ export {
 	WriteTodosToolResultSchema,
 	WriteTodosToolUseEventSchema,
 } from "./schemas.js";
+// Re-export McpServerConfig from cyrus-core for convenience
+export type { McpServerConfig };
 
 /**
  * Configuration for GeminiRunner

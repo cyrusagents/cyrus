@@ -329,6 +329,54 @@ describe("ClaudeRunner", () => {
 		});
 	});
 
+	describe("interrupt() and isWarm()", () => {
+		it("isWarm() returns false by default (cold runner)", () => {
+			const cold = new ClaudeRunner(defaultConfig);
+			expect(cold.isWarm()).toBe(false);
+		});
+
+		it("isWarm() returns true when constructed with keepSessionWarm", () => {
+			const warm = new ClaudeRunner(defaultConfig, true);
+			expect(warm.isWarm()).toBe(true);
+		});
+
+		it("interrupt() on a non-warm session falls back to stop() and does NOT call activeQuery.interrupt", async () => {
+			const cold = new ClaudeRunner(defaultConfig);
+			const interruptSpy = vi.fn();
+
+			// Inject a fake activeQuery to verify interrupt is NOT invoked.
+			(cold as any).activeQuery = { interrupt: interruptSpy };
+			(cold as any).abortController = { abort: vi.fn() };
+			(cold as any).sessionInfo = {
+				sessionId: "s1",
+				startedAt: new Date(),
+				isRunning: true,
+			};
+
+			await cold.interrupt();
+
+			expect(interruptSpy).not.toHaveBeenCalled();
+			expect(cold.isRunning()).toBe(false);
+		});
+
+		it("interrupt() on a warm session calls activeQuery.interrupt()", async () => {
+			const warm = new ClaudeRunner(defaultConfig, true);
+			const interruptSpy = vi.fn().mockResolvedValue(undefined);
+
+			(warm as any).activeQuery = { interrupt: interruptSpy };
+			(warm as any).sessionInfo = {
+				sessionId: "s1",
+				startedAt: new Date(),
+				isRunning: true,
+			};
+
+			await warm.interrupt();
+
+			expect(interruptSpy).toHaveBeenCalledTimes(1);
+			expect(warm.isRunning()).toBe(true);
+		});
+	});
+
 	describe("isRunning()", () => {
 		it("should return false initially", () => {
 			expect(runner.isRunning()).toBe(false);
@@ -591,13 +639,11 @@ describe("ClaudeRunner", () => {
 			expect(sessionInfo.sessionId).toBe("first-session-id");
 			expect(logSpy).toHaveBeenCalledWith(
 				expect.stringMatching(
-					/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[INFO ] \[ClaudeRunner] Session ID assigned by Claude: first-session-id$/,
+					/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[INFO ] \[ClaudeRunner] \[event:claude_session_id_assigned] \{"claudeSessionId":"first-session-id"\}$/,
 				),
 			);
 			expect(logSpy).not.toHaveBeenCalledWith(
-				expect.stringMatching(
-					/Session ID assigned by Claude: second-session-id/,
-				),
+				expect.stringMatching(/"claudeSessionId":"second-session-id"/),
 			);
 		});
 	});

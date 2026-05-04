@@ -1337,6 +1337,25 @@ export class AgentSessionManager extends EventEmitter {
 	}
 
 	/**
+	 * Get active sessions tracking a given base branch for a specific repository.
+	 * Used by GitHub push webhook handling to notify agents when their base branch receives new commits.
+	 */
+	getSessionsByBaseBranch(
+		baseBranchName: string,
+		repositoryId: string,
+	): CyrusAgentSession[] {
+		return Array.from(this.sessions.values()).filter(
+			(session) =>
+				session.status === AgentSessionStatus.Active &&
+				session.repositories.some(
+					(r) =>
+						r.repositoryId === repositoryId &&
+						r.baseBranchName === baseBranchName,
+				),
+		);
+	}
+
+	/**
 	 * Find an active multi-repo session that includes the given repository.
 	 * Used by GitHub webhook handling to resolve the correct sub-worktree
 	 * when a @ mention targets a specific repo within a multi-repo workspace.
@@ -1399,7 +1418,7 @@ export class AgentSessionManager extends EventEmitter {
 		const log = this.sessionLog(sessionId);
 		const session = this.sessions.get(sessionId);
 
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			log.debug(
 				`Skipping ${label} - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,
 			);
@@ -1662,7 +1681,7 @@ export class AgentSessionManager extends EventEmitter {
 		message: SDKStatusMessage,
 	): Promise<void> {
 		const session = this.sessions.get(sessionId);
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			const log = this.sessionLog(sessionId);
 			log.debug(
 				`Skipping status message - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,
