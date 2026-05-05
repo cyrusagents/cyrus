@@ -112,9 +112,42 @@ Both scripts restore the newest timestamped backup and are safe to run repeatedl
   - `2026-05-02T12:25:51.907Z [INFO ] [EdgeWorker] User Unknown blocked from delegating: User is not in allowlist`
 - Test BRI cancel state update (`c53cd96d-e14a-45a0-a4fb-73170ee56b27`): success (BRI-1440 moved to `Canceled`)
 
+## Verification log (2026-05-05) — live install + watchdog fired in production
+
+The 2026-05-02 install was sandbox-blocked. Paul ran the install scripts manually from a non-Cyrus session on 2026-05-05 and dispatched a fresh test BRI to observe the watchdog firing.
+
+- Live install:
+  - `./scripts/install-codex-runner-patch.sh` — pre-SHA matched `db8f556b…`, backup created, post-SHA `1ccc2ee…` confirmed, pm2 restart clean (uptime reset, restart_count incremented)
+  - `./scripts/install-codex-config.sh` — `/root/.codex/config.toml` installed and verified via `codex mcp get --json`
+- Watchdog code presence verified via `grep -c "CYRUS_CODEX_IDLE_TIMEOUT_MS"` on the live JS file: `1` match
+- Test BRI dispatch ID: `BRI-1489`
+- Dispatch timestamp (UTC): `2026-05-05T06:45:25Z`
+- Codex subprocess started: `06:45:54Z` (PID `1817651`)
+- Cyrus emitted result: `06:49:39Z`
+- Cyrus comment posted: `"The operation was aborted"` (author: Cyrus agent)
+- Session `subtype`: `error_during_execution`
+- Total runtime: **~225s from codex start to abort** (180s `IDLE_TIMEOUT_MS` default + ~45s for abort/cleanup chain to flush)
+- Outcome: **(b) per the BRI-1489 success criteria — watchdog fired correctly within the expected window**
+
+Compare: BRI-1410 (pre-patch) ran for **4 hours** as a zombie before manual `kill -9`.
+
+### What was verified vs not verified
+
+- ✓ Watchdog code is present in the live JS and fires when codex stops emitting events
+- ✓ Cyrus's `abortController` chain propagates the abort to a Linear-visible result message
+- ✓ No process zombies — codex subprocess exited cleanly when aborted
+- ✓ Tier B `tool_timeout_sec` config is loaded by codex (`codex mcp get --json` returned the values)
+- ✗ Tier B `tool_timeout_sec` did **not fire** before Tier A in this run (consistent with the diagnosis §2.4 prediction — Tier B is opportunistic; Tier A is the hard guarantee)
+- ✗ Codex still does not reliably **complete** tasks after model output (root cause not yet identified — codex produced model events then went idle without producing a `task_complete` event the runner recognises). This is a **separate bug** outside BRI-1439's scope.
+
+### Tier 2 readiness updated read
+
+The patch unblocks the **safety** layer of Tier 2 — no more 4-hour zombies that hold worktrees and waste compute. But because codex still does not reliably commit/push/PR after model output, Tier 2 swap is now **fail-fast** rather than **fail-silently**. It is **not yet shipping-grade** for autonomous PR production. Recommended next investigation: why `cyrus-codex-runner` does not interpret codex's task-completion signal correctly. Possible angles: `--experimental-json` event stream parsing, codex CLI post-model-cleanup phase, or interaction with `approval_policy=never`.
+
 ## References
 
 - Diagnosis: `docs/codex-hang-diagnosis.md`
 - [BRI-1410](https://linear.app/brilliantio/issue/BRI-1410/codex-runner-dry-run-append-marker-capability-report)
 - [BRI-1411](https://linear.app/brilliantio/issue/BRI-1411/diagnose-codex-runner-completion-hang-tier-2-contingency-blocker)
 - [BRI-1439](https://linear.app/brilliantio/issue/BRI-1439/fix-codex-runner-hang-idle-timeout-watchdog-per-mcp-tool-timeout-sec)
+- [BRI-1489](https://linear.app/brilliantio/issue/BRI-1489/watchdog-verification-codex-test-dispatch-bri-1439-follow-up) — production verification dispatch (canceled after observation)
