@@ -101,6 +101,7 @@ import {
 	isIssueCommentPayload,
 	isPullRequestReviewCommentPayload,
 	isPullRequestReviewPayload,
+	PullRequestReviewAuthorizer,
 	stripMention,
 } from "cyrus-github-event-transport";
 import type { GitLabWebhookEvent } from "cyrus-gitlab-event-transport";
@@ -1151,6 +1152,20 @@ export class EdgeWorker extends EventEmitter {
 				if (event.payload.review.state !== "changes_requested") {
 					this.logger.debug(
 						`Ignoring pull_request_review with state: ${event.payload.review.state}`,
+					);
+					return;
+				}
+
+				// Only auto-respond to change requests on PRs Cyrus owns —
+				// either authored by the Cyrus bot or carrying the hidden
+				// Cyrus marker in the description. Explicit @mentions are
+				// handled separately and remain allowed on any PR.
+				const authorization = new PullRequestReviewAuthorizer({
+					botUsername,
+				}).authorize(event.payload);
+				if (!authorization.authorized) {
+					this.logger.debug(
+						`Ignoring pull_request_review on ${repoFullName}#${prNumber}: ${authorization.reason}`,
 					);
 					return;
 				}

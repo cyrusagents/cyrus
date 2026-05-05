@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Self-hosted: only auto-respond to PR change-requests on PRs Cyrus owns** — `pull_request_review` events with state `changes_requested` now trigger Cyrus only when the PR was opened by the configured Cyrus bot account or its description contains the hidden Cyrus marker. Other PRs are ignored (with a debug log). Explicit `@cyrusagent` mentions on any PR continue to work. ([CYPACK-1173](https://linear.app/ceedar/issue/CYPACK-1173))
+
 ## [0.2.51] - 2026-04-30
 
 ### Changed

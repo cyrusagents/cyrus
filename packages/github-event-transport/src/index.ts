@@ -34,6 +34,14 @@ export {
 	stripMention,
 } from "./github-webhook-utils.js";
 export type {
+	PullRequestReviewAuthorization,
+	PullRequestReviewAuthorizerConfig,
+} from "./PullRequestReviewAuthorizer.js";
+export {
+	CYRUS_PR_MARKER,
+	PullRequestReviewAuthorizer,
+} from "./PullRequestReviewAuthorizer.js";
+export type {
 	GitHubComment,
 	GitHubCommentEventType,
 	GitHubCommentWebhookEvent,
