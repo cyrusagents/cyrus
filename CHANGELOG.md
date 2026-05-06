@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Patched open Dependabot advisories** — Updates `@anthropic-ai/claude-agent-sdk` to `0.2.129` and `@anthropic-ai/sdk` to `^0.94.0` (in `cyrus-claude-runner`, `cyrus-core`, `cyrus-edge-worker`, `cyrus-simple-agent-runner`) to resolve [GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf) (insecure default file permissions in `BetaLocalFilesystemMemoryTool`). Bumps `@modelcontextprotocol/sdk` to `^1.29.0` in `cyrus-config-updater` and adds an `ip-address >= 10.1.1` override to resolve [GHSA-v2v4-37r5-5v8g](https://github.com/advisories/GHSA-v2v4-37r5-5v8g) (XSS in `Address6` HTML-emitting methods). `pnpm audit` now reports zero advisories. ([CYPACK-1174](https://linear.app/ceedar/issue/CYPACK-1174), [#1187](https://github.com/ceedaragents/cyrus/pull/1187))
+
 ## [0.2.51] - 2026-04-30
 
 ### Changed
