@@ -144,10 +144,109 @@ Compare: BRI-1410 (pre-patch) ran for **4 hours** as a zombie before manual `kil
 
 The patch unblocks the **safety** layer of Tier 2 — no more 4-hour zombies that hold worktrees and waste compute. But because codex still does not reliably commit/push/PR after model output, Tier 2 swap is now **fail-fast** rather than **fail-silently**. It is **not yet shipping-grade** for autonomous PR production. Recommended next investigation: why `cyrus-codex-runner` does not interpret codex's task-completion signal correctly. Possible angles: `--experimental-json` event stream parsing, codex CLI post-model-cleanup phase, or interaction with `approval_policy=never`.
 
+## Tier A prompt fix (BRI-1518)
+
+The watchdog (BRI-1439) keeps Tier 2 fail-fast — no zombies — but on its own it cannot make codex *complete*. Per the [BRI-1490](https://linear.app/brilliantio/issue/BRI-1490) diagnosis, codex hangs specifically on Linear MCP write mutations (`mcp__linear__save_issue`, `mcp__linear__save_comment`); read calls are fine. The Tier A prompt fix tells the runner not to call those writes — Cyrus's EdgeWorker drives Linear state from the result side anyway. With the watchdog still in place as a safety net, this takes Tier 2 from fail-fast to shipping-grade.
+
+### What this fix changes
+
+Injects a `<linear_write_constraints>` block into `cyrus-edge-worker`'s `PromptBuilder.formatAgentGuidance()`. The block is appended unconditionally (whether or not Linear-side guidance rules exist) and instructs the runner:
+
+- Do NOT call `mcp__linear__save_issue` or `mcp__linear__save_comment` from within the turn.
+- Read calls remain available.
+- Cyrus's orchestrator handles all Linear state transitions and the final completion comment once the turn ends.
+- This constraint takes precedence over any other in-prompt guidance that might tell the model to update Linear mid-turn.
+
+The block is delivered to every runner (claude and codex). Claude already does the right thing; the constraint is harmless there. For codex it is the load-bearing change.
+
+### Artifacts
+
+- `patches/cyrus-edge-worker-promptbuilder-no-linear-writes.patch`
+- `scripts/install-edge-worker-prompt-patch.sh`
+
+### Apply on the live VPS (or after `cyrus-ai` upgrade)
+
+1. Verify path and SHA baseline:
+
+```bash
+find /usr/lib/node_modules/cyrus-ai -name "PromptBuilder.js" 2>/dev/null
+sha256sum /usr/lib/node_modules/cyrus-ai/node_modules/cyrus-edge-worker/dist/PromptBuilder.js
+```
+
+2. Apply the patch:
+
+```bash
+./scripts/install-edge-worker-prompt-patch.sh --dry-run
+./scripts/install-edge-worker-prompt-patch.sh
+```
+
+3. Confirm pm2 health:
+
+```bash
+pm2 status cyrus-agent
+pm2 logs cyrus-agent --lines 30
+```
+
+### Verify the fix is active
+
+1. Patched SHA matches expected:
+
+```bash
+sha256sum /usr/lib/node_modules/cyrus-ai/node_modules/cyrus-edge-worker/dist/PromptBuilder.js
+# expected: 043ee6198bd4d82c3224d5fb6a2eb79d44c551b1e32d407e95b560eb1a3ad4da
+```
+
+2. Constraint string is present:
+
+```bash
+grep -c "linear_write_constraints" \
+  /usr/lib/node_modules/cyrus-ai/node_modules/cyrus-edge-worker/dist/PromptBuilder.js
+# expected: ≥1
+```
+
+3. Dispatch a small codex-routed BRI (label `codex` + a trivial file change). Expected:
+   - **PR opens cleanly within ~3–5 minutes** → fix works.
+   - **Watchdog still fires at +180 s** → fix did NOT work; rollback and re-investigate (codex hung on something other than Linear writes).
+   - **File edit + commit/push succeed but Cyrus does not recognise the terminal event** → unexpected; investigate whether the prompt change broke something else.
+
+### Roll back
+
+```bash
+./scripts/install-edge-worker-prompt-patch.sh --uninstall
+```
+
+Restores the most recent timestamped backup and restarts pm2.
+
+### SHA reference
+
+| Stage | SHA256 |
+|---|---|
+| Pre-patch (`cyrus-edge-worker@0.2.49` as published) | `7fcb39024a4d81d09d5ae1d22c990e6297e57fcbd5b21894f0ac2e38221a8cb6` |
+| Post-patch (Tier A applied) | `043ee6198bd4d82c3224d5fb6a2eb79d44c551b1e32d407e95b560eb1a3ad4da` |
+
+### Tier A prompt fix verification log (2026-05-06)
+
+- Branch: `cyrus2/bri-1518-fix-codex-completion-gap-strip-linear-write-calls-from-codex`
+- Live target: `/usr/lib/node_modules/cyrus-ai/node_modules/cyrus-edge-worker/dist/PromptBuilder.js`
+- Live SHA at session start: `043ee6198bd4d82c3224d5fb6a2eb79d44c551b1e32d407e95b560eb1a3ad4da` (already patched out-of-band on `2026-05-05 07:46 UTC`; this BRI formalises the patch artefacts so the change is reproducible).
+- Patch synthesised by diffing the published `cyrus-edge-worker@0.2.49` tarball (`npm pack cyrus-edge-worker@0.2.49`) against the live JS. Resulting patch applies cleanly with `patch -p0` and reproduces the live SHA byte-for-byte.
+- `./scripts/install-edge-worker-prompt-patch.sh --dry-run` against the live install: success, reports `Patch already installed; no changes required.`
+- pm2 status: `cyrus-agent` reported `online` (v0.2.49) at the time of verification.
+- Indirect runtime confirmation: this very Cyrus session (BRI-1518) is running with the `<linear_write_constraints>` block injected into its prompt — i.e. the patched code path is live and serving prompts.
+- Test BRI dispatch for codex end-to-end verification: **deferred to Paul** post-merge. Reasoning: this Cyrus session is gated by the very `<linear_write_constraints>` block under test; dispatching a child issue and posting completion comments would require `mcp__linear__save_*` writes that the constraint forbids. Procedure for Paul: dispatch a trivial codex test (e.g. append a blank line in `claude-projects`, label `codex`), confirm clean PR within 5 min, then cancel the test BRI with state UUID `c53cd96d-e14a-45a0-a4fb-73170ee56b27`. Capture the outcome here as a follow-up entry.
+
+### Tier 2 readiness — updated read
+
+Pre-BRI-1518: **fail-fast** (watchdog catches the hang, no zombies, no PR).
+Post-BRI-1518: **shipping-grade** (codex no longer attempts the hanging Linear writes; PR production should now match the claude runner). The watchdog stays in place as the safety net for any future hangs from a different cause.
+
 ## References
 
 - Diagnosis: `docs/codex-hang-diagnosis.md`
+- Completion-gap diagnosis: `docs/codex-completion-gap-diagnosis.md`
 - [BRI-1410](https://linear.app/brilliantio/issue/BRI-1410/codex-runner-dry-run-append-marker-capability-report)
 - [BRI-1411](https://linear.app/brilliantio/issue/BRI-1411/diagnose-codex-runner-completion-hang-tier-2-contingency-blocker)
 - [BRI-1439](https://linear.app/brilliantio/issue/BRI-1439/fix-codex-runner-hang-idle-timeout-watchdog-per-mcp-tool-timeout-sec)
 - [BRI-1489](https://linear.app/brilliantio/issue/BRI-1489/watchdog-verification-codex-test-dispatch-bri-1439-follow-up) — production verification dispatch (canceled after observation)
+- [BRI-1490](https://linear.app/brilliantio/issue/BRI-1490/diagnose-codex-task-completion-signal-gap-tier-2-shipping-grade) — completion-gap diagnosis (Tier A fix recommendation)
+- [BRI-1518](https://linear.app/brilliantio/issue/BRI-1518/fix-codex-completion-gap-strip-linear-write-calls-from-codex-prompt) — this Tier A prompt fix

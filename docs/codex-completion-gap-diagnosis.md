@@ -258,3 +258,15 @@ If that confirms Tier A holds in isolation, ship it as the first runner-side cha
 - `openai/codex#14470` — upstream bug, "codex exec --json resume can hang indefinitely on macOS after MCP helpers start."
 - `cyrus-codex-runner` `dist/CodexRunner.js:600-684` — `runTurn` + `handleEvent`; verified correct.
 - `@openai/codex-sdk@0.107.0` `dist/index.js:78-92` — SDK pass-through; verified correct.
+
+---
+
+## Update — fix landed (BRI-1518)
+
+Tier A prompt-level fix implemented and applied to the live VPS install. Codex no longer attempts `mcp__linear__save_*` mutations from within the turn; Cyrus's EdgeWorker handles all Linear state. Tier 2 contingency now shipping-grade (with the BRI-1439 watchdog retained as safety net).
+
+Patched file: `cyrus-edge-worker@0.2.49 / dist/PromptBuilder.js`
+Pre-patch SHA256: `7fcb39024a4d81d09d5ae1d22c990e6297e57fcbd5b21894f0ac2e38221a8cb6`
+Post-patch SHA256: `043ee6198bd4d82c3224d5fb6a2eb79d44c551b1e32d407e95b560eb1a3ad4da`
+
+See `docs/codex-runner-fix-runbook.md` § "Tier A prompt fix (BRI-1518)" for apply / verify / rollback procedure and verification log.

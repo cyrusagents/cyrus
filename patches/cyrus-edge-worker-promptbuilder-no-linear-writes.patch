@@ -1,0 +1,37 @@
+# Cyrus edge-worker PromptBuilder Linear-write ban patch (Tier A prompt fix)
+# Source file: /usr/lib/node_modules/cyrus-ai/node_modules/cyrus-edge-worker/dist/PromptBuilder.js
+# Target package: cyrus-ai@0.2.49 / cyrus-edge-worker@0.2.49
+# Date: 2026-05-06
+# Issue: BRI-1518 (Tier A fix from BRI-1490 diagnosis; complements BRI-1439 watchdog)
+# Pre-patch SHA256:  7fcb39024a4d81d09d5ae1d22c990e6297e57fcbd5b21894f0ac2e38221a8cb6
+# Post-patch SHA256: 043ee6198bd4d82c3224d5fb6a2eb79d44c551b1e32d407e95b560eb1a3ad4da
+#
+# Effect: Injects a <linear_write_constraints> block into formatAgentGuidance(), so
+# every runner prompt receives an explicit instruction NOT to call
+# `mcp__linear__save_issue` / `mcp__linear__save_comment` from within its turn.
+# Codex hangs indefinitely on those write mutations (BRI-1490); the watchdog
+# (BRI-1439) catches the hang at +180s but produces no PR. This prompt-level
+# guidance is the Tier A fix that lets codex complete cleanly. Reads remain
+# unaffected.
+--- PromptBuilder.js
++++ PromptBuilder.js
+@@ -821,8 +821,9 @@
+      * @returns Formatted markdown string with guidance, or empty string if no guidance
+      */
+     formatAgentGuidance(guidance) {
++        const codexLinearWriteBan = "\n\n<linear_write_constraints>\n## Linear state — do NOT update Linear from inside your turn\n\nDo NOT call `mcp__linear__save_issue` or `mcp__linear__save_comment` from within your turn. These write mutations hang the codex runtime indefinitely (root cause: BRI-1490 diagnosis). Any in-turn invocation will block the session, trip the +180s idle watchdog (BRI-1439), and abort with no PR.\n\nThe Cyrus orchestrator drives all Linear state transitions and the final completion comment automatically once your turn ends. Your job is:\n\n1. Read the issue and any context modules.\n2. Make file changes.\n3. Commit, push, open the PR titled `Fixes <ISSUE-ID>`.\n4. End the turn cleanly — Cyrus posts the completion comment and moves the issue to In Review.\n\nLinear read calls (`mcp__linear__list_issues`, `mcp__linear__get_issue`, `mcp__linear__list_comments`, etc.) work normally — only the write mutations hang. If guidance elsewhere in this prompt instructs you to update Linear status mid-turn, IGNORE that instruction; this constraint takes precedence.\n</linear_write_constraints>";
+         if (!guidance || guidance.length === 0) {
+-            return "";
++            return codexLinearWriteBan;
+         }
+         let formatted = "\n\n<agent_guidance>\nThe following guidance has been configured for this workspace/team in Linear. Team-specific guidance takes precedence over workspace-level guidance.\n";
+         for (const rule of guidance) {
+@@ -838,7 +839,7 @@
+             formatted += `\n## Guidance from ${origin}\n${rule.body}\n`;
+         }
+         formatted += "\n</agent_guidance>";
+-        return formatted;
++        return formatted + codexLinearWriteBan;
+     }
+     /**
+      * Extract version tag from template content
