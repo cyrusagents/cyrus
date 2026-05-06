@@ -37,6 +37,7 @@ function createBetaMessage(
 		content: contentBlocks,
 		model: "gemini-3" as const,
 		stop_reason: null,
+		stop_details: null,
 		stop_sequence: null,
 		usage: {
 			input_tokens: 0,

@@ -93,6 +93,7 @@ function createAssistantToolUseMessage(
 		content: contentBlocks,
 		model: DEFAULT_CODEX_MODEL,
 		stop_reason: null,
+		stop_details: null,
 		stop_sequence: null,
 		usage: {
 			input_tokens: 0,
@@ -146,6 +147,7 @@ function createAssistantBetaMessage(
 		content: contentBlocks,
 		model: DEFAULT_CODEX_MODEL,
 		stop_reason: null,
+		stop_details: null,
 		stop_sequence: null,
 		usage: {
 			input_tokens: 0,
