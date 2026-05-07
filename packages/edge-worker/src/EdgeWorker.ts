@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { execSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { LinearClient } from "@linear/sdk";
 import type {
@@ -3132,6 +3132,20 @@ ${taskSection}`;
 
 		// Delete worktrees for this issue, keyed by the Linear issue identifier.
 		this.gitService.deleteWorktree(message.workItemIdentifier);
+
+		// Also delete the per-issue cyrusHome directory (attachments, transient
+		// state, etc.). When this dir is left behind, every sibling under
+		// `~/.cyrus/` becomes a `Read(...)` deny pattern in
+		// buildHomeDirectoryDisallowedTools, and a few thousand stale entries
+		// can blow the spawn argv past ARG_MAX (E2BIG).
+		const issueCyrusDir = join(this.cyrusHome, message.workItemIdentifier);
+		try {
+			await rm(issueCyrusDir, { recursive: true, force: true });
+		} catch (err) {
+			this.logger.warn(
+				`Failed to remove ${issueCyrusDir} during terminal-state cleanup: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
 
 		this.logger.info(
 			`Completed cleanup for ${message.workItemIdentifier}: stopped ${sessions.length} session(s)`,
