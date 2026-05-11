@@ -12,11 +12,16 @@ import type {
 import type {
 	AgentRunnerConfig,
 	CyrusAgentSession,
+	EnvironmentConfig,
 	ILogger,
 	OnAskUserQuestion,
 	RepositoryConfig,
 	RunnerType,
 } from "cyrus-core";
+import {
+	EnvironmentResolver,
+	isEnvironmentIsolated,
+} from "./EnvironmentResolver.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 
 /**
@@ -115,6 +120,13 @@ export interface IssueRunnerConfigInput {
 	sandboxSettings?: SandboxSettings;
 	/** CA cert path for MITM TLS termination — passed via child process env */
 	egressCaCertPath?: string;
+	/**
+	 * Optional environment config bound to this session. When present, its
+	 * fields override repository-level defaults for systemPrompt, allowed
+	 * and disallowed tools, mcpConfigPath, sandbox filesystem permissions,
+	 * and plugins/skills.
+	 */
+	environment?: EnvironmentConfig;
 }
 
 /**
@@ -270,26 +282,61 @@ export class RunnerConfigBuilder {
 		const resolvedWorkspaceId =
 			input.linearWorkspaceId ??
 			input.requireLinearWorkspaceId(input.repository);
-		const mcpConfig = this.mcpConfigProvider.buildMcpConfig(
+
+		// Delegate all "env vs default" resolution to EnvironmentResolver.
+		// In isolated mode it strips dynamic MCP servers, hooks, the
+		// Chrome arg, and default settingSources; in merge mode it
+		// preserves the legacy behavior. Either way, this method is now
+		// just orchestration — the rules live in one place.
+		const env = input.environment;
+		const baseMcpConfig = this.mcpConfigProvider.buildMcpConfig(
 			input.repository.id,
 			resolvedWorkspaceId,
 			input.sessionId,
 			input.mcpOptions,
 		);
-		const mcpConfigPath = this.mcpConfigProvider.buildMergedMcpConfigPath(
+		const baseMcpConfigPath = this.mcpConfigProvider.buildMergedMcpConfigPath(
 			input.repository,
 		);
+		const resolver = new EnvironmentResolver(log);
+		const resolved = resolver.resolve(env, {
+			systemPrompt: input.systemPrompt,
+			allowedTools: input.allowedTools,
+			disallowedTools: input.disallowedTools,
+			mcpConfigPath: baseMcpConfigPath,
+			mcpConfig: baseMcpConfig,
+			plugins: input.plugins,
+			sandboxSettings: input.sandboxSettings,
+			hooks,
+			settingSources: undefined,
+			addChromeExtraArg: true,
+			defaultAllowedDirectories: input.allowedDirectories,
+			envReadOnlyRepoPaths: [],
+			worktreePath: input.session.workspace.path,
+			restrictHomeDirectoryReads: true,
+			strictToolPermissions: false,
+		});
+
+		// Build a shadow input that buildSandboxConfig can consume.
+		const sandboxInput: IssueRunnerConfigInput = {
+			...input,
+			sandboxSettings: resolved.sandboxSettings,
+		};
 
 		const config: AgentRunnerConfig & Record<string, unknown> = {
 			workingDirectory: input.session.workspace.path,
-			allowedTools: input.allowedTools,
-			disallowedTools: input.disallowedTools,
-			allowedDirectories: input.allowedDirectories,
+			allowedTools: resolved.allowedTools,
+			disallowedTools: resolved.disallowedTools,
+			allowedDirectories: resolved.allowedDirectories,
 			workspaceName: input.session.issue?.identifier || input.session.issueId,
 			cyrusHome: input.cyrusHome,
-			mcpConfigPath,
-			mcpConfig,
-			appendSystemPrompt: input.systemPrompt || "",
+			...(resolved.mcpConfigPath !== undefined && {
+				mcpConfigPath: resolved.mcpConfigPath,
+			}),
+			...(resolved.mcpConfig !== undefined && {
+				mcpConfig: resolved.mcpConfig,
+			}),
+			appendSystemPrompt: resolved.systemPrompt || "",
 			// Priority order: label override > repository config > global default
 			model: finalModel,
 			fallbackModel:
@@ -297,18 +344,41 @@ export class RunnerConfigBuilder {
 				input.repository.fallbackModel ||
 				this.runnerSelector.getDefaultFallbackModelForRunner(runnerType),
 			logger: log,
-			hooks,
+			hooks: resolved.hooks,
 			// Plugins providing skills (Claude runner only)
 			...(runnerType === "claude" &&
-				input.plugins?.length && { plugins: input.plugins }),
+				resolved.plugins?.length && { plugins: resolved.plugins }),
 			// SDK sandbox settings (Claude runner only):
 			// - Merge base settings with per-session filesystem.allowWrite (worktree path)
 			// - Pass CA cert path via env for MITM TLS termination
 			...(runnerType === "claude" &&
-				input.sandboxSettings &&
-				this.buildSandboxConfig(input)),
-			// Enable Chrome integration for Claude runner (disabled for other runners)
-			...(runnerType === "claude" && { extraArgs: { chrome: null } }),
+				resolved.sandboxSettings &&
+				this.buildSandboxConfig(sandboxInput)),
+			// Enable Chrome integration for Claude runner (disabled in
+			// isolated environments and for other runners).
+			...(runnerType === "claude" &&
+				resolved.addChromeExtraArg && { extraArgs: { chrome: null } }),
+			// Forward `settingSources` only when explicitly resolved (env
+			// said so, or isolation forced `[]`). Omitted lets the
+			// ClaudeRunner default of `["user","project","local"]` apply.
+			...(runnerType === "claude" &&
+				resolved.settingSources !== undefined && {
+					settingSources: resolved.settingSources,
+				}),
+			// Forward the home-directory restriction toggle. Only set when
+			// the env opted out (false) — leaving it undefined lets the
+			// ClaudeRunner default (true, restrict) apply.
+			...(runnerType === "claude" &&
+				resolved.restrictHomeDirectoryReads === false && {
+					restrictHomeDirectoryReads: false,
+				}),
+			// Forward strict tool permission enforcement. Only set when
+			// true (env-bound sessions) — leaving undefined preserves the
+			// legacy rubber-stamp behavior for sessions with no env.
+			...(runnerType === "claude" &&
+				resolved.strictToolPermissions === true && {
+					strictToolPermissions: true,
+				}),
 			// AskUserQuestion callback - only for Claude runner
 			...(runnerType === "claude" &&
 				input.createAskUserQuestionCallback && {
@@ -343,6 +413,27 @@ export class RunnerConfigBuilder {
 
 		if (input.maxTurns !== undefined) {
 			config.maxTurns = input.maxTurns;
+		}
+
+		// Layer env variables in precedence order (lowest to highest):
+		//   1. Environment file's `env` field (admin-declared defaults)
+		//   2. Per-session inline overrides parsed from the issue
+		//      description (`env=name$K=V`) — pre-filtered by the env's
+		//      `allowInlineOverrides` allowlist upstream.
+		//   3. Sandbox-managed variables (NODE_EXTRA_CA_CERTS etc.) —
+		//      must stay intact for TLS interception.
+		const sessionOverrides = input.session.environmentOverrides;
+		const hasEnvBase = env?.env && Object.keys(env.env).length > 0;
+		const hasOverrides =
+			sessionOverrides && Object.keys(sessionOverrides).length > 0;
+		if (runnerType === "claude" && (hasEnvBase || hasOverrides)) {
+			const existing =
+				(config.additionalEnv as Record<string, string> | undefined) ?? {};
+			config.additionalEnv = {
+				...(env?.env ?? {}),
+				...(sessionOverrides ?? {}),
+				...existing,
+			};
 		}
 
 		return { config, runnerType };
@@ -400,6 +491,11 @@ export class RunnerConfigBuilder {
 		const result: Record<string, unknown> = {};
 
 		if (input.sandboxSettings) {
+			const isolated = isEnvironmentIsolated(input.environment);
+			const baseFilesystem = (input.sandboxSettings.filesystem ?? {}) as Record<
+				string,
+				string[] | undefined
+			>;
 			result.sandbox = {
 				...input.sandboxSettings,
 				// When sandbox is enabled, do not allow commands to run unsandboxed
@@ -409,17 +505,31 @@ export class RunnerConfigBuilder {
 				// opens access to com.apple.trustd.agent, which is a potential data
 				// exfiltration path. See: https://code.claude.com/docs/en/settings#sandbox-settings
 				enableWeakerNetworkIsolation: true,
-				filesystem: {
-					...input.sandboxSettings.filesystem,
-					// "." resolves to the cwd of the primary folder Claude is working in.
-					// See: https://code.claude.com/docs/en/settings#sandbox-path-prefixes
-					// allowedDirectories contains the attachments dir, repo paths, and git
-					// metadata dirs — all of which need OS-level read access alongside the worktree.
-					allowRead: [".", ...input.allowedDirectories],
-					denyRead: ["~/"],
-					// Restrict subprocess writes to the session worktree only
-					allowWrite: [input.session.workspace.path],
-				},
+				filesystem: isolated
+					? {
+							// Isolation mode: env-supplied filesystem rules are the
+							// sole source of truth. The only runtime-safety addition
+							// is the worktree path in `allowWrite` so the agent can
+							// persist its own work.
+							...baseFilesystem,
+							allowWrite: Array.from(
+								new Set([
+									...(baseFilesystem.allowWrite ?? []),
+									input.session.workspace.path,
+								]),
+							),
+						}
+					: {
+							...baseFilesystem,
+							// "." resolves to the cwd of the primary folder Claude is working in.
+							// See: https://code.claude.com/docs/en/settings#sandbox-path-prefixes
+							// allowedDirectories contains the attachments dir, repo paths, and git
+							// metadata dirs — all of which need OS-level read access alongside the worktree.
+							allowRead: [".", ...input.allowedDirectories],
+							denyRead: ["~/"],
+							// Restrict subprocess writes to the session worktree only
+							allowWrite: [input.session.workspace.path],
+						},
 			};
 		}
 

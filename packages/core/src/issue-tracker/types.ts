@@ -114,11 +114,12 @@ export type Issue = Pick<
  */
 export type Comment = Pick<
 	LinearSDK.Comment,
-	// Properties (4)
+	// Properties (5)
 	| "id"
 	| "body"
 	| "createdAt"
 	| "updatedAt"
+	| "parentId"
 	// Async getters (3)
 	| "user"
 	| "parent"
@@ -1009,6 +1010,29 @@ export function isIssueDeletedWebhook(
 	webhook: Webhook,
 ): webhook is IssueDeletedWebhook {
 	return webhook.type === "Issue" && webhook.action === "remove";
+}
+
+/**
+ * Platform-agnostic comment create webhook payload.
+ * Maps to Linear SDK's EntityWebhookPayload with type "Comment" and action "create".
+ *
+ * Linear sends this when a new comment is created on any entity (issue, project, etc).
+ * The `data` field contains the created comment's data (body, user, parentId, issueId, etc.).
+ */
+export type CommentCreateWebhook =
+	LinearSDK.LinearDocument.EntityWebhookPayload & {
+		type: "Comment";
+		action: "create";
+		data: LinearSDK.LinearDocument.CommentWebhookPayload;
+	};
+
+/**
+ * Type guard to check if webhook is a comment create event.
+ */
+export function isCommentCreateWebhook(
+	webhook: Webhook,
+): webhook is CommentCreateWebhook {
+	return webhook.type === "Comment" && webhook.action === "create";
 }
 
 /**

@@ -666,6 +666,8 @@ The system evaluates routing methods in this strict priority order. The FIRST ma
 4. **Team Selection (Priority 4 - Lowest)**: Create the issue in a Linear team that routes to the target repository.
 
 For reliable cross-repository routing, prefer Description Tags as they are explicit and unambiguous.
+
+**Scoped Environments (Optional):** To bind a sub-issue's session to a named environment (a reusable bundle of system prompt, tools, permissions, and resources stored in \`~/.cyrus/environments/<name>.json\`), add \`[env=<name>]\` (or unbracketed \`env=<name>\`) to the sub-issue description. Environments are orthogonal to repository routing and persist across restarts.
 </description>
 
 <available_repositories>

@@ -88,6 +88,14 @@ export interface PromptAssemblyInput {
 	/** Timestamp of the comment (for multi-player context) */
 	commentTimestamp?: string;
 
+	/**
+	 * Where the comment was authored.
+	 *  - "linear": posted by an internal Linear user via the Linear UI
+	 *  - "email": delivered via Linear's email-to-thread sync (external sender)
+	 * When unset, no `<source>` element is emitted.
+	 */
+	commentSource?: "linear" | "email";
+
 	/** Attachment manifest string (if any attachments) */
 	attachmentManifest?: string;
 

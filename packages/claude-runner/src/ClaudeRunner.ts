@@ -25,6 +25,7 @@ import {
 	StreamingPrompt,
 } from "cyrus-core";
 import dotenv from "dotenv";
+import { availableTools } from "./config.js";
 import { ClaudeMessageFormatter, type IMessageFormatter } from "./formatter.js";
 import { buildHomeDirectoryDisallowedTools } from "./home-directory-restrictions.js";
 import {
@@ -263,8 +264,13 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 		this.cyrusHome = config.cyrusHome;
 		this.formatter = new ClaudeMessageFormatter();
 
-		// Create canUseTool callback if onAskUserQuestion is provided
-		if (config.onAskUserQuestion) {
+		// Register the canUseTool callback when we either have an
+		// AskUserQuestion handler to delegate to, or strict tool
+		// permission enforcement is requested. In strict mode the
+		// callback is also responsible for denying any tool the SDK
+		// asks about that isn't AskUserQuestion — without it, the SDK
+		// rubber-stamps tools missing from `allowedTools`.
+		if (config.onAskUserQuestion || config.strictToolPermissions === true) {
 			this.canUseToolCallback = this.createCanUseToolCallback();
 		}
 
@@ -294,9 +300,28 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 				toolUseID: string;
 			},
 		): Promise<PermissionResult> => {
-			// Only intercept AskUserQuestion tool
+			// Diagnostic: every canUseTool invocation is logged at INFO so
+			// operators can confirm whether the SDK is actually routing
+			// permission decisions through Cyrus (some tools may bypass the
+			// callback entirely depending on SDK version + permissionMode).
+			this.logger.info(
+				`canUseTool invoked: tool=${toolName} strict=${this.config.strictToolPermissions === true}`,
+			);
+
+			// Only intercept AskUserQuestion tool. For everything else,
+			// strict mode denies (so `allowedTools` is authoritative);
+			// otherwise we rubber-stamp to preserve legacy behavior for
+			// sessions that haven't opted in.
 			if (toolName !== "AskUserQuestion") {
-				// Allow all other tools to proceed normally
+				if (this.config.strictToolPermissions === true) {
+					this.logger.info(
+						`Strict mode: denying ${toolName} (not in allowedTools)`,
+					);
+					return {
+						behavior: "deny",
+						message: `Tool "${toolName}" is not permitted by this environment's allowedTools. Add it to the environment config to enable.`,
+					};
+				}
 				return {
 					behavior: "allow",
 					updatedInput: input,
@@ -521,19 +546,40 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 			// Claude from reading SSH keys, credentials, etc. `Read(~/**)` does
 			// not work as a disallowedTools pattern — `~` is not expanded to the
 			// home directory path, so the pattern never matches.
-			const homeDisallowedTools = this.config.workingDirectory
-				? buildHomeDirectoryDisallowedTools(
-						this.config.workingDirectory,
-						this.config.allowedDirectories ?? [],
-					)
+			//
+			// Honors `config.restrictHomeDirectoryReads` (default true). An
+			// environment can opt out by setting it false to grant wider
+			// read access, e.g. for cross-repo research sessions.
+			const restrictHomeReads =
+				this.config.restrictHomeDirectoryReads !== false;
+			const homeDisallowedTools =
+				restrictHomeReads && this.config.workingDirectory
+					? buildHomeDirectoryDisallowedTools(
+							this.config.workingDirectory,
+							this.config.allowedDirectories ?? [],
+						)
+					: [];
+
+			// In strict mode, also auto-deny any built-in tool name not
+			// represented in `allowedTools`. The Claude Agent SDK silently
+			// bypasses `canUseTool` for several "safe" tools (Glob, Grep,
+			// Edit, Write, Bash, etc.), so the only reliable way to make
+			// `allowedTools` truly authoritative is to explicitly disallow
+			// every other tool name. AskUserQuestion is always preserved
+			// because Cyrus needs it for the agentic permission flow.
+			const strictMode = this.config.strictToolPermissions === true;
+			const strictModeDisallowedTools = strictMode
+				? buildStrictDisallowedTools(processedAllowedTools ?? [])
 				: [];
 
-			// Merge config-level denials with home directory denials, deduplicating in case
-			// any paths appear in both (e.g. an allowedDirectory that is also explicitly denied).
+			// Merge config-level denials with home directory + strict-mode
+			// denials, deduplicating in case any paths/names appear in
+			// multiple sources.
 			const processedDisallowedTools = [
 				...new Set([
 					...(this.config.disallowedTools ?? []),
 					...homeDisallowedTools,
+					...strictModeDisallowedTools,
 				]),
 			];
 
@@ -640,7 +686,11 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// load file based settings, to maintain more backwards compatibility,
 					// particularly with CLAUDE.md files, settings files, and custom slash commands,
 					// see: https://docs.claude.com/en/docs/claude-code/sdk/migration-guide#settings-sources-no-longer-loaded-by-default
-					settingSources: ["user", "project", "local"],
+					settingSources: this.config.settingSources ?? [
+						"user",
+						"project",
+						"local",
+					],
 					env: {
 						...buildBaseSessionEnv(),
 						// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally NOT set while
@@ -666,6 +716,14 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					}),
 					...(this.canUseToolCallback && {
 						canUseTool: this.canUseToolCallback,
+					}),
+					// In strict mode we MUST run with permissionMode "default"
+					// so the SDK actually consults canUseTool for tools not in
+					// allowedTools. Otherwise an inherited "bypassPermissions"
+					// (or similar) would skip the callback entirely and let the
+					// agent run anything.
+					...(this.config.strictToolPermissions === true && {
+						permissionMode: "default" as const,
 					}),
 					...(this.config.resumeSessionId && {
 						resume: this.config.resumeSessionId,
@@ -1266,4 +1324,40 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 			this.logger.error("Error writing readable log entry:", error);
 		}
 	}
+}
+
+/**
+ * Extract the bare tool name from a Claude Code allowedTools entry.
+ *   "Read"           -> "Read"
+ *   "Read(**)"       -> "Read"
+ *   "Bash(grep *)"   -> "Bash"
+ *   "mcp__svr__tool" -> "mcp__svr__tool" (kept verbatim — MCP tools
+ *                       use a different namespace and are matched whole)
+ */
+export function extractToolName(entry: string): string {
+	const paren = entry.indexOf("(");
+	return paren === -1 ? entry : entry.slice(0, paren);
+}
+
+/**
+ * Compute the list of disallowedTools entries that, when combined with
+ * an authoritative `allowedTools`, makes the SDK actually enforce the
+ * allowlist for built-in tools the SDK would otherwise auto-allow
+ * (Glob, Grep, Edit, Write, Bash, etc.).
+ *
+ * For each tool name in `availableTools` not represented in
+ * `allowedTools`, emit a bare-name disallow entry. AskUserQuestion is
+ * never disallowed because Cyrus relies on it for the agentic
+ * permission flow.
+ */
+export function buildStrictDisallowedTools(allowedTools: string[]): string[] {
+	const allowedToolNames = new Set(allowedTools.map(extractToolName));
+	const denials: string[] = [];
+	for (const tool of availableTools) {
+		const name = extractToolName(tool);
+		if (name === "AskUserQuestion") continue;
+		if (allowedToolNames.has(name)) continue;
+		denials.push(name);
+	}
+	return denials;
 }

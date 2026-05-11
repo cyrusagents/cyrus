@@ -47,3 +47,26 @@ export const DEFAULT_BASE_BRANCH = "main";
  * Default config filename
  */
 export const DEFAULT_CONFIG_FILENAME = "config.json";
+
+/**
+ * Linear posts this auto-generated root comment when an agent session is
+ * created via delegation. The full root body is
+ * `"This thread is for an agent session with <agent-name>"`, where the agent
+ * name varies per workspace (e.g. "cyrus", "cyrustester"), so we match on the
+ * stable prefix only.
+ *
+ * Used to distinguish delegation-triggered sessions (where the first comment
+ * is this marker and the initial prompt should come from the issue
+ * description) from @ mention-triggered sessions (where the comment body *is*
+ * the prompt).
+ */
+export const AGENT_SESSION_THREAD_MARKER_PREFIX =
+	"This thread is for an agent session";
+
+/**
+ * Linear posts this auto-generated root comment when a comment thread is
+ * mirrored to an email chain. Match the exact body to detect replies inside
+ * these synced threads so we can inject them into the active agent session.
+ */
+export const EMAIL_SYNCED_THREAD_MARKER =
+	"This comment thread is synced to a corresponding email chain. All replies are displayed in both locations.";

@@ -1,5 +1,6 @@
 import type {
 	AgentActivityCreateInput,
+	EnvironmentConfig,
 	IIssueTrackerService,
 	ILogger,
 	RepositoryConfig,
@@ -151,6 +152,120 @@ export class ActivityPoster {
 			},
 			"routing",
 		);
+	}
+
+	/**
+	 * Post a Linear activity announcing that an environment config was
+	 * matched and bound to the session. Renders only the fields the
+	 * environment actually customized so the activity stays scannable.
+	 *
+	 * @param sessionId       Linear agent session ID.
+	 * @param workspaceId     Linear workspace ID for routing the activity.
+	 * @param env             The environment config that was matched.
+	 * @param acceptedOverrides Inline `env=name$K=V` overrides accepted
+	 *                        from the issue description (already filtered
+	 *                        against `env.allowInlineOverrides`).
+	 */
+	async postEnvironmentBindingActivity(
+		sessionId: string,
+		workspaceId: string,
+		env: EnvironmentConfig,
+		acceptedOverrides: Record<string, string> = {},
+	): Promise<void> {
+		const issueTracker = this.issueTrackers.get(workspaceId);
+		if (!issueTracker) {
+			this.logger.warn(`No issue tracker found for workspace ${workspaceId}`);
+			return;
+		}
+
+		const lines = ActivityPoster.formatEnvironmentBindingLines(
+			env,
+			acceptedOverrides,
+		);
+		const header = env.isolated
+			? `**Environment** \`${env.name ?? "(unnamed)"}\` (isolated)`
+			: `**Environment** \`${env.name ?? "(unnamed)"}\``;
+		const body = lines.length > 0 ? `${header}\n${lines.join("\n")}` : header;
+
+		await this.postActivityDirect(
+			issueTracker,
+			{
+				agentSessionId: sessionId,
+				content: { type: "thought", body },
+			},
+			"environment binding",
+		);
+	}
+
+	/**
+	 * Pure formatter (static for testability) that turns an env config
+	 * into a list of human-readable bullet lines covering only the
+	 * fields that have been customized. Kept separate from
+	 * `postEnvironmentBindingActivity` so unit tests can assert on the
+	 * rendered text without mocking issue trackers.
+	 */
+	static formatEnvironmentBindingLines(
+		env: EnvironmentConfig,
+		acceptedOverrides: Record<string, string> = {},
+	): string[] {
+		const lines: string[] = [];
+		if (env.description) lines.push(`- ${env.description}`);
+		if (env.systemPrompt) lines.push("- System prompt: from env (inline)");
+		else if (env.systemPromptPath)
+			lines.push(`- System prompt: file \`${env.systemPromptPath}\``);
+		if (env.allowedTools !== undefined)
+			lines.push(`- Allowed tools: ${env.allowedTools.length} entries`);
+		if (env.disallowedTools !== undefined)
+			lines.push(`- Disallowed tools: ${env.disallowedTools.length} entries`);
+		if (env.mcpConfigPath !== undefined) {
+			const paths = Array.isArray(env.mcpConfigPath)
+				? env.mcpConfigPath.length
+				: 1;
+			lines.push(`- MCP config: ${paths} path(s) (replaces repo defaults)`);
+		}
+		if (env.sandbox) lines.push("- Sandbox: env override");
+		if (env.plugins?.length || env.skills?.length) {
+			const total = (env.plugins?.length ?? 0) + (env.skills?.length ?? 0);
+			lines.push(`- Plugins/skills: ${total} entries`);
+		}
+		if (env.claudeSettingSources !== undefined) {
+			lines.push(
+				env.claudeSettingSources.length === 0
+					? "- Claude settings sources: none (fully isolated)"
+					: `- Claude settings sources: ${env.claudeSettingSources.join(", ")}`,
+			);
+		}
+		if (env.env && Object.keys(env.env).length > 0) {
+			lines.push(
+				`- Env variables: ${Object.keys(env.env).length} (${Object.keys(env.env).sort().join(", ")})`,
+			);
+		}
+		if (env.allowInlineOverrides?.length) {
+			lines.push(
+				`- Allowed inline overrides: ${env.allowInlineOverrides.join(", ")}`,
+			);
+		}
+		const acceptedKeys = Object.keys(acceptedOverrides).sort();
+		if (acceptedKeys.length > 0) {
+			lines.push(`- Inline overrides accepted: ${acceptedKeys.join(", ")}`);
+		}
+		if (env.repositories?.length) {
+			lines.push(`- Read-only repositories: ${env.repositories.join(", ")}`);
+		}
+		if (env.gitWorktrees !== undefined) {
+			lines.push(
+				env.gitWorktrees.length === 0
+					? "- Git worktrees: none (no-git workspace)"
+					: `- Git worktrees: ${env.gitWorktrees.join(", ")}`,
+			);
+		}
+		if (env.restrictHomeDirectoryReads === false) {
+			lines.push("- Home-directory read restriction: disabled");
+		}
+		if (env.strictToolPermissions === false) {
+			lines.push("- Strict tool permissions: disabled (legacy rubber-stamp)");
+		}
+		return lines;
 	}
 
 	async postSystemPromptSelectionThought(

@@ -30,6 +30,7 @@ import type {
 	UserPromptMessage,
 } from "cyrus-core";
 import {
+	AGENT_SESSION_THREAD_MARKER_PREFIX,
 	type AgentSessionCreatedWebhook,
 	type AgentSessionPromptedWebhook,
 	type IssueDeletedWebhook,
@@ -135,10 +136,9 @@ export class LinearMessageTranslator
 		const comment = agentSession.comment;
 
 		// Determine initial prompt from comment body
-		const AGENT_SESSION_MARKER = "This thread is for an agent session";
 		const commentBody = comment?.body;
 		const isMentionTriggered =
-			commentBody && !commentBody.includes(AGENT_SESSION_MARKER);
+			commentBody && !commentBody.includes(AGENT_SESSION_THREAD_MARKER_PREFIX);
 		const initialPrompt = isMentionTriggered
 			? (commentBody ?? "")
 			: (issue.description ?? "");

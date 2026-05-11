@@ -960,6 +960,122 @@ describe("RepositoryRouter", () => {
 				expect(result).toEqual([]);
 			});
 		});
+
+		describe("parseEnvironmentTagFromDescription", () => {
+			it("parses bracketed [env=name]", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"Please work on this [env=read-only] feature",
+					),
+				).toEqual({ name: "read-only", overrides: {} });
+			});
+
+			it("parses escaped-bracket form from Linear", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"intro text \\[env=staging\\] more text",
+					),
+				).toEqual({ name: "staging", overrides: {} });
+			});
+
+			it("parses unbracketed env=name at start of line", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"env=prod\nother content",
+					),
+				).toEqual({ name: "prod", overrides: {} });
+			});
+
+			it("parses unbracketed env=name after whitespace", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"line one\n env=team.qa something",
+					),
+				).toEqual({ name: "team.qa", overrides: {} });
+			});
+
+			it("returns null when no tag exists", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"just a description with no env tag",
+					),
+				).toBeNull();
+			});
+
+			it("returns null for empty descriptions", () => {
+				expect(env.router.parseEnvironmentTagFromDescription("")).toBeNull();
+			});
+
+			it("returns only the first match when multiple tags are present", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"[env=first] and also [env=second]",
+					),
+				).toEqual({ name: "first", overrides: {} });
+			});
+
+			it("ignores env= inside URLs", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"See https://example.com/path?env=foo for details",
+					),
+				).toBeNull();
+			});
+
+			it("parses a single inline override", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"env=test$FEATURE_FLAG=1",
+					),
+				).toEqual({ name: "test", overrides: { FEATURE_FLAG: "1" } });
+			});
+
+			it("parses multiple inline overrides separated by comma+$", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"env=test$FEATURE_FLAG=1,$CYRUS_REMOTE=true",
+					),
+				).toEqual({
+					name: "test",
+					overrides: { FEATURE_FLAG: "1", CYRUS_REMOTE: "true" },
+				});
+			});
+
+			it("parses inline overrides inside bracketed form", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"[env=test$FOO=bar,$BAZ=qux]",
+					),
+				).toEqual({
+					name: "test",
+					overrides: { FOO: "bar", BAZ: "qux" },
+				});
+			});
+
+			it("silently drops malformed override keys (lowercase, numeric-start)", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"env=test$feature_flag=1,$1BAD=x,$GOOD_ONE=yes",
+					),
+				).toEqual({ name: "test", overrides: { GOOD_ONE: "yes" } });
+			});
+
+			it("silently drops overrides without an equals sign", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"env=test$NO_EQUALS,$REAL=ok",
+					),
+				).toEqual({ name: "test", overrides: { REAL: "ok" } });
+			});
+
+			it("allows = inside override values", () => {
+				expect(
+					env.router.parseEnvironmentTagFromDescription(
+						"env=test$BASE64=YWJjPQ==",
+					),
+				).toEqual({ name: "test", overrides: { BASE64: "YWJjPQ==" } });
+			});
+		});
 	});
 
 	// ========================================================================
@@ -2128,6 +2244,62 @@ describe("RepositoryRouter", () => {
 				expect(cache.get("issue-1")).toEqual(["repo-1"]);
 				expect(cache.get("issue-2")).toEqual(["repo-2", "repo-3"]);
 			});
+		});
+	});
+
+	describe("parseEnvironmentTagFromDescription", () => {
+		it("parses bracketed [env=name]", () => {
+			expect(
+				env.router.parseEnvironmentTagFromDescription("Run this in [env=prod]"),
+			).toEqual({ name: "prod", overrides: {} });
+		});
+
+		it("parses unbracketed env=name at start of line", () => {
+			expect(
+				env.router.parseEnvironmentTagFromDescription(
+					"env=staging\n\nDo the thing",
+				),
+			).toEqual({ name: "staging", overrides: {} });
+		});
+
+		it("parses env=name after whitespace", () => {
+			expect(
+				env.router.parseEnvironmentTagFromDescription(
+					"hello env=read-only world",
+				),
+			).toEqual({ name: "read-only", overrides: {} });
+		});
+
+		it("handles Linear's escaped brackets", () => {
+			expect(
+				env.router.parseEnvironmentTagFromDescription("Run in \\[env=prod\\]"),
+			).toEqual({ name: "prod", overrides: {} });
+		});
+
+		it("returns only the first match when multiple exist", () => {
+			expect(
+				env.router.parseEnvironmentTagFromDescription(
+					"[env=first] and [env=second]",
+				),
+			).toEqual({ name: "first", overrides: {} });
+		});
+
+		it("returns null when no tag is present", () => {
+			expect(
+				env.router.parseEnvironmentTagFromDescription(
+					"A description without tags",
+				),
+			).toBeNull();
+		});
+
+		it("returns null on empty description", () => {
+			expect(env.router.parseEnvironmentTagFromDescription("")).toBeNull();
+		});
+
+		it("rejects names with invalid characters", () => {
+			expect(
+				env.router.parseEnvironmentTagFromDescription("[env=has spaces]"),
+			).toBeNull();
 		});
 	});
 });

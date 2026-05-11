@@ -460,6 +460,43 @@ export interface AgentRunnerConfig {
 	onError?: (error: Error) => void | Promise<void>;
 	/** Callback when session completes */
 	onComplete?: (messages: AgentMessage[]) => void | Promise<void>;
+	/**
+	 * When `true`, the runner's `canUseTool` callback denies any tool
+	 * the SDK asks about (i.e., not in `allowedTools`) instead of
+	 * rubber-stamping it. Makes `allowedTools` authoritative.
+	 *
+	 * Defaults to `false` for backwards compatibility with legacy
+	 * sessions; env-bound sessions are flipped to `true` upstream.
+	 *
+	 * Currently honored by the Claude runner only.
+	 */
+	strictToolPermissions?: boolean;
+
+	/**
+	 * When `true` (default), Cyrus enumerates entries in the user's
+	 * home directory and adds them to `disallowedTools` so the agent
+	 * cannot Read SSH keys, dotfiles, credentials, etc. Set `false`
+	 * to opt out — typically only useful from an environment config
+	 * that grants intentionally wider read access.
+	 *
+	 * Currently honored by the Claude runner only.
+	 */
+	restrictHomeDirectoryReads?: boolean;
+
+	/**
+	 * Which file-based Claude settings sources the SDK should load.
+	 * Maps to `@anthropic-ai/claude-agent-sdk`'s `settingSources` option:
+	 *   - `"user"`: `~/.claude/settings.json` (per-user global)
+	 *   - `"project"`: `<repo>/.claude/settings.json` (checked-in)
+	 *   - `"local"`: `<repo>/.claude/settings.local.json` (gitignored)
+	 *
+	 * When omitted, runners apply the default `["user","project","local"]`
+	 * for backwards compatibility with CLAUDE.md, custom slash commands,
+	 * and project-level config. An empty array disables all sources.
+	 *
+	 * Currently honored by the Claude runner only.
+	 */
+	settingSources?: ("user" | "project" | "local")[];
 }
 
 /**

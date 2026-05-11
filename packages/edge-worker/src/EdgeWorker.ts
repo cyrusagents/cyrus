@@ -26,9 +26,11 @@ import type {
 	AgentSessionCreatedWebhook,
 	AgentSessionPromptedWebhook,
 	BaseBranchResolution,
+	CommentCreateWebhook,
 	ContentUpdateMessage,
 	CyrusAgentSession,
 	EdgeWorkerConfig,
+	EnvironmentConfig,
 	GuidanceRule,
 	IAgentRunner,
 	IIssueTrackerService,
@@ -51,12 +53,15 @@ import type {
 	WebhookIssue,
 } from "cyrus-core";
 import {
+	AGENT_SESSION_THREAD_MARKER_PREFIX,
 	CLIIssueTrackerService,
 	CLIRPCServer,
 	createLogger,
 	DEFAULT_PROXY_URL,
+	EMAIL_SYNCED_THREAD_MARKER,
 	isAgentSessionCreatedWebhook,
 	isAgentSessionPromptedWebhook,
+	isCommentCreateWebhook,
 	isContentUpdateMessage,
 	isIssueAssignedWebhook,
 	isIssueCommentMentionWebhook,
@@ -71,8 +76,11 @@ import {
 	isStopSignalMessage,
 	isUnassignMessage,
 	isUserPromptMessage,
+	loadEnvironment,
 	PersistenceManager,
 	requireLinearWorkspaceId,
+	resolveEnvironmentReadOnlyRepoPaths,
+	resolveEnvironmentWorktreeRepos,
 	resolvePath,
 	WebhookIpValidator,
 } from "cyrus-core";
@@ -2989,6 +2997,9 @@ ${taskSection}`;
 			} else if (isIssueStateIdUpdateWebhook(webhook)) {
 				// Handle issue state changes — wake up parked sessions when blocking issues complete
 				await this.handleIssueStateChange(webhook);
+			} else if (isCommentCreateWebhook(webhook)) {
+				// Inject email-synced comment replies into the active agent session.
+				await this.handleCommentCreatedWebhook(webhook);
 			} else {
 				if (process.env.CYRUS_WEBHOOK_DEBUG === "true") {
 					this.logger.debug(
@@ -3829,30 +3840,109 @@ ${taskSection}`;
 		// Move issue to started state automatically, in case it's not already
 		await this.moveIssueToStartedState(fullIssue, linearWorkspaceId);
 
+		// Resolve an environment binding (if any) BEFORE workspace creation so
+		// its `gitWorktrees` field can override which repositories get
+		// worktrees created. The environment name also persists on the session
+		// so its overrides reapply across restarts.
+		const envTag = this.repositoryRouter.parseEnvironmentTagFromDescription(
+			fullIssue.description || "",
+		);
+		const envName = envTag?.name;
+		let boundEnvironment: EnvironmentConfig | null = null;
+		const acceptedOverrides: Record<string, string> = {};
+		if (envName) {
+			try {
+				boundEnvironment = loadEnvironment(this.cyrusHome, envName);
+				if (!boundEnvironment) {
+					this.logger.warn(
+						`Environment "${envName}" referenced in issue ${issue.identifier} but no config found at ${this.cyrusHome}/environments/${envName}.json — ignoring`,
+					);
+				}
+			} catch (err) {
+				this.logger.warn(
+					`Failed to load environment "${envName}" for session ${sessionId}: ${(err as Error).message}`,
+				);
+			}
+
+			// Filter any inline env overrides from the issue description
+			// against the environment's allowInlineOverrides allowlist.
+			// Overrides for unknown environments or unlisted keys are
+			// silently dropped and logged so issue authors can't smuggle
+			// arbitrary env vars into an agent subprocess.
+			if (
+				boundEnvironment &&
+				envTag &&
+				Object.keys(envTag.overrides).length > 0
+			) {
+				const allow = new Set(boundEnvironment.allowInlineOverrides ?? []);
+				const rejected: string[] = [];
+				for (const [key, value] of Object.entries(envTag.overrides)) {
+					if (allow.has(key)) {
+						acceptedOverrides[key] = value;
+					} else {
+						rejected.push(key);
+					}
+				}
+				if (rejected.length > 0) {
+					this.logger.warn(
+						`Inline env overrides rejected for session ${sessionId} (not in allowInlineOverrides of "${envName}"): ${rejected.join(", ")}`,
+					);
+				}
+				if (Object.keys(acceptedOverrides).length > 0) {
+					this.logger.info(
+						`Accepted inline env overrides for session ${sessionId}: ${Object.keys(acceptedOverrides).join(", ")}`,
+					);
+				}
+			}
+		}
+
+		// If the environment specifies `gitWorktrees`, those repo IDs drive
+		// worktree creation; otherwise fall back to the routed repositories.
+		const allRepositories = Array.from(this.repositories.values());
+		const worktreeRepos = resolveEnvironmentWorktreeRepos(
+			boundEnvironment,
+			repositories,
+			allRepositories,
+		);
+		const envReadOnlyRepoPaths = resolveEnvironmentReadOnlyRepoPaths(
+			boundEnvironment,
+			allRepositories,
+		);
+
 		// Create workspace using full issue data
 		// IMPORTANT: The CLI app (apps/cli/src/services/WorkerService.ts) typically provides
 		// a custom createWorkspace handler, so the handler path is the one taken in production.
 		// When adding new options here, always update the handler signature in config-types.ts
 		// AND the CLI's handler implementation in WorkerService.ts to pass them through.
 		this.logger.info(
-			`createCyrusAgentSession: passing baseBranchOverrides=${baseBranchOverrides ? `Map(size=${baseBranchOverrides.size}, keys=[${Array.from(baseBranchOverrides.keys()).join(",")}])` : "undefined"}, useCustomHandler=${!!this.config.handlers?.createWorkspace}`,
+			`createCyrusAgentSession: passing baseBranchOverrides=${baseBranchOverrides ? `Map(size=${baseBranchOverrides.size}, keys=[${Array.from(baseBranchOverrides.keys()).join(",")}])` : "undefined"}, useCustomHandler=${!!this.config.handlers?.createWorkspace}, worktreeRepoCount=${worktreeRepos.length}`,
 		);
+		// 0-repo workspaces need an explicit workspaceBaseDir; use the routed
+		// primary repo's base dir so per-issue folders still land in a
+		// predictable location.
+		const workspaceBaseDirFallback =
+			worktreeRepos.length === 0 ? primaryRepo.workspaceBaseDir : undefined;
 		const workspace = this.config.handlers?.createWorkspace
-			? await this.config.handlers.createWorkspace(fullIssue, repositories, {
+			? await this.config.handlers.createWorkspace(fullIssue, worktreeRepos, {
 					baseBranchOverrides,
+					...(workspaceBaseDirFallback && {
+						workspaceBaseDir: workspaceBaseDirFallback,
+					}),
 				})
-			: await this.gitService.createGitWorktree(fullIssue, repositories, {
+			: await this.gitService.createGitWorktree(fullIssue, worktreeRepos, {
 					baseBranchOverrides,
+					...(workspaceBaseDirFallback && {
+						workspaceBaseDir: workspaceBaseDirFallback,
+					}),
 				});
 
 		this.logger.debug(`Workspace created at: ${workspace.path}`);
 
 		const issueMinimal = this.convertLinearIssueToCore(fullIssue);
 
-		// Create RepositoryContext entries for ALL repositories
-		// Use resolved base branches from workspace creation (already accounts for
-		// commit-ish overrides, graphite blocked-by, parent issues, and defaults)
-		const repositoryContexts = repositories.map((repo) => ({
+		// Create RepositoryContext entries for the repos that actually have
+		// worktrees in this session (may be empty when gitWorktrees=[]).
+		const repositoryContexts = worktreeRepos.map((repo) => ({
 			repositoryId: repo.id,
 			branchName: issueMinimal.branchName,
 			baseBranchName:
@@ -3868,6 +3958,29 @@ ${taskSection}`;
 			repositoryContexts,
 		);
 
+		// Persist the environment binding (and any accepted inline env
+		// overrides) on the session so restarts reapply them identically.
+		if (boundEnvironment && envName) {
+			const session = agentSessionManager.getSession(sessionId);
+			if (session) {
+				session.environmentName = envName;
+				if (Object.keys(acceptedOverrides).length > 0) {
+					session.environmentOverrides = acceptedOverrides;
+				}
+				this.logger.info(
+					`Environment bound to session: ${envName} (session=${sessionId})`,
+				);
+				// Surface the binding in the Linear timeline so the user can
+				// see at a glance which environment scoped the session.
+				await this.activityPoster.postEnvironmentBindingActivity(
+					sessionId,
+					linearWorkspaceId,
+					boundEnvironment,
+					acceptedOverrides,
+				);
+			}
+		}
+
 		// Register session-to-repo mapping and activity sink (use primary repo)
 		this.sessionRepositories.set(sessionId, primaryRepo.id);
 		const activitySink = this.getActivitySinkForRepo(primaryRepo.id);
@@ -3875,9 +3988,11 @@ ${taskSection}`;
 			agentSessionManager.setActivitySink(sessionId, activitySink);
 		}
 
-		// Post combined routing + base branch activity
+		// Post combined routing + base branch activity — iterate the repos
+		// actually worktree'd for this session (may differ from the routed
+		// list when an environment overrides via `gitWorktrees`).
 		{
-			const repoLines = repositories.map((repo) => {
+			const repoLines = worktreeRepos.map((repo) => {
 				const resolution = workspace.resolvedBaseBranches?.[repo.id];
 				const branch = resolution?.branch ?? repo.baseBranch;
 				const sourceLabel = !resolution
@@ -3939,16 +4054,25 @@ ${taskSection}`;
 			),
 		);
 
-		// Build allowed directories list - always include attachments directory
-		// Include repository paths from all repositories
-		const allRepoPaths = repositories.map((repo) => repo.repositoryPath);
-		const allowedDirectories: string[] = [
-			...new Set([
-				attachmentsDir,
-				...allRepoPaths,
-				...this.gitService.getGitMetadataDirectories(workspace.path),
-			]),
-		];
+		// Build allowed directories list. Two modes:
+		//   - **isolated env** (`env.isolated === true`): only the
+		//     worktree paths and the env's declared read-only repos.
+		//     Attachments and git-metadata dirs are excluded so the
+		//     env config is the sole source of truth.
+		//   - **default**: includes attachments dir, all worktree paths,
+		//     env read-only repos, and git metadata dirs.
+		const worktreeRepoPaths = worktreeRepos.map((repo) => repo.repositoryPath);
+		const isIsolatedEnv = boundEnvironment?.isolated === true;
+		const allowedDirectories: string[] = isIsolatedEnv
+			? [...new Set([...worktreeRepoPaths, ...envReadOnlyRepoPaths])]
+			: [
+					...new Set([
+						attachmentsDir,
+						...worktreeRepoPaths,
+						...envReadOnlyRepoPaths,
+						...this.gitService.getGitMetadataDirectories(workspace.path),
+					]),
+				];
 
 		this.logger.debug(
 			`Configured allowed directories for ${fullIssue.identifier}:`,
@@ -4180,9 +4304,8 @@ ${taskSection}`;
 		}
 
 		// HACK: This is required since the comment body is always populated, thus there is no other way to differentiate between the two trigger events
-		const AGENT_SESSION_MARKER = "This thread is for an agent session";
 		const isMentionTriggered =
-			commentBody && !commentBody.includes(AGENT_SESSION_MARKER);
+			commentBody && !commentBody.includes(AGENT_SESSION_THREAD_MARKER_PREFIX);
 		// Check if the comment contains the /label-based-prompt command
 		const isLabelBasedPromptRequested = commentBody?.includes(
 			"/label-based-prompt",
@@ -4926,6 +5049,165 @@ ${taskSection}`;
 	}
 
 	/**
+	 * Handle a Comment/create webhook. When the comment is a reply inside a
+	 * Linear-to-email synced thread and the issue has an active agent session,
+	 * inject the comment body into the most recently created session as a
+	 * user prompt.
+	 */
+	private async handleCommentCreatedWebhook(
+		webhook: CommentCreateWebhook,
+	): Promise<void> {
+		const comment = webhook.data;
+		const linearWorkspaceId = webhook.organizationId;
+		const issueId = comment.issueId;
+		const commentId = comment.id;
+
+		if (!issueId) {
+			return;
+		}
+
+		// Step 3: ignore comments authored by Cyrus itself to avoid feedback loops.
+		// The OAuth-app email must be supplied via CYRUS_LINEAR_BOT_EMAIL — when
+		// unset, this webhook path is disabled to prevent Cyrus injecting its own
+		// replies back into its session.
+		const cyrusEmail = process.env.CYRUS_LINEAR_BOT_EMAIL?.trim();
+		if (!cyrusEmail) {
+			this.logger.debug(
+				`CYRUS_LINEAR_BOT_EMAIL is not set; skipping email-synced comment injection for ${commentId}`,
+			);
+			return;
+		}
+		if (comment.user?.email === cyrusEmail) {
+			return;
+		}
+
+		// Step 1: must be a reply inside a thread. Root comments (parentId=null)
+		// cannot be inside an email-synced thread by definition.
+		const parentId = comment.parentId;
+		if (!parentId) {
+			return;
+		}
+
+		const issueTracker = this.issueTrackers.get(linearWorkspaceId);
+		if (!issueTracker) {
+			this.logger.warn(
+				`No issue tracker for workspace ${linearWorkspaceId}; skipping comment-create injection`,
+			);
+			return;
+		}
+
+		// Linear comment threads are flat: a root comment with direct children, no
+		// deeper nesting. Fetching the parent is therefore always fetching the
+		// root.
+		let root: Awaited<ReturnType<typeof issueTracker.fetchComment>>;
+		try {
+			root = await issueTracker.fetchComment(parentId);
+		} catch (error) {
+			this.logger.warn(
+				`Failed to fetch root comment ${parentId} for comment-create webhook`,
+				error,
+			);
+			return;
+		}
+
+		if (root.body !== EMAIL_SYNCED_THREAD_MARKER) {
+			return;
+		}
+
+		// Step 2: require at least one agent session on this issue.
+		const sessions = this.agentSessionManager.getSessionsByIssueId(issueId);
+		if (sessions.length === 0) {
+			return;
+		}
+
+		// Step 4: inject into the most recently created session.
+		const mostRecentSession = sessions.reduce((a, b) =>
+			b.createdAt > a.createdAt ? b : a,
+		);
+
+		let repositories = this.getCachedRepositories(issueId);
+		if (!repositories || repositories.length === 0) {
+			const repoId = this.sessionRepositories.get(mostRecentSession.id);
+			const repo = repoId ? this.repositories.get(repoId) : undefined;
+			if (repo) {
+				repositories = [repo];
+			}
+		}
+		if (!repositories || repositories.length === 0) {
+			this.logger.warn(
+				`No repository available to inject email-synced comment ${commentId} on issue ${issueId}`,
+			);
+			return;
+		}
+
+		const promptBody = comment.body ?? "";
+		if (!promptBody.trim()) {
+			return;
+		}
+
+		// Distinguish replies posted by an internal Linear user (user populated)
+		// from those delivered via Linear's email-to-thread sync (user null,
+		// externalUser populated for the email sender).
+		const internalUser = comment.user;
+		const externalUser = (
+			comment as unknown as {
+				externalUser?: { name?: string; email?: string } | null;
+			}
+		).externalUser;
+		const commentSource: "linear" | "email" = internalUser ? "linear" : "email";
+		const author =
+			internalUser?.name ??
+			internalUser?.email ??
+			externalUser?.name ??
+			externalUser?.email ??
+			undefined;
+		const timestamp =
+			typeof comment.createdAt === "string" ? comment.createdAt : undefined;
+
+		this.logger.info(
+			`Injecting email-synced comment ${commentId} (source=${commentSource}) into session ${mostRecentSession.id} on issue ${issueId}`,
+		);
+
+		// Surface this in the Linear timeline so users can see Cyrus picked up an
+		// email-synced reply, similar to the prompted-activity acknowledgment.
+		try {
+			const authorLabel = author ? ` from **${author}**` : "";
+			await this.agentSessionManager.createThoughtActivity(
+				mostRecentSession.id,
+				`Received an email-synced thread reply${authorLabel} (comment \`${commentId}\`); routing it into this session.`,
+			);
+		} catch (error) {
+			this.logger.warn(
+				`Failed to post email-synced acknowledgment thought for ${commentId}`,
+				error,
+			);
+		}
+
+		try {
+			await this.handlePromptWithStreamingCheck(
+				mostRecentSession,
+				repositories[0]!,
+				mostRecentSession.id,
+				this.agentSessionManager,
+				promptBody,
+				"",
+				false,
+				[],
+				`email-synced comment (${commentId})`,
+				linearWorkspaceId,
+				author,
+				timestamp,
+				commentSource,
+			);
+		} catch (error) {
+			this.logger.error(
+				`Failed to inject email-synced comment ${commentId} into session ${mostRecentSession.id}`,
+				error,
+			);
+		}
+	}
+
+	/**
 	 * Handle issue unassignment
 	 * @param issue Linear issue object from webhook data
 	 * @param linearWorkspaceId Linear workspace ID (from webhook.organizationId)
@@ -5627,6 +5909,7 @@ ${taskSection}`;
 		attachmentManifest?: string,
 		commentAuthor?: string,
 		commentTimestamp?: string,
+		commentSource?: "linear" | "email",
 	): Promise<string> {
 		// Fetch labels for system prompt determination
 		const labels = await this.fetchIssueLabels(fullIssue);
@@ -5640,6 +5923,7 @@ ${taskSection}`;
 			userComment: promptBody,
 			commentAuthor,
 			commentTimestamp,
+			commentSource,
 			attachmentManifest,
 			isNewSession,
 			isStreaming: false, // This path is only for non-streaming prompts
@@ -5779,9 +6063,12 @@ ${taskSection}`;
 			if (input.commentAuthor || input.commentTimestamp) {
 				const author = input.commentAuthor || "Unknown";
 				const timestamp = input.commentTimestamp || new Date().toISOString();
+				const sourceLine = input.commentSource
+					? `\n  <source>${input.commentSource}</source>`
+					: "";
 				parts.push(`<user_comment>
   <author>${author}</author>
-  <timestamp>${timestamp}</timestamp>
+  <timestamp>${timestamp}</timestamp>${sourceLine}
   <content>
 ${input.userComment}
   </content>
@@ -5848,10 +6135,13 @@ ${input.userComment}
 		// Wrap comment in XML with author and timestamp for multi-player context
 		const author = input.commentAuthor || "Unknown";
 		const timestamp = input.commentTimestamp || new Date().toISOString();
+		const sourceLine = input.commentSource
+			? `\n  <source>${input.commentSource}</source>`
+			: "";
 
 		const commentXml = `<new_comment>
   <author>${author}</author>
-  <timestamp>${timestamp}</timestamp>
+  <timestamp>${timestamp}</timestamp>${sourceLine}
   <content>
 ${input.userComment}
   </content>
@@ -5982,6 +6272,27 @@ ${input.userComment}
 			issueIdentifier: session.issueContext?.issueIdentifier,
 		});
 
+		// If the session is bound to a named environment, load it so the
+		// runner config builder can apply its overrides (systemPrompt, tools,
+		// mcpConfigPath, sandbox, plugins). Binding persists across restarts
+		// via session.environmentName, so resumed sessions reapply the env.
+		let environment: import("cyrus-core").EnvironmentConfig | undefined;
+		if (session.environmentName) {
+			try {
+				environment =
+					loadEnvironment(this.cyrusHome, session.environmentName) ?? undefined;
+				if (!environment) {
+					log.warn(
+						`Session bound to environment "${session.environmentName}" but config was not found — falling back to repository defaults`,
+					);
+				}
+			} catch (err) {
+				log.warn(
+					`Failed to load environment "${session.environmentName}": ${(err as Error).message} — falling back to repository defaults`,
+				);
+			}
+		}
+
 		const result = this.runnerConfigBuilder.buildIssueConfig({
 			session,
 			repository,
@@ -6001,6 +6312,7 @@ ${input.userComment}
 			plugins: await this.skillsPluginResolver.resolve(),
 			sandboxSettings: this.sdkSandboxSettings ?? undefined,
 			egressCaCertPath: this.egressCaCertPath ?? undefined,
+			environment,
 			onMessage: (message: SDKMessage) => {
 				this.handleClaudeMessage(sessionId, message, repository.id);
 			},
@@ -6542,6 +6854,7 @@ ${input.userComment}
 		linearWorkspaceId: string,
 		commentAuthor?: string,
 		commentTimestamp?: string,
+		commentSource?: "linear" | "email",
 	): Promise<boolean> {
 		const log = this.logger.withContext({ sessionId });
 		const existingRunner = session.agentRunner;
@@ -6556,10 +6869,26 @@ ${input.userComment}
 				`Adding prompt to existing stream for ${sessionId} (${logContext})`,
 			);
 
-			// Append attachment manifest to the prompt if we have one
+			// Wrap as <new_comment> XML when we have author/timestamp/source so
+			// mid-stream injections carry the same multi-player context as
+			// resume-path prompts.
 			let fullPrompt = promptBody;
+			if (commentAuthor || commentTimestamp || commentSource) {
+				const author = commentAuthor || "Unknown";
+				const timestamp = commentTimestamp || new Date().toISOString();
+				const sourceLine = commentSource
+					? `\n  <source>${commentSource}</source>`
+					: "";
+				fullPrompt = `<new_comment>
+  <author>${author}</author>
+  <timestamp>${timestamp}</timestamp>${sourceLine}
+  <content>
+${promptBody}
+  </content>
+</new_comment>`;
+			}
 			if (attachmentManifest) {
-				fullPrompt = `${promptBody}\n\n${attachmentManifest}`;
+				fullPrompt = `${fullPrompt}\n\n${attachmentManifest}`;
 			}
 
 			existingRunner.addStreamMessage(fullPrompt);
@@ -6582,6 +6911,7 @@ ${input.userComment}
 			undefined, // maxTurns
 			commentAuthor,
 			commentTimestamp,
+			commentSource,
 		);
 
 		return false; // Session was resumed
@@ -6628,6 +6958,7 @@ ${input.userComment}
 		maxTurns?: number,
 		commentAuthor?: string,
 		commentTimestamp?: string,
+		commentSource?: "linear" | "email",
 	): Promise<void> {
 		const log = this.logger.withContext({ sessionId });
 		// Check for existing runner
@@ -6772,6 +7103,7 @@ ${input.userComment}
 			attachmentManifest,
 			commentAuthor,
 			commentTimestamp,
+			commentSource,
 		);
 
 		// Start session - use streaming mode if supported for ability to add messages later
