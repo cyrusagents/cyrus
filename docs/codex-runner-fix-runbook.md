@@ -235,10 +235,31 @@ Restores the most recent timestamped backup and restarts pm2.
 - Indirect runtime confirmation: this very Cyrus session (BRI-1518) is running with the `<linear_write_constraints>` block injected into its prompt — i.e. the patched code path is live and serving prompts.
 - Test BRI dispatch for codex end-to-end verification: **deferred to Paul** post-merge. Reasoning: this Cyrus session is gated by the very `<linear_write_constraints>` block under test; dispatching a child issue and posting completion comments would require `mcp__linear__save_*` writes that the constraint forbids. Procedure for Paul: dispatch a trivial codex test (e.g. append a blank line in `claude-projects`, label `codex`), confirm clean PR within 5 min, then cancel the test BRI with state UUID `c53cd96d-e14a-45a0-a4fb-73170ee56b27`. Capture the outcome here as a follow-up entry.
 
+### Verification log entry (2026-05-12) — fix CONFIRMED working in production
+
+- Test BRI: [BRI-1608](https://linear.app/brilliantio/issue/BRI-1608/codex-prompt-fix-verification-test-dispatch-bri-1518-follow-up) — trivial scope (append blank line to `.claude/anthropic-loss-runbook.md` in claude-projects).
+- Cyrus session: `a1127064` (codex runner, gpt-5.3-codex, 3 MCPs configured: linear/cyrus-tools/cyrus-docs).
+- Routing: `RepositoryRouter` selected `claude-projects` (label-based, correct).
+- Codex session start: `2026-05-12T23:15:12Z`.
+- Codex session end: `2026-05-12T23:16:42Z` — `Session completed (subtype: success)` after 90s.
+- PR opened: [Brilliantio/claude-projects#165](https://github.com/Brilliantio/claude-projects/pull/165) — exact trivial scope (1 addition, 1 file changed, 0 deletions).
+- PR merged: `2026-05-12T23:21:15Z`.
+- Linear auto-close: BRI-1608 → `Done` (state.type=`completed`, completedAt=`2026-05-12T23:21:18Z`) via the `Fixes BRI-1608` PR title.
+- No `mcp__linear__save_*` mutations attempted (the `<linear_write_constraints>` block instructed codex correctly).
+- No watchdog firing — codex completed cleanly within the idle window.
+
+Compare to history:
+
+| BRI | State | Outcome | Time-to-end |
+|---|---|---|---|
+| [BRI-1410](https://linear.app/brilliantio/issue/BRI-1410) | pre-watchdog, pre-prompt-fix | Hung; manual `kill -9` | 4 hours |
+| [BRI-1489](https://linear.app/brilliantio/issue/BRI-1489) | post-watchdog, pre-prompt-fix | `error_during_execution`; no PR | 225s |
+| [BRI-1608](https://linear.app/brilliantio/issue/BRI-1608) | post-watchdog + post-prompt-fix | `success`; PR opened + merged | **90s** |
+
 ### Tier 2 readiness — updated read
 
 Pre-BRI-1518: **fail-fast** (watchdog catches the hang, no zombies, no PR).
-Post-BRI-1518: **shipping-grade** (codex no longer attempts the hanging Linear writes; PR production should now match the claude runner). The watchdog stays in place as the safety net for any future hangs from a different cause.
+Post-BRI-1518 + verified by BRI-1608: **shipping-grade** (codex ships PRs autonomously like the claude runner). The watchdog stays in place as the safety net for any future hangs from a different cause.
 
 ## References
 
