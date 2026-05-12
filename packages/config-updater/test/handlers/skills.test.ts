@@ -108,6 +108,47 @@ describe("handleUpdateSkill — scope persistence", () => {
 		expect(await fileExists(scopePath)).toBe(false);
 	});
 
+	it("auto-scaffolds the user-skills plugin manifest on first skill write", async () => {
+		const manifestPath = join(
+			home,
+			"user-skills-plugin/.claude-plugin/plugin.json",
+		);
+		expect(await fileExists(manifestPath)).toBe(false);
+
+		const res = await handleUpdateSkill(
+			{ name: "first-ever", description: "desc", content: "body" },
+			home,
+		);
+		expect(res.success).toBe(true);
+		expect(await fileExists(manifestPath)).toBe(true);
+
+		const parsed = JSON.parse(await readFile(manifestPath, "utf-8"));
+		expect(parsed.name).toBe("user-skills");
+	});
+
+	it("does not overwrite an existing plugin manifest", async () => {
+		const manifestDir = join(home, "user-skills-plugin/.claude-plugin");
+		await mkdir(manifestDir, { recursive: true });
+		const manifestPath = join(manifestDir, "plugin.json");
+		const customManifest = `${JSON.stringify({
+			name: "user-skills",
+			description: "custom",
+			version: "9.9.9",
+		})}\n`;
+		await (await import("node:fs/promises")).writeFile(
+			manifestPath,
+			customManifest,
+			"utf-8",
+		);
+
+		await handleUpdateSkill(
+			{ name: "another", description: "desc", content: "body" },
+			home,
+		);
+
+		expect(await readFile(manifestPath, "utf-8")).toBe(customManifest);
+	});
+
 	it("deletes the entire skill directory (including scope.json) when handleDeleteSkill runs", async () => {
 		await handleUpdateSkill(
 			{

@@ -8,6 +8,43 @@ import type {
 } from "../types.js";
 
 const USER_SKILLS_DIR = "user-skills-plugin/skills";
+const USER_SKILLS_PLUGIN_DIR = "user-skills-plugin";
+
+/**
+ * Ensure the user-skills-plugin has a `.claude-plugin/plugin.json` manifest.
+ *
+ * The Claude Agent SDK only registers a directory as a plugin when this
+ * manifest is present. EdgeWorker scaffolds it once at startup, but if a user
+ * adds their first skill via cyhost after cyrus is already running, that
+ * one-shot scaffold has nothing to scaffold against. Writing the manifest
+ * here whenever we touch a skill makes the plugin self-bootstrap so the very
+ * next agent session picks up the skill.
+ *
+ * Idempotent — never overwrites an existing manifest.
+ */
+async function ensurePluginManifest(cyrusHome: string): Promise<void> {
+	const manifestDir = join(cyrusHome, USER_SKILLS_PLUGIN_DIR, ".claude-plugin");
+	const manifestPath = join(manifestDir, "plugin.json");
+	try {
+		await readFile(manifestPath, "utf-8");
+		return; // manifest exists, leave it alone
+	} catch (error: any) {
+		if (error.code !== "ENOENT") throw error;
+	}
+	await mkdir(manifestDir, { recursive: true });
+	await writeFile(
+		manifestPath,
+		`${JSON.stringify(
+			{
+				name: "user-skills",
+				description: "User-created skills managed by Cyrus",
+			},
+			null,
+			"\t",
+		)}\n`,
+		"utf-8",
+	);
+}
 
 /** Only lowercase letters, numbers, hyphens, underscores allowed */
 const VALID_SKILL_NAME = /^[a-z0-9_-]+$/;
@@ -159,6 +196,12 @@ export async function handleUpdateSkill(
 
 		await mkdir(dirResult.path, { recursive: true });
 		await writeFile(skillPath, skillContent, "utf-8");
+
+		// Self-bootstrap the plugin manifest. EdgeWorker scaffolds it once at
+		// startup, but skills synced afterward (e.g. the very first skill ever
+		// created via cyhost) would otherwise sit on disk with no manifest and
+		// be invisible to the Claude Agent SDK's skill loader.
+		await ensurePluginManifest(cyrusHome);
 
 		// Persist scope sidecar separately from SKILL.md so the model never sees
 		// scope metadata in its context. Write the file only when at least one
