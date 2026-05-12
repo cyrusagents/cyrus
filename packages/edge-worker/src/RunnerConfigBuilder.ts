@@ -17,6 +17,7 @@ import type {
 	RepositoryConfig,
 	RunnerType,
 } from "cyrus-core";
+import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 
 /**
@@ -215,12 +216,14 @@ export class RunnerConfigBuilder {
 		// plus the Stop hook that blocks the session when work is unshipped.
 		const screenshotHooks = this.buildScreenshotHooks(log);
 		const prMarkerHook = buildPrMarkerHook(log);
+		const intentToAddHook = buildIntentToAddHook(log);
 		const stopHook = this.buildStopHook(log);
 		const hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> = {
 			...stopHook,
 			PostToolUse: [
 				...(screenshotHooks.PostToolUse ?? []),
 				...(prMarkerHook.PostToolUse ?? []),
+				...(intentToAddHook.PostToolUse ?? []),
 			],
 		};
 
@@ -559,7 +562,13 @@ export function inspectGitGuardrail(cwd: string, log: ILogger): string | null {
 
 	let status: string;
 	try {
-		status = runGit("status --porcelain");
+		// --untracked-files=no ignores pre-existing untracked files in the
+		// customer's worktree (scratch files, local env files, IDE artifacts)
+		// that aren't in .gitignore. Files the agent creates via Write/Edit are
+		// marked with `git add --intent-to-add` by IntentToAddHook, so they
+		// still appear as a tracked diff here and trigger the guardrail when
+		// the agent forgets to commit them. See CYPACK-1196.
+		status = runGit("status --porcelain --untracked-files=no");
 	} catch (err) {
 		log.debug(
 			`PR guardrail: skipping (cwd is not a git repo or git failed): ${(err as Error).message}`,
