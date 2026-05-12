@@ -60,13 +60,45 @@ describe("inspectGitGuardrail", () => {
 		}
 	});
 
-	it("returns a guardrail message when there are uncommitted changes", () => {
+	it("returns null when the only working-tree change is a pre-existing untracked file", () => {
+		// Cooper @ QuitCarbon's case: a stray untracked file outside .gitignore
+		// must not block the agent from stopping.
+		git(workdir, "init -b main");
+		writeFileSync(join(workdir, "README.md"), "hello\n");
+		git(workdir, "add README.md");
+		git(workdir, 'commit -m "init"');
+
+		writeFileSync(join(workdir, "scratch.txt"), "stray\n");
+
+		expect(inspectGitGuardrail(workdir, silentLogger)).toBeNull();
+	});
+
+	it("returns a guardrail message for uncommitted changes to tracked files", () => {
 		git(workdir, "init -b main");
 		writeFileSync(join(workdir, "a.txt"), "stuff\n");
+		git(workdir, "add a.txt");
+		git(workdir, 'commit -m "init"');
+		writeFileSync(join(workdir, "a.txt"), "modified\n");
 
 		const message = inspectGitGuardrail(workdir, silentLogger);
 		expect(message).toContain("1 uncommitted file change");
 		expect(message).toContain("Create or update a pull request");
+	});
+
+	it("flags intent-to-add files so forgotten new files still block", () => {
+		// IntentToAddHook marks newly-Written files with `git add -N`. The
+		// guardrail must continue to see those as uncommitted work even
+		// though `--untracked-files=no` is set.
+		git(workdir, "init -b main");
+		writeFileSync(join(workdir, "README.md"), "hello\n");
+		git(workdir, "add README.md");
+		git(workdir, 'commit -m "init"');
+
+		writeFileSync(join(workdir, "new-feature.ts"), "export const x = 1;\n");
+		git(workdir, "add --intent-to-add new-feature.ts");
+
+		const message = inspectGitGuardrail(workdir, silentLogger);
+		expect(message).toContain("1 uncommitted file change");
 	});
 
 	it("counts commits ahead of upstream as unshipped work", () => {
