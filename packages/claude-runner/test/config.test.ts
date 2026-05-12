@@ -41,6 +41,7 @@ describe("config", () => {
 				"CronList",
 				"RemoteTrigger",
 				"ScheduleWakeup",
+				"LSP",
 				"Monitor",
 				"TaskOutput",
 				"TaskStop",
@@ -48,7 +49,7 @@ describe("config", () => {
 				"TeamDelete",
 				"ToolSearch",
 			]);
-			expect(availableTools).toHaveLength(33);
+			expect(availableTools).toHaveLength(34);
 		});
 
 		it("should define read-only tools", () => {
@@ -69,8 +70,9 @@ describe("config", () => {
 				"EnterPlanMode",
 				"ExitPlanMode",
 				"ToolSearch",
+				"LSP",
 			]);
-			expect(readOnlyTools).toHaveLength(16);
+			expect(readOnlyTools).toHaveLength(17);
 		});
 
 		it("should define write tools", () => {

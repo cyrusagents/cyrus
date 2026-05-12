@@ -61,6 +61,9 @@ export const availableTools = [
 	"RemoteTrigger",
 	"ScheduleWakeup",
 
+	// Language Server Protocol
+	"LSP",
+
 	// Monitoring and task lifecycle
 	"Monitor",
 	"TaskOutput",
@@ -98,6 +101,7 @@ export const readOnlyTools: ToolName[] = [
 	"EnterPlanMode",
 	"ExitPlanMode",
 	"ToolSearch",
+	"LSP",
 ];
 
 /**
