@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- **Updated `@anthropic-ai/claude-agent-sdk` to v0.2.139 and `@anthropic-ai/sdk` to `^0.95.2`** — Bumps the bundled Claude Code binary to v0.2.139 and the Anthropic TypeScript SDK to `^0.95.2`. Adds `LSP` back to the `availableTools` and `readOnlyTools` lists in `config.ts` — LSP was re-introduced in claude-agent-sdk 0.2.139 after being absent since 0.2.123. See [SDK changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md) for details. ([CYPACK-1191](https://linear.app/ceedar/issue/CYPACK-1191), [#1200](https://github.com/cyrusagents/cyrus/pull/1200))
 - **Slack mention prompt nudges agents toward `linear_agent_give_feedback` for live child sessions** — When responding in Slack, Cyrus is now told to send mid-flight corrections to a running child agent session via `mcp__cyrus-tools__linear_agent_give_feedback` instead of falling back to `mcp__linear__save_comment`. Produces a stronger signal when correcting work that is already in progress. ([CYPACK-1189](https://linear.app/ceedar/issue/CYPACK-1189), [#1198](https://github.com/cyrusagents/cyrus/pull/1198))
 
 ## [0.2.51] - 2026-04-30
