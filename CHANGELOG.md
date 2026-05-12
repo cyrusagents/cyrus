@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **"Finished" activity no longer leaks raw tool-input JSON when a turn ends on a backgrounded tool call** — When an agent turn ended on `ScheduleWakeup` or a background `Bash` call with no trailing assistant text, Cyrus posted a "Finished" response activity whose body was the raw tool-input JSON. The response activity is now skipped entirely when there is no real assistant text to post, and tool-use content is no longer buffered as a fallback response body. ([CYPACK-1177](https://linear.app/ceedar/issue/CYPACK-1177/finished-activity-shows-raw-tool-input-json-when-turn-ends-on))
+
 ### Changed
 - **Slack mention prompt nudges agents toward `linear_agent_give_feedback` for live child sessions** — When responding in Slack, Cyrus is now told to send mid-flight corrections to a running child agent session via `mcp__cyrus-tools__linear_agent_give_feedback` instead of falling back to `mcp__linear__save_comment`. Produces a stronger signal when correcting work that is already in progress. ([CYPACK-1189](https://linear.app/ceedar/issue/CYPACK-1189), [#1198](https://github.com/cyrusagents/cyrus/pull/1198))
 

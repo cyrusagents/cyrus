@@ -511,16 +511,14 @@ export class AgentSessionManager extends EventEmitter {
 						sessionId,
 						message as SDKAssistantMessage,
 					);
-					// Buffer the text content so addResultEntry can post it as the response
-					if (assistantEntry.content) {
-						this.lastAssistantBodyBySession.set(
-							sessionId,
-							assistantEntry.content,
-						);
-					}
 					if (assistantEntry.metadata?.toolUseId) {
 						// Tool-use message: flush any buffered text first (preserves ordering),
-						// then post immediately for real-time "in progress" display
+						// then post immediately for real-time "in progress" display.
+						// Do NOT buffer tool-use content into lastAssistantBodyBySession —
+						// its `content` is JSON.stringify of the tool input (see extractContent),
+						// and using it as the final response body produces the CYPACK-1177 bug
+						// where "Finished" activities render raw tool-input JSON when a turn
+						// ends on a backgrounded tool call (ScheduleWakeup, background Bash).
 						await this.flushBufferedAssistant(sessionId);
 						await this.syncEntryToActivitySink(assistantEntry, sessionId);
 					} else {
@@ -532,6 +530,10 @@ export class AgentSessionManager extends EventEmitter {
 						// between activities (e.g. between "Using model: ..." and the
 						// first real assistant turn).
 						if (assistantEntry.content?.trim()) {
+							this.lastAssistantBodyBySession.set(
+								sessionId,
+								assistantEntry.content,
+							);
 							this.bufferedAssistantEntryBySession.set(
 								sessionId,
 								assistantEntry,
@@ -663,6 +665,18 @@ export class AgentSessionManager extends EventEmitter {
 						? resultMessage.result
 						: ""))
 		).trim();
+
+		// CYPACK-1177: if the turn ends on a backgrounded tool call (ScheduleWakeup,
+		// background Bash, etc.) with no trailing assistant text, there is no real
+		// content to post. Skip the response activity entirely rather than emitting
+		// a "Finished" entry with raw tool-input JSON or an empty body. The session
+		// status is already updated by the caller (completeSession).
+		if (!content && !resultMessage.is_error) {
+			this.sessionLog(sessionId).debug(
+				"Skipping result activity — no assistant text to post (turn ended on tool call)",
+			);
+			return;
+		}
 
 		const resultEntry: CyrusAgentSessionEntry = {
 			// Set the appropriate session ID based on runner type
@@ -1418,7 +1432,7 @@ export class AgentSessionManager extends EventEmitter {
 		const log = this.sessionLog(sessionId);
 		const session = this.sessions.get(sessionId);
 
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			log.debug(
 				`Skipping ${label} - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,
 			);
@@ -1681,7 +1695,7 @@ export class AgentSessionManager extends EventEmitter {
 		message: SDKStatusMessage,
 	): Promise<void> {
 		const session = this.sessions.get(sessionId);
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			const log = this.sessionLog(sessionId);
 			log.debug(
 				`Skipping status message - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,
