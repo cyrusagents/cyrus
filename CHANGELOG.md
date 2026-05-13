@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - **Shared auto-memory across Slack chat sessions** — Slack-triggered chat sessions now share a persistent Claude auto-memory directory at `<cyrusHome>/slack-memory/`, so memory built up in one Slack thread carries over to every other Slack thread. ([CYPACK-1190](https://linear.app/ceedar/issue/CYPACK-1190), [#1199](https://github.com/cyrusagents/cyrus/pull/1199))
 
 ### Changed
+- **Updated `@anthropic-ai/claude-agent-sdk` to v0.2.140 and `@anthropic-ai/sdk` to `^0.95.2`** — Bumps the bundled Claude Code binary to v0.2.140 and the Anthropic TypeScript SDK to `^0.95.2`. Refreshes the tool allowance list in `config.ts`: adds `LSP` (re-introduced in the SDK) and removes `RemoteTrigger` (no longer present). See [SDK changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md) for details. ([CYPACK-1198](https://linear.app/ceedar/issue/CYPACK-1198))
 - **Slack mention prompt nudges agents toward `linear_agent_give_feedback` for live child sessions** — When responding in Slack, Cyrus is now told to send mid-flight corrections to a running child agent session via `mcp__cyrus-tools__linear_agent_give_feedback` instead of falling back to `mcp__linear__save_comment`. Produces a stronger signal when correcting work that is already in progress. ([CYPACK-1189](https://linear.app/ceedar/issue/CYPACK-1189), [#1198](https://github.com/cyrusagents/cyrus/pull/1198))
 
 ## [0.2.51] - 2026-04-30

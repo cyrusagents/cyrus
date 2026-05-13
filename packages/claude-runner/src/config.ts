@@ -21,6 +21,7 @@ export const availableTools = [
 	"Write(**)",
 	"Glob",
 	"Grep",
+	"LSP",
 
 	// Execution tools
 	"Bash",
@@ -58,7 +59,6 @@ export const availableTools = [
 	"CronCreate",
 	"CronDelete",
 	"CronList",
-	"RemoteTrigger",
 	"ScheduleWakeup",
 
 	// Monitoring and task lifecycle
@@ -85,6 +85,7 @@ export const readOnlyTools: ToolName[] = [
 	"Read(**)",
 	"Glob",
 	"Grep",
+	"LSP",
 	"WebFetch",
 	"WebSearch",
 	"TaskCreate",

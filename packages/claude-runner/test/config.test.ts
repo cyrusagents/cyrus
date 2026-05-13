@@ -19,6 +19,7 @@ describe("config", () => {
 				"Write(**)",
 				"Glob",
 				"Grep",
+				"LSP",
 				"Bash",
 				"Task",
 				"WebFetch",
@@ -39,7 +40,6 @@ describe("config", () => {
 				"CronCreate",
 				"CronDelete",
 				"CronList",
-				"RemoteTrigger",
 				"ScheduleWakeup",
 				"Monitor",
 				"TaskOutput",
@@ -56,6 +56,7 @@ describe("config", () => {
 				"Read(**)",
 				"Glob",
 				"Grep",
+				"LSP",
 				"WebFetch",
 				"WebSearch",
 				"TaskCreate",
@@ -70,7 +71,7 @@ describe("config", () => {
 				"ExitPlanMode",
 				"ToolSearch",
 			]);
-			expect(readOnlyTools).toHaveLength(16);
+			expect(readOnlyTools).toHaveLength(17);
 		});
 
 		it("should define write tools", () => {
