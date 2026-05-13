@@ -8,14 +8,6 @@ import type { ILogger } from "cyrus-core";
 import { CYRUS_PR_MARKER } from "cyrus-github-event-transport";
 
 /**
- * The hidden HTML marker that identifies a PR/MR description as Cyrus-authored.
- * Re-exported from cyrus-github-event-transport so that the marker-injection
- * hook (here) and the PR review authorization policy (there) share a single
- * source of truth.
- */
-export { CYRUS_PR_MARKER };
-
-/**
  * Provider-specific knowledge about how to detect PR/MR mutating commands and
  * how to read/write the description on the underlying forge. Adding support
  * for a new forge means adding a new provider — no changes to the hook itself.
