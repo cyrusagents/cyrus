@@ -189,18 +189,47 @@ export class WorkerService {
 		// Load config once for model defaults
 		const edgeConfig = this.configService.load();
 
-		// Create EdgeWorker configuration
+		// Build EdgeWorker configuration. Layering, in order:
+		//   1. Spread the entire on-disk EdgeConfig — every field added to
+		//      EdgeConfigSchema flows through automatically. This avoids the
+		//      whitelist-rot bug where a new config field (e.g. memoryGate,
+		//      maxConcurrentRunners) gets loaded from disk but silently
+		//      dropped because it isn't listed here.
+		//   2. Override with caller-provided / runtime-only fields.
+		//   3. Apply env-var precedence for fields where env wins over disk.
 		const config: EdgeWorkerConfig = {
+			...edgeConfig,
+
+			// Caller-provided + runtime-only fields
 			version: this.version,
 			repositories,
 			cyrusHome: this.cyrusHome,
+			webhookBaseUrl: process.env.CYRUS_BASE_URL,
+			serverPort: parsePort(process.env.CYRUS_SERVER_PORT, DEFAULT_SERVER_PORT),
+			serverHost: isExternalHost ? "0.0.0.0" : "localhost",
+			ngrokAuthToken,
+			handlers: {
+				createWorkspace: async (
+					issue: Issue,
+					repositories: RepositoryConfig[],
+					options?: { baseBranchOverrides?: Map<string, string> },
+				): Promise<Workspace> => {
+					return this.gitService.createGitWorktree(issue, repositories, {
+						globalSetupScript: edgeConfig.global_setup_script,
+						baseBranchOverrides: options?.baseBranchOverrides,
+					});
+				},
+				onOAuthCallback,
+			},
+
+			// Env-var precedence (env wins over disk; legacy keys still accepted)
 			defaultAllowedTools:
-				process.env.ALLOWED_TOOLS?.split(",").map((t) => t.trim()) || [],
+				process.env.ALLOWED_TOOLS?.split(",").map((t) => t.trim()) ||
+				edgeConfig.defaultAllowedTools ||
+				[],
 			defaultDisallowedTools:
 				process.env.DISALLOWED_TOOLS?.split(",").map((t) => t.trim()) ||
-				undefined,
-			// Model configuration: environment variables take precedence over config file.
-			// Legacy env vars/keys are still accepted for backwards compatibility.
+				edgeConfig.defaultDisallowedTools,
 			claudeDefaultModel:
 				process.env.CYRUS_CLAUDE_DEFAULT_MODEL ||
 				process.env.CYRUS_DEFAULT_MODEL ||
@@ -222,29 +251,6 @@ export class WorkerService {
 					| "codex"
 					| "cursor"
 					| undefined) || edgeConfig.defaultRunner,
-			issueUpdateTrigger: edgeConfig.issueUpdateTrigger,
-			promptDefaults: edgeConfig.promptDefaults,
-			linearWorkspaces: edgeConfig.linearWorkspaces,
-			webhookBaseUrl: process.env.CYRUS_BASE_URL,
-			serverPort: parsePort(process.env.CYRUS_SERVER_PORT, DEFAULT_SERVER_PORT),
-			serverHost: isExternalHost ? "0.0.0.0" : "localhost",
-			ngrokAuthToken,
-			// User access control configuration
-			userAccessControl: edgeConfig.userAccessControl,
-			sandbox: edgeConfig.sandbox,
-			handlers: {
-				createWorkspace: async (
-					issue: Issue,
-					repositories: RepositoryConfig[],
-					options?: { baseBranchOverrides?: Map<string, string> },
-				): Promise<Workspace> => {
-					return this.gitService.createGitWorktree(issue, repositories, {
-						globalSetupScript: edgeConfig.global_setup_script,
-						baseBranchOverrides: options?.baseBranchOverrides,
-					});
-				},
-				onOAuthCallback,
-			},
 		};
 
 		// Create and start EdgeWorker

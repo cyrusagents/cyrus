@@ -93,6 +93,14 @@ class TestChatAdapter implements ChatPlatformAdapter<TestEvent> {
 	async notifyBusy(_event: TestEvent): Promise<void> {
 		return;
 	}
+
+	async notifyUnavailable(
+		_event: TestEvent,
+		_threadKey: string,
+		_message: string,
+	): Promise<void> {
+		return;
+	}
 }
 
 describe("ChatSessionHandler chat session permissions", () => {

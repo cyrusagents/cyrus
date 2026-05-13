@@ -243,6 +243,33 @@ export const SandboxConfigSchema = z.object({
 });
 
 /**
+ * Memory-pressure gate configuration — a single intuitive knob.
+ *
+ * Accepts:
+ *   - `false` (or omitted): gate disabled.
+ *   - `true`: gate enabled at the default pressure threshold (0.85).
+ *   - `number` in (0, 1]: gate enabled at that pressure threshold
+ *     (e.g. `0.85` rejects new sessions when memory pressure exceeds 85%).
+ *
+ * "Pressure" is the worst of three normalized dimensions: process RSS as
+ * a fraction of system memory, V8 heap usage as a fraction of the heap
+ * size limit, and system memory used as a fraction of total. Using a
+ * single percentage keeps the knob portable across host sizes (no
+ * absolute-MB threshold to retune).
+ *
+ * Uses only cross-platform Node APIs (os.totalmem, os.freemem,
+ * process.memoryUsage, v8.getHeapStatistics), so behavior is identical
+ * on Linux and macOS.
+ */
+export const MemoryGateConfigSchema = z.union([
+	z.boolean(),
+	z
+		.number()
+		.gt(0, "memoryGate threshold must be greater than 0")
+		.lte(1, "memoryGate threshold must be at most 1"),
+]);
+
+/**
  * Global defaults for prompt types
  */
 const PromptDefaultsSchema = z.object({
@@ -409,6 +436,21 @@ export const EdgeConfigSchema = z.object({
 	 * all agent network traffic through it for inspection and filtering.
 	 */
 	sandbox: SandboxConfigSchema.optional(),
+
+	/**
+	 * Memory-pressure gate. When enabled, checks host memory before
+	 * spawning a new agent runner and rejects with a user-facing
+	 * message when the host is under pressure.
+	 */
+	memoryGate: MemoryGateConfigSchema.optional(),
+
+	/**
+	 * Maximum number of concurrent agent runners allowed across the
+	 * edge worker. When the cap is reached, new webhook-triggered
+	 * sessions are rejected with a user-facing "retry later" message.
+	 * Omit or set to 0 to disable the cap.
+	 */
+	maxConcurrentRunners: z.number().int().nonnegative().optional(),
 });
 
 /**
@@ -516,6 +558,7 @@ export type LinearWorkspaceConfig = z.infer<typeof LinearWorkspaceConfigSchema>;
 export type RepositoryConfig = z.infer<typeof RepositoryConfigSchema>;
 export type EdgeConfig = z.infer<typeof EdgeConfigSchema>;
 export type SandboxConfig = z.infer<typeof SandboxConfigSchema>;
+export type MemoryGateConfig = z.infer<typeof MemoryGateConfigSchema>;
 export type NetworkPolicy = z.infer<typeof NetworkPolicySchema>;
 export type RepositoryConfigPayload = z.infer<
 	typeof RepositoryConfigPayloadSchema
