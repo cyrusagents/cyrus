@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { join } from "node:path";
 import type {
 	HookCallbackMatcher,
 	HookEvent,
@@ -70,6 +71,8 @@ export interface ChatRunnerConfigInput {
 	sessionId: string;
 	resumeSessionId?: string;
 	cyrusHome: string;
+	/** Chat platform name (e.g. "slack") — used to namespace the shared auto-memory dir */
+	platformName: string;
 	/** Linear workspace ID for building fresh MCP config at session start */
 	linearWorkspaceId?: string;
 	/** Repository to source user-configured MCP paths from (V1: first available repo) */
@@ -179,13 +182,26 @@ export class RunnerConfigBuilder {
 
 		input.logger.debug("Chat session allowed tools:", allowedTools);
 
+		// Shared auto-memory across all chat threads on this platform. Lives
+		// under cyrusHome (not the per-thread workspace) so memory built up in
+		// one Slack thread is available to every other Slack thread.
+		const autoMemoryDirectory = join(
+			input.cyrusHome,
+			`${input.platformName}-memory`,
+		);
+
 		return {
 			workingDirectory: input.workspacePath,
 			allowedTools,
 			disallowedTools: [] as string[],
-			allowedDirectories: [input.workspacePath, ...repositoryPaths],
+			allowedDirectories: [
+				input.workspacePath,
+				autoMemoryDirectory,
+				...repositoryPaths,
+			],
 			workspaceName: input.workspaceName,
 			cyrusHome: input.cyrusHome,
+			autoMemoryDirectory,
 			appendSystemPrompt: input.systemPrompt,
 			...(mcpConfig ? { mcpConfig } : {}),
 			...(mcpConfigPath ? { mcpConfigPath } : {}),

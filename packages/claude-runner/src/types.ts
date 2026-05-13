@@ -77,6 +77,12 @@ export interface ClaudeRunnerConfig {
 	 * the ephemeral worktree and can be resumed from any host.
 	 */
 	sessionStore?: SessionStore;
+	/**
+	 * Custom directory path for Claude's auto-memory storage. Forwarded to the
+	 * Claude SDK as settings.autoMemoryDirectory. When unset, the SDK falls
+	 * back to its default (~/.claude/projects/<sanitized-cwd>/memory/).
+	 */
+	autoMemoryDirectory?: string;
 }
 
 export interface ClaudeSessionInfo {

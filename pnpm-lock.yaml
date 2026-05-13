@@ -132,6 +132,9 @@ importers:
       cyrus-edge-worker:
         specifier: workspace:*
         version: link:../../packages/edge-worker
+      cyrus-slack-event-transport:
+        specifier: workspace:*
+        version: link:../../packages/slack-event-transport
     devDependencies:
       '@types/node':
         specifier: ^20.0.0

@@ -156,6 +156,16 @@ function buildSanitizedQueryOptions(
 		out.mcpServerNames = Object.keys(o.mcpServers as object);
 	}
 
+	// Settings overrides — only the small handful we currently set. These are
+	// path/identifier values, not secrets, and surfacing them helps verify
+	// auto-memory routing in tests.
+	if (o.settings && typeof o.settings === "object") {
+		const settings = o.settings as Record<string, unknown>;
+		if (typeof settings.autoMemoryDirectory === "string") {
+			out.settingsAutoMemoryDirectory = settings.autoMemoryDirectory;
+		}
+	}
+
 	// Env — key names only, no values. Spreads `process.env`, so values are
 	// inherently sensitive.
 	if (o.env && typeof o.env === "object") {
@@ -672,6 +682,11 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					}),
 					...(this.config.sessionStore && {
 						sessionStore: this.config.sessionStore,
+					}),
+					...(this.config.autoMemoryDirectory && {
+						settings: {
+							autoMemoryDirectory: this.config.autoMemoryDirectory,
+						},
 					}),
 					...(Object.keys(mcpServers).length > 0 && { mcpServers }),
 					...(this.config.hooks && { hooks: this.config.hooks }),

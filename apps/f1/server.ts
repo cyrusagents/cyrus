@@ -29,6 +29,7 @@ import {
 	type RepositoryConfig,
 } from "cyrus-core";
 import { EdgeWorker } from "cyrus-edge-worker";
+import type { SlackWebhookEvent } from "cyrus-slack-event-transport";
 import { bold, cyan, dim, gray, green, success } from "./src/utils/colors.js";
 
 // ============================================================================
@@ -290,6 +291,71 @@ async function startServer(): Promise<void> {
 
 		process.on("SIGINT", () => shutdown("SIGINT"));
 		process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+		// Register F1 test-only HTTP route for dispatching synthetic Slack chat events
+		// BEFORE starting EdgeWorker — Fastify rejects new routes after listen().
+		// Exercises the Slack → ChatSessionHandler → ClaudeRunner code path without
+		// going through Slack signature verification.
+		const fastify = edgeWorker
+			.getSharedApplicationServer()
+			.getFastifyInstance();
+		fastify.post("/cli/dispatch-chat", async (request, reply) => {
+			const body =
+				(request.body as {
+					channel?: string;
+					user?: string;
+					text?: string;
+					threadTs?: string;
+				}) ?? {};
+			const ts = `${Date.now() / 1000}`;
+			const channel = body.channel ?? "C_F1_CHAN";
+			const event: SlackWebhookEvent = {
+				eventType: "app_mention",
+				eventId: `f1-${ts}`,
+				teamId: "f1-test-team",
+				slackBotToken: undefined,
+				payload: {
+					type: "app_mention",
+					user: body.user ?? "U_F1_USER",
+					text: body.text ?? "hello",
+					ts,
+					channel,
+					...(body.threadTs ? { thread_ts: body.threadTs } : {}),
+					event_ts: ts,
+				},
+			};
+			try {
+				await edgeWorker.dispatchChatTestEvent(event);
+				const threadKey = `${channel}:${body.threadTs || ts}`;
+				reply.send({ ok: true, eventId: event.eventId, threadKey });
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				reply.code(500).send({ ok: false, error: message });
+			}
+		});
+
+		// List active chat threads (threadKey → sessionId)
+		fastify.get("/cli/chat-threads", async (_request, reply) => {
+			reply.send({ ok: true, threads: edgeWorker.listChatThreads() });
+		});
+
+		// Fetch the last assistant reply for a chat thread (polled by F1 to
+		// observe agent output when no real Slack channel is available).
+		fastify.get("/cli/chat-thread", async (request, reply) => {
+			const query = (request.query as { threadKey?: string }) ?? {};
+			if (!query.threadKey) {
+				reply.code(400).send({ ok: false, error: "threadKey required" });
+				return;
+			}
+			const result = edgeWorker.getChatThreadLastReply(query.threadKey);
+			if (!result) {
+				reply
+					.code(404)
+					.send({ ok: false, error: `thread not found: ${query.threadKey}` });
+				return;
+			}
+			reply.send({ ok: true, threadKey: query.threadKey, ...result });
+		});
 
 		// Start EdgeWorker
 		await edgeWorker.start();

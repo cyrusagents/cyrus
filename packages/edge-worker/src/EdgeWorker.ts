@@ -2378,6 +2378,72 @@ ${taskSection}`;
 	}
 
 	/**
+	 * Test-only: dispatch a synthetic Slack webhook event through the chat
+	 * session handler. Used by the F1 test harness to exercise the Slack →
+	 * ClaudeRunner code path end-to-end without a real Slack signature.
+	 */
+	async dispatchChatTestEvent(event: SlackWebhookEvent): Promise<void> {
+		if (!this.chatSessionHandler) {
+			throw new Error("chatSessionHandler not initialized");
+		}
+		await this.chatSessionHandler.handleEvent(event);
+	}
+
+	/**
+	 * Public accessor for the shared Fastify-based application server.
+	 * Used by F1 to register test-only routes alongside production webhook routes.
+	 */
+	getSharedApplicationServer(): SharedApplicationServer {
+		return this.sharedApplicationServer;
+	}
+
+	/**
+	 * Test-only: list active chat threads (threadKey → sessionId).
+	 */
+	listChatThreads(): Array<{ threadKey: string; sessionId: string }> {
+		if (!this.chatSessionHandler) return [];
+		return this.chatSessionHandler.listThreads();
+	}
+
+	/**
+	 * Test-only: fetch the last assistant text reply for a chat thread.
+	 * Returns null when the thread or runner is unknown, or no assistant
+	 * message has been produced yet.
+	 */
+	getChatThreadLastReply(threadKey: string): {
+		text: string;
+		isRunning: boolean;
+		messageCount: number;
+	} | null {
+		if (!this.chatSessionHandler) return null;
+		const runner = this.chatSessionHandler.getRunnerForThread(threadKey);
+		if (!runner) return null;
+		const messages = runner.getMessages();
+		const lastAssistant = [...messages]
+			.reverse()
+			.find((m) => m.type === "assistant");
+		let text = "";
+		if (
+			lastAssistant &&
+			lastAssistant.type === "assistant" &&
+			"message" in lastAssistant
+		) {
+			const msg = lastAssistant as {
+				message: { content: Array<{ type: string; text?: string }> };
+			};
+			const block = msg.message.content?.find(
+				(b) => b.type === "text" && b.text,
+			);
+			if (block?.text) text = block.text;
+		}
+		return {
+			text,
+			isRunning: runner.isRunning(),
+			messageCount: messages.length,
+		};
+	}
+
+	/**
 	 * Stop the edge worker
 	 */
 	async stop(): Promise<void> {
