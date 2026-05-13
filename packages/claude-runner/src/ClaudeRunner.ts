@@ -632,6 +632,26 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 
 			const isDebugLogging = this.logger.getLevel() === LogLevel.DEBUG;
 
+			// Build session env separately so we can explicitly control
+			// DEBUG_CLAUDE_AGENT_SDK. buildBaseSessionEnv() spreads process.env
+			// which may carry this flag from the parent process; we must override
+			// it based solely on the current logger level.
+			const sessionEnv: Record<string, string> = {
+				...buildBaseSessionEnv(),
+				// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally NOT set while
+				// the Linux bubblewrap sandbox side effects it triggers are being
+				// investigated. The sandbox requirements precheck is still run
+				// above so the diagnostics remain available when we re-enable.
+				// See: CYPACK-1108.
+				...this.repositoryEnv,
+				...this.config.additionalEnv,
+			};
+			if (isDebugLogging) {
+				sessionEnv.DEBUG_CLAUDE_AGENT_SDK = "1";
+			} else {
+				delete sessionEnv.DEBUG_CLAUDE_AGENT_SDK;
+			}
+
 			const queryOptions: Parameters<typeof query>[0] = {
 				prompt: promptForQuery,
 				options: {
@@ -651,19 +671,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// particularly with CLAUDE.md files, settings files, and custom slash commands,
 					// see: https://docs.claude.com/en/docs/claude-code/sdk/migration-guide#settings-sources-no-longer-loaded-by-default
 					settingSources: ["user", "project", "local"],
-					env: {
-						...buildBaseSessionEnv(),
-						// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally NOT set while
-						// the Linux bubblewrap sandbox side effects it triggers are being
-						// investigated. The sandbox requirements precheck is still run
-						// above so the diagnostics remain available when we re-enable.
-						// See: CYPACK-1108.
-						...this.repositoryEnv,
-						...this.config.additionalEnv,
-						// When logging at DEBUG level, enable the SDK's own debug output so
-						// --debug-to-stderr and DEBUG=1 propagate to the Claude subprocess.
-						...(isDebugLogging && { DEBUG_CLAUDE_AGENT_SDK: "1" }),
-					},
+					env: sessionEnv,
 					...(this.config.workingDirectory && {
 						cwd: this.config.workingDirectory,
 					}),
