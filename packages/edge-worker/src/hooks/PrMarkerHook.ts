@@ -5,13 +5,7 @@ import type {
 	PostToolUseHookInput,
 } from "cyrus-claude-runner";
 import type { ILogger } from "cyrus-core";
-
-/**
- * The hidden HTML marker that identifies a PR/MR description as Cyrus-authored.
- * Its presence is what tells our GitHub/GitLab webhook handlers that a
- * "Changes requested" or comment event should be forwarded back to Cyrus.
- */
-export const CYRUS_PR_MARKER = "<!-- generated-by-cyrus -->";
+import { CYRUS_PR_MARKER } from "cyrus-github-event-transport";
 
 /**
  * Provider-specific knowledge about how to detect PR/MR mutating commands and

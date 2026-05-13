@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - **Shared auto-memory across Slack chat sessions** — Slack-triggered chat sessions now share a persistent Claude auto-memory directory at `<cyrusHome>/slack-memory/`, so memory built up in one Slack thread carries over to every other Slack thread. ([CYPACK-1190](https://linear.app/ceedar/issue/CYPACK-1190), [#1199](https://github.com/cyrusagents/cyrus/pull/1199))
 
 ### Fixed
+- **Self-hosted: only auto-respond to PR change-requests on PRs Cyrus owns** — `pull_request_review` events with state `changes_requested` now trigger Cyrus only when the PR was opened by the configured Cyrus bot account or its description contains the hidden Cyrus marker. Other PRs are ignored (with a debug log). Explicit `@cyrusagent` mentions on any PR continue to work. ([CYPACK-1173](https://linear.app/ceedar/issue/CYPACK-1173), [#1186](https://github.com/cyrusagents/cyrus/pull/1186))
 - **Slack chat sessions can now read and edit their shared auto-memory** — The shared auto-memory directory (`<cyrusHome>/slack-memory/`) is now included in `allowedDirectories` for chat sessions. Previously, sessions could create new memory files via shell redirects, but `Read`/`Edit`/`Glob` against existing memory files (including `MEMORY.md`) were denied by the home-directory restriction rules, leaving the auto-memory feature half-working. ([CYPACK-1197](https://linear.app/ceedar/issue/CYPACK-1197), [#1206](https://github.com/cyrusagents/cyrus/pull/1206))
 
 ### Changed

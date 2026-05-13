@@ -3,11 +3,11 @@ import type {
 	PostToolUseHookInput,
 } from "cyrus-claude-runner";
 import type { ILogger } from "cyrus-core";
+import { CYRUS_PR_MARKER } from "cyrus-github-event-transport";
 import { describe, expect, it, vi } from "vitest";
 import {
 	appendMarker,
 	buildPrMarkerHook,
-	CYRUS_PR_MARKER,
 	GitHubPrMarkerProvider,
 	GitLabMrMarkerProvider,
 	type PrMarkerProvider,
