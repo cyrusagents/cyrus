@@ -1512,7 +1512,8 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 			if (
 				isRunning &&
 				existingRunner?.supportsStreamingInput &&
-				existingRunner.addStreamMessage
+				existingRunner.addStreamMessage &&
+				existingRunner.isStreaming?.()
 			) {
 				existingRunner.addStreamMessage(notification);
 				this.logger.debug(
@@ -3521,7 +3522,8 @@ ${taskSection}`;
 			if (
 				isRunning &&
 				existingRunner?.supportsStreamingInput &&
-				existingRunner.addStreamMessage
+				existingRunner.addStreamMessage &&
+				existingRunner.isStreaming?.()
 			) {
 				existingRunner.addStreamMessage(fullPrompt);
 				delivered = true;
@@ -6616,7 +6618,8 @@ ${input.userComment}
 		if (
 			existingRunner?.isRunning() &&
 			existingRunner.supportsStreamingInput &&
-			existingRunner.addStreamMessage
+			existingRunner.addStreamMessage &&
+			existingRunner.isStreaming?.()
 		) {
 			log.debug(
 				`Adding prompt to existing stream for ${sessionId} (${logContext})`,
@@ -6703,7 +6706,8 @@ ${input.userComment}
 		if (
 			existingRunner?.isRunning() &&
 			existingRunner.supportsStreamingInput &&
-			existingRunner.addStreamMessage
+			existingRunner.addStreamMessage &&
+			existingRunner.isStreaming?.()
 		) {
 			let fullPrompt = promptBody;
 			if (attachmentManifest) {

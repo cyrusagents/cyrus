@@ -83,6 +83,7 @@ describe("EdgeWorker - Issue Update Session Delivery (CYPACK-954)", () => {
 			agentRunner: hasRunner
 				? {
 						isRunning: vi.fn().mockReturnValue(isRunning),
+						isStreaming: vi.fn().mockReturnValue(isRunning),
 						supportsStreamingInput: supportsStreaming,
 						addStreamMessage: vi.fn(),
 						stop: vi.fn(),
