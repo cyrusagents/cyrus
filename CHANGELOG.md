@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **Agent deliverables are now auto-attached to the Linear issue** — When an issue-bound agent session finishes, any deliverable files it created or changed in its worktree (`.md`, `.pdf`, `.docx`, `.csv`, `.xlsx`, images — not source code, config, or build noise) are uploaded to Linear and attached to the originating issue. No more digging through the git branch or PR to find what the agent produced. Best-effort (a failure never blocks the session) and worktree-only — Slack and Project Update chat sessions are unaffected. ([PR_PLACEHOLDER])
+- **Agent deliverables are now auto-attached to the Linear issue** — When an issue-bound agent session finishes, any deliverable files it created or changed in its worktree (`.md`, `.pdf`, `.docx`, `.csv`, `.xlsx`, images — not source code, config, or build noise) are uploaded to Linear and attached to the originating issue. No more digging through the git branch or PR to find what the agent produced. Best-effort (a failure never blocks the session) and worktree-only — Slack and Project Update chat sessions are unaffected. ([#1214](https://github.com/cyrusagents/cyrus/pull/1214))
 
 ## [0.2.52] - 2026-05-13
 
