@@ -170,7 +170,13 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 							true, // isRetry flag
 						)) as Data;
 					} catch (_refreshError) {
-						// If refresh failed, throw the original 401 error for clarity
+						// If the retry also hit 401, the refreshed token has expired
+						// or is invalid. Clear the stale promise so the next request
+						// can trigger a fresh refresh instead of reusing this one.
+						if (this.isTokenExpiredError(_refreshError)) {
+							this.refreshPromise = null;
+						}
+						// Throw the original 401 error for clarity
 						throw error;
 					}
 				}
@@ -203,10 +209,24 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 		LinearIssueTrackerService.pendingRefreshes.set(workspaceId, refreshPromise);
 
 		try {
-			return await refreshPromise;
-		} finally {
-			// One of the key guarantees of finally — it runs regardless of how the try block exits (return, throw, or normal completion).
+			const result = await refreshPromise;
+			// On success, keep the resolved promise in the map briefly so that
+			// late-arriving 401s coalesce onto it instead of triggering redundant
+			// HTTP refresh calls (which would fail because the refresh token is
+			// single-use and already consumed).
+			setTimeout(() => {
+				if (
+					LinearIssueTrackerService.pendingRefreshes.get(workspaceId) ===
+					refreshPromise
+				) {
+					LinearIssueTrackerService.pendingRefreshes.delete(workspaceId);
+				}
+			}, 5000);
+			return result;
+		} catch (error) {
+			// On failure, clear immediately so the next 401 can retry fresh.
 			LinearIssueTrackerService.pendingRefreshes.delete(workspaceId);
+			throw error;
 		}
 	}
 

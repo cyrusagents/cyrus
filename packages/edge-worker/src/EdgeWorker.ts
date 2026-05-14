@@ -7050,6 +7050,18 @@ ${input.userComment}
 		}
 
 		try {
+			// Update in-memory config FIRST, then write to disk.
+			// When the file watcher fires, it will see no diff between
+			// in-memory and on-disk config, preventing a feedback loop.
+			const wsConfig = this.config.linearWorkspaces?.[tokens.linearWorkspaceId];
+			if (wsConfig) {
+				wsConfig.linearToken = tokens.linearToken;
+				if (tokens.linearRefreshToken) {
+					wsConfig.linearRefreshToken = tokens.linearRefreshToken;
+				}
+			}
+			this.configManager.setConfig(this.config);
+
 			const configContent = await readFile(this.configPath, "utf-8");
 			const config = JSON.parse(configContent);
 
@@ -7084,6 +7096,7 @@ ${input.userComment}
 			};
 
 			await writeFile(this.configPath, JSON.stringify(config, null, "\t"));
+
 			this.logger.debug(
 				`OAuth tokens saved to config for workspace ${tokens.linearWorkspaceId}`,
 			);
