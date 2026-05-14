@@ -3332,10 +3332,13 @@ ${taskSection}`;
 	/**
 	 * Read a project's cached description (Workstream A2).
 	 *
-	 * On a cache miss, back-fills from the Linear API once — fetching the
-	 * project and writing its description through to the cache — so the first
-	 * issue picked up under a project still gets its standing context even if
-	 * no `Project` update webhook has fired since the cache was created.
+	 * On a cache miss — or a cached empty value — back-fills from the Linear
+	 * API once, fetching the project and writing its description through to
+	 * the cache. This means the first issue picked up under a project still
+	 * gets its standing context even if no `Project` update webhook has fired,
+	 * and a stale empty cache row (e.g. written before the project had a
+	 * description) self-heals on the next pickup rather than blocking the
+	 * back-fill forever.
 	 */
 	private async getCachedProjectDescription(
 		projectId: string,
@@ -3346,11 +3349,15 @@ ${taskSection}`;
 		}
 
 		const cached = await this.projectDescriptionCache.get(projectId);
-		if (cached !== undefined) {
+		// A non-empty cached value is a hit. A miss (undefined) OR an empty
+		// cached string both fall through to a back-fill — an empty row may be
+		// stale, and if the project genuinely has no description the back-fill
+		// just re-confirms that cheaply.
+		if (cached) {
 			return cached;
 		}
 
-		// Cache miss — back-fill from Linear once.
+		// Cache miss or empty — back-fill from Linear once.
 		const service = this.getLinearServiceForWorkspace(linearWorkspaceId);
 		if (!service) {
 			return undefined;
