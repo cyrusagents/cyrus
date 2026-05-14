@@ -1087,21 +1087,56 @@ export class GitService {
 	/**
 	 * Detect "deliverable" files an agent created or modified in a worktree.
 	 *
-	 * Runs `git status --porcelain` in the worktree, then keeps only files that
-	 * look like agent output (see {@link filterDeliverables} — documents and
-	 * images, not code or build noise) and still exist on disk. Returns
-	 * absolute paths. Best-effort: any git failure returns an empty list rather
-	 * than throwing, so a completing session is never blocked by this.
+	 * Looks at two sources and unions them:
+	 *  - `git status --porcelain` — uncommitted / untracked changes (catches
+	 *    research-style sessions that never commit).
+	 *  - `git diff --name-only <baseBranch>...HEAD` — files the branch has
+	 *    committed since it diverged from base (catches sessions that ran
+	 *    verify-and-ship, which commits + pushes before the session ends,
+	 *    leaving `git status` clean — without this the hook silently no-ops).
+	 *
+	 * Then keeps only files that look like agent output (see
+	 * {@link filterDeliverables}) and still exist on disk. Returns absolute
+	 * paths. Best-effort: any git failure returns an empty list rather than
+	 * throwing, so a completing session is never blocked by this.
 	 */
-	detectDeliverables(worktreePath: string): string[] {
+	detectDeliverables(worktreePath: string, baseBranch?: string): string[] {
 		try {
 			if (!existsSync(worktreePath)) return [];
-			const output = execSync("git status --porcelain --untracked-files=all", {
+			const relativePaths = new Set<string>();
+
+			// Uncommitted / untracked changes.
+			const status = execSync("git status --porcelain --untracked-files=all", {
 				cwd: worktreePath,
 				encoding: "utf-8",
 			});
-			const relativePaths = filterDeliverables(parseGitPorcelain(output));
-			return relativePaths
+			for (const p of parseGitPorcelain(status)) relativePaths.add(p);
+
+			// Committed-on-this-branch changes vs the base branch. `--diff-filter=d`
+			// drops deletions; `name-only` yields the destination path for renames.
+			if (baseBranch) {
+				try {
+					const diff = execSync(
+						`git diff --name-only --diff-filter=d ${baseBranch}...HEAD`,
+						{ cwd: worktreePath, encoding: "utf-8" },
+					);
+					for (const line of diff.split("\n")) {
+						const p = line.trim();
+						if (p) relativePaths.add(p);
+					}
+				} catch (error) {
+					// Base ref not present locally, detached HEAD, etc. — fall back
+					// to the porcelain set rather than failing the whole detection.
+					this.logger.warn(
+						`detectDeliverables branch-diff failed for ${worktreePath} (base ${baseBranch}): ${
+							error instanceof Error ? error.message : String(error)
+						}`,
+					);
+				}
+			}
+
+			const kept = filterDeliverables([...relativePaths]);
+			return kept
 				.map((rel) => pathResolve(worktreePath, rel))
 				.filter((abs) => existsSync(abs));
 		} catch (error) {

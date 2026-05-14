@@ -2943,7 +2943,9 @@ ${taskSection}`;
 
 		const files: string[] = [];
 		for (const wt of worktreePaths) {
-			files.push(...this.gitService.detectDeliverables(wt));
+			// Pass the base branch so deliverables committed by verify-and-ship
+			// (which leaves `git status` clean) are still detected.
+			files.push(...this.gitService.detectDeliverables(wt, repo?.baseBranch));
 		}
 		if (files.length === 0) return;
 
