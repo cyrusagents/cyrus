@@ -2796,12 +2796,35 @@ ${taskSection}`;
 		}
 		if (files.length === 0) return;
 
+		// Dedup against deliverables already on the issue. This hook runs once
+		// per session — and a conversational issue has many sessions — so
+		// without this the same file would be re-uploaded and re-attached
+		// every turn.
+		let existingTitles = new Set<string>();
+		try {
+			const existing = await tracker.fetchIssueAttachments(issueId);
+			existingTitles = new Set(existing.map((a) => a.title));
+		} catch (error) {
+			this.logger.debug(
+				`Could not list existing attachments for issue ${issueId} — proceeding without dedup: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+
 		const MAX_FILES = 10;
 		const MAX_BYTES = 10 * 1024 * 1024; // Linear's per-file limit
 		let attached = 0;
 
 		for (const filePath of files.slice(0, MAX_FILES)) {
 			try {
+				const filename = basename(filePath);
+				if (existingTitles.has(filename)) {
+					this.logger.debug(
+						`Deliverable ${filename} already attached to issue ${issueId} — skipping`,
+					);
+					continue;
+				}
 				const buf = await readFile(filePath);
 				if (buf.byteLength > MAX_BYTES) {
 					this.logger.warn(
@@ -2809,7 +2832,6 @@ ${taskSection}`;
 					);
 					continue;
 				}
-				const filename = basename(filePath);
 				const upload = await tracker.requestFileUpload({
 					contentType: contentTypeForFile(filename),
 					filename,
