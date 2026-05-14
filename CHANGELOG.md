@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.53] - 2026-05-14
+
+### Changed
+- **Updated `@anthropic-ai/claude-agent-sdk` from `0.2.123` → `0.2.141`** across all packages (core, claude-runner, edge-worker, simple-agent-runner). Updated `@anthropic-ai/sdk` from `^0.91.0` → `^0.96.0` in claude-runner. Refreshed the tool allowance list in `packages/claude-runner/src/config.ts`: added `LSP` (Language Server Protocol tool, re-introduced in the SDK) and removed `RemoteTrigger` (no longer present in SDK v0.2.141). See the [SDK changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md) for full release notes. ([CYPACK-1205](https://linear.app/ceedar/issue/CYPACK-1205))
+
 ## [0.2.52] - 2026-05-13
 
 ### Added

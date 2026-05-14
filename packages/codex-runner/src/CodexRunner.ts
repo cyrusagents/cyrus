@@ -106,6 +106,7 @@ function createAssistantToolUseMessage(
 			service_tier: null,
 			speed: null,
 		},
+		stop_details: null,
 		container: null,
 		context_management: null,
 	};
@@ -159,6 +160,7 @@ function createAssistantBetaMessage(
 			service_tier: null,
 			speed: null,
 		},
+		stop_details: null,
 		container: null,
 		context_management: null,
 	};

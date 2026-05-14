@@ -54,11 +54,13 @@ export const availableTools = [
 	"EnterWorktree",
 	"ExitWorktree",
 
+	// Code intelligence tools
+	"LSP",
+
 	// Scheduling and cron tools
 	"CronCreate",
 	"CronDelete",
 	"CronList",
-	"RemoteTrigger",
 	"ScheduleWakeup",
 
 	// Monitoring and task lifecycle
@@ -93,6 +95,7 @@ export const readOnlyTools: ToolName[] = [
 	"TaskList",
 	"Task",
 	"Skill",
+	"LSP",
 	"Monitor",
 	"TaskOutput",
 	"EnterPlanMode",
