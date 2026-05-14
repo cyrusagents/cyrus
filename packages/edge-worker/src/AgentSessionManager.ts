@@ -381,17 +381,14 @@ export class AgentSessionManager extends EventEmitter {
 			usage: resultMessage.usage,
 		});
 
-		if (wasStopRequested) {
-			log.info(`Session was stopped by user`);
-			return;
-		}
-
-		// Post final result to issue tracker
-		await this.addResultEntry(sessionId, resultMessage);
-
 		// Auto-attach any deliverable files the agent produced (best-effort —
-		// never let a cache/upload failure block session completion).
-		if (this.onSessionDeliverables && status === AgentSessionStatus.Complete) {
+		// never let a cache/upload failure block session completion). Runs
+		// regardless of how the session ended: a conversational issue's turns
+		// almost always end as "stopped by user" (the next reply supersedes the
+		// current turn), so gating this on a clean completion meant the hook
+		// effectively never fired for iterative work. The hook itself no-ops
+		// when the agent produced nothing.
+		if (this.onSessionDeliverables) {
 			try {
 				await this.onSessionDeliverables(sessionId, session);
 			} catch (error) {
@@ -402,6 +399,14 @@ export class AgentSessionManager extends EventEmitter {
 				);
 			}
 		}
+
+		if (wasStopRequested) {
+			log.info(`Session was stopped by user`);
+			return;
+		}
+
+		// Post final result to issue tracker
+		await this.addResultEntry(sessionId, resultMessage);
 
 		// Handle child session completion
 		const parentSessionId = this.getParentSessionId?.(sessionId);
