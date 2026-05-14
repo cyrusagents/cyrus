@@ -120,6 +120,8 @@ export type {
 	AgentSessionCreateResponse,
 	AgentSessionPromptedWebhook,
 	AgentSessionSDK,
+	AttachmentCreateRequest,
+	AttachmentCreateResponse,
 	Comment,
 	CommentCreateInput,
 	CommentWithAttachments,

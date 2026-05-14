@@ -560,6 +560,34 @@ export interface FileUploadResponse {
 }
 
 /**
+ * Parameters for creating an attachment on an issue.
+ *
+ * An attachment links a resource (typically a file uploaded via
+ * `requestFileUpload` + PUT) to an issue so it's surfaced in the issue's
+ * attachments area rather than buried in a git branch or PR.
+ */
+export interface AttachmentCreateRequest {
+	/** Issue ID to attach to */
+	issueId: string;
+	/** Attachment title (e.g. the file name) */
+	title: string;
+	/** Resource URL — for uploaded files, the `assetUrl` from `requestFileUpload` */
+	url: string;
+	/** Optional subtitle / secondary line */
+	subtitle?: string;
+}
+
+/**
+ * Response from creating an attachment.
+ */
+export interface AttachmentCreateResponse {
+	/** Whether the creation was successful */
+	success: boolean;
+	/** Created attachment ID */
+	attachmentId: string;
+}
+
+/**
  * Agent session creation input for issue-based sessions.
  */
 export interface AgentSessionCreateOnIssueInput {
