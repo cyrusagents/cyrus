@@ -17,6 +17,8 @@ import type {
 	AgentActivityPayload,
 	AgentSessionCreateOnCommentInput,
 	AgentSessionCreateOnIssueInput,
+	AttachmentCreateRequest,
+	AttachmentCreateResponse,
 	Comment,
 	CommentCreateInput,
 	CommentWithAttachments,
@@ -748,6 +750,21 @@ export interface IIssueTrackerService {
 	 * 3. Reference file using asset URL in content
 	 */
 	requestFileUpload(request: FileUploadRequest): Promise<FileUploadResponse>;
+
+	/**
+	 * Create an attachment on an issue.
+	 *
+	 * Links a resource URL (typically the `assetUrl` of a file uploaded via
+	 * `requestFileUpload` + PUT) to an issue so it surfaces in the issue's
+	 * attachments area.
+	 *
+	 * @param request - Attachment creation parameters
+	 * @returns Promise resolving to the created attachment's ID
+	 * @throws Error if request fails
+	 */
+	createAttachment(
+		request: AttachmentCreateRequest,
+	): Promise<AttachmentCreateResponse>;
 
 	// ========================================================================
 	// PLATFORM METADATA

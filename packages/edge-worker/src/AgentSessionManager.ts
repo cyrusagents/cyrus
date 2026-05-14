@@ -87,6 +87,16 @@ export class AgentSessionManager extends EventEmitter {
 		prompt: string,
 		childSessionId: string,
 	) => Promise<void>;
+	/**
+	 * Optional hook fired once a session completes successfully — used by
+	 * EdgeWorker to auto-attach deliverable files the agent produced in its
+	 * worktree to the originating Linear issue. Best-effort: errors are
+	 * swallowed by the caller so a completing session is never blocked.
+	 */
+	private onSessionDeliverables?: (
+		sessionId: string,
+		session: CyrusAgentSession,
+	) => Promise<void>;
 
 	constructor(
 		getParentSessionId?: (childSessionId: string) => string | undefined,
@@ -96,11 +106,16 @@ export class AgentSessionManager extends EventEmitter {
 			childSessionId: string,
 		) => Promise<void>,
 		logger?: ILogger,
+		onSessionDeliverables?: (
+			sessionId: string,
+			session: CyrusAgentSession,
+		) => Promise<void>,
 	) {
 		super();
 		this.logger = logger ?? createLogger({ component: "AgentSessionManager" });
 		this.getParentSessionId = getParentSessionId;
 		this.resumeParentSession = resumeParentSession;
+		this.onSessionDeliverables = onSessionDeliverables;
 	}
 
 	/**
@@ -373,6 +388,20 @@ export class AgentSessionManager extends EventEmitter {
 
 		// Post final result to issue tracker
 		await this.addResultEntry(sessionId, resultMessage);
+
+		// Auto-attach any deliverable files the agent produced (best-effort —
+		// never let a cache/upload failure block session completion).
+		if (this.onSessionDeliverables && status === AgentSessionStatus.Complete) {
+			try {
+				await this.onSessionDeliverables(sessionId, session);
+			} catch (error) {
+				log.error(
+					`onSessionDeliverables hook failed: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				);
+			}
+		}
 
 		// Handle child session completion
 		const parentSessionId = this.getParentSessionId?.(sessionId);
@@ -1418,7 +1447,7 @@ export class AgentSessionManager extends EventEmitter {
 		const log = this.sessionLog(sessionId);
 		const session = this.sessions.get(sessionId);
 
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			log.debug(
 				`Skipping ${label} - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,
 			);
@@ -1681,7 +1710,7 @@ export class AgentSessionManager extends EventEmitter {
 		message: SDKStatusMessage,
 	): Promise<void> {
 		const session = this.sessions.get(sessionId);
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			const log = this.sessionLog(sessionId);
 			log.debug(
 				`Skipping status message - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,

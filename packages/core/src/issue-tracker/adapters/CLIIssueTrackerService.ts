@@ -26,6 +26,8 @@ import {
 	type AgentSessionCreateOnIssueInput,
 	AgentSessionStatus,
 	AgentSessionType,
+	type AttachmentCreateRequest,
+	type AttachmentCreateResponse,
 	type Comment,
 	type CommentCreateInput,
 	type CommentWithAttachments,
@@ -1318,6 +1320,18 @@ export class CLIIssueTrackerService
 				"x-amz-acl": request.makePublic ? "public-read" : "private",
 			},
 			assetUrl,
+		};
+	}
+
+	/**
+	 * Create an attachment on an issue (mock — CLI mode has no real Linear).
+	 */
+	async createAttachment(
+		_request: AttachmentCreateRequest,
+	): Promise<AttachmentCreateResponse> {
+		return {
+			success: true,
+			attachmentId: `mock-attachment-${Date.now()}`,
 		};
 	}
 

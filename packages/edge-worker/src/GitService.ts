@@ -17,6 +17,7 @@ import type {
 	Workspace,
 } from "cyrus-core";
 import { createLogger, getDefaultWorktreesDir, type ILogger } from "cyrus-core";
+import { filterDeliverables, parseGitPorcelain } from "./deliverables.js";
 import { WorktreeIncludeService } from "./WorktreeIncludeService.js";
 
 export interface CreateGitWorktreeOptions {
@@ -1080,6 +1081,36 @@ export class GitService {
 		if (scriptToRun) {
 			const scriptPath = join(repositoryPath, scriptToRun.file);
 			await this.runSetupScript(scriptPath, "repository", workspacePath, issue);
+		}
+	}
+
+	/**
+	 * Detect "deliverable" files an agent created or modified in a worktree.
+	 *
+	 * Runs `git status --porcelain` in the worktree, then keeps only files that
+	 * look like agent output (see {@link filterDeliverables} — documents and
+	 * images, not code or build noise) and still exist on disk. Returns
+	 * absolute paths. Best-effort: any git failure returns an empty list rather
+	 * than throwing, so a completing session is never blocked by this.
+	 */
+	detectDeliverables(worktreePath: string): string[] {
+		try {
+			if (!existsSync(worktreePath)) return [];
+			const output = execSync("git status --porcelain --untracked-files=all", {
+				cwd: worktreePath,
+				encoding: "utf-8",
+			});
+			const relativePaths = filterDeliverables(parseGitPorcelain(output));
+			return relativePaths
+				.map((rel) => pathResolve(worktreePath, rel))
+				.filter((abs) => existsSync(abs));
+		} catch (error) {
+			this.logger.warn(
+				`detectDeliverables failed for ${worktreePath}: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+			return [];
 		}
 	}
 }
