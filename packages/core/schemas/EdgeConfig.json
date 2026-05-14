@@ -921,6 +921,12 @@
 			},
 			"required": ["httpProxyPort", "socksProxyPort"],
 			"additionalProperties": false
+		},
+		"linearAgentId": {
+			"type": "string"
+		},
+		"linearAgentName": {
+			"type": "string"
 		}
 	},
 	"required": ["repositories"],

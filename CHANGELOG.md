@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Agents can now be @-mentioned inside Linear Project Updates** — Posting `@<agent>` in a Project Update spawns a conversational agent session bound to that project (no git worktree — the surface is discussion, not code), and the agent replies as a follow-up Project Update. Follow-up Updates on the same project continue the same conversation. Project Updates and Project webhooks are workspace-wide, so each agent self-filters: it acts only when it is the one mentioned, and never replies to its own Updates. Requires subscribing the Linear app to the `ProjectUpdate` event. ([PR_PLACEHOLDER])
+- **A Linear Project's description is now treated as standing context for every issue under it** — When a Project's description changes, Cyrus caches it; when an agent later picks up any issue in that project, the description is injected into its system prompt as long-running context (so e.g. "audience is enterprise, not SMB" applies to every issue without restating it). Caching is opt-in via the `CYRUS_PROJECT_CACHE_URL` / `CYRUS_PROJECT_CACHE_TOKEN` environment variables; when unset, this is a no-op. Requires subscribing the Linear app to the `Project` event. ([PR_PLACEHOLDER])
+- **Optional `linearAgentId` / `linearAgentName` config fields** — Pin the Linear identity an instance uses to self-filter Project-level @-mentions. When omitted, the identity is auto-resolved from the Linear `viewer` query at startup. ([PR_PLACEHOLDER])
+
 ## [0.2.52] - 2026-05-13
 
 ### Added

@@ -1011,6 +1011,107 @@ export function isIssueDeletedWebhook(
 	return webhook.type === "Issue" && webhook.action === "remove";
 }
 
+// ============================================================================
+// PROJECT-LEVEL WEBHOOK PAYLOAD TYPES
+// ============================================================================
+//
+// Linear emits entity webhooks for Project-level surfaces — `ProjectUpdate`
+// (the Updates feed on a project) and `Project` (the project entity itself,
+// including its description body). Unlike Issue webhooks, these are not
+// agent-targeted: every installation subscribed to them receives every event,
+// so handlers must self-filter (see EdgeWorker's ProjectUpdate handling).
+
+/**
+ * Platform-agnostic ProjectUpdate webhook payload.
+ * Maps to Linear SDK's EntityWebhookPayload with type "ProjectUpdate".
+ *
+ * Linear sends these when a Project Update is posted or edited. The `data`
+ * field carries the update body (markdown), the authoring user, and a
+ * `{ id, name, url }` reference to the parent project. Note the payload does
+ * NOT include the project's team — routing must not depend on it.
+ *
+ * @see https://studio.apollographql.com/public/Linear-Webhooks/variant/current/schema/reference/objects/EntityWebhookPayload
+ */
+export type ProjectUpdateWebhook =
+	LinearSDK.LinearDocument.EntityWebhookPayload & {
+		type: "ProjectUpdate";
+		action: "create" | "update" | "remove";
+		data: LinearSDK.LinearDocument.ProjectUpdateWebhookPayload;
+		/** Previous values of updated properties. Contains `body` when the update text changed. */
+		updatedFrom?: {
+			body?: string;
+			[key: string]: unknown;
+		};
+	};
+
+/**
+ * Platform-agnostic Project webhook payload.
+ * Maps to Linear SDK's EntityWebhookPayload with type "Project".
+ *
+ * Linear sends these when a Project entity changes. The `data` field carries
+ * the full project including its `description` body and `teamIds`.
+ *
+ * @see https://studio.apollographql.com/public/Linear-Webhooks/variant/current/schema/reference/objects/EntityWebhookPayload
+ */
+export type ProjectWebhook = LinearSDK.LinearDocument.EntityWebhookPayload & {
+	type: "Project";
+	action: "create" | "update" | "remove";
+	data: LinearSDK.LinearDocument.ProjectWebhookPayload;
+	/** Previous values of updated properties. Contains `description` when the project body changed. */
+	updatedFrom?: {
+		description?: string;
+		[key: string]: unknown;
+	};
+};
+
+/**
+ * Type guard to check if webhook is a ProjectUpdate event (create/update/remove).
+ *
+ * ProjectUpdate webhooks are workspace-level — every subscribed installation
+ * receives every one. The caller is responsible for self-filtering (e.g. only
+ * acting when the agent is @-mentioned in the body).
+ */
+export function isProjectUpdateWebhook(
+	webhook: Webhook,
+): webhook is ProjectUpdateWebhook {
+	return webhook.type === "ProjectUpdate";
+}
+
+/**
+ * Type guard to check if webhook is a Project entity event.
+ */
+export function isProjectWebhook(webhook: Webhook): webhook is ProjectWebhook {
+	return webhook.type === "Project";
+}
+
+/**
+ * Type guard to check if webhook is a Project update whose `description` body changed.
+ *
+ * Mirrors {@link isIssueTitleOrDescriptionUpdateWebhook} — identifies Project
+ * entity webhooks where `updatedFrom` carries a previous `description`, so the
+ * description cache only refreshes when the body actually changed (not on
+ * every unrelated field edit).
+ */
+export function isProjectDescriptionUpdateWebhook(
+	webhook: Webhook,
+): webhook is ProjectWebhook {
+	if (webhook.type !== "Project" || webhook.action !== "update") {
+		return false;
+	}
+
+	const entityWebhook =
+		webhook as LinearSDK.LinearDocument.EntityWebhookPayload;
+	const updatedFrom = entityWebhook.updatedFrom as
+		| { description?: string }
+		| undefined;
+
+	if (!updatedFrom) {
+		return false;
+	}
+
+	return "description" in updatedFrom;
+}
+
 /**
  * Generic result type for operations.
  */

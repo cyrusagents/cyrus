@@ -141,6 +141,72 @@ export const mockUnassignedWebhook = (issue: any = {}) => ({
 	webhookId: "webhook-789",
 });
 
+// Project Update entity webhook (Workstream A1). Mirrors Linear's
+// EntityWebhookPayload shape with `data: ProjectUpdateWebhookPayload`.
+export const mockProjectUpdateWebhook = (
+	data: any = {},
+	overrides: any = {},
+) => ({
+	type: "ProjectUpdate",
+	action: "create",
+	createdAt: new Date().toISOString(),
+	organizationId: "test-workspace",
+	url: "https://linear.app/test/project/test-project/updates",
+	webhookTimestamp: Date.now(),
+	webhookId: "webhook-projupdate-1",
+	data: {
+		id: "projupdate-123",
+		body: "Status: on track.",
+		bodyData: "{}",
+		createdAt: new Date().toISOString(),
+		editedAt: new Date().toISOString(),
+		health: "onTrack",
+		project: {
+			id: "project-123",
+			name: "Test Project",
+			url: "https://linear.app/test/project/test-project",
+		},
+		projectId: "project-123",
+		reactionData: {},
+		slugId: "test-project",
+		updatedAt: new Date().toISOString(),
+		url: "https://linear.app/test/project/test-project/updates/projupdate-123",
+		user: {
+			id: "user-human-1",
+			name: "Alice",
+			email: "alice@example.com",
+			url: "https://linear.app/test/profiles/alice",
+		},
+		userId: "user-human-1",
+		...data,
+	},
+	...overrides,
+});
+
+// Project entity webhook (Workstream A2). `data: ProjectWebhookPayload`.
+export const mockProjectWebhook = (data: any = {}, overrides: any = {}) => ({
+	type: "Project",
+	action: "update",
+	createdAt: new Date().toISOString(),
+	organizationId: "test-workspace",
+	url: "https://linear.app/test/project/test-project",
+	webhookTimestamp: Date.now(),
+	webhookId: "webhook-project-1",
+	updatedFrom: { description: "Old description." },
+	data: {
+		id: "project-123",
+		name: "Test Project",
+		description: "New description — audience is enterprise, not SMB.",
+		slugId: "test-project",
+		url: "https://linear.app/test/project/test-project",
+		teamIds: ["test-workspace"],
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+		...data,
+	},
+	...overrides,
+});
+
 export const mockClaudeAssistantMessage = (content: string): SDKMessage =>
 	({
 		type: "assistant",

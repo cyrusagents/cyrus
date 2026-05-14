@@ -8,7 +8,7 @@
  * @module issue-tracker/adapters/LinearIssueTrackerService
  */
 
-import type { LinearClient } from "@linear/sdk";
+import type { LinearClient, Project, ProjectUpdate } from "@linear/sdk";
 
 /**
  * OAuth configuration for automatic token refresh.
@@ -768,6 +768,52 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 	 */
 	async fetchCurrentUser(): Promise<User> {
 		return await this.linearClient.viewer;
+	}
+
+	// ========================================================================
+	// PROJECT OPERATIONS
+	// ========================================================================
+
+	/**
+	 * Fetch a single project by ID.
+	 *
+	 * Direct passthrough to the Linear SDK. Used to load project context
+	 * (description, name, recent updates) when an agent is @-mentioned in a
+	 * Project Update, and to back-fill the project description cache on a
+	 * cache miss.
+	 */
+	async fetchProject(projectId: string): Promise<Project> {
+		return await this.linearClient.project(projectId);
+	}
+
+	/**
+	 * Post a new Project Update to a project.
+	 *
+	 * Project Updates have no comment thread of their own — a "reply" to an
+	 * Update is itself a new Update on the same project. This is how agents
+	 * respond to an @-mention inside a Project Update.
+	 */
+	async createProjectUpdate(
+		projectId: string,
+		body: string,
+	): Promise<ProjectUpdate> {
+		const payload = await this.linearClient.createProjectUpdate({
+			projectId,
+			body,
+		});
+
+		if (!payload.success) {
+			throw new Error(
+				"Linear API returned success=false for projectUpdateCreate",
+			);
+		}
+
+		const created = await payload.projectUpdate;
+		if (!created) {
+			throw new Error("Created project update not returned from Linear API");
+		}
+
+		return created;
 	}
 
 	// ========================================================================
