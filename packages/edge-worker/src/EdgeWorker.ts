@@ -39,6 +39,8 @@ import type {
 	IssueStateChangeMessage,
 	IssueUnassignedWebhook,
 	IssueUpdateWebhook,
+	ProjectUpdateWebhook,
+	ProjectWebhook,
 	RepositoryConfig,
 	RunnerType,
 	SerializableEdgeWorkerState,
@@ -67,6 +69,8 @@ import {
 	isIssueStateIdUpdateWebhook,
 	isIssueTitleOrDescriptionUpdateWebhook,
 	isIssueUnassignedWebhook,
+	isProjectDescriptionUpdateWebhook,
+	isProjectUpdateWebhook,
 	isSessionStartMessage,
 	isStopSignalMessage,
 	isUnassignMessage,
@@ -147,8 +151,14 @@ import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { EgressProxy } from "./EgressProxy.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
+import { LinearProjectChatAdapter } from "./LinearProjectChatAdapter.js";
 import { McpConfigService } from "./McpConfigService.js";
+import { ProjectDescriptionCache } from "./ProjectDescriptionCache.js";
 import { PromptBuilder } from "./PromptBuilder.js";
+import {
+	mentionsAgent,
+	parseMentions as parseProjectMentions,
+} from "./project-mentions.js";
 import type {
 	IssueContextResult,
 	PromptAssembly,
@@ -211,6 +221,10 @@ export class EdgeWorker extends EventEmitter {
 	private slackEventTransport: SlackEventTransport | null = null;
 	private chatSessionHandler: ChatSessionHandler<SlackWebhookEvent> | null =
 		null;
+	private linearProjectChatSessionHandler: ChatSessionHandler<ProjectUpdateWebhook> | null =
+		null; // Chat-session engine for Project Update @-mention conversations
+	private selfLinearIdentity: { id?: string; name?: string } = {}; // This agent's own Linear identity, for self-filtering workspace-wide Project webhooks
+	private projectDescriptionCache: ProjectDescriptionCache; // Workstream A2: cached Linear project descriptions injected as standing context
 	private gitHubCommentService: GitHubCommentService; // Service for posting comments back to GitHub PRs
 	private gitLabCommentService: GitLabCommentService; // Service for posting comments back to GitLab MRs
 	private cliRPCServer: CLIRPCServer | null = null; // CLI RPC server for CLI platform mode
@@ -525,6 +539,9 @@ export class EdgeWorker extends EventEmitter {
 			this.cyrusHome,
 			this.config.linearWorkspaces || {},
 		);
+		// Workstream A2: bridge-backed cache of Linear project descriptions.
+		// No-op unless CYRUS_PROJECT_CACHE_URL / _TOKEN env vars are set.
+		this.projectDescriptionCache = ProjectDescriptionCache.fromEnv(this.logger);
 		this.runnerSelectionService = new RunnerSelectionService(this.config);
 		this.toolPermissionResolver = new ToolPermissionResolver(
 			this.config,
@@ -589,6 +606,10 @@ export class EdgeWorker extends EventEmitter {
 
 		// Load persisted state for each repository
 		await this.loadPersistedState();
+
+		// Resolve this agent's own Linear identity, used to self-filter
+		// workspace-wide Project-level webhooks (ProjectUpdate / Project).
+		await this.resolveSelfLinearIdentity();
 
 		// Pre-warm the 30 most recent Claude sessions in the background
 		// so their first query after restart has near-zero cold-start latency.
@@ -670,6 +691,64 @@ export class EdgeWorker extends EventEmitter {
 
 		// Start shared application server (this also starts Cloudflare tunnel if CLOUDFLARE_TOKEN is set)
 		await this.sharedApplicationServer.start();
+	}
+
+	/**
+	 * Resolve this agent's own Linear identity (user id + display name).
+	 *
+	 * Project-level webhooks (`ProjectUpdate` / `Project`) are workspace-wide,
+	 * not agent-targeted — every installation subscribed to them receives
+	 * every event. So each instance must decide for itself whether it is the
+	 * agent being @-mentioned in a Project Update. That decision needs the
+	 * agent's own Linear user id and name.
+	 *
+	 * Resolution order: explicit `config.linearAgentId` / `linearAgentName`
+	 * win; any field left unset is auto-filled from the Linear `viewer` query.
+	 * Failure is non-fatal — it just means self-filtering falls back to
+	 * whatever the config provided (possibly nothing, in which case
+	 * Project Update @-mentions are ignored).
+	 */
+	private async resolveSelfLinearIdentity(): Promise<void> {
+		const configId = this.config.linearAgentId;
+		const configName = this.config.linearAgentName;
+		this.selfLinearIdentity = { id: configId, name: configName };
+
+		// Both set explicitly — no need to hit the Linear API.
+		if (configId && configName) {
+			this.logger.info(
+				`Linear agent identity (from config): ${configName} (${configId})`,
+			);
+			return;
+		}
+
+		const tracker = Array.from(this.issueTrackers.values()).find(
+			(t): t is LinearIssueTrackerService =>
+				t instanceof LinearIssueTrackerService,
+		);
+		if (!tracker) {
+			this.logger.warn(
+				"Could not resolve Linear agent identity: no Linear issue tracker configured. " +
+					"Project Update @-mention self-filtering will use config values only.",
+			);
+			return;
+		}
+
+		try {
+			const viewer = await tracker.fetchCurrentUser();
+			this.selfLinearIdentity = {
+				id: configId ?? viewer.id,
+				name: configName ?? viewer.displayName ?? viewer.name,
+			};
+			this.logger.info(
+				`Linear agent identity resolved: ${this.selfLinearIdentity.name} (${this.selfLinearIdentity.id})`,
+			);
+		} catch (error) {
+			this.logger.warn(
+				`Failed to resolve Linear agent identity from viewer query: ${
+					error instanceof Error ? error.message : String(error)
+				}. Project Update @-mention self-filtering will use config values only.`,
+			);
+		}
 	}
 
 	/**
@@ -789,6 +868,7 @@ export class EdgeWorker extends EventEmitter {
 		this.registerGitHubEventTransport();
 		this.registerGitLabEventTransport();
 		this.registerSlackEventTransport();
+		this.initializeLinearProjectChatHandler();
 
 		// 3. Create and register ConfigUpdater (both platforms)
 		this.configUpdater = new ConfigUpdater(
@@ -1086,6 +1166,79 @@ export class EdgeWorker extends EventEmitter {
 
 		this.logger.info(
 			`Slack event transport registered (${slackVerificationMode} mode)`,
+		);
+	}
+
+	/**
+	 * Initialize the chat-session engine for Project Update @-mention
+	 * conversations (Workstream A1).
+	 *
+	 * Unlike Slack, this has no dedicated transport: Project Update webhooks
+	 * arrive on the existing Linear webhook path and are routed here by
+	 * {@link handleProjectUpdateWebhook} after self-filtering. The engine reuses
+	 * {@link ChatSessionHandler} so a Project Update conversation runs in a
+	 * plain workspace directory (no git worktree) — the surface is discussion,
+	 * not code.
+	 */
+	private initializeLinearProjectChatHandler(): void {
+		const chatRepositoryProvider = new LiveChatRepositoryProvider(
+			this.repositories,
+			() => this.config.linearWorkspaces || {},
+		);
+
+		const adapter = new LinearProjectChatAdapter(
+			chatRepositoryProvider,
+			(workspaceId) => this.getLinearServiceForWorkspace(workspaceId),
+			() => this.selfLinearIdentity.name,
+			this.logger,
+		);
+
+		this.linearProjectChatSessionHandler = new ChatSessionHandler(
+			adapter,
+			{
+				cyrusHome: this.cyrusHome,
+				chatRepositoryProvider,
+				runnerConfigBuilder: this.runnerConfigBuilder,
+				createRunner: (config) => {
+					const runnerType = this.runnerSelectionService.getDefaultRunner();
+					return this.createRunnerForType(runnerType, {
+						...config,
+						model: this.getDefaultModelForRunner(runnerType),
+						fallbackModel: this.getDefaultFallbackModelForRunner(runnerType),
+					});
+				},
+				onWebhookStart: () => {
+					this.activeWebhookCount++;
+				},
+				onWebhookEnd: () => {
+					this.activeWebhookCount--;
+				},
+				onStateChange: () => this.savePersistedState(),
+				onClaudeError: (error) => this.handleClaudeError(error),
+			},
+			this.logger,
+		);
+
+		this.logger.info("✅ Linear Project Update chat handler initialized");
+	}
+
+	/**
+	 * Resolve the Linear issue-tracker service for a workspace id. Falls back
+	 * to the single configured Linear workspace when the id is unknown — the
+	 * common case for single-workspace installations like the Tincture stack.
+	 */
+	private getLinearServiceForWorkspace(
+		workspaceId: string | undefined,
+	): LinearIssueTrackerService | undefined {
+		const direct = workspaceId
+			? this.issueTrackers.get(workspaceId)
+			: undefined;
+		if (direct instanceof LinearIssueTrackerService) {
+			return direct;
+		}
+		return Array.from(this.issueTrackers.values()).find(
+			(t): t is LinearIssueTrackerService =>
+				t instanceof LinearIssueTrackerService,
 		);
 	}
 
@@ -3058,6 +3211,12 @@ ${taskSection}`;
 			} else if (isIssueStateIdUpdateWebhook(webhook)) {
 				// Handle issue state changes — wake up parked sessions when blocking issues complete
 				await this.handleIssueStateChange(webhook);
+			} else if (isProjectUpdateWebhook(webhook)) {
+				// Project Update — may @-mention this agent (Workstream A1)
+				await this.handleProjectUpdateWebhook(webhook);
+			} else if (isProjectDescriptionUpdateWebhook(webhook)) {
+				// Project description changed — refresh the cached project context (Workstream A2)
+				await this.handleProjectWebhook(webhook);
 			} else {
 				if (process.env.CYRUS_WEBHOOK_DEBUG === "true") {
 					this.logger.debug(
@@ -3076,6 +3235,181 @@ ${taskSection}`;
 			// Always decrement counter when webhook processing completes
 			this.activeWebhookCount--;
 		}
+	}
+
+	// ============================================================================
+	// PROJECT-LEVEL WEBHOOK HANDLERS
+	// ============================================================================
+	// ProjectUpdate / Project webhooks are workspace-wide — every installation
+	// subscribed to them receives every event. Handlers below self-filter so
+	// only the relevant agent acts. See cyrus-projectupdate-pr-spec.md.
+
+	/**
+	 * Handle a `ProjectUpdate` webhook (Workstream A1).
+	 *
+	 * This instance acts only when all hold:
+	 *  - the action is create/update (not remove);
+	 *  - the Update was not authored by this agent (loop prevention — an
+	 *    agent's reply is itself a ProjectUpdate `create` delivered back to us);
+	 *  - the body @-mentions this agent.
+	 *
+	 * When they do, the Update is handed to the Project Update chat-session
+	 * engine, which spawns or resumes a worktree-free session bound to the
+	 * project and posts the reply as a new Project Update.
+	 */
+	private async handleProjectUpdateWebhook(
+		webhook: ProjectUpdateWebhook,
+	): Promise<void> {
+		if (webhook.action === "remove") {
+			return;
+		}
+
+		const update = webhook.data;
+		const body = update.body ?? "";
+
+		// Loop prevention: never respond to our own Project Updates.
+		if (
+			this.selfLinearIdentity.id &&
+			update.userId === this.selfLinearIdentity.id
+		) {
+			return;
+		}
+
+		if (!mentionsAgent(body, this.selfLinearIdentity)) {
+			if (process.env.CYRUS_WEBHOOK_DEBUG === "true") {
+				this.logger.debug(
+					`ProjectUpdate ${update.id} does not mention this agent (mentions: ${parseProjectMentions(body).join(", ") || "none"}) — ignoring`,
+				);
+			}
+			return;
+		}
+
+		if (!this.linearProjectChatSessionHandler) {
+			this.logger.warn(
+				"ProjectUpdate @-mention received but the project chat handler is not initialized",
+			);
+			return;
+		}
+
+		this.logger.info(
+			`ProjectUpdate @-mention for ${
+				this.selfLinearIdentity.name ?? "this agent"
+			} on project "${update.project.name}" (update ${update.id})`,
+		);
+		await this.linearProjectChatSessionHandler.handleEvent(webhook);
+	}
+
+	/**
+	 * Handle a `Project` webhook whose description changed (Workstream A2).
+	 *
+	 * Caches the new project description so it can be injected as standing
+	 * context ("system prompt") whenever this agent later picks up an issue
+	 * under that project. The cache lives in the Notion↔Linear bridge's
+	 * Supabase; see {@link cacheProjectDescription}.
+	 */
+	private async handleProjectWebhook(webhook: ProjectWebhook): Promise<void> {
+		const project = webhook.data;
+		const description = project.description ?? "";
+		await this.cacheProjectDescription(project.id, description);
+	}
+
+	/**
+	 * Write a project's description to the bridge-backed cache (Workstream A2).
+	 * Best-effort — a cache failure is logged but never blocks webhook handling.
+	 */
+	private async cacheProjectDescription(
+		projectId: string,
+		description: string,
+	): Promise<void> {
+		await this.projectDescriptionCache.set(projectId, description);
+		if (process.env.CYRUS_WEBHOOK_DEBUG === "true") {
+			this.logger.debug(
+				`Cached project description for ${projectId} (${description.length} chars)`,
+			);
+		}
+	}
+
+	/**
+	 * Read a project's cached description (Workstream A2).
+	 *
+	 * On a cache miss — or a cached empty value — back-fills from the Linear
+	 * API once, fetching the project and writing its description through to
+	 * the cache. This means the first issue picked up under a project still
+	 * gets its standing context even if no `Project` update webhook has fired,
+	 * and a stale empty cache row (e.g. written before the project had a
+	 * description) self-heals on the next pickup rather than blocking the
+	 * back-fill forever.
+	 */
+	private async getCachedProjectDescription(
+		projectId: string,
+		linearWorkspaceId: string | undefined,
+	): Promise<string | undefined> {
+		if (!this.projectDescriptionCache.isConfigured) {
+			return undefined;
+		}
+
+		const cached = await this.projectDescriptionCache.get(projectId);
+		// A non-empty cached value is a hit. A miss (undefined) OR an empty
+		// cached string both fall through to a back-fill — an empty row may be
+		// stale, and if the project genuinely has no description the back-fill
+		// just re-confirms that cheaply.
+		if (cached) {
+			return cached;
+		}
+
+		// Cache miss or empty — back-fill from Linear once.
+		const service = this.getLinearServiceForWorkspace(linearWorkspaceId);
+		if (!service) {
+			return undefined;
+		}
+		try {
+			const project = await service.fetchProject(projectId);
+			const description = project.description ?? "";
+			await this.projectDescriptionCache.set(projectId, description);
+			return description || undefined;
+		} catch (error) {
+			this.logger.warn(
+				`Failed to back-fill project description for ${projectId}: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Build the `<project_context>` block injected into an issue session's
+	 * system prompt (Workstream A2).
+	 *
+	 * Treats the parent project's description as long-running context that
+	 * applies to every issue under that project. Returns an empty string when
+	 * the issue has no project, the cache is unconfigured, or the description
+	 * is empty.
+	 */
+	private async buildProjectContextBlock(
+		fullIssue: Issue,
+		linearWorkspaceId: string | undefined,
+	): Promise<string> {
+		let projectId: string | undefined;
+		try {
+			const project = await fullIssue.project;
+			projectId = project?.id;
+		} catch {
+			return "";
+		}
+		if (!projectId) {
+			return "";
+		}
+
+		const description = await this.getCachedProjectDescription(
+			projectId,
+			linearWorkspaceId,
+		);
+		if (!description) {
+			return "";
+		}
+
+		return `\n\n<project_context>\nThe issue you are working on belongs to a Linear Project. Treat the project's description below as long-running, standing context that applies to every issue under this project — not a one-off instruction:\n\n${description}\n</project_context>`;
 	}
 
 	// ============================================================================
@@ -5851,6 +6185,14 @@ ${taskSection}`;
 
 		// 4. Append agent context — dynamic values for skills to reference
 		systemPrompt += this.buildAgentContextBlock();
+
+		// 4b. Append the parent Linear project's description as standing context
+		// (Workstream A2). No-op when the bridge cache is unconfigured or the
+		// issue has no project.
+		systemPrompt += await this.buildProjectContextBlock(
+			input.fullIssue,
+			input.linearWorkspaceId,
+		);
 
 		// 5. Build issue context using appropriate builder
 		// Use label-based prompt ONLY if we have a label-based system prompt

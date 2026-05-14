@@ -409,6 +409,23 @@ export const EdgeConfigSchema = z.object({
 	 * all agent network traffic through it for inspection and filtering.
 	 */
 	sandbox: SandboxConfigSchema.optional(),
+
+	/**
+	 * This agent's own Linear identity, used to self-filter Project-level
+	 * webhooks (`ProjectUpdate` / `Project`).
+	 *
+	 * Unlike Issue/AgentSession webhooks, Project-level webhooks are
+	 * workspace-wide — every installation subscribed to them receives every
+	 * event — so each instance must decide for itself whether it is the
+	 * agent being @-mentioned.
+	 *
+	 * Both fields are optional: if omitted, the identity is auto-resolved
+	 * from the Linear `viewer` query at startup. Set them explicitly to
+	 * override the auto-resolved values (e.g. for a test instance, or when
+	 * the @-mention name differs from the Linear display name).
+	 */
+	linearAgentId: z.string().optional(),
+	linearAgentName: z.string().optional(),
 });
 
 /**
