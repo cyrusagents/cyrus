@@ -32,6 +32,8 @@ import type {
 	AgentEventTransportConfig,
 	AgentSessionCreateOnCommentInput,
 	AgentSessionCreateOnIssueInput,
+	AttachmentCreateRequest,
+	AttachmentCreateResponse,
 	Comment,
 	CommentCreateInput,
 	CommentWithAttachments,
@@ -868,6 +870,45 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 		} catch (error) {
 			const err = new Error(
 				`Failed to request file upload for ${request.filename}: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			if (error instanceof Error) {
+				err.cause = error;
+			}
+			throw err;
+		}
+	}
+
+	/**
+	 * Create an attachment on an issue.
+	 *
+	 * Links a resource URL (typically the `assetUrl` of a file uploaded via
+	 * {@link requestFileUpload} + PUT) to an issue. Linear de-duplicates on
+	 * `url`, so re-attaching the same asset updates rather than duplicates.
+	 */
+	async createAttachment(
+		request: AttachmentCreateRequest,
+	): Promise<AttachmentCreateResponse> {
+		try {
+			const payload = await this.linearClient.createAttachment({
+				issueId: request.issueId,
+				title: request.title,
+				url: request.url,
+				subtitle: request.subtitle,
+			});
+
+			if (!payload.success) {
+				throw new Error("Linear API returned success=false");
+			}
+
+			const attachment = await payload.attachment;
+			if (!attachment) {
+				throw new Error("Created attachment not returned from Linear API");
+			}
+
+			return { success: true, attachmentId: attachment.id };
+		} catch (error) {
+			const err = new Error(
+				`Failed to create attachment "${request.title}" on issue ${request.issueId}: ${error instanceof Error ? error.message : String(error)}`,
 			);
 			if (error instanceof Error) {
 				err.cause = error;
