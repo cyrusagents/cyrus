@@ -1042,6 +1042,16 @@ export type ProjectUpdateWebhook =
 			body?: string;
 			[key: string]: unknown;
 		};
+		/**
+		 * Internal — EdgeWorker fetches the project once during webhook
+		 * dispatch (for team-routing / persona selection) and attaches a
+		 * minimal projection here so downstream consumers (the chat adapter)
+		 * don't re-fetch. Not part of the Linear wire format.
+		 */
+		_resolvedProject?: {
+			id: string;
+			teamKeys: string[];
+		};
 	};
 
 /**

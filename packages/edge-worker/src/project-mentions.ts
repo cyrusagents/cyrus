@@ -1,4 +1,17 @@
 /**
+ * N3: replace `</` with `< /` inside user-supplied content before
+ * interpolating into the agent's system prompt, so reserved closing tags
+ * (`</project_context>`, `</project_description>`, `</recent_updates>`)
+ * inside a project description / update body can't terminate the wrapper.
+ *
+ * Simple, low-risk: the displayed content stays readable and there's no
+ * scenario in which `< /` is semantically meaningful inside Linear markdown.
+ */
+export function escapeReservedTags(content: string): string {
+	return content.replace(/<\//g, "< /");
+}
+
+/**
  * Pure helpers for detecting @-mentions in Linear Project Update bodies
  * (Workstream A1).
  *
