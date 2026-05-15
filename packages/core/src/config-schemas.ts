@@ -426,6 +426,12 @@ export const EdgeConfigSchema = z.object({
 	 */
 	linearAgentId: z.string().optional(),
 	linearAgentName: z.string().optional(),
+	/**
+	 * Optional short-form @-mention name for this agent (e.g. `mara` when the
+	 * Linear viewer name is `tincture-mara`). When set, it takes precedence
+	 * over the prefix-strip heuristic in {@link mentionsAgent}.
+	 */
+	linearAgentShortName: z.string().optional(),
 });
 
 /**

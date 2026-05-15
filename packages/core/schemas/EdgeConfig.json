@@ -927,6 +927,9 @@
 		},
 		"linearAgentName": {
 			"type": "string"
+		},
+		"linearAgentShortName": {
+			"type": "string"
 		}
 	},
 	"required": ["repositories"],

@@ -223,7 +223,11 @@ export class EdgeWorker extends EventEmitter {
 		null;
 	private linearProjectChatSessionHandler: ChatSessionHandler<ProjectUpdateWebhook> | null =
 		null; // Chat-session engine for Project Update @-mention conversations
-	private selfLinearIdentity: { id?: string; name?: string } = {}; // This agent's own Linear identity, for self-filtering workspace-wide Project webhooks
+	private selfLinearIdentity: {
+		id?: string;
+		name?: string;
+		shortName?: string;
+	} = {}; // This agent's own Linear identity, for self-filtering workspace-wide Project webhooks
 	private projectDescriptionCache: ProjectDescriptionCache; // Workstream A2: cached Linear project descriptions injected as standing context
 	private gitHubCommentService: GitHubCommentService; // Service for posting comments back to GitHub PRs
 	private gitLabCommentService: GitLabCommentService; // Service for posting comments back to GitLab MRs
@@ -711,12 +715,19 @@ export class EdgeWorker extends EventEmitter {
 	private async resolveSelfLinearIdentity(): Promise<void> {
 		const configId = this.config.linearAgentId;
 		const configName = this.config.linearAgentName;
-		this.selfLinearIdentity = { id: configId, name: configName };
+		const configShortName = this.config.linearAgentShortName;
+		this.selfLinearIdentity = {
+			id: configId,
+			name: configName,
+			shortName: configShortName,
+		};
 
-		// Both set explicitly — no need to hit the Linear API.
+		// Both id+name set explicitly — no need to hit the Linear API.
 		if (configId && configName) {
 			this.logger.info(
-				`Linear agent identity (from config): ${configName} (${configId})`,
+				`Linear agent identity (from config): ${configName} (${configId})${
+					configShortName ? ` shortName=${configShortName}` : ""
+				}`,
 			);
 			return;
 		}
@@ -733,14 +744,35 @@ export class EdgeWorker extends EventEmitter {
 			return;
 		}
 
+		// N1: wrap viewer fetch in a 10s timeout. On cloud, 13 instances hit
+		// the Linear viewer endpoint at boot — a slow Linear API can otherwise
+		// hang startup indefinitely. On timeout/error we degrade gracefully to
+		// whatever config values we have.
+		const VIEWER_TIMEOUT_MS = 10_000;
 		try {
-			const viewer = await tracker.fetchCurrentUser();
+			const viewer = await Promise.race([
+				tracker.fetchCurrentUser(),
+				new Promise<never>((_, reject) =>
+					setTimeout(
+						() =>
+							reject(
+								new Error(
+									`Linear viewer query timed out after ${VIEWER_TIMEOUT_MS}ms`,
+								),
+							),
+						VIEWER_TIMEOUT_MS,
+					),
+				),
+			]);
 			this.selfLinearIdentity = {
 				id: configId ?? viewer.id,
 				name: configName ?? viewer.displayName ?? viewer.name,
+				shortName: configShortName,
 			};
 			this.logger.info(
-				`Linear agent identity resolved: ${this.selfLinearIdentity.name} (${this.selfLinearIdentity.id})`,
+				`Linear agent identity resolved: ${this.selfLinearIdentity.name} (${this.selfLinearIdentity.id})${
+					configShortName ? ` shortName=${configShortName}` : ""
+				}`,
 			);
 		} catch (error) {
 			this.logger.warn(
@@ -1189,7 +1221,7 @@ export class EdgeWorker extends EventEmitter {
 		const adapter = new LinearProjectChatAdapter(
 			chatRepositoryProvider,
 			(workspaceId) => this.getLinearServiceForWorkspace(workspaceId),
-			() => this.selfLinearIdentity.name,
+			() => this.selfLinearIdentity,
 			this.logger,
 		);
 

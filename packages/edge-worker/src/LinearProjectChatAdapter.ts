@@ -3,6 +3,10 @@ import { createLogger } from "cyrus-core";
 import type { LinearIssueTrackerService } from "cyrus-linear-event-transport";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
+import {
+	type AgentLinearIdentity,
+	getAgentNameCandidates,
+} from "./project-mentions.js";
 
 /**
  * Resolves the Linear issue-tracker service for a given workspace.
@@ -19,17 +23,32 @@ export type LinearServiceResolver = (
  *
  * Liberal on encoding: matches a bare `@Name`, and also a markdown-link form
  * `[@Name](url)` that Linear sometimes emits for mentions. Case-insensitive.
+ *
+ * Accepts either a plain name string (back-compat) or the full
+ * {@link AgentLinearIdentity} so both the full Linear name and the short form
+ * (e.g. `tincture-mara` *and* `mara`) get stripped.
  */
 export function stripLinearSelfMention(
 	body: string,
-	selfName: string | undefined,
+	selfNameOrIdentity: string | AgentLinearIdentity | undefined,
 ): string {
-	if (!selfName) return body.trim();
-	const escaped = selfName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return body
-		.replace(new RegExp(`\\[@?${escaped}\\]\\([^)]*\\)`, "gi"), "")
-		.replace(new RegExp(`@${escaped}\\b`, "gi"), "")
-		.trim();
+	if (!selfNameOrIdentity) return body.trim();
+	const identity: AgentLinearIdentity =
+		typeof selfNameOrIdentity === "string"
+			? { name: selfNameOrIdentity }
+			: selfNameOrIdentity;
+	const candidates = getAgentNameCandidates(identity);
+	if (candidates.length === 0) return body.trim();
+	let stripped = body;
+	// Strip longest-first so e.g. `tincture-mara` is removed before `mara`,
+	// avoiding a leftover `tincture-` fragment.
+	for (const candidate of [...candidates].sort((a, b) => b.length - a.length)) {
+		const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		stripped = stripped
+			.replace(new RegExp(`\\[@?${escaped}\\]\\([^)]*\\)`, "gi"), "")
+			.replace(new RegExp(`@${escaped}\\b`, "gi"), "");
+	}
+	return stripped.trim();
 }
 
 /**
@@ -51,18 +70,27 @@ export class LinearProjectChatAdapter
 	readonly platformName = "linear" as const;
 	private repositoryProvider: ChatRepositoryProvider;
 	private getLinearService: LinearServiceResolver;
-	private getSelfName: () => string | undefined;
+	private getSelfIdentity: () => AgentLinearIdentity;
 	private logger: ILogger;
 
 	constructor(
 		repositoryProvider: ChatRepositoryProvider,
 		getLinearService: LinearServiceResolver,
-		getSelfName: () => string | undefined,
+		getSelfIdentity: (() => AgentLinearIdentity) | (() => string | undefined),
 		logger?: ILogger,
 	) {
 		this.repositoryProvider = repositoryProvider;
 		this.getLinearService = getLinearService;
-		this.getSelfName = getSelfName;
+		// Accept either a name-only closure (back-compat for tests) or a full
+		// identity closure (EdgeWorker passes one for B1's prefix-strip path).
+		this.getSelfIdentity = () => {
+			const value = (
+				getSelfIdentity as () => AgentLinearIdentity | string | undefined
+			)();
+			if (value == null) return {};
+			if (typeof value === "string") return { name: value };
+			return value;
+		};
 		this.logger =
 			logger ?? createLogger({ component: "LinearProjectChatAdapter" });
 	}
@@ -82,7 +110,7 @@ export class LinearProjectChatAdapter
 	extractTaskInstructions(event: ProjectUpdateWebhook): string {
 		const stripped = stripLinearSelfMention(
 			event.data.body ?? "",
-			this.getSelfName(),
+			this.getSelfIdentity(),
 		);
 		return stripped || "Ask the user what they need.";
 	}
