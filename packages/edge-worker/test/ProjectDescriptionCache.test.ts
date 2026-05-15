@@ -65,12 +65,45 @@ describe("ProjectDescriptionCache (configured)", () => {
 	});
 
 	it("get() returns the cached description on a hit", async () => {
+		const updatedAt = "2026-05-15T10:00:00.000Z";
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(JSON.stringify({ description: "Enterprise audience." }), {
+			new Response(
+				JSON.stringify({
+					description: "Enterprise audience.",
+					updated_at: updatedAt,
+				}),
+				{ status: 200 },
+			),
+		);
+		const result = await cache.get("project-1");
+		expect(result?.description).toBe("Enterprise audience.");
+		expect(result?.updatedAtMs).toBe(Date.parse(updatedAt));
+	});
+
+	it("get() returns description with undefined updatedAtMs when updated_at is absent", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(JSON.stringify({ description: "No timestamp." }), {
 				status: 200,
 			}),
 		);
-		expect(await cache.get("project-1")).toBe("Enterprise audience.");
+		const result = await cache.get("project-1");
+		expect(result?.description).toBe("No timestamp.");
+		expect(result?.updatedAtMs).toBeUndefined();
+	});
+
+	it("get() uses URL.searchParams for the linear_project_id (E3)", async () => {
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(
+				new Response(JSON.stringify({ description: "x" }), { status: 200 }),
+			);
+		await cache.get("project with spaces & symbols");
+		const [calledUrl] = fetchSpy.mock.calls[0]!;
+		expect(typeof calledUrl).toBe("string");
+		const parsed = new URL(calledUrl as string);
+		expect(parsed.searchParams.get("linear_project_id")).toBe(
+			"project with spaces & symbols",
+		);
 	});
 
 	it("get() returns undefined on a 404 miss", async () => {
