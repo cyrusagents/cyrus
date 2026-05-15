@@ -1,6 +1,16 @@
 import { createLogger, type ILogger } from "cyrus-core";
 
 /**
+ * Successful cache read shape. `updatedAtMs` is the row's `updated_at`
+ * timestamp parsed to unix-ms, used by callers to apply a freshness TTL
+ * (N6). Undefined when the edge function returns no `updated_at`.
+ */
+export interface CacheGetResult {
+	description: string;
+	updatedAtMs?: number;
+}
+
+/**
  * Connection details for the bridge's project-description cache endpoint.
  */
 export interface ProjectDescriptionCacheConfig {
@@ -64,15 +74,16 @@ export class ProjectDescriptionCache {
 	 * Read a project's cached description.
 	 * Resolves to `undefined` on cache miss, unconfigured cache, or any error.
 	 */
-	async get(linearProjectId: string): Promise<string | undefined> {
+	async get(linearProjectId: string): Promise<CacheGetResult | undefined> {
 		if (!this.config) return undefined;
 		try {
-			const res = await fetch(
-				`${this.config.url}?linear_project_id=${encodeURIComponent(
-					linearProjectId,
-				)}`,
-				{ headers: { Authorization: `Bearer ${this.config.token}` } },
-			);
+			// E3: defensive URL construction. String concatenation would produce
+			// `?…?…` if `config.url` ever carries an existing query string.
+			const url = new URL(this.config.url);
+			url.searchParams.set("linear_project_id", linearProjectId);
+			const res = await fetch(url.toString(), {
+				headers: { Authorization: `Bearer ${this.config.token}` },
+			});
 			if (res.status === 404) return undefined;
 			if (!res.ok) {
 				this.logger.warn(
@@ -80,8 +91,19 @@ export class ProjectDescriptionCache {
 				);
 				return undefined;
 			}
-			const body = (await res.json()) as { description?: string };
-			return body.description ?? undefined;
+			const body = (await res.json()) as {
+				description?: string;
+				updated_at?: string;
+			};
+			if (typeof body.description !== "string") return undefined;
+			// N6: parse `updated_at` (always present in successful responses
+			// from the edge function) so callers can apply a TTL.
+			let updatedAtMs: number | undefined;
+			if (body.updated_at) {
+				const parsed = Date.parse(body.updated_at);
+				if (Number.isFinite(parsed)) updatedAtMs = parsed;
+			}
+			return { description: body.description, updatedAtMs };
 		} catch (error) {
 			this.logger.warn(
 				`Project cache GET ${linearProjectId} failed: ${

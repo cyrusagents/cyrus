@@ -2,7 +2,7 @@
  * Tests for the Project Update @-mention routing gate (Workstream A1).
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { mentionsAgent, parseMentions } from "../src/project-mentions.js";
 
 describe("parseMentions", () => {
@@ -71,5 +71,66 @@ describe("mentionsAgent", () => {
 				id: "47dc268e-9d4f-4f7b-ac18-3ba7b2beb255",
 			}),
 		).toBe(true);
+	});
+});
+
+describe("mentionsAgent — short-form names (B1)", () => {
+	const originalPrefix = process.env.CYRUS_AGENT_NAME_PREFIX;
+	afterEach(() => {
+		if (originalPrefix === undefined) {
+			delete process.env.CYRUS_AGENT_NAME_PREFIX;
+		} else {
+			process.env.CYRUS_AGENT_NAME_PREFIX = originalPrefix;
+		}
+	});
+
+	const tinctureMara = {
+		id: "47dc268e-9d4f-4f7b-ac18-3ba7b2beb255",
+		name: "tincture-mara",
+	};
+
+	it("matches the short form derived from the default prefix (Ray test plan #2)", () => {
+		expect(mentionsAgent("@mara what about pricing?", tinctureMara)).toBe(true);
+	});
+
+	it("still matches the full Linear display name", () => {
+		expect(
+			mentionsAgent("@tincture-mara what about pricing?", tinctureMara),
+		).toBe(true);
+	});
+
+	it("respects a configured prefix override", () => {
+		process.env.CYRUS_AGENT_NAME_PREFIX = "cy-";
+		expect(mentionsAgent("@mara hi", { name: "cy-mara" })).toBe(true);
+		expect(mentionsAgent("@mara hi", { name: "tincture-mara" })).toBe(false);
+	});
+
+	it("can be disabled by setting an empty prefix", () => {
+		process.env.CYRUS_AGENT_NAME_PREFIX = "";
+		expect(mentionsAgent("@mara hi", { name: "tincture-mara" })).toBe(false);
+		// full name still matches
+		expect(mentionsAgent("@tincture-mara hi", { name: "tincture-mara" })).toBe(
+			true,
+		);
+	});
+
+	it("honors explicit shortName over prefix-strip", () => {
+		// name has no `tincture-` prefix, but explicit shortName provides match.
+		expect(
+			mentionsAgent("@bob ping", {
+				name: "robert-the-builder",
+				shortName: "bob",
+			}),
+		).toBe(true);
+	});
+
+	it("does not derive a short form when the prefix doesn't match the name", () => {
+		expect(mentionsAgent("@mara hi", { name: "mara" })).toBe(true);
+		expect(mentionsAgent("@somethingelse hi", { name: "mara" })).toBe(false);
+	});
+
+	it("does not derive an empty short form when name is just the prefix", () => {
+		// `name === prefix` would otherwise produce '' and match every @-token.
+		expect(mentionsAgent("@anything hi", { name: "tincture-" })).toBe(false);
 	});
 });

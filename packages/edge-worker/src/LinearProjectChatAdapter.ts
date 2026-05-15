@@ -3,6 +3,11 @@ import { createLogger } from "cyrus-core";
 import type { LinearIssueTrackerService } from "cyrus-linear-event-transport";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
+import {
+	type AgentLinearIdentity,
+	escapeReservedTags,
+	getAgentNameCandidates,
+} from "./project-mentions.js";
 
 /**
  * Resolves the Linear issue-tracker service for a given workspace.
@@ -19,17 +24,32 @@ export type LinearServiceResolver = (
  *
  * Liberal on encoding: matches a bare `@Name`, and also a markdown-link form
  * `[@Name](url)` that Linear sometimes emits for mentions. Case-insensitive.
+ *
+ * Accepts either a plain name string (back-compat) or the full
+ * {@link AgentLinearIdentity} so both the full Linear name and the short form
+ * (e.g. `tincture-mara` *and* `mara`) get stripped.
  */
 export function stripLinearSelfMention(
 	body: string,
-	selfName: string | undefined,
+	selfNameOrIdentity: string | AgentLinearIdentity | undefined,
 ): string {
-	if (!selfName) return body.trim();
-	const escaped = selfName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return body
-		.replace(new RegExp(`\\[@?${escaped}\\]\\([^)]*\\)`, "gi"), "")
-		.replace(new RegExp(`@${escaped}\\b`, "gi"), "")
-		.trim();
+	if (!selfNameOrIdentity) return body.trim();
+	const identity: AgentLinearIdentity =
+		typeof selfNameOrIdentity === "string"
+			? { name: selfNameOrIdentity }
+			: selfNameOrIdentity;
+	const candidates = getAgentNameCandidates(identity);
+	if (candidates.length === 0) return body.trim();
+	let stripped = body;
+	// Strip longest-first so e.g. `tincture-mara` is removed before `mara`,
+	// avoiding a leftover `tincture-` fragment.
+	for (const candidate of [...candidates].sort((a, b) => b.length - a.length)) {
+		const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		stripped = stripped
+			.replace(new RegExp(`\\[@?${escaped}\\]\\([^)]*\\)`, "gi"), "")
+			.replace(new RegExp(`@${escaped}\\b`, "gi"), "");
+	}
+	return stripped.trim();
 }
 
 /**
@@ -51,18 +71,27 @@ export class LinearProjectChatAdapter
 	readonly platformName = "linear" as const;
 	private repositoryProvider: ChatRepositoryProvider;
 	private getLinearService: LinearServiceResolver;
-	private getSelfName: () => string | undefined;
+	private getSelfIdentity: () => AgentLinearIdentity;
 	private logger: ILogger;
 
 	constructor(
 		repositoryProvider: ChatRepositoryProvider,
 		getLinearService: LinearServiceResolver,
-		getSelfName: () => string | undefined,
+		getSelfIdentity: (() => AgentLinearIdentity) | (() => string | undefined),
 		logger?: ILogger,
 	) {
 		this.repositoryProvider = repositoryProvider;
 		this.getLinearService = getLinearService;
-		this.getSelfName = getSelfName;
+		// Accept either a name-only closure (back-compat for tests) or a full
+		// identity closure (EdgeWorker passes one for B1's prefix-strip path).
+		this.getSelfIdentity = () => {
+			const value = (
+				getSelfIdentity as () => AgentLinearIdentity | string | undefined
+			)();
+			if (value == null) return {};
+			if (typeof value === "string") return { name: value };
+			return value;
+		};
 		this.logger =
 			logger ?? createLogger({ component: "LinearProjectChatAdapter" });
 	}
@@ -82,7 +111,7 @@ export class LinearProjectChatAdapter
 	extractTaskInstructions(event: ProjectUpdateWebhook): string {
 		const stripped = stripLinearSelfMention(
 			event.data.body ?? "",
-			this.getSelfName(),
+			this.getSelfIdentity(),
 		);
 		return stripped || "Ask the user what they need.";
 	}
@@ -114,12 +143,21 @@ ${repositoryPaths.map((path) => `- ${path}`).join("\n")}
 ## Repository Access
 - No repository paths are configured for this session.`;
 
-		// The agent's persona lives in the default repository's appendInstruction
-		// (per-repo persona block — see cyrus-runbook). Carry it into the prompt
-		// so a Project Update session still knows which agent it is.
-		const persona = this.repositoryProvider
-			.getDefaultRepository()
-			?.appendInstruction?.trim();
+		// The agent's persona lives in the per-repo `appendInstruction` block
+		// (see cyrus-runbook). For cross-team agents like Iris, that block
+		// differs by repo — Studio Lead in marketing-os, Brand & Aesthetic Lead
+		// in delivery-os — so when EdgeWorker has pre-resolved the project's
+		// team keys, pick the repo whose `teamKeys` intersects (N7). Otherwise
+		// fall back to the first repo's persona (legacy behaviour).
+		const resolvedTeamKeys = event._resolvedProject?.teamKeys;
+		const projectRepo =
+			resolvedTeamKeys?.length &&
+			typeof this.repositoryProvider.getRepositoryForProject === "function"
+				? this.repositoryProvider.getRepositoryForProject(resolvedTeamKeys)
+				: undefined;
+		const personaRepo =
+			projectRepo ?? this.repositoryProvider.getDefaultRepository();
+		const persona = personaRepo?.appendInstruction?.trim();
 		const personaSection = persona ? `\n## Who you are\n${persona}\n` : "";
 
 		return `You are responding to an @mention inside a Linear **Project Update**.
@@ -150,11 +188,16 @@ ${repositoryAccessSection}
 			const project = await service.fetchProject(projectId);
 
 			const descriptionBlock = project.description
-				? `  <project_description>\n${project.description}\n  </project_description>`
+				? `  <project_description>\n${escapeReservedTags(project.description)}\n  </project_description>`
 				: "";
 
 			// Recent Updates on this project, oldest-first, excluding the one that
 			// triggered this session (its text is already the user prompt).
+			//
+			// E1 (deferred per review): `await u.user` inside Promise.all forces
+			// one Linear round-trip per update (up to ~14 here). Acceptable for
+			// the current fleet; optimise into a single batched GraphQL query
+			// if Project Update latency ever becomes the bottleneck.
 			let updatesBlock = "";
 			try {
 				const updates = await project.projectUpdates({ first: 15 });
@@ -174,7 +217,7 @@ ${repositoryAccessSection}
     <author>${author}</author>
     <timestamp>${u.createdAt}</timestamp>
     <content>
-${u.body}
+${escapeReservedTags(u.body ?? "")}
     </content>
   </update>`;
 							}),

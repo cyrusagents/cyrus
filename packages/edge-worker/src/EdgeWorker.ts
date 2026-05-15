@@ -155,8 +155,13 @@ import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { LinearProjectChatAdapter } from "./LinearProjectChatAdapter.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { ProjectDescriptionCache } from "./ProjectDescriptionCache.js";
+import {
+	getProjectReplyRateLimitFromEnv,
+	ProjectReplyRateLimiter,
+} from "./ProjectReplyRateLimiter.js";
 import { PromptBuilder } from "./PromptBuilder.js";
 import {
+	escapeReservedTags,
 	mentionsAgent,
 	parseMentions as parseProjectMentions,
 } from "./project-mentions.js";
@@ -224,8 +229,16 @@ export class EdgeWorker extends EventEmitter {
 		null;
 	private linearProjectChatSessionHandler: ChatSessionHandler<ProjectUpdateWebhook> | null =
 		null; // Chat-session engine for Project Update @-mention conversations
-	private selfLinearIdentity: { id?: string; name?: string } = {}; // This agent's own Linear identity, for self-filtering workspace-wide Project webhooks
+	private selfLinearIdentity: {
+		id?: string;
+		name?: string;
+		shortName?: string;
+	} = {}; // This agent's own Linear identity, for self-filtering workspace-wide Project webhooks
 	private projectDescriptionCache: ProjectDescriptionCache; // Workstream A2: cached Linear project descriptions injected as standing context
+	// B2: per-project rolling reply rate-limiter — break cross-agent loops on
+	// workspace-wide Project Update fan-out.
+	private projectReplyRateLimiter: ProjectReplyRateLimiter =
+		new ProjectReplyRateLimiter(() => getProjectReplyRateLimitFromEnv());
 	private gitHubCommentService: GitHubCommentService; // Service for posting comments back to GitHub PRs
 	private gitLabCommentService: GitLabCommentService; // Service for posting comments back to GitLab MRs
 	private cliRPCServer: CLIRPCServer | null = null; // CLI RPC server for CLI platform mode
@@ -715,12 +728,19 @@ export class EdgeWorker extends EventEmitter {
 	private async resolveSelfLinearIdentity(): Promise<void> {
 		const configId = this.config.linearAgentId;
 		const configName = this.config.linearAgentName;
-		this.selfLinearIdentity = { id: configId, name: configName };
+		const configShortName = this.config.linearAgentShortName;
+		this.selfLinearIdentity = {
+			id: configId,
+			name: configName,
+			shortName: configShortName,
+		};
 
-		// Both set explicitly — no need to hit the Linear API.
+		// Both id+name set explicitly — no need to hit the Linear API.
 		if (configId && configName) {
 			this.logger.info(
-				`Linear agent identity (from config): ${configName} (${configId})`,
+				`Linear agent identity (from config): ${configName} (${configId})${
+					configShortName ? ` shortName=${configShortName}` : ""
+				}`,
 			);
 			return;
 		}
@@ -737,14 +757,35 @@ export class EdgeWorker extends EventEmitter {
 			return;
 		}
 
+		// N1: wrap viewer fetch in a 10s timeout. On cloud, 13 instances hit
+		// the Linear viewer endpoint at boot — a slow Linear API can otherwise
+		// hang startup indefinitely. On timeout/error we degrade gracefully to
+		// whatever config values we have.
+		const VIEWER_TIMEOUT_MS = 10_000;
 		try {
-			const viewer = await tracker.fetchCurrentUser();
+			const viewer = await Promise.race([
+				tracker.fetchCurrentUser(),
+				new Promise<never>((_, reject) =>
+					setTimeout(
+						() =>
+							reject(
+								new Error(
+									`Linear viewer query timed out after ${VIEWER_TIMEOUT_MS}ms`,
+								),
+							),
+						VIEWER_TIMEOUT_MS,
+					),
+				),
+			]);
 			this.selfLinearIdentity = {
 				id: configId ?? viewer.id,
 				name: configName ?? viewer.displayName ?? viewer.name,
+				shortName: configShortName,
 			};
 			this.logger.info(
-				`Linear agent identity resolved: ${this.selfLinearIdentity.name} (${this.selfLinearIdentity.id})`,
+				`Linear agent identity resolved: ${this.selfLinearIdentity.name} (${this.selfLinearIdentity.id})${
+					configShortName ? ` shortName=${configShortName}` : ""
+				}`,
 			);
 		} catch (error) {
 			this.logger.warn(
@@ -1193,7 +1234,7 @@ export class EdgeWorker extends EventEmitter {
 		const adapter = new LinearProjectChatAdapter(
 			chatRepositoryProvider,
 			(workspaceId) => this.getLinearServiceForWorkspace(workspaceId),
-			() => this.selfLinearIdentity.name,
+			() => this.selfLinearIdentity,
 			this.logger,
 		);
 
@@ -3378,10 +3419,13 @@ ${taskSection}`;
 	 * Handle a `ProjectUpdate` webhook (Workstream A1).
 	 *
 	 * This instance acts only when all hold:
-	 *  - the action is create/update (not remove);
+	 *  - the action is create (or update with a newly-added mention; see N4);
 	 *  - the Update was not authored by this agent (loop prevention — an
 	 *    agent's reply is itself a ProjectUpdate `create` delivered back to us);
-	 *  - the body @-mentions this agent.
+	 *  - the body @-mentions this agent;
+	 *  - the project belongs to a team this instance owns (B3 routing gate);
+	 *  - the per-project reply rate-limit window has not been exceeded (B2);
+	 *  - the recent Updates feed does not look like an agent-on-agent loop (B2 bonus).
 	 *
 	 * When they do, the Update is handed to the Project Update chat-session
 	 * engine, which spawns or resumes a worktree-free session bound to the
@@ -3405,13 +3449,36 @@ ${taskSection}`;
 			return;
 		}
 
+		// E2: parse mentions once and reuse on the debug branch.
+		const mentions = parseProjectMentions(body);
 		if (!mentionsAgent(body, this.selfLinearIdentity)) {
 			if (process.env.CYRUS_WEBHOOK_DEBUG === "true") {
 				this.logger.debug(
-					`ProjectUpdate ${update.id} does not mention this agent (mentions: ${parseProjectMentions(body).join(", ") || "none"}) — ignoring`,
+					`ProjectUpdate ${update.id} does not mention this agent (mentions: ${mentions.join(", ") || "none"}) — ignoring`,
 				);
 			}
 			return;
+		}
+
+		// N4: on `update` actions, only proceed if the mention was newly added in
+		// this edit. Re-firing on every typo-fix amplifies B2's loop concern at
+		// fleet scale.
+		if (webhook.action === "update") {
+			const previousBody = webhook.updatedFrom?.body;
+			if (typeof previousBody === "string") {
+				const previouslyMentioned = mentionsAgent(
+					previousBody,
+					this.selfLinearIdentity,
+				);
+				if (previouslyMentioned) {
+					if (process.env.CYRUS_WEBHOOK_DEBUG === "true") {
+						this.logger.debug(
+							`ProjectUpdate ${update.id} 'update' action: mention pre-existed in previous body — skipping (N4)`,
+						);
+					}
+					return;
+				}
+			}
 		}
 
 		if (!this.linearProjectChatSessionHandler) {
@@ -3421,12 +3488,162 @@ ${taskSection}`;
 			return;
 		}
 
+		// B3: routing gate. Fetch the project once, intersect its team keys with
+		// the union of teamKeys across this instance's repositories. This call
+		// is also reused for N7 (persona selection) — attached to the webhook so
+		// the adapter doesn't refetch.
+		const projectId = update.projectId;
+		const linearService = this.getLinearServiceForWorkspace(
+			webhook.organizationId,
+		);
+		let projectTeamKeys: string[] = [];
+		if (linearService) {
+			try {
+				const project = await linearService.fetchProject(projectId);
+				const teams = await project.teams();
+				projectTeamKeys = (teams?.nodes ?? [])
+					.map((t) => t?.key)
+					.filter((k): k is string => typeof k === "string");
+			} catch (error) {
+				this.logger.warn(
+					`Failed to fetch project ${projectId} for routing: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				);
+			}
+		}
+
+		if (projectTeamKeys.length > 0) {
+			const ownedTeamKeys = new Set<string>();
+			for (const repo of this.repositories.values()) {
+				for (const key of repo.teamKeys ?? []) {
+					if (typeof key === "string") ownedTeamKeys.add(key.toUpperCase());
+				}
+			}
+			const intersects = projectTeamKeys.some((k) =>
+				ownedTeamKeys.has(k.toUpperCase()),
+			);
+			if (!intersects) {
+				this.logger.warn(
+					`${
+						this.selfLinearIdentity.name ?? "this agent"
+					} does not own any team on project "${update.project.name}" (project teams: ${projectTeamKeys.join(", ")}; owned: ${
+						Array.from(ownedTeamKeys).join(", ") || "none"
+					}) — skipping (B3)`,
+				);
+				return;
+			}
+		}
+		// If projectTeamKeys is empty (fetch failed or no Linear service), we
+		// fall through — degrading to the legacy behaviour rather than blocking
+		// a valid mention because of a transient Linear hiccup.
+
+		// B2: rate-limit guard. No more than N replies per rolling window per
+		// project from this instance. Defaults: 3 / 5 min. Configurable via env.
+		if (this.projectReplyRateLimiter.isLimited(projectId)) {
+			this.logger.warn(
+				`ProjectUpdate ${update.id}: rate limit exceeded for project ${update.project.name} (${projectId}) — skipping (B2)`,
+			);
+			return;
+		}
+
+		// B2 bonus: if the last two Updates on this project look agent-authored,
+		// it's probably a loop. Skip & log.
+		if (linearService) {
+			try {
+				const isAgentLoop = await this.detectAgentAuthoredLoop(
+					linearService,
+					projectId,
+					update.id,
+				);
+				if (isAgentLoop) {
+					this.logger.warn(
+						`ProjectUpdate ${update.id}: last two Updates on project ${update.project.name} appear agent-authored — skipping (B2 bonus loop guard)`,
+					);
+					return;
+				}
+			} catch (error) {
+				// Loop detection is best-effort; never block on a Linear hiccup.
+				if (process.env.CYRUS_WEBHOOK_DEBUG === "true") {
+					this.logger.debug(
+						`Agent-loop heuristic failed for project ${projectId}: ${
+							error instanceof Error ? error.message : String(error)
+						}`,
+					);
+				}
+			}
+		}
+
 		this.logger.info(
 			`ProjectUpdate @-mention for ${
 				this.selfLinearIdentity.name ?? "this agent"
 			} on project "${update.project.name}" (update ${update.id})`,
 		);
-		await this.linearProjectChatSessionHandler.handleEvent(webhook);
+
+		// Stash the pre-resolved project routing info on the webhook so the chat
+		// adapter (N7) can pick the persona without re-fetching.
+		const resolvedWebhook: ProjectUpdateWebhook = {
+			...webhook,
+			_resolvedProject: { id: projectId, teamKeys: projectTeamKeys },
+		};
+
+		// Record the reply attempt for B2 *before* handoff. If the runner never
+		// actually posts (because it errors), the counter still slows successive
+		// fan-out, which is the correct conservative behaviour.
+		this.projectReplyRateLimiter.record(projectId);
+
+		await this.linearProjectChatSessionHandler.handleEvent(resolvedWebhook);
+	}
+
+	/**
+	 * B2 bonus guard. Look at the last two Updates on a project (excluding the
+	 * one that triggered this handler); if both were authored by an agent —
+	 * either us, or another `tincture-` prefixed Linear user — assume the
+	 * conversation is a cross-agent loop and bail.
+	 *
+	 * Heuristic: "agent" = user whose name begins with the configured agent
+	 * prefix (env `CYRUS_AGENT_NAME_PREFIX`, default `tincture-`), or whose
+	 * userId matches our own selfLinearIdentity. Strict but safe — false
+	 * positives just mean we miss one cross-agent reply when humans rarely
+	 * post.
+	 */
+	private async detectAgentAuthoredLoop(
+		service: LinearIssueTrackerService,
+		projectId: string,
+		currentUpdateId: string,
+	): Promise<boolean> {
+		const project = await service.fetchProject(projectId);
+		const recent = await project.projectUpdates({ first: 5 });
+		// Linear returns updates newest-first by default.
+		const others = (recent?.nodes ?? []).filter(
+			(u) => u?.id !== currentUpdateId,
+		);
+		if (others.length < 2) return false;
+		const top = others.slice(0, 2);
+		const prefix = (process.env.CYRUS_AGENT_NAME_PREFIX ?? "tincture-")
+			.trim()
+			.toLowerCase();
+		let agentAuthored = 0;
+		for (const u of top) {
+			try {
+				const user = await u.user;
+				const name = (user?.displayName ?? user?.name ?? "").toLowerCase();
+				const isSelf =
+					this.selfLinearIdentity.id != null &&
+					user?.id === this.selfLinearIdentity.id;
+				const isAnotherAgent = prefix.length > 0 && name.startsWith(prefix);
+				if (isSelf || isAnotherAgent) {
+					agentAuthored++;
+				} else {
+					// Bail early: a real human in the recent window resets the heuristic.
+					return false;
+				}
+			} catch {
+				// If we can't resolve the author, don't claim it's an agent.
+				return false;
+			}
+		}
+		return agentAuthored >= 2;
 	}
 
 	/**
@@ -3479,15 +3696,42 @@ ${taskSection}`;
 		}
 
 		const cached = await this.projectDescriptionCache.get(projectId);
-		// A non-empty cached value is a hit. A miss (undefined) OR an empty
-		// cached string both fall through to a back-fill — an empty row may be
-		// stale, and if the project genuinely has no description the back-fill
-		// just re-confirms that cheaply.
-		if (cached) {
-			return cached;
+		// A non-empty cached value is a hit (subject to TTL — N6). A miss
+		// (undefined) OR an empty cached string both fall through to a
+		// back-fill — an empty row may be stale, and if the project genuinely
+		// has no description the back-fill just re-confirms that cheaply.
+		if (cached?.description) {
+			// N6: stale-cache freshness check. The edge function returns
+			// `updated_at`; if it's older than the configured TTL (default 7
+			// days), treat as a miss and re-fetch from Linear. Covers the case
+			// where a `Project` description-update webhook was dropped / missed,
+			// leaving the cache stale-but-non-empty.
+			const rawTtl = Number.parseInt(
+				process.env.CYRUS_PROJECT_CONTEXT_CACHE_TTL_DAYS ?? "7",
+				10,
+			);
+			const ttlDays = Number.isFinite(rawTtl) && rawTtl > 0 ? rawTtl : 7;
+			const ttlMs = ttlDays * 24 * 60 * 60 * 1000;
+			const age =
+				cached.updatedAtMs != null ? Date.now() - cached.updatedAtMs : 0;
+			if (cached.updatedAtMs == null || age <= ttlMs) {
+				return cached.description;
+			}
+			if (process.env.CYRUS_WEBHOOK_DEBUG === "true") {
+				this.logger.debug(
+					`Project description cache for ${projectId} is older than ${ttlDays}d (age ${Math.round(
+						age / (24 * 60 * 60 * 1000),
+					)}d) — back-filling`,
+				);
+			}
 		}
 
 		// Cache miss or empty — back-fill from Linear once.
+		// N5 (deferred): on a brand-new project where multiple instances pick up
+		// sibling issues at the same moment, each instance races to back-fill —
+		// wasteful but idempotent (last write wins on identical data). Acceptable
+		// for the current single-host fleet; revisit with a SETNX-style lock at
+		// the edge function if this surface ever lands on a multi-tenant deploy.
 		const service = this.getLinearServiceForWorkspace(linearWorkspaceId);
 		if (!service) {
 			return undefined;
@@ -3539,7 +3783,24 @@ ${taskSection}`;
 			return "";
 		}
 
-		return `\n\n<project_context>\nThe issue you are working on belongs to a Linear Project. Treat the project's description below as long-running, standing context that applies to every issue under this project — not a one-off instruction:\n\n${description}\n</project_context>`;
+		// N2: soft size cap. A 50KB description sits in the cached system
+		// prompt for every issue under this project — bound it. Default 12k
+		// chars (~3k tokens). Override via env.
+		const rawCap = Number.parseInt(
+			process.env.CYRUS_PROJECT_CONTEXT_MAX_CHARS ?? "12000",
+			10,
+		);
+		const cap = Number.isFinite(rawCap) && rawCap > 0 ? rawCap : 12_000;
+		let body = description;
+		if (body.length > cap) {
+			body = `${body.slice(0, cap)}\n\n[…description truncated, see Linear project for full text]`;
+		}
+		// N3: escape any closing-tag literals in user-supplied content so a
+		// description containing `</project_context>` (e.g. someone documenting
+		// prompt structure) can't terminate the wrapper.
+		body = escapeReservedTags(body);
+
+		return `\n\n<project_context>\nThe issue you are working on belongs to a Linear Project. Treat the project's description below as long-running, standing context that applies to every issue under this project — not a one-off instruction:\n\n${body}\n</project_context>`;
 	}
 
 	// ============================================================================
