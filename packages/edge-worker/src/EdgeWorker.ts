@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { execSync } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { LinearClient } from "@linear/sdk";
@@ -2788,13 +2788,47 @@ ${taskSection}`;
 				? Object.values(session.workspace.repoPaths)
 				: [session.workspace.path];
 
-		const files: string[] = [];
+		const allCandidates: string[] = [];
 		for (const wt of worktreePaths) {
 			// Pass the base branch so deliverables committed by verify-and-ship
 			// (which leaves `git status` clean) are still detected.
-			files.push(...this.gitService.detectDeliverables(wt, repo?.baseBranch));
+			allCandidates.push(
+				...this.gitService.detectDeliverables(wt, repo?.baseBranch),
+			);
 		}
-		if (files.length === 0) return;
+		if (allCandidates.length === 0) return;
+
+		// Narrow to files touched during this session's window. Long-lived
+		// branches accumulate files across many sessions; without this, every
+		// session would surface every prior session's deliverables too (and
+		// even pre-existing repo files that the branch's diff vs main happens
+		// to include). Cutoff is the more recent of (session.createdAt, now −
+		// 24h) — tight for fresh sessions, bounded for long-running resumed
+		// ones. Follow-up: session-scoped HEAD diff for exact per-run scope.
+		const cutoffMs = Math.max(
+			session.createdAt ?? 0,
+			Date.now() - 24 * 60 * 60 * 1000,
+		);
+		const files = allCandidates.filter((filePath) => {
+			try {
+				return statSync(filePath).mtimeMs >= cutoffMs;
+			} catch {
+				return false;
+			}
+		});
+		if (files.length === 0) {
+			if (allCandidates.length > 0) {
+				this.logger.debug(
+					`handleSessionDeliverables: ${allCandidates.length} candidate(s) outside session window — nothing to attach`,
+				);
+			}
+			return;
+		}
+		if (allCandidates.length > files.length) {
+			this.logger.debug(
+				`handleSessionDeliverables: filtered ${allCandidates.length} candidate(s) → ${files.length} within session window`,
+			);
+		}
 
 		// Dedup against deliverables already on the issue. This hook runs once
 		// per session — and a conversational issue has many sessions — so
