@@ -2832,16 +2832,23 @@ ${taskSection}`;
 					);
 					continue;
 				}
+				const contentType = contentTypeForFile(filename);
 				const upload = await tracker.requestFileUpload({
-					contentType: contentTypeForFile(filename),
+					contentType,
 					filename,
 					size: buf.byteLength,
 					makePublic: false,
 				});
+				// Linear's GCS-signed URL is signed with the contentType but does
+				// NOT include Content-Type in upload.headers — the client MUST set
+				// it for the signature to match. Without this, every PUT 400s.
 				const putRes = await fetch(upload.uploadUrl, {
 					method: "PUT",
-					headers: upload.headers,
-					body: new Uint8Array(buf),
+					headers: {
+						"Content-Type": contentType,
+						...upload.headers,
+					},
+					body: buf,
 				});
 				if (!putRes.ok) {
 					this.logger.warn(
