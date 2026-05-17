@@ -7771,8 +7771,138 @@ ${input.userComment}
 					linearWorkspaceId: linearWorkspaceId,
 					linearWorkspaceName: workspaceName,
 				});
+
+				// Push the fresh bearer into every active Linear MCP connection for
+				// this workspace. Without this, the long-lived HTTP MCP connections
+				// hold the previous bearer in their Authorization header, Linear
+				// closes them when the old token is revoked, and the model loses
+				// access to mcp__linear__* tools mid-session.
+				try {
+					await this.reconfigureLinearMcpForWorkspace(linearWorkspaceId);
+				} catch (err) {
+					this.logger.warn(
+						`Failed to reconfigure MCP after token refresh for ${linearWorkspaceId}`,
+						{ err },
+					);
+				}
 			},
 		};
+	}
+
+	/**
+	 * Rebuild MCP config for every active runner serving the given Linear
+	 * workspace and push it via {@link IAgentRunner.setMcpServers}. Called
+	 * from the OAuth token-refresh callback so Linear MCP connections pick
+	 * up the new bearer without dropping mid-session.
+	 *
+	 * Covers issue sessions (the single shared {@link AgentSessionManager})
+	 * and chat sessions (Slack + Linear Project Update handlers, each bound
+	 * to one workspace via its repository provider).
+	 */
+	private async reconfigureLinearMcpForWorkspace(
+		linearWorkspaceId: string,
+	): Promise<void> {
+		const reconfigPromises: Promise<void>[] = [];
+
+		// Issue sessions — iterate all sessions, filter by repository's workspace.
+		for (const session of this.agentSessionManager.getAllSessions()) {
+			const runner = session.agentRunner;
+			if (!runner?.setMcpServers) continue;
+			const repoId = this.sessionRepositories.get(session.id);
+			if (!repoId) continue;
+			const repo = this.repositories.get(repoId);
+			if (!repo || repo.linearWorkspaceId !== linearWorkspaceId) continue;
+			const servers = this.buildMcpServersForRepo(
+				repo,
+				linearWorkspaceId,
+				session.id,
+			);
+			if (!servers) continue;
+			reconfigPromises.push(runner.setMcpServers(servers));
+		}
+
+		// Chat sessions — each handler is bound to a single workspace and
+		// repository. Reconfigure every runner the handler owns.
+		const reconfigureChatHandler = (
+			handler: ChatSessionHandler<unknown> | null,
+		): void => {
+			if (!handler) return;
+			const handlerWorkspaceId = handler.getLinearWorkspaceId?.();
+			if (handlerWorkspaceId !== linearWorkspaceId) return;
+			const handlerRepo = handler.getRepository?.();
+			if (!handlerRepo) return;
+			for (const runner of handler.getAllRunners()) {
+				if (!runner.setMcpServers) continue;
+				const servers = this.buildMcpServersForRepo(
+					handlerRepo,
+					linearWorkspaceId,
+					undefined,
+				);
+				if (!servers) continue;
+				reconfigPromises.push(runner.setMcpServers(servers));
+			}
+		};
+		reconfigureChatHandler(
+			this.chatSessionHandler as ChatSessionHandler<unknown> | null,
+		);
+		reconfigureChatHandler(
+			this
+				.linearProjectChatSessionHandler as ChatSessionHandler<unknown> | null,
+		);
+
+		if (reconfigPromises.length === 0) {
+			this.logger.debug(
+				`Token rotated for workspace ${linearWorkspaceId} — no active runners to reconfigure`,
+			);
+			return;
+		}
+
+		this.logger.info(
+			`Pushing fresh MCP config to ${reconfigPromises.length} active runner(s) after token rotation for workspace ${linearWorkspaceId}`,
+		);
+		// Wait for all reconfigures to settle. Individual setMcpServers calls
+		// already swallow their own errors (see ClaudeRunner.setMcpServers),
+		// so this should never reject — but allSettled is the safe default.
+		await Promise.allSettled(reconfigPromises);
+	}
+
+	/**
+	 * Build the full MCP server map for a repository at the current moment,
+	 * mirroring what {@link EdgeWorker} assembles at session start: inline
+	 * servers from {@link McpConfigService} (Linear, cyrus-tools, cyrus-docs,
+	 * optional Slack) merged with any file-based servers referenced by the
+	 * repository's `mcpConfigPath`. Used by {@link reconfigureLinearMcpForWorkspace}.
+	 */
+	private buildMcpServersForRepo(
+		repo: RepositoryConfig,
+		linearWorkspaceId: string,
+		parentSessionId: string | undefined,
+	): Record<string, McpServerConfig> | null {
+		const inline = this.mcpConfigService.buildMcpConfig(
+			repo.id,
+			linearWorkspaceId,
+			parentSessionId,
+		);
+		const merged: Record<string, McpServerConfig> = { ...inline };
+
+		const mcpConfigPath = this.mcpConfigService.buildMergedMcpConfigPath(repo);
+		if (mcpConfigPath) {
+			const paths = Array.isArray(mcpConfigPath)
+				? mcpConfigPath
+				: [mcpConfigPath];
+			for (const filePath of paths) {
+				try {
+					if (existsSync(filePath)) {
+						const fileContent = JSON.parse(readFileSync(filePath, "utf8"));
+						const servers = fileContent.mcpServers || {};
+						Object.assign(merged, servers);
+					}
+				} catch {
+					// Ignore unreadable MCP config files — same behaviour as session start.
+				}
+			}
+		}
+		return merged;
 	}
 
 	/**

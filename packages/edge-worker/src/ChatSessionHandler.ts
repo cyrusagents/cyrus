@@ -320,6 +320,22 @@ export class ChatSessionHandler<TEvent> {
 	}
 
 	/**
+	 * Linear workspace ID this handler is bound to. Used by EdgeWorker to
+	 * decide which chat handlers to reconfigure after an OAuth token refresh.
+	 */
+	getLinearWorkspaceId(): string | undefined {
+		return this.deps.chatRepositoryProvider.getDefaultLinearWorkspaceId();
+	}
+
+	/**
+	 * Default repository this handler is bound to. Used by EdgeWorker to
+	 * rebuild MCP config (which is repo-scoped) after a token refresh.
+	 */
+	getRepository(): ReturnType<ChatRepositoryProvider["getDefaultRepository"]> {
+		return this.deps.chatRepositoryProvider.getDefaultRepository();
+	}
+
+	/**
 	 * Test/inspection: list all known thread keys and their session IDs.
 	 * Used by F1 to discover chat sessions for follow-up prompts and replay.
 	 */

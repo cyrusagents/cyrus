@@ -10,6 +10,7 @@ import {
 import { join } from "node:path";
 import {
 	type CanUseTool,
+	type McpServerConfig,
 	type PermissionResult,
 	type Query,
 	query,
@@ -956,6 +957,43 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	 */
 	isWarm(): boolean {
 		return this.keepSessionWarm;
+	}
+
+	/**
+	 * Replace the runtime MCP server list on the active SDK query.
+	 *
+	 * Used after Linear OAuth token rotation so the long-lived HTTP MCP
+	 * connection to mcp.linear.app picks up the new bearer instead of being
+	 * closed by Linear when the old token is revoked. Pass the full set of
+	 * dynamic servers (Linear with the fresh bearer, plus all other servers
+	 * that were active) — the SDK replaces, not merges.
+	 */
+	async setMcpServers(servers: Record<string, McpServerConfig>): Promise<void> {
+		if (!this.activeQuery) {
+			this.logger.debug("setMcpServers called but no active query");
+			return;
+		}
+		try {
+			const result = await this.activeQuery.setMcpServers(servers);
+			const addedCount = result?.added?.length ?? 0;
+			const removedCount = result?.removed?.length ?? 0;
+			const errorCount = result?.errors ? Object.keys(result.errors).length : 0;
+			this.logger.info("MCP servers reconfigured mid-session", {
+				added: addedCount,
+				removed: removedCount,
+				errors: errorCount,
+				serverNames: Object.keys(servers).join(","),
+			});
+			if (errorCount > 0) {
+				this.logger.warn("setMcpServers reported errors", {
+					errors: result?.errors,
+				});
+			}
+		} catch (err) {
+			this.logger.warn("Failed to reconfigure MCP servers mid-session", {
+				err,
+			});
+		}
 	}
 
 	/**

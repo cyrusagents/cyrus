@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Linear MCP no longer drops mid-session when the OAuth token rotates** — Previously, when Cyrus refreshed the workspace's Linear OAuth token during a long-running session, the bearer in the active `mcp.linear.app` HTTP connection went stale and Linear closed the socket, leaving the model with `mcp__linear__*` tools that suddenly failed. Cyrus now pushes the fresh bearer into every active runner for the workspace via the SDK's `setMcpServers` API, so the connection picks up the new token transparently. Covers both issue sessions and chat sessions (Slack + Linear Project Updates).
+
 ### Added
 - **Agents can now be @-mentioned inside Linear Project Updates** — Posting `@<agent>` in a Project Update spawns a conversational agent session bound to that project (no git worktree — the surface is discussion, not code), and the agent replies as a follow-up Project Update. Follow-up Updates on the same project continue the same conversation. Project Updates and Project webhooks are workspace-wide, so each agent self-filters: it acts only when it is the one mentioned, and never replies to its own Updates. Requires subscribing the Linear app to the `ProjectUpdate` event. ([#1213](https://github.com/cyrusagents/cyrus/pull/1213))
 - **A Linear Project's description is now treated as standing context for every issue under it** — When a Project's description changes, Cyrus caches it; when an agent later picks up any issue in that project, the description is injected into its system prompt as long-running context (so e.g. "audience is enterprise, not SMB" applies to every issue without restating it). Caching is opt-in via the `CYRUS_PROJECT_CACHE_URL` / `CYRUS_PROJECT_CACHE_TOKEN` environment variables; when unset, this is a no-op. Requires subscribing the Linear app to the `Project` event. ([#1213](https://github.com/cyrusagents/cyrus/pull/1213))

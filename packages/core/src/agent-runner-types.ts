@@ -333,6 +333,21 @@ export interface IAgentRunner {
 	isWarm?(): boolean;
 
 	/**
+	 * Replace the runtime MCP server list on the active session.
+	 *
+	 * Used after an OAuth token refresh to update bearer-token headers on
+	 * long-lived HTTP MCP connections (notably Linear MCP) without ending
+	 * the session. Without this the MCP server eventually drops the
+	 * connection when the previous bearer is revoked and the model loses
+	 * access to those tools mid-task.
+	 *
+	 * Implementations should be safe to call when no session is active
+	 * (no-op rather than throw). Pass the full set of dynamic servers you
+	 * want active — the SDK replaces, not merges.
+	 */
+	setMcpServers?(servers: Record<string, McpServerConfig>): Promise<void>;
+
+	/**
 	 * Check if the session is currently running
 	 *
 	 * @returns True if the session is active and processing, false otherwise
