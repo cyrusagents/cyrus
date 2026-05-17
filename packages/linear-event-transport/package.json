@@ -18,10 +18,12 @@
 	"dependencies": {
 		"@linear/sdk": "^64.0.0",
 		"cyrus-core": "workspace:*",
-		"fastify": "^5.8.5"
+		"fastify": "^5.8.5",
+		"proper-lockfile": "^4.1.2"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
+		"@types/proper-lockfile": "^4.1.4",
 		"typescript": "^5.3.3",
 		"vitest": "^3.2.4"
 	},

@@ -2,7 +2,14 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { execSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	readdir,
+	readFile,
+	rename,
+	unlink,
+	writeFile,
+} from "node:fs/promises";
 import { basename, join } from "node:path";
 import { LinearClient } from "@linear/sdk";
 import type {
@@ -186,6 +193,7 @@ import {
 import { SlackChatAdapter } from "./SlackChatAdapter.js";
 import type { IActivitySink } from "./sinks/IActivitySink.js";
 import { LinearActivitySink } from "./sinks/LinearActivitySink.js";
+import { TokenHealthMonitor } from "./TokenHealthMonitor.js";
 import { ToolPermissionResolver } from "./ToolPermissionResolver.js";
 import type { AgentSessionData, EdgeWorkerEvents } from "./types.js";
 import { UserAccessControl } from "./UserAccessControl.js";
@@ -220,6 +228,7 @@ export class EdgeWorker extends EventEmitter {
 	private lastStopTimeBySession: Map<string, number> = new Map(); // Maps session ID to timestamp of last stop signal (for double-stop detection)
 	private warmInstances: Map<string, WarmQuery> = new Map(); // Pre-warmed Claude sessions keyed by agentSessionId
 	private issueTrackers: Map<string, IIssueTrackerService> = new Map(); // one issue tracker per Linear workspace (keyed by linearWorkspaceId)
+	private tokenHealthMonitor: TokenHealthMonitor | null = null; // periodic Linear OAuth liveness check; surfaces dead refresh tokens within minutes instead of days
 	private linearEventTransport: LinearEventTransport | null = null; // Single event transport for webhook delivery
 	private gitHubEventTransport: GitHubEventTransport | null = null; // GitHub event transport for forwarded GitHub webhooks
 	private gitHubAppTokenProvider: GitHubAppTokenProvider | null = null; // Self-hosted GitHub App token minting
@@ -627,6 +636,76 @@ export class EdgeWorker extends EventEmitter {
 		// Resolve this agent's own Linear identity, used to self-filter
 		// workspace-wide Project-level webhooks (ProjectUpdate / Project).
 		await this.resolveSelfLinearIdentity();
+
+		// Replay any refresh-request sidecars left by a crash in the
+		// previous run. Within Linear's 30-min idempotency window the
+		// original request returns the same new tokens; outside the
+		// window the sidecar is dropped and re-auth is the only path.
+		// Runs before the health monitor starts so workspaces with dead
+		// tokens after replay are detected by the first health check.
+		await LinearIssueTrackerService.replayPendingRefreshes(
+			join(this.cyrusHome, "state"),
+			{
+				onReplaySuccess: async (recovered) => {
+					this.logger.info(
+						`Recovered refresh tokens for workspace ${recovered.workspaceId} via replay`,
+					);
+					const wsConfig =
+						this.config.linearWorkspaces?.[recovered.workspaceId];
+					if (wsConfig) {
+						wsConfig.linearToken = recovered.accessToken;
+						wsConfig.linearRefreshToken = recovered.refreshToken;
+					}
+					await this.saveOAuthTokens({
+						linearToken: recovered.accessToken,
+						linearRefreshToken: recovered.refreshToken,
+						linearWorkspaceId: recovered.workspaceId,
+					});
+				},
+				onTerminalFailure: async (workspaceId) => {
+					this.logger.error(
+						`Replay returned invalid_grant for workspace ${workspaceId} — re-auth required (run \`cyrus self-auth-linear --cyrus-home ${this.cyrusHome}\`)`,
+					);
+				},
+				logger: this.logger,
+			},
+		);
+
+		// Start periodic Linear OAuth health monitor — surfaces dead refresh
+		// tokens within minutes instead of waiting for the next webhook to
+		// reveal them (which can be days for idle agents). Also drives the
+		// pre-emptive windowed-refresh path, refreshing tokens shortly
+		// before expiry rather than reactively on 401.
+		this.tokenHealthMonitor = new TokenHealthMonitor({
+			getLinearClients: () => {
+				const clients = new Map<string, LinearClient>();
+				for (const [workspaceId, tracker] of this.issueTrackers.entries()) {
+					// getClient() is only on the Linear-flavoured tracker, not on
+					// the base interface (other providers don't have a LinearClient).
+					// Duck-type rather than narrow to keep this cross-provider safe.
+					const maybeClient = (
+						tracker as IIssueTrackerService & {
+							getClient?: () => LinearClient;
+						}
+					).getClient?.();
+					if (maybeClient) {
+						clients.set(workspaceId, maybeClient);
+					}
+				}
+				return clients;
+			},
+			getLinearTrackers: () => {
+				const trackers = new Map<string, LinearIssueTrackerService>();
+				for (const [workspaceId, tracker] of this.issueTrackers.entries()) {
+					if (tracker instanceof LinearIssueTrackerService) {
+						trackers.set(workspaceId, tracker);
+					}
+				}
+				return trackers;
+			},
+			logger: this.logger,
+		});
+		this.tokenHealthMonitor.start();
 
 		// Pre-warm the 30 most recent Claude sessions in the background
 		// so their first query after restart has near-zero cold-start latency.
@@ -2633,6 +2712,12 @@ ${taskSection}`;
 	 * Stop the edge worker
 	 */
 	async stop(): Promise<void> {
+		// Stop periodic Linear OAuth health monitor
+		if (this.tokenHealthMonitor) {
+			this.tokenHealthMonitor.stop();
+			this.tokenHealthMonitor = null;
+		}
+
 		// Stop config file watcher
 		await this.configManager.stop();
 
@@ -7755,6 +7840,31 @@ ${input.userComment}
 			clientSecret,
 			refreshToken: workspaceConfig.linearRefreshToken,
 			workspaceId: linearWorkspaceId,
+			// Per-host file lock target — sibling processes sharing the same
+			// config.json will serialize their refresh calls on this path.
+			credentialsFilePath: this.configPath ?? undefined,
+			// Replay-sidecar storage. Sidecars persist the outbound refresh
+			// request before sending so a crash mid-rotation can be recovered
+			// via replayPendingRefreshes() on next startup, within Linear's
+			// 30-minute idempotency window.
+			stateDir: join(this.cyrusHome, "state"),
+			// Disk re-read after lock acquisition — picks up a peer's
+			// rotation before we issue our own (now-stale) request.
+			readPersistedRefreshToken: async () => {
+				if (!this.configPath) return null;
+				try {
+					const raw = await readFile(this.configPath, "utf-8");
+					const parsed = JSON.parse(raw) as {
+						linearWorkspaces?: Record<string, { linearRefreshToken?: string }>;
+					};
+					return (
+						parsed.linearWorkspaces?.[linearWorkspaceId]?.linearRefreshToken ??
+						null
+					);
+				} catch {
+					return null;
+				}
+			},
 			onTokenRefresh: async (tokens) => {
 				// Update workspace config in memory
 				if (this.config.linearWorkspaces?.[linearWorkspaceId]) {
@@ -7953,7 +8063,26 @@ ${input.userComment}
 						: {}),
 			};
 
-			await writeFile(this.configPath, JSON.stringify(config, null, "\t"));
+			// Atomic write: serialize → write to a sibling temp file → rename
+			// into place. POSIX rename(2) is atomic on the same filesystem, so
+			// a crash mid-flight leaves either the old config or the new one,
+			// never a half-written file. Previously a crash between writeFile
+			// starting and finishing could truncate config.json and lose the
+			// agent's OAuth tokens entirely — requiring re-auth.
+			const serialized = JSON.stringify(config, null, "\t");
+			const tempPath = `${this.configPath}.tmp-${process.pid}-${Date.now()}`;
+			try {
+				await writeFile(tempPath, serialized);
+				await rename(tempPath, this.configPath);
+			} catch (writeError) {
+				// Best-effort cleanup of the temp file; ignore if it's gone.
+				try {
+					await unlink(tempPath);
+				} catch {
+					// already gone
+				}
+				throw writeError;
+			}
 			this.logger.debug(
 				`OAuth tokens saved to config for workspace ${tokens.linearWorkspaceId}`,
 			);
