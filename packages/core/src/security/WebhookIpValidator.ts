@@ -114,9 +114,12 @@ export function ipMatchesAllowlist(
 ): boolean {
 	const normalizedIp = normalizeIp(ip);
 
-	// Only validate IPv4 addresses (IPv6 webhooks are uncommon for these providers)
+	// IPv4 allowlists don't apply to IPv6 webhooks — pass them through.
+	// Linear has been progressively shifting webhook delivery to IPv6, and
+	// the providers we validate publish their IP ranges in IPv4 CIDR form
+	// only. Rejecting non-IPv4 IPs here silently drops legitimate webhooks.
 	if (!normalizedIp.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
-		return false;
+		return true;
 	}
 
 	return allowlist.some((entry) => ipMatchesCidr(normalizedIp, entry));
