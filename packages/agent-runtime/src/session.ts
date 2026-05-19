@@ -493,6 +493,17 @@ export class RuntimeAgentSession extends EventEmitter implements AgentSession {
 		return this.queuedMessages;
 	}
 
+	/**
+	 * Snapshot of every event observed so far on this session, in
+	 * insertion order. See {@link AgentSession.transcript} for usage.
+	 *
+	 * Returns a fresh copy of the internal buffer so callers can't
+	 * accidentally mutate session state.
+	 */
+	transcript(): readonly TranscriptEvent[] {
+		return [...this.observedEvents];
+	}
+
 	private async parseBufferedOutput(
 		output: string,
 		stream: "stdout" | "stderr",

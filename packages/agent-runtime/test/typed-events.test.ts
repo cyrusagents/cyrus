@@ -73,3 +73,27 @@ describe("typed events — compile-time narrowing", () => {
 // the test file declares its own expectations rather than importing
 // internals.
 type HarnessKindLoose = "claude" | "codex" | "cursor" | "gemini" | "opencode";
+
+describe("AgentSession.transcript() shape", () => {
+	it("is typed to TranscriptEvent<HarnessRawByKind[H]>[] for a typed session", () => {
+		type ClaudeTranscript = ReturnType<AgentSession<"claude">["transcript"]>;
+		type _Claude = ExpectTrue<
+			Equals<ClaudeTranscript, readonly TranscriptEvent<SDKMessage>[]>
+		>;
+
+		type CodexTranscript = ReturnType<AgentSession<"codex">["transcript"]>;
+		type _Codex = ExpectTrue<
+			Equals<CodexTranscript, readonly TranscriptEvent<ThreadEvent>[]>
+		>;
+
+		expect(true).toBe(true);
+	});
+
+	it("defaults to readonly TranscriptEvent<unknown>[] when H is not specified", () => {
+		type DefaultTranscript = ReturnType<AgentSession["transcript"]>;
+		type _Default = ExpectTrue<
+			Equals<DefaultTranscript, readonly TranscriptEvent<unknown>[]>
+		>;
+		expect(true).toBe(true);
+	});
+});

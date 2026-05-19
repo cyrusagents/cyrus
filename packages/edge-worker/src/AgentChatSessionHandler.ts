@@ -1,6 +1,7 @@
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
 	AgentSession,
-	CreateAgentSessionConfig,
+	CreateAgentSessionConfigFor,
 	McpServerRuntimeConfig,
 	TranscriptEvent,
 } from "cyrus-agent-runtime";
@@ -176,7 +177,11 @@ async function configureDaytonaCompute(apiKey: string): Promise<void> {
 }
 
 interface ThreadState<TEvent> {
-	session: AgentSession;
+	// Chat sessions are Claude-only today (see "Claude harness only" in
+	// the class docstring). Narrowing here surfaces `SDKMessage` typing
+	// on `state.session.transcript()` / `result.events` so the assistant-
+	// text extractor doesn't need manual casts on `event.raw`.
+	session: AgentSession<"claude">;
 	lastActivityAt: number;
 	/**
 	 * In-flight run promise, if any. Used so a second webhook for the
@@ -396,7 +401,13 @@ export class AgentChatSessionHandler<TEvent> {
 					credential,
 					mcpServers,
 				});
-				const session = await createAgentSession(sessionConfig, {
+				// Explicit `<"claude">` so the returned session is
+				// `AgentSession<"claude">`, threading SDKMessage typing
+				// through to state.session, result.events, and the
+				// extractAssistantFallback walker. Chat is Claude-only
+				// today; if that changes, swap to a discriminated config
+				// + per-harness narrowing.
+				const session = await createAgentSession<"claude">(sessionConfig, {
 					callbacks: {
 						onTranscriptEvent: (te) => {
 							this.logger.debug(`[${sessionId}] transcript event: ${te.kind}`);
@@ -526,7 +537,7 @@ export class AgentChatSessionHandler<TEvent> {
 		systemPrompt: string;
 		credential: ClaudeCredential;
 		mcpServers?: Record<string, McpServerConfig>;
-	}): CreateAgentSessionConfig {
+	}): CreateAgentSessionConfigFor<"claude"> {
 		const { sessionId, threadKey, systemPrompt, credential, mcpServers } = args;
 		// Forward exactly the env var the operator actually set. Setting
 		// both would be a bug: Claude Code treats `CLAUDE_CODE_OAUTH_TOKEN`
@@ -582,8 +593,10 @@ export class AgentChatSessionHandler<TEvent> {
 		// session its own HOME under `~/.cyrus-agent-sessions/<id>/` so
 		// per-thread `.claude/` state persists across `--continue` turns
 		// without colliding with the operator's real `~/.claude/`.
-		const harnessConfig: CreateAgentSessionConfig["harness"] = {
-			kind: "claude",
+		// Narrow `kind: "claude"` as a literal (not HarnessKind) so the
+		// containing return value satisfies CreateAgentSessionConfigFor<"claude">.
+		const harnessConfig = {
+			kind: "claude" as const,
 			...(this.claudeCliPath ? { command: this.claudeCliPath } : {}),
 		};
 		return {
@@ -637,26 +650,21 @@ export class AgentChatSessionHandler<TEvent> {
 	 * Walk the transcript backwards looking for the last assistant text
 	 * block. Used when the harness adapter's `extractResult()` returns
 	 * undefined.
+	 *
+	 * Now type-safe: `state.session` is `AgentSession<"claude">`, so
+	 * `events` is `TranscriptEvent<SDKMessage>[]` and `event.raw`
+	 * narrows directly via the Claude SDK's discriminated union — no
+	 * hand-written guards or casts.
 	 */
 	private extractAssistantFallback(
-		events: readonly TranscriptEvent[],
+		events: readonly TranscriptEvent<SDKMessage>[],
 	): string | undefined {
 		for (let i = events.length - 1; i >= 0; i -= 1) {
 			const e = events[i];
 			if (!e) continue;
-			const raw = e.raw as
-				| {
-						type?: string;
-						message?: {
-							content?: Array<{ type?: string; text?: string }>;
-						};
-				  }
-				| undefined;
-			if (raw?.type === "assistant" && raw.message?.content) {
-				const block = raw.message.content.find(
-					(b) => b.type === "text" && typeof b.text === "string",
-				);
-				if (block?.text) return block.text;
+			if (e.raw.type !== "assistant") continue;
+			for (const block of e.raw.message.content) {
+				if (block.type === "text" && block.text) return block.text;
 			}
 		}
 		return undefined;

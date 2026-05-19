@@ -596,6 +596,20 @@ export interface AgentSession<H extends HarnessKind = HarnessKind> {
 	 * session's persistent state backing.
 	 */
 	run(userPrompt: string): Promise<AgentSessionResult<H>>;
+	/**
+	 * Return a snapshot of every event observed so far on this session —
+	 * both lifecycle events (`sandbox.*`, `setup.*`, etc.) and
+	 * harness-streamed events, in the order the runtime saw them.
+	 *
+	 * The returned array is a fresh copy of the internal buffer; mutating
+	 * it has no effect on the session. Subsequent events appended after
+	 * the snapshot was taken will not appear — call again to refresh.
+	 *
+	 * Use cases: cross-turn replay, post-hoc inspection, building a UI
+	 * timeline without consuming the live `events` async iterable, or
+	 * resuming consumption from a known index across reconnects.
+	 */
+	transcript(): readonly TranscriptEvent<HarnessRawByKind[H]>[];
 	addMessage(message: string): Promise<void>;
 	interrupt(reason?: string): Promise<void>;
 	/**
