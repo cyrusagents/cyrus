@@ -26,8 +26,43 @@ export interface CodexMaterializeResult {
  * MCP servers → returned as inline `-c mcp_servers.<name>={...}` CLI
  *               overrides (no file written). Caller appends them to
  *               the codex invocation.
- * Hooks → deferred for v1 (Codex hooks schema is version-pinned and
- *         unstable; the materializer silently drops them).
+ * Hooks → deferred. Codex 0.130.0 has a full hooks engine
+ *         (SessionStart / PreToolUse / PostToolUse / PermissionRequest /
+ *         UserPromptSubmit / Stop, schema documented at
+ *         https://developers.openai.com/codex/hooks), but in `codex
+ *         exec` (non-interactive) mode every newly-discovered hook
+ *         stays `Untrusted` and is silently filtered before dispatch.
+ *         See `codex-rs/hooks/src/engine/discovery.rs`:
+ *
+ *           if enabled && (source.bypass_hook_trust ||
+ *                          matches!(trust_status,
+ *                            HookTrustStatus::Managed |
+ *                            HookTrustStatus::Trusted))
+ *
+ *         Trust is granted via the TUI ("1 hook needs review before
+ *         it can run. Open /hooks to review it.") which writes a
+ *         `hooks.state.<hash>` entry into `config.toml`. The matching
+ *         hash is computed from a `NormalizedHookIdentity` whose
+ *         serialization is an internal, unversioned format we'd have
+ *         to mirror byte-for-byte per codex release.
+ *
+ *         The `bypass_hook_trust` config field exists, but:
+ *           • It's not exposed as a working CLI flag in 0.130.0
+ *             (`--bypass-hook-trust` errors as "unexpected argument").
+ *           • Passing it via `-c bypass_hook_trust=true` did not fire
+ *             our SessionStart hook in a learning test (see
+ *             investigation in PR notes / agent-runtime task #11).
+ *
+ *         Plugin-bundled hooks (`[features].plugin_hooks = true`)
+ *         are still "under development" per `codex features list`
+ *         and require a full marketplace + install flow that does
+ *         not fit our ephemeral per-session materialization model.
+ *
+ *         Revisit when codex exposes a stable trust-bypass CLI flag
+ *         or pre-trusts plugin-bundled hooks for marketplaces a
+ *         caller controls. Until then the materializer silently
+ *         drops `plugin.hooks` rather than write a config tree the
+ *         runtime will refuse to execute.
  *
  * `homeOverride` is the value the caller must set as the harness's
  * HOME env var. Override HOME (not CODEX_HOME) for skill isolation.
@@ -100,7 +135,9 @@ export async function materializePluginForCodex(
 		}
 	}
 
-	// Hooks deliberately not materialized for codex in v1.
+	// Hooks intentionally not materialized — see the top-of-file comment
+	// for why codex 0.130.0's `codex exec` filters untrusted hooks before
+	// dispatch and the trust hash is internal to the binary.
 
 	return { cliConfigOverrides, homeOverride, filesWritten };
 }
