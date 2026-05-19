@@ -31,38 +31,35 @@ export interface CodexMaterializeResult {
  *         UserPromptSubmit / Stop, schema documented at
  *         https://developers.openai.com/codex/hooks), but in `codex
  *         exec` (non-interactive) mode every newly-discovered hook
- *         stays `Untrusted` and is silently filtered before dispatch.
- *         See `codex-rs/hooks/src/engine/discovery.rs`:
+ *         stays `HookTrustStatus::Untrusted` and is silently filtered
+ *         before dispatch. Trust is granted via the TUI ("1 hook
+ *         needs review before it can run. Open /hooks to review it.")
+ *         which writes a `hooks.state.<hash>` entry into config.toml.
  *
- *           if enabled && (source.bypass_hook_trust ||
- *                          matches!(trust_status,
- *                            HookTrustStatus::Managed |
- *                            HookTrustStatus::Trusted))
+ *         There is no working trust-bypass in 0.130.0:
  *
- *         Trust is granted via the TUI ("1 hook needs review before
- *         it can run. Open /hooks to review it.") which writes a
- *         `hooks.state.<hash>` entry into `config.toml`. The matching
- *         hash is computed from a `NormalizedHookIdentity` whose
- *         serialization is an internal, unversioned format we'd have
- *         to mirror byte-for-byte per codex release.
+ *           • The `bypass_hook_trust` field shown in the github.com
+ *             /openai/codex `main` branch (`discovery.rs`) does not
+ *             exist in 0.130.0 — `strings` on the installed binary
+ *             returns zero occurrences of `bypass_hook_trust` /
+ *             `bypass-hook-trust` / `bypassHookTrust` in any form.
+ *             `--bypass-hook-trust` errors as "unexpected argument";
+ *             `-c bypass_hook_trust=true` is a silent no-op because
+ *             nothing reads that key.
+ *           • Pre-seeding `hooks.state.<hash>` would work in principle
+ *             (the trust check would pass), but the matching hash is
+ *             computed from a `NormalizedHookIdentity` whose
+ *             serialization is internal and unversioned across codex
+ *             releases.
+ *           • Plugin-bundled hooks (`[features].plugin_hooks = true`)
+ *             are still under development per `codex features list`
+ *             and would need the same trust step anyway.
  *
- *         The `bypass_hook_trust` config field exists, but:
- *           • It's not exposed as a working CLI flag in 0.130.0
- *             (`--bypass-hook-trust` errors as "unexpected argument").
- *           • Passing it via `-c bypass_hook_trust=true` did not fire
- *             our SessionStart hook in a learning test (see
- *             investigation in PR notes / agent-runtime task #11).
- *
- *         Plugin-bundled hooks (`[features].plugin_hooks = true`)
- *         are still "under development" per `codex features list`
- *         and require a full marketplace + install flow that does
- *         not fit our ephemeral per-session materialization model.
- *
- *         Revisit when codex exposes a stable trust-bypass CLI flag
- *         or pre-trusts plugin-bundled hooks for marketplaces a
- *         caller controls. Until then the materializer silently
- *         drops `plugin.hooks` rather than write a config tree the
- *         runtime will refuse to execute.
+ *         Revisit once codex ships a stable trust-bypass CLI flag, or
+ *         pre-trusts plugin-bundled hooks delivered through a
+ *         marketplace the caller controls. Until then the materializer
+ *         silently drops `plugin.hooks` rather than write a config
+ *         tree the runtime will refuse to execute.
  *
  * `homeOverride` is the value the caller must set as the harness's
  * HOME env var. Override HOME (not CODEX_HOME) for skill isolation.
