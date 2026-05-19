@@ -70,6 +70,28 @@ Routes Linear issues with specific labels to this repository. This is useful whe
 
 Example: `["backend", "api"]` - Only process issues that have the "backend" or "api" label
 
+### Custom runner-binary paths
+
+Per spawned runner type, you can override the binary cyrus dispatches with. Useful when operators wrap the runner binary for sandboxed / containerized dispatch, credential brokering, telemetry header injection, or other per-invocation transforms. The wrapper must accept the same CLI surface as the upstream binary and be directly executable (shebang). Each field is only honored for its matching runner type; the `cursor` runner is in-process (no spawned binary) and has no analogous knob.
+
+#### `pathToClaudeCodeExecutable` (string)
+
+Used by the `claude` runner. Forwarded to the Claude Agent SDK as the `pathToClaudeCodeExecutable` option, causing the SDK to spawn this binary instead of its bundled CLI.
+
+Example: `"pathToClaudeCodeExecutable": "/usr/local/bin/claude-docker.sh"`
+
+#### `codexPath` (string)
+
+Used by the `codex` runner. Forwarded to the codex runner as `codexPath`, replacing the default `codex` lookup on `PATH`.
+
+Example: `"codexPath": "/usr/local/bin/codex-docker.sh"`
+
+#### `geminiPath` (string)
+
+Used by the `gemini` runner. Forwarded to the gemini runner as `geminiPath`, replacing the default `gemini` lookup on `PATH`.
+
+Example: `"geminiPath": "/usr/local/bin/gemini-docker.sh"`
+
 ---
 
 ## Routing Priority Order

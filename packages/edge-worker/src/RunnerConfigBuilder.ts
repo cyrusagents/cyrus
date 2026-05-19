@@ -386,6 +386,25 @@ export class RunnerConfigBuilder {
 			...(runnerType === "claude" &&
 				input.sandboxSettings &&
 				this.buildSandboxConfig(input)),
+			// Custom runner-binary paths (per spawned runner type). When set in
+			// the repository config, the corresponding runner spawns this binary
+			// instead of its default — useful for sandbox/wrapper dispatch,
+			// credential brokering, or telemetry header injection. Each is
+			// honored only for its matching runner type; the cursor runner is
+			// in-process (no spawned binary) and has no analogous knob.
+			...(runnerType === "claude" &&
+				input.repository.pathToClaudeCodeExecutable && {
+					pathToClaudeCodeExecutable:
+						input.repository.pathToClaudeCodeExecutable,
+				}),
+			...(runnerType === "codex" &&
+				input.repository.codexPath && {
+					codexPath: input.repository.codexPath,
+				}),
+			...(runnerType === "gemini" &&
+				input.repository.geminiPath && {
+					geminiPath: input.repository.geminiPath,
+				}),
 			// AskUserQuestion callback - only for Claude runner
 			...(runnerType === "claude" &&
 				input.createAskUserQuestionCallback && {
