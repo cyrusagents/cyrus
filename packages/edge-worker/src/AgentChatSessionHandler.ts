@@ -80,6 +80,32 @@ const DAYTONA_CLAUDE_SETUP_COMMANDS = [
 	`${CLAUDE_CLI_PATH} --version`,
 ];
 
+/**
+ * Discriminated union of the two Claude auth modes the handler accepts.
+ * They are NOT interchangeable — Claude Code treats them as different
+ * sources with different billing semantics, so we preserve which one
+ * came in and forward only that env var to the harness.
+ *
+ * - `oauth`: token from `CLAUDE_CODE_OAUTH_TOKEN` (Claude Code Pro/Max
+ *   subscription).
+ * - `apiKey`: key from `ANTHROPIC_API_KEY` (direct Anthropic API
+ *   access).
+ */
+type ClaudeCredential =
+	| { kind: "oauth"; token: string }
+	| { kind: "apiKey"; token: string };
+
+function readClaudeCredential(): ClaudeCredential | undefined {
+	// OAuth takes precedence: subscription users running Claude Code
+	// against their plan generally want that to be the active path
+	// even if an `ANTHROPIC_API_KEY` happens to be set in the env.
+	const oauth = process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim();
+	if (oauth) return { kind: "oauth", token: oauth };
+	const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+	if (apiKey) return { kind: "apiKey", token: apiKey };
+	return undefined;
+}
+
 // Guard against multiple compute.setConfig() calls — ComputeSDK uses a
 // module-global config so we only need to set it once per process.
 let computeConfigured = false;
@@ -134,9 +160,12 @@ interface ThreadState<TEvent> {
  *
  * **Common requirements**
  *
- * - `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_AUTH_TOKEN`) — Claude auth
- *   for both providers. The handler exposes whichever is set to the
- *   harness as a secret.
+ * - One of `CLAUDE_CODE_OAUTH_TOKEN` (Claude Code subscription OAuth)
+ *   or `ANTHROPIC_API_KEY` (direct Anthropic API access). The handler
+ *   forwards exactly the env var that was set — these are distinct
+ *   auth modes in Claude Code with different billing semantics, so
+ *   we never set both. `CLAUDE_CODE_OAUTH_TOKEN` wins if both are
+ *   present.
  *
  * **Known limitations**
  *
@@ -247,16 +276,16 @@ export class AgentChatSessionHandler<TEvent> {
 				return;
 			}
 
-			const claudeToken =
-				process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim() ||
-				process.env.ANTHROPIC_AUTH_TOKEN?.trim();
-			if (!claudeToken) {
+			const credential = readClaudeCredential();
+			if (!credential) {
 				this.logger.error(
-					"Cannot run Slack chat session: no CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_AUTH_TOKEN in environment",
+					"Cannot run chat session: no CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY in environment",
 				);
 				await this.adapter.postReply(
 					event,
-					"I'm not configured with a Claude token, so I can't respond. Ask your admin to set CLAUDE_CODE_OAUTH_TOKEN.",
+					"I'm not configured with a Claude credential, so I can't respond. " +
+						"Ask your admin to set either CLAUDE_CODE_OAUTH_TOKEN (Claude Code subscription) " +
+						"or ANTHROPIC_API_KEY (direct API access).",
 				);
 				return;
 			}
@@ -291,7 +320,7 @@ export class AgentChatSessionHandler<TEvent> {
 					sessionId,
 					threadKey,
 					systemPrompt,
-					claudeToken,
+					credential,
 				});
 				const session = await createAgentSession(sessionConfig, {
 					callbacks: {
@@ -421,13 +450,18 @@ export class AgentChatSessionHandler<TEvent> {
 		sessionId: string;
 		threadKey: string;
 		systemPrompt: string;
-		claudeToken: string;
+		credential: ClaudeCredential;
 	}): CreateAgentSessionConfig {
-		const { sessionId, threadKey, systemPrompt, claudeToken } = args;
-		const secrets = {
-			CLAUDE_CODE_OAUTH_TOKEN: claudeToken,
-			ANTHROPIC_AUTH_TOKEN: claudeToken,
-		};
+		const { sessionId, threadKey, systemPrompt, credential } = args;
+		// Forward exactly the env var the operator actually set. Setting
+		// both would be a bug: Claude Code treats `CLAUDE_CODE_OAUTH_TOKEN`
+		// (Claude Code subscription OAuth flow) and `ANTHROPIC_API_KEY`
+		// (direct Anthropic API access) as distinct auth modes with
+		// different billing, so they must not be conflated.
+		const secrets: Record<string, string> =
+			credential.kind === "oauth"
+				? { CLAUDE_CODE_OAUTH_TOKEN: credential.token }
+				: { ANTHROPIC_API_KEY: credential.token };
 
 		if (this.provider === "daytona") {
 			return {
