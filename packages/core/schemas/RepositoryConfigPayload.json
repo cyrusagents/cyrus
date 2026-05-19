@@ -94,6 +94,15 @@
 		"fallbackModel": {
 			"type": "string"
 		},
+		"pathToClaudeCodeExecutable": {
+			"type": "string"
+		},
+		"codexPath": {
+			"type": "string"
+		},
+		"geminiPath": {
+			"type": "string"
+		},
 		"labelPrompts": {
 			"type": "object",
 			"properties": {
