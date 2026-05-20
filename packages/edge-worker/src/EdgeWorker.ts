@@ -4224,6 +4224,18 @@ ${taskSection}`;
 		webhook: AgentSessionCreatedWebhook,
 		repos: RepositoryConfig[],
 	): Promise<void> {
+		const agentSessionId = webhook.agentSession?.id;
+		const parentSessionId = agentSessionId
+			? this.globalSessionRegistry.getParentSessionId(agentSessionId)
+			: undefined;
+
+		if (agentSessionId && parentSessionId) {
+			this.logger.info(
+				`Ignoring child agent session created webhook for ${agentSessionId}; parent session is ${parentSessionId}`,
+			);
+			return;
+		}
+
 		const issueId = webhook.agentSession?.issue?.id;
 
 		// Check the cache first, as the agentSessionCreated webhook may have been triggered by an @mention
