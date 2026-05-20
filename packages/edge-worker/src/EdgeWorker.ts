@@ -6464,6 +6464,7 @@ ${input.userComment}
 			cyrusHome: this.cyrusHome,
 			logger: log,
 			plugins,
+			opencodeGlobalConfig: this.config.opencode?.config,
 			skills: allowedSkillNames,
 			sandboxSettings: this.sdkSandboxSettings ?? undefined,
 			egressCaCertPath: this.egressCaCertPath ?? undefined,

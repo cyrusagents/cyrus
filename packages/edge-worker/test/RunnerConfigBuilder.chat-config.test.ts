@@ -155,4 +155,50 @@ describe("RunnerConfigBuilder.buildIssueConfig", () => {
 		expect((config as any).plugins).toBe(plugins);
 		expect((config as any).skills).toEqual(["debug"]);
 	});
+
+	it("passes OpenCode config overrides only to OpenCode issue sessions", () => {
+		const globalConfig = {
+			provider: { anthropic: { options: { baseURL: "https://global.test" } } },
+		};
+		const repositoryConfig = {
+			model: "anthropic/claude-sonnet-4.5",
+		};
+
+		for (const selectedRunner of ["opencode", "claude"] as const) {
+			const builder = makeIssueBuilder(selectedRunner);
+			const { config, runnerType } = builder.buildIssueConfig({
+				session: {
+					issueId: "issue-1",
+					workspace: { path: "/tmp/worktree" },
+					issue: { identifier: "NG-71" },
+				} as any,
+				repository: {
+					id: "repo-1",
+					path: "/tmp/repo",
+					opencode: { config: repositoryConfig },
+				} as any,
+				sessionId: "session-1",
+				systemPrompt: "system",
+				allowedTools: ["Read(**)"],
+				allowedDirectories: ["/tmp/worktree"],
+				disallowedTools: [],
+				labels: [selectedRunner],
+				cyrusHome: "/tmp/cyrus",
+				logger: silentLogger,
+				onMessage: () => {},
+				onError: () => {},
+				requireLinearWorkspaceId: () => "workspace-1",
+				opencodeGlobalConfig: globalConfig,
+			});
+
+			expect(runnerType).toBe(selectedRunner);
+			if (selectedRunner === "opencode") {
+				expect(config.opencodeGlobalConfig).toBe(globalConfig);
+				expect(config.opencodeRepositoryConfig).toBe(repositoryConfig);
+			} else {
+				expect(config.opencodeGlobalConfig).toBeUndefined();
+				expect(config.opencodeRepositoryConfig).toBeUndefined();
+			}
+		}
+	});
 });
