@@ -146,12 +146,25 @@ First result: FAIL. The fake event shape did not match `OpenCodeRunner`'s expect
 
 After correcting the temporary fake event shape:
 
+```bash
+node --input-type=module -e 'import { mkdtempSync } from "node:fs"; import { tmpdir } from "node:os"; import { join } from "node:path"; import { OpenCodeRunner } from "./packages/opencode-runner/dist/index.js"; const root = "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp"; const runner = new OpenCodeRunner({ openCodePath: join(root, "fake-opencode.mjs"), workingDirectory: mkdtempSync(join(tmpdir(), "ng71-opencode-evidence-workspace-")), cyrusHome: mkdtempSync(join(tmpdir(), "ng71-opencode-evidence-home-")), title: "NG-71 OpenCode config override evidence", allowedTools: ["Read(**)", "mcp__linear__get_issue"], opencodeRepositoryConfig: { mcp: { "ng71-local-extension": { type: "local", command: ["node", join(root, "local-extension.mjs")], environment: { NG71_EXTENSION_TOKEN: "configured-through-opencode-config" }, enabled: true } } } }); await runner.start("Use the configured local MCP extension."); const serialized = JSON.stringify(runner.getMessages()); console.log(`extensionOutput=${serialized.includes("NG71_MCP_EXTENSION_OK")}`); console.log(`finalSentinel=${serialized.includes("NG71_OPENCODE_CONFIG_OVERRIDE_OK")}`); console.log(serialized.match(/NG71_MCP_EXTENSION_OK/)?.[0] || "missing-extension-output"); console.log(`messages=${runner.getMessages().length}`);'
+```
+
+```text
+extensionOutput=true
+finalSentinel=true
+NG71_MCP_EXTENSION_OK
+messages=5
+```
+
+Earlier output from the shorter probe command was:
+
 ```text
 NG71_OPENCODE_CONFIG_OVERRIDE_OK
 messages=5
 ```
 
-Result: PASS. The configured local extension was available through `opencodeRepositoryConfig.mcp` to the Cyrus-launched OpenCode process.
+Result: PASS. The exact evidence command above confirms the configured local extension output `NG71_MCP_EXTENSION_OK` was present in `OpenCodeRunner` messages, proving the extension was available through `opencodeRepositoryConfig.mcp` to the Cyrus-launched OpenCode process.
 
 ## Final Retrospective
 
