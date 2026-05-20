@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **New `global_teardown_script` config option** — Cyrus can now run a teardown script from inside an issue's worktree immediately before the worktree is deleted when the issue reaches a terminal state (`completed`, `canceled`, or `deleted`). Useful for tearing down per-issue resources (local databases, containers, cloud sandboxes) set up by `global_setup_script`. Teardown does **not** fire on unassignment — the worktree is preserved for re-assignment. Scripts must be idempotent, run with a 2-minute timeout, are non-blocking on failure, and receive only `LINEAR_ISSUE_IDENTIFIER` in the environment. ([CYPACK-1219](https://linear.app/ceedar/issue/CYPACK-1219), original PR by @matthewbjones at [#1066](https://github.com/cyrusagents/cyrus/pull/1066))
+
 ### Security
 - **Patched 9 transitive dependency advisories** — Bumped `pnpm.overrides` for `hono` (≥4.12.18, fixes CSS injection / JWT validation / Cache Middleware cross-user leakage), `fast-uri` (≥3.1.2, path traversal + host confusion), `ip-address` (≥10.1.1, `Address6` XSS), `@anthropic-ai/sdk` (≥0.91.1, insecure default file permissions in local filesystem memory tool), and `@opentelemetry/sdk-node` / `@opentelemetry/exporter-prometheus` (≥0.217.0, Prometheus exporter process crash via malformed HTTP request). `pnpm audit` now reports zero advisories. ([CYPACK-1206](https://linear.app/ceedar/issue/CYPACK-1206))
 

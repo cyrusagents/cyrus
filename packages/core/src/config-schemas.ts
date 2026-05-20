@@ -381,6 +381,14 @@ export const EdgeConfigSchema = z.object({
 	/** Optional path to global setup script that runs for all repositories */
 	global_setup_script: z.string().optional(),
 
+	/**
+	 * Optional path to a global teardown script that runs inside the issue's
+	 * worktree directory immediately before worktree deletion when an issue
+	 * reaches a terminal state (completed, canceled, or deleted). The script
+	 * must be idempotent — cleanup may be retried.
+	 */
+	global_teardown_script: z.string().optional(),
+
 	/** Default tools to allow across all repositories */
 	defaultAllowedTools: z.array(z.string()).optional(),
 

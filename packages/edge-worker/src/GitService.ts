@@ -38,6 +38,30 @@ export interface GitServiceOptions {
 }
 
 /**
+ * Per-call options for {@link GitService.deleteWorktree}.
+ */
+export interface DeleteWorktreeOptions {
+	/**
+	 * Optional path to a global teardown script. When provided, the script is
+	 * executed inside the issue's worktree directory before any filesystem
+	 * removal. Failures are logged but do not block deletion.
+	 */
+	globalTeardownScript?: string;
+}
+
+/**
+ * Hook script timeout for the setup phase (5 minutes). Setup may need to
+ * install dependencies, so it gets a longer budget than teardown.
+ */
+const SETUP_TIMEOUT_MS = 5 * 60 * 1000;
+
+/**
+ * Hook script timeout for the teardown phase (2 minutes). Teardown is intended
+ * for lightweight cleanup; if it cannot finish in 2 minutes it is killed.
+ */
+const TEARDOWN_TIMEOUT_MS = 2 * 60 * 1000;
+
+/**
  * Service responsible for Git worktree operations
  */
 export class GitService {
@@ -134,22 +158,59 @@ export class GitService {
 	}
 
 	/**
-	 * Run a setup script with proper error handling and logging
+	 * Run a setup script with proper error handling and logging.
+	 * Thin wrapper that delegates to {@link runHookScript} for shared behavior
+	 * across setup and teardown hooks.
 	 */
-	private async runSetupScript(
+	private runSetupScript(
 		scriptPath: string,
 		scriptType: "global" | "repository",
 		workspacePath: string,
 		issue: Issue,
-	): Promise<void> {
+	): void {
+		const label = scriptType === "global" ? "global setup" : "repository setup";
+		this.runHookScript({
+			scriptPath,
+			label,
+			workspacePath,
+			env: {
+				LINEAR_ISSUE_ID: issue.id,
+				LINEAR_ISSUE_IDENTIFIER: issue.identifier,
+				LINEAR_ISSUE_TITLE: issue.title || "",
+			},
+			timeoutMs: SETUP_TIMEOUT_MS,
+			postFailureMessage: "   Continuing with worktree creation...",
+		});
+	}
+
+	/**
+	 * Shared hook script runner used by both setup and teardown paths.
+	 *
+	 * Behavior:
+	 * - Expands a leading `~` in `scriptPath` to the user's home directory.
+	 * - Skips with a warning if the script does not exist or (on Unix) lacks
+	 *   the owner-execute bit.
+	 * - Runs the script with `cwd=workspacePath`, `stdio="inherit"`, and the
+	 *   provided env merged onto `process.env`.
+	 * - On failure logs the error (including SIGTERM-as-timeout) and returns
+	 *   normally — failures are non-blocking by design.
+	 */
+	private runHookScript(opts: {
+		scriptPath: string;
+		label: string;
+		workspacePath: string;
+		env: Record<string, string>;
+		timeoutMs: number;
+		postFailureMessage?: string;
+	}): void {
+		const { scriptPath, label, workspacePath, env, timeoutMs } = opts;
+
 		// Expand ~ to home directory
 		const expandedPath = scriptPath.replace(/^~/, homedir());
 
 		// Check if script exists
 		if (!existsSync(expandedPath)) {
-			this.logger.warn(
-				`⚠️  ${scriptType === "global" ? "Global" : "Repository"} setup script not found: ${scriptPath}`,
-			);
+			this.logger.warn(`⚠️  ${label} script not found: ${scriptPath}`);
 			return;
 		}
 
@@ -160,21 +221,22 @@ export class GitService {
 				// Check if file has execute permission for the owner
 				if (!(stats.mode & 0o100)) {
 					this.logger.warn(
-						`⚠️  ${scriptType === "global" ? "Global" : "Repository"} setup script is not executable: ${scriptPath}`,
+						`⚠️  ${label} script is not executable: ${scriptPath}`,
 					);
 					this.logger.warn(`   Run: chmod +x "${expandedPath}"`);
 					return;
 				}
 			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
 				this.logger.warn(
-					`⚠️  Cannot check permissions for ${scriptType} setup script: ${(error as Error).message}`,
+					`⚠️  Cannot check permissions for ${label} script: ${message}`,
 				);
 				return;
 			}
 		}
 
 		const scriptName = basename(expandedPath);
-		this.logger.info(`ℹ️  Running ${scriptType} setup script: ${scriptName}`);
+		this.logger.info(`ℹ️  Running ${label} script: ${scriptName}`);
 
 		try {
 			// Determine the command based on the script extension and platform
@@ -198,33 +260,30 @@ export class GitService {
 				stdio: "inherit",
 				env: {
 					...process.env,
-					LINEAR_ISSUE_ID: issue.id,
-					LINEAR_ISSUE_IDENTIFIER: issue.identifier,
-					LINEAR_ISSUE_TITLE: issue.title || "",
+					...env,
 				},
-				timeout: 5 * 60 * 1000, // 5 minute timeout
+				timeout: timeoutMs,
 			});
 
-			this.logger.info(
-				`✅ ${scriptType === "global" ? "Global" : "Repository"} setup script completed successfully`,
-			);
+			this.logger.info(`✅ ${label} script completed successfully`);
 		} catch (error) {
+			const timeoutMinutes = Math.round(timeoutMs / 60000);
+			const signal =
+				error && typeof error === "object" && "signal" in error
+					? (error as { signal?: NodeJS.Signals | null }).signal
+					: undefined;
 			const errorMessage =
-				(error as any).signal === "SIGTERM"
-					? "Script execution timed out (exceeded 5 minutes)"
-					: (error as Error).message;
+				signal === "SIGTERM"
+					? `Script execution timed out (exceeded ${timeoutMinutes} minute${timeoutMinutes === 1 ? "" : "s"})`
+					: error instanceof Error
+						? error.message
+						: String(error);
 
-			this.logger.error(
-				`❌ ${scriptType === "global" ? "Global" : "Repository"} setup script failed: ${errorMessage}`,
-			);
+			this.logger.error(`❌ ${label} script failed: ${errorMessage}`);
 
-			// Log stderr if available
-			if ((error as any).stderr) {
-				this.logger.error("   stderr:", (error as any).stderr.toString());
+			if (opts.postFailureMessage) {
+				this.logger.info(opts.postFailureMessage);
 			}
-
-			// Continue execution despite setup script failure
-			this.logger.info(`   Continuing with worktree creation...`);
 		}
 	}
 
@@ -489,12 +548,7 @@ export class GitService {
 
 			// Run global setup script if configured
 			if (globalSetupScript) {
-				await this.runSetupScript(
-					globalSetupScript,
-					"global",
-					workspacePath,
-					issue,
-				);
+				this.runSetupScript(globalSetupScript, "global", workspacePath, issue);
 			}
 
 			return {
@@ -529,7 +583,7 @@ export class GitService {
 
 		// Run global setup script once in the parent directory
 		if (globalSetupScript) {
-			await this.runSetupScript(globalSetupScript, "global", parentPath, issue);
+			this.runSetupScript(globalSetupScript, "global", parentPath, issue);
 		}
 
 		const repoPaths: Record<string, string> = {};
@@ -819,20 +873,11 @@ export class GitService {
 
 			// First, run the global setup script if configured
 			if (globalSetupScript) {
-				await this.runSetupScript(
-					globalSetupScript,
-					"global",
-					workspacePath,
-					issue,
-				);
+				this.runSetupScript(globalSetupScript, "global", workspacePath, issue);
 			}
 
 			// Then, check for repository setup scripts (cross-platform)
-			await this.runRepoSetupScript(
-				repository.repositoryPath,
-				workspacePath,
-				issue,
-			);
+			this.runRepoSetupScript(repository.repositoryPath, workspacePath, issue);
 
 			return {
 				path: workspacePath,
@@ -880,8 +925,12 @@ export class GitService {
 	 * directory is the root in both cases.
 	 *
 	 * @param issueIdentifier - The issue identifier (e.g., "DEF-123")
+	 * @param options - Optional per-call options (e.g., global teardown script)
 	 */
-	deleteWorktree(issueIdentifier: string): void {
+	deleteWorktree(
+		issueIdentifier: string,
+		options?: DeleteWorktreeOptions,
+	): void {
 		const workspacePath = join(
 			getDefaultWorktreesDir(this.cyrusHome),
 			issueIdentifier,
@@ -897,6 +946,21 @@ export class GitService {
 		this.logger.info(
 			`Deleting worktree directory for ${issueIdentifier} at ${workspacePath}`,
 		);
+
+		// Run global teardown script before any filesystem removal so it can
+		// still read .env.local / local DBs / setup-script artifacts. Failures
+		// are logged but do not block deletion (handled inside runHookScript).
+		if (options?.globalTeardownScript) {
+			this.runHookScript({
+				scriptPath: options.globalTeardownScript,
+				label: "global teardown",
+				workspacePath,
+				env: {
+					LINEAR_ISSUE_IDENTIFIER: issueIdentifier,
+				},
+				timeoutMs: TEARDOWN_TIMEOUT_MS,
+			});
+		}
 
 		// Find all git worktrees that are within this workspace path.
 		// In multi-repo layouts, there may be subdirectories that are each worktrees.
@@ -1032,11 +1096,11 @@ export class GitService {
 	/**
 	 * Find and run a repository-specific setup script (cyrus-setup.sh/.ps1/.cmd/.bat)
 	 */
-	private async runRepoSetupScript(
+	private runRepoSetupScript(
 		repositoryPath: string,
 		workspacePath: string,
 		issue: Issue,
-	): Promise<void> {
+	): void {
 		const isWindows = process.platform === "win32";
 		const setupScripts = [
 			{
@@ -1079,7 +1143,7 @@ export class GitService {
 
 		if (scriptToRun) {
 			const scriptPath = join(repositoryPath, scriptToRun.file);
-			await this.runSetupScript(scriptPath, "repository", workspacePath, issue);
+			this.runSetupScript(scriptPath, "repository", workspacePath, issue);
 		}
 	}
 }

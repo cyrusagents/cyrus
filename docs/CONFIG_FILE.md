@@ -382,6 +382,20 @@ Sets default allowed tools for each prompt type across all repositories. Reposit
 
 Path to a script that runs for all repositories when creating new worktrees. See the main README for details on setup scripts.
 
+### `global_teardown_script` (string)
+
+Path to a script that runs from inside the issue's worktree directory immediately before the worktree is deleted, when an issue reaches a terminal state (`completed`, `canceled`, or `deleted`). Useful for tearing down per-issue resources (local databases, containers, cloud sandboxes) created by the setup script.
+
+Important behaviors:
+
+- Runs only on terminal-state transitions — **unassigning an issue does not trigger teardown** (the worktree is preserved for re-assignment).
+- Failures are logged but do not block worktree deletion.
+- The script has a **2-minute timeout**.
+- Receives only `LINEAR_ISSUE_IDENTIFIER` in the environment (no `LINEAR_ISSUE_ID` or `LINEAR_ISSUE_TITLE`, which are not available on the terminal-state path).
+- Must be **idempotent** — cleanup may be retried.
+
+See [SETUP_SCRIPTS.md](./SETUP_SCRIPTS.md) for full details.
+
 ---
 
 ## Tool Configuration Priority

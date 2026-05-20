@@ -74,3 +74,68 @@ Make sure the script is executable: `chmod +x /opt/cyrus/bin/global-setup.sh`
 - If the global script fails, Cyrus logs the error but continues with repository script execution
 - Both scripts have a 5-minute timeout to prevent hanging
 - Script failures don't prevent worktree creation
+
+---
+
+## Global Teardown Script
+
+You can also configure a teardown script that runs from inside the issue's worktree directory **immediately before the worktree is deleted**, when the issue reaches a terminal state.
+
+### Configuration
+
+Add `global_teardown_script` to your `~/.cyrus/config.json`:
+
+```json
+{
+  "repositories": [...],
+  "global_teardown_script": "/opt/cyrus/bin/global-teardown.sh"
+}
+```
+
+### When it runs
+
+The teardown script fires only when an issue reaches a terminal state:
+
+- Linear issue moved to **completed**
+- Linear issue moved to **canceled**
+- Linear issue **deleted**
+
+It does **not** fire on issue unassignment — re-assignment is a normal flow and Cyrus preserves the worktree (and any setup-script artifacts) so a re-assigned issue can resume work immediately.
+
+### Environment
+
+The teardown script receives **only**:
+
+- `LINEAR_ISSUE_IDENTIFIER` — the issue identifier (e.g., `CEA-123`)
+
+`LINEAR_ISSUE_ID` and `LINEAR_ISSUE_TITLE` are **not** available on the terminal-state cleanup path. Setup scripts receive all three; teardown scripts receive only the identifier. Do not reference fields that aren't set.
+
+### Working directory
+
+The script runs with the issue's worktree directory as its working directory, so it can read `.env.local`, local databases, or any other artifacts written by the setup script.
+
+### Important behaviors
+
+- **Idempotent.** Cleanup may be retried, so the script may run more than once for the same issue. Write your teardown so re-running it is safe.
+- **Non-blocking on failure.** If the teardown script fails (non-zero exit, error, timeout, etc.), Cyrus logs the failure and proceeds with worktree deletion.
+- **2-minute timeout.** Teardown is intended for lightweight cleanup; longer-running teardown will be killed.
+- **`stdio: "inherit"`.** Anything the script echoes — including secrets — lands in the edge-worker logs.
+
+### Example Usage
+
+```bash
+#!/bin/bash
+# global-teardown.sh - Tear down per-issue resources
+set -euo pipefail
+
+# Identifier is the only env var available
+echo "Tearing down resources for $LINEAR_ISSUE_IDENTIFIER"
+
+# Idempotent cleanup — guard against re-runs
+if [ -f .env.local ]; then
+  # e.g., stop a per-issue Docker compose stack
+  docker compose -f docker-compose.cyrus.yml down --volumes || true
+fi
+```
+
+Make sure the script is executable: `chmod +x /opt/cyrus/bin/global-teardown.sh`

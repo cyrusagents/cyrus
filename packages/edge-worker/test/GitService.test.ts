@@ -683,6 +683,181 @@ describe("GitService", () => {
 				{ recursive: true, force: true },
 			);
 		});
+
+		describe("global teardown script", () => {
+			const WORKSPACE = "/home/user/.cyrus/worktrees/DEF-123";
+			const SCRIPT = "/home/user/scripts/teardown.sh";
+
+			const setupExecutableTeardownScript = () => {
+				mockExistsSync.mockImplementation((path: any) => {
+					const p = String(path);
+					if (p === WORKSPACE) return true;
+					if (p === SCRIPT) return true;
+					return false;
+				});
+				mockStatSync.mockImplementation((path: any) => {
+					const p = String(path);
+					if (p === SCRIPT) {
+						return { mode: 0o755, isFile: () => false } as any;
+					}
+					return { isFile: () => false } as any;
+				});
+				mockReaddirSync.mockReturnValue([] as any);
+			};
+
+			it("runs the teardown script before rmSync with LINEAR_ISSUE_IDENTIFIER in env", () => {
+				setupExecutableTeardownScript();
+
+				const callOrder: string[] = [];
+				mockExecSync.mockImplementation((cmd: any, opts: any) => {
+					if (String(cmd).includes("teardown.sh")) {
+						callOrder.push("teardown");
+						expect(opts.cwd).toBe(WORKSPACE);
+						expect(opts.env.LINEAR_ISSUE_IDENTIFIER).toBe("DEF-123");
+						expect(opts.env.LINEAR_ISSUE_ID).toBeUndefined();
+						expect(opts.env.LINEAR_ISSUE_TITLE).toBeUndefined();
+						expect(opts.timeout).toBe(2 * 60 * 1000);
+					}
+					return Buffer.from("");
+				});
+				mockRmSync.mockImplementation(() => {
+					callOrder.push("rm");
+				});
+
+				gitService.deleteWorktree("DEF-123", {
+					globalTeardownScript: SCRIPT,
+				});
+
+				expect(callOrder).toEqual(["teardown", "rm"]);
+			});
+
+			it("does not block deletion when teardown script fails", () => {
+				setupExecutableTeardownScript();
+
+				mockExecSync.mockImplementation((cmd: any) => {
+					if (String(cmd).includes("teardown.sh")) {
+						throw new Error("script failed");
+					}
+					return Buffer.from("");
+				});
+
+				gitService.deleteWorktree("DEF-123", {
+					globalTeardownScript: SCRIPT,
+				});
+
+				expect(mockRmSync).toHaveBeenCalledWith(WORKSPACE, {
+					recursive: true,
+					force: true,
+				});
+				expect(mockLogger.error).toHaveBeenCalledWith(
+					expect.stringContaining("global teardown script failed"),
+				);
+			});
+
+			it("does not invoke execSync when no teardown script is configured", () => {
+				mockExistsSync.mockImplementation(
+					(path: any) => String(path) === WORKSPACE,
+				);
+				mockReaddirSync.mockReturnValue([] as any);
+
+				gitService.deleteWorktree("DEF-123");
+
+				expect(mockExecSync).not.toHaveBeenCalled();
+				expect(mockRmSync).toHaveBeenCalledWith(WORKSPACE, {
+					recursive: true,
+					force: true,
+				});
+			});
+
+			it("warns and skips when teardown script does not exist", () => {
+				mockExistsSync.mockImplementation((path: any) => {
+					const p = String(path);
+					if (p === WORKSPACE) return true;
+					// Script path does NOT exist
+					return false;
+				});
+				mockReaddirSync.mockReturnValue([] as any);
+
+				gitService.deleteWorktree("DEF-123", {
+					globalTeardownScript: SCRIPT,
+				});
+
+				expect(mockExecSync).not.toHaveBeenCalled();
+				expect(mockLogger.warn).toHaveBeenCalledWith(
+					expect.stringContaining("global teardown script not found"),
+				);
+				expect(mockRmSync).toHaveBeenCalled();
+			});
+
+			it("warns and skips when teardown script is not executable", () => {
+				const originalPlatform = process.platform;
+				Object.defineProperty(process, "platform", { value: "linux" });
+				try {
+					mockExistsSync.mockImplementation((path: any) => {
+						const p = String(path);
+						if (p === WORKSPACE) return true;
+						if (p === SCRIPT) return true;
+						return false;
+					});
+					mockStatSync.mockImplementation((path: any) => {
+						const p = String(path);
+						if (p === SCRIPT) {
+							// Mode 0o644 — no owner-execute bit
+							return { mode: 0o644, isFile: () => false } as any;
+						}
+						return { isFile: () => false } as any;
+					});
+					mockReaddirSync.mockReturnValue([] as any);
+
+					gitService.deleteWorktree("DEF-123", {
+						globalTeardownScript: SCRIPT,
+					});
+
+					expect(mockExecSync).not.toHaveBeenCalled();
+					expect(mockLogger.warn).toHaveBeenCalledWith(
+						expect.stringContaining("global teardown script is not executable"),
+					);
+					expect(mockRmSync).toHaveBeenCalled();
+				} finally {
+					Object.defineProperty(process, "platform", {
+						value: originalPlatform,
+					});
+				}
+			});
+
+			it("logs '(exceeded 2 minutes)' when teardown script times out (SIGTERM)", () => {
+				setupExecutableTeardownScript();
+
+				mockExecSync.mockImplementation((cmd: any) => {
+					if (String(cmd).includes("teardown.sh")) {
+						const err: any = new Error("timeout");
+						err.signal = "SIGTERM";
+						throw err;
+					}
+					return Buffer.from("");
+				});
+
+				gitService.deleteWorktree("DEF-123", {
+					globalTeardownScript: SCRIPT,
+				});
+
+				expect(mockLogger.error).toHaveBeenCalledWith(
+					expect.stringContaining("timed out (exceeded 2 minutes)"),
+				);
+				expect(mockRmSync).toHaveBeenCalled();
+			});
+
+			it("does not attempt teardown when the workspace directory is missing", () => {
+				mockExistsSync.mockReturnValue(false);
+
+				gitService.deleteWorktree("DEF-123", {
+					globalTeardownScript: SCRIPT,
+				});
+
+				expect(mockExecSync).not.toHaveBeenCalled();
+				expect(mockRmSync).not.toHaveBeenCalled();
+			});
+		});
 	});
 
 	describe("createGitWorktree - 0 repos", () => {
