@@ -163,7 +163,7 @@ describe("AgentChatSessionHandler provider selection", () => {
 		);
 		expect(config.packages?.commands).toEqual([
 			"npm config set prefix /home/daytona/.npm-global",
-			// Pinned to match `@anthropic-ai/claude-agent-sdk@0.2.123` (the
+			// Pinned to match `@anthropic-ai/claude-agent-sdk@0.2.141` (the
 			// SDK version `HarnessRawByKind["claude"]` is typed against).
 			// If we bump the pin, we bump it here too.
 			"npm install -g @anthropic-ai/claude-code@2.1.145 >/dev/null 2>&1",

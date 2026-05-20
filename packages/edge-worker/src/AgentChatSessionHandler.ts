@@ -119,7 +119,7 @@ function defaultClaudeCliPath(workingDir: string): string {
 // a custom snapshot is expected to have Claude preinstalled.
 //
 // Claude CLI is pinned to a specific version so the stream-json shape
-// the harness emits matches what `@anthropic-ai/claude-agent-sdk@0.2.123`
+// the harness emits matches what `@anthropic-ai/claude-agent-sdk@0.2.141`
 // (the SDK we type `HarnessRawByKind["claude"]` against) describes.
 // Using `@latest` here would let a future CLI release silently introduce
 // fields/variants the SDK pin doesn't know about — exactly the kind of
