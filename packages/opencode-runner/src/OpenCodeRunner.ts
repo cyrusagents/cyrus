@@ -1,6 +1,7 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
+import { join } from "node:path";
 import { cwd } from "node:process";
 import type {
 	IAgentRunner,
@@ -10,6 +11,11 @@ import type {
 	SDKResultMessage,
 	SDKUserMessage,
 } from "cyrus-core";
+import {
+	buildOpenCodeConfig,
+	buildOpenCodeStateRoot,
+	ensureOpenCodeStateDirectories,
+} from "./config.js";
 import { OpenCodeMessageFormatter } from "./formatter.js";
 import type {
 	OpenCodeJsonEvent,
@@ -291,11 +297,14 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		return new Promise<OpenCodeSessionInfo>((resolve) => {
 			let stdoutBuffer = "";
 			const args = this.buildArgs();
+			const runtimeEnv = this.buildRuntimeEnv();
+			ensureOpenCodeStateDirectories(runtimeEnv);
 			const child = spawn(this.config.openCodePath || "opencode", args, {
 				cwd: this.config.workingDirectory || cwd(),
 				env: {
 					...process.env,
 					...this.config.env,
+					...runtimeEnv,
 				},
 				stdio: ["pipe", "pipe", "pipe"],
 			});
@@ -392,6 +401,23 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		this.startTimestampMs = Date.now();
 		this.wasStopped = false;
 		this.stderr = "";
+	}
+
+	private buildRuntimeEnv(): Record<string, string> {
+		const built = buildOpenCodeConfig(this.config);
+		for (const entry of built.unsupported) {
+			console.warn(
+				`[OpenCodeRunner] Unsupported config entry skipped: ${entry}`,
+			);
+		}
+		const stateRoot = buildOpenCodeStateRoot(this.config);
+		return {
+			OPENCODE_CONFIG_CONTENT: JSON.stringify(built.config),
+			XDG_DATA_HOME: join(stateRoot, "data"),
+			XDG_STATE_HOME: join(stateRoot, "state"),
+			XDG_CACHE_HOME: join(stateRoot, "cache"),
+			XDG_CONFIG_HOME: join(stateRoot, "config"),
+		};
 	}
 
 	private buildArgs(): string[] {
@@ -569,8 +595,10 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 			apiKeySource: "user",
 			claude_code_version: "opencode-cli",
 			cwd: this.config.workingDirectory || cwd(),
-			tools: [],
-			mcp_servers: [],
+			tools: this.config.allowedTools || [],
+			mcp_servers: Object.keys(
+				buildOpenCodeConfig(this.config).config.mcp ?? {},
+			).map((name) => ({ name, status: "connected" })),
 			model: this.config.model || DEFAULT_OPENCODE_MODEL,
 			permissionMode: "default",
 			slash_commands: [],
