@@ -68,6 +68,9 @@ export interface OpenCodeStepFinishEvent {
 	reason?: string;
 	stopReason?: string;
 	stop_reason?: string;
+	result?: unknown;
+	output?: unknown;
+	message?: unknown;
 	cost?: number;
 	totalCostUSD?: number;
 	total_cost_usd?: number;

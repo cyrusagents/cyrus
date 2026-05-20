@@ -238,6 +238,18 @@ function parseCost(event: OpenCodeStepFinishEvent): number {
 	);
 }
 
+function parseFinalResult(event: OpenCodeStepFinishEvent): string | null {
+	const value = event.result ?? event.output ?? event.message;
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		return trimmed || null;
+	}
+	if (value !== undefined) {
+		return safeStringify(value);
+	}
+	return null;
+}
+
 export declare interface OpenCodeRunner {
 	on<K extends keyof OpenCodeRunnerEvents>(
 		event: K,
@@ -484,7 +496,9 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 				this.lastUsage = parseUsage(event);
 				this.totalCostUsd = parseCost(event);
 				this.pendingResultMessage = this.createSuccessResultMessage(
-					this.lastAssistantText || "OpenCode session completed successfully",
+					parseFinalResult(event) ||
+						this.lastAssistantText ||
+						"OpenCode session completed successfully",
 					event.reason || event.stopReason || event.stop_reason || null,
 				);
 				break;
