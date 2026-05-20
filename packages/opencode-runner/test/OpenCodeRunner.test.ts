@@ -165,6 +165,72 @@ describe("OpenCodeRunner", () => {
 		expect(capture.argv).toContain("oc_existing");
 	});
 
+	it("passes OpenCode runtime config through environment", async () => {
+		const dir = makeTempDir();
+		const captureFile = join(dir, "capture.json");
+		const opencodePath = writeFakeOpenCode(
+			dir,
+			`
+writeFileSync(${JSON.stringify(captureFile)}, JSON.stringify({
+  argv: process.argv.slice(2),
+  stdin,
+  opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT,
+  xdgDataHome: process.env.XDG_DATA_HOME,
+  xdgStateHome: process.env.XDG_STATE_HOME,
+  xdgCacheHome: process.env.XDG_CACHE_HOME,
+  xdgConfigHome: process.env.XDG_CONFIG_HOME,
+}));
+process.stdout.write(${JSON.stringify(fixtureLines())});
+`,
+			captureFile,
+		);
+		const runner = new OpenCodeRunner({
+			openCodePath: opencodePath,
+			workingDirectory: dir,
+			cyrusHome: dir,
+			allowedTools: ["Read(**)", "mcp__linear__get_issue"],
+			disallowedTools: ["Bash(rm:*)"],
+			mcpConfig: {
+				linear: {
+					type: "http",
+					url: "https://mcp.linear.app/mcp",
+					headers: { Authorization: "Bearer token" },
+				} as any,
+			},
+		});
+
+		await runner.start("Configured run");
+
+		const capture = JSON.parse(readFileSync(captureFile, "utf8"));
+		const stateRoot = `${dir}/opencode-state/${dir.split("/").at(-1)}`;
+		expect(capture.xdgDataHome).toBe(`${stateRoot}/data`);
+		expect(capture.xdgStateHome).toBe(`${stateRoot}/state`);
+		expect(capture.xdgCacheHome).toBe(`${stateRoot}/cache`);
+		expect(capture.xdgConfigHome).toBe(`${stateRoot}/config`);
+		expect(JSON.parse(capture.opencodeConfig)).toMatchObject({
+			mcp: {
+				linear: {
+					type: "remote",
+					url: "https://mcp.linear.app/mcp",
+					headers: { Authorization: "Bearer token" },
+					enabled: true,
+				},
+			},
+			permission: {
+				"*": "deny",
+				read: {
+					"*": "deny",
+					"**": "allow",
+				},
+				bash: {
+					"*": "deny",
+					"rm *": "deny",
+				},
+				linear_get_issue: "allow",
+			},
+		});
+	});
+
 	it("stops a running OpenCode process", async () => {
 		const dir = makeTempDir();
 		const opencodePath = writeFakeOpenCode(
