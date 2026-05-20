@@ -60,3 +60,9 @@ Key outputs:
 ## Final Retrospective
 
 Pass. The F1 run validates the end-to-end path that failed in the Linear retest: OpenCode can now load `/using-superpowers` as a skill, proceed to read from the worktree, and post the expected final response.
+
+## Follow-Up: Empty Default Tool Regression
+
+After the live NG-69 retest, the remaining blocker was narrowed to CLI startup configuration rather than OpenCode's runtime config syntax. The normal CLI path populated `defaultAllowedTools` with an empty array when `ALLOWED_TOOLS` was unset. That empty array was then treated as an explicit policy, leaving OpenCode sessions with only workspace MCP tools (`mcp__linear`, `mcp__cyrus-tools`, `mcp__cyrus-docs`) and no built-in filesystem/shell/skill tools.
+
+Regression coverage was added in `EdgeWorker.multi-repo-tools.test.ts` to prove an empty global default is treated as unset for repository sessions. The expected fallback is the safe built-in tool set plus workspace MCP tools, which restores `Read`, `Skill`, and related repository tools for OpenCode-selected issues.
