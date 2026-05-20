@@ -316,7 +316,7 @@ process.stdout.write(${JSON.stringify(fixtureLines())});
 		});
 	});
 
-	it("exposes allowed Cyrus skills and the bootstrap skill through an OpenCode config directory", async () => {
+	it("does not copy Cyrus skills or synthesize bootstrap skills into OpenCode config", async () => {
 		const dir = makeTempDir();
 		const pluginPath = join(dir, "cyrus-skills-plugin");
 		const skillPath = join(pluginPath, "skills", "debug");
@@ -342,10 +342,8 @@ writeFileSync(${JSON.stringify(captureFile)}, JSON.stringify({
     && existsSync(process.env.OPENCODE_CONFIG_DIR + "/skills/debug/SKILL.md")
     ? readFileSync(process.env.OPENCODE_CONFIG_DIR + "/skills/debug/SKILL.md", "utf8").includes("Debug a reported issue")
     : false,
-  bootstrapSkillExists: process.env.OPENCODE_CONFIG_DIR
-    && existsSync(process.env.OPENCODE_CONFIG_DIR + "/skills/using-superpowers/SKILL.md")
-    ? readFileSync(process.env.OPENCODE_CONFIG_DIR + "/skills/using-superpowers/SKILL.md", "utf8").includes("Bootstrap skill for Cyrus")
-    : false,
+  skillsDirectoryExists: process.env.OPENCODE_CONFIG_DIR
+    && existsSync(process.env.OPENCODE_CONFIG_DIR + "/skills"),
 }));
 process.stdout.write(${JSON.stringify(fixtureLines())});
 `,
@@ -360,17 +358,17 @@ process.stdout.write(${JSON.stringify(fixtureLines())});
 			skills: ["debug"],
 		});
 
-		await runner.start("Use /using-superpowers");
+		await runner.start("Use the configured local workflow");
 
 		const capture = JSON.parse(readFileSync(captureFile, "utf8"));
 		expect(capture.opencodeConfigDir).toBeTruthy();
-		expect(capture.debugSkillExists).toBe(true);
-		expect(capture.bootstrapSkillExists).toBe(true);
+		expect(capture.debugSkillExists).toBe(false);
+		expect(capture.skillsDirectoryExists).toBe(false);
 		expect(
 			existsSync(
 				join(capture.opencodeConfigDir, "skills", "debug", "SKILL.md"),
 			),
-		).toBe(true);
+		).toBe(false);
 	});
 
 	it("stops a running OpenCode process", async () => {
