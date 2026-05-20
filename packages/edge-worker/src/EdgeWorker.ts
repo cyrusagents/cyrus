@@ -170,6 +170,7 @@ import {
 import { SlackChatAdapter } from "./SlackChatAdapter.js";
 import type { IActivitySink } from "./sinks/IActivitySink.js";
 import { LinearActivitySink } from "./sinks/LinearActivitySink.js";
+import { NoopActivitySink } from "./sinks/NoopActivitySink.js";
 import { ToolPermissionResolver } from "./ToolPermissionResolver.js";
 import type { AgentSessionData, EdgeWorkerEvents } from "./types.js";
 import { UserAccessControl } from "./UserAccessControl.js";
@@ -199,8 +200,8 @@ export class EdgeWorker extends EventEmitter {
 	private config: EdgeWorkerConfig;
 	private repositories: Map<string, RepositoryConfig> = new Map(); // repository 'id' (internal, stored in config.json) mapped to the full repo config
 	private agentSessionManager: AgentSessionManager; // Single instance managing all agent sessions across repositories
-	private activitySinks: Map<string, IActivitySink> = new Map(); // Maps Linear workspace ID to activity sink (one per workspace, mirrors issueTrackers)
-	private sessionRepositories: Map<string, string> = new Map(); // Maps session ID to repository ID
+	// TODO: issueTrackers is keyed by linearWorkspaceId. When other platforms (GitHub Issues, Jira,
+	// etc.) are supported, this will need a composite key like `${platform}:${workspaceId}`.
 	private lastStopTimeBySession: Map<string, number> = new Map(); // Maps session ID to timestamp of last stop signal (for double-stop detection)
 	private warmInstances: Map<string, WarmQuery> = new Map(); // Pre-warmed Claude sessions keyed by agentSessionId
 	private issueTrackers: Map<string, IIssueTrackerService> = new Map(); // one issue tracker per Linear workspace (keyed by linearWorkspaceId)
@@ -434,19 +435,10 @@ export class EdgeWorker extends EventEmitter {
 				return parentId;
 			},
 			async (parentSessionId, prompt, childSessionId) => {
-				const repoId = this.sessionRepositories.get(childSessionId);
-				const repo = repoId ? this.repositories.get(repoId) : undefined;
-				if (!repo) {
-					this.logger.error(
-						`No repository found for child session ${childSessionId}`,
-					);
-					return;
-				}
 				await this.handleResumeParentSession(
 					parentSessionId,
 					prompt,
 					childSessionId,
-					repo,
 					this.agentSessionManager,
 				);
 			},
@@ -494,14 +486,6 @@ export class EdgeWorker extends EventEmitter {
 							);
 				this.issueTrackers.set(linearWorkspaceId, issueTracker);
 			}
-		}
-
-		// Create activity sinks per workspace (one per workspace, mirrors issueTrackers)
-		for (const [workspaceId, issueTracker] of this.issueTrackers) {
-			this.activitySinks.set(
-				workspaceId,
-				new LinearActivitySink(issueTracker, workspaceId),
-			);
 		}
 
 		// Initialize user access control with global and per-repository configs
@@ -681,14 +665,12 @@ export class EdgeWorker extends EventEmitter {
 			// CLI mode: ensure a CLIIssueTrackerService exists for each repo workspace.
 			// Repos from config.repositories don't go through linearWorkspaces init,
 			// so we create trackers here if missing.
-			for (const [repoId, repo] of this.repositories) {
+			for (const repo of this.repositories.values()) {
 				const wsId = repo.linearWorkspaceId;
 				if (wsId && !this.issueTrackers.has(wsId)) {
 					const service = new CLIIssueTrackerService();
 					service.seedDefaultData();
 					this.issueTrackers.set(wsId, service);
-					const activitySink = new LinearActivitySink(service, wsId);
-					this.activitySinks.set(repoId, activitySink);
 				}
 			}
 
@@ -1333,12 +1315,11 @@ export class EdgeWorker extends EventEmitter {
 				],
 			);
 
-			// Register session-to-repo mapping and activity sink
-			this.sessionRepositories.set(githubSessionId, repository.id);
-			const activitySink = this.getActivitySinkForRepo(repository.id);
-			if (activitySink) {
-				agentSessionManager.setActivitySink(githubSessionId, activitySink);
-			}
+			// Register activity sink for this session (created on-the-fly from issueTrackers)
+			agentSessionManager.setActivitySink(
+				githubSessionId,
+				this.createActivitySink(repository.linearWorkspaceId),
+			);
 
 			const session = agentSessionManager.getSession(githubSessionId);
 			if (!session) {
@@ -1996,12 +1977,11 @@ ${taskSection}`;
 				],
 			);
 
-			// Register session-to-repo mapping and activity sink
-			this.sessionRepositories.set(gitlabSessionId, repository.id);
-			const activitySink = this.getActivitySinkForRepo(repository.id);
-			if (activitySink) {
-				agentSessionManager.setActivitySink(gitlabSessionId, activitySink);
-			}
+			// Register activity sink for this session (created on-the-fly from issueTrackers)
+			agentSessionManager.setActivitySink(
+				gitlabSessionId,
+				this.createActivitySink(repository.linearWorkspaceId),
+			);
 
 			const session = agentSessionManager.getSession(gitlabSessionId);
 			if (!session) {
@@ -2647,7 +2627,6 @@ ${taskSection}`;
 		parentSessionId: string,
 		prompt: string,
 		childSessionId: string,
-		_childRepo: RepositoryConfig,
 		childAgentSessionManager: AgentSessionManager,
 	): Promise<void> {
 		const log = this.logger.withContext({ sessionId: parentSessionId });
@@ -2658,7 +2637,7 @@ ${taskSection}`;
 		// Find parent session from the single session manager
 		log.debug(`Looking up parent session ${parentSessionId}`);
 		const parentSession = this.agentSessionManager.getSession(parentSessionId);
-		const parentRepoId = this.sessionRepositories.get(parentSessionId);
+		const parentRepoId = parentSession?.repositories[0]?.repositoryId;
 		const parentRepo = parentRepoId
 			? this.repositories.get(parentRepoId)
 			: undefined;
@@ -2773,16 +2752,12 @@ ${taskSection}`;
 					`🔑 Updated Linear token for workspace ${workspaceId}`,
 				);
 			} else if (this.config.platform !== "cli") {
-				// Workspace is new — create a tracker and activity sink for it
+				// Workspace is new — create a tracker for it (activity sinks are created on-the-fly)
 				const newIssueTracker = new LinearIssueTrackerService(
 					new LinearClient({ accessToken: newToken }),
 					this.buildOAuthConfig(workspaceId),
 				);
 				this.issueTrackers.set(workspaceId, newIssueTracker);
-				this.activitySinks.set(
-					workspaceId,
-					new LinearActivitySink(newIssueTracker, workspaceId),
-				);
 				this.logger.info(
 					`🔑 Created issue tracker for new workspace ${workspaceId}`,
 				);
@@ -2901,9 +2876,13 @@ ${taskSection}`;
 				this.logger.info(`🗑️  Removing repository: ${repo.name} (${repo.id})`);
 
 				// Check for active sessions for this repository
+				// TODO (multi-repo): When multi-repo session support is added, sessions may span
+				// multiple repos. Instead of stopping the entire session, we should detach only the
+				// removed repo and keep the session alive if it still has other repos. Sessions
+				// without any repos (e.g. Slack surfaces) are unaffected by repo removal.
 				const allActiveSessions = this.agentSessionManager.getActiveSessions();
-				const activeSessions = allActiveSessions.filter(
-					(s) => this.sessionRepositories.get(s.id) === repo.id,
+				const activeSessions = allActiveSessions.filter((s) =>
+					s.repositories.some((r) => r.repositoryId === repo.id),
 				);
 
 				if (activeSessions.length > 0) {
@@ -3291,7 +3270,7 @@ ${taskSection}`;
 			const sessions = this.agentSessionManager.getSessionsByIssueId(issueId);
 			if (sessions.length > 0) {
 				const firstSession = sessions[0]!;
-				const repoId = this.sessionRepositories.get(firstSession.id);
+				const repoId = firstSession.repositories[0]?.repositoryId;
 				if (repoId) {
 					repository = this.repositories.get(repoId) ?? null;
 					if (repository) {
@@ -3401,7 +3380,7 @@ ${taskSection}`;
 				this.agentSessionManager.getSessionsByIssueId(issueId);
 			if (issueSessions.length > 0) {
 				const firstSession = issueSessions[0]!;
-				const repoId = this.sessionRepositories.get(firstSession.id);
+				const repoId = firstSession.repositories[0]?.repositoryId;
 				if (repoId) {
 					repository = this.repositories.get(repoId) ?? null;
 					if (repository) {
@@ -3844,12 +3823,15 @@ ${taskSection}`;
 	}
 
 	/**
-	 * Get the activity sink for a repository by looking up its workspace.
+	 * Create an activity sink on-the-fly from the issueTrackers map.
+	 * LinearActivitySink is stateless, so there's no need to cache instances.
 	 */
-	private getActivitySinkForRepo(repoId: string): IActivitySink | undefined {
-		const repo = this.repositories.get(repoId);
-		if (!repo?.linearWorkspaceId) return undefined;
-		return this.activitySinks.get(repo.linearWorkspaceId);
+	private createActivitySink(workspaceId: string | undefined): IActivitySink {
+		if (!workspaceId) return new NoopActivitySink();
+		const issueTracker = this.issueTrackers.get(workspaceId);
+		return issueTracker
+			? new LinearActivitySink(issueTracker, workspaceId)
+			: new NoopActivitySink();
 	}
 
 	/**
@@ -3861,6 +3843,18 @@ ${taskSection}`;
 			return null; // CLI platform or unconfigured workspace
 		}
 		return workspaceConfig.linearToken;
+	}
+
+	/**
+	 * Resolve the repository config for a session from its repositories array.
+	 * TODO (multi-repo): When multi-repo session support is added, callers will need
+	 * to specify which repo they need rather than assuming the first one.
+	 */
+	private resolveSessionRepo(
+		session: CyrusAgentSession,
+	): RepositoryConfig | undefined {
+		const repoId = session.repositories[0]?.repositoryId;
+		return repoId ? this.repositories.get(repoId) : undefined;
 	}
 
 	/**
@@ -3884,7 +3878,6 @@ ${taskSection}`;
 		const repositories = Array.isArray(repositoriesOrSingle)
 			? repositoriesOrSingle
 			: [repositoriesOrSingle];
-		const primaryRepo = repositories[0]!;
 
 		// Fetch full Linear issue details using workspace ID from webhook context
 		const fullIssue = await this.fetchFullIssueDetails(
@@ -3937,12 +3930,11 @@ ${taskSection}`;
 			repositoryContexts,
 		);
 
-		// Register session-to-repo mapping and activity sink (use primary repo)
-		this.sessionRepositories.set(sessionId, primaryRepo.id);
-		const activitySink = this.getActivitySinkForRepo(primaryRepo.id);
-		if (activitySink) {
-			agentSessionManager.setActivitySink(sessionId, activitySink);
-		}
+		// Register activity sink (created on-the-fly from issueTrackers)
+		agentSessionManager.setActivitySink(
+			sessionId,
+			this.createActivitySink(linearWorkspaceId),
+		);
 
 		// Post combined routing + base branch activity
 		{
@@ -4925,7 +4917,7 @@ ${taskSection}`;
 			// First, check if the session manager already has this session
 			const session = this.agentSessionManager.getSession(agentSessionId);
 			if (session) {
-				const repoId = this.sessionRepositories.get(agentSessionId);
+				const repoId = session.repositories[0]?.repositoryId;
 				if (repoId) {
 					const repo = this.repositories.get(repoId) ?? null;
 					if (repo) {
@@ -5584,25 +5576,20 @@ ${taskSection}`;
 			this.globalSessionRegistry.getParentSessionId(childSessionId);
 
 		// Find the repository containing the child session
-		const childRepoId = this.sessionRepositories.get(childSessionId);
+		const childSession = this.agentSessionManager.getSession(childSessionId);
+		const childRepoId = childSession?.repositories[0]?.repositoryId;
 		const childRepo = childRepoId
 			? this.repositories.get(childRepoId)
 			: undefined;
 
 		if (
+			!childSession ||
 			!childRepo ||
 			!this.agentSessionManager.hasAgentRunner(childSessionId)
 		) {
 			console.error(
 				`[EdgeWorker] Child session ${childSessionId} not found in any repository`,
 			);
-			return false;
-		}
-
-		// Get the child session
-		const childSession = this.agentSessionManager.getSession(childSessionId);
-		if (!childSession) {
-			console.error(`[EdgeWorker] Child session ${childSessionId} not found`);
 			return false;
 		}
 
@@ -6382,8 +6369,7 @@ ${input.userComment}
 		await Promise.all(
 			candidates.map(async (session) => {
 				try {
-					const repoId = this.sessionRepositories.get(session.id);
-					const repo = repoId ? this.repositories.get(repoId) : undefined;
+					const repo = this.resolveSessionRepo(session);
 					if (!repo) {
 						this.logger.debug(
 							`No repo for session ${session.id}, skipping warmup`,
@@ -6516,8 +6502,7 @@ ${input.userComment}
 				state.agentSessionEntries,
 			);
 
-			// Rebuild session-to-repo mapping from issueRepositoryCache
-			// For each restored session, look up its issue in the cache to find the repo
+			// Register activity sinks for restored sessions using issueRepositoryCache
 			if (state.issueRepositoryCache) {
 				for (const [sessionId, session] of Object.entries(
 					state.agentSessions,
@@ -6526,16 +6511,14 @@ ${input.userComment}
 						(session as any).issueContext?.issueId ?? (session as any).issueId;
 					if (issueId && state.issueRepositoryCache[issueId]) {
 						const cachedRepoIds = state.issueRepositoryCache[issueId];
-						// Use first repo ID for session-to-repo mapping (primary repo)
 						const repoId = cachedRepoIds[0];
 						if (repoId) {
-							this.sessionRepositories.set(sessionId, repoId);
-							// Also register the activity sink for this restored session
-							const activitySink = this.getActivitySinkForRepo(repoId);
-							if (activitySink) {
+							const repo = this.repositories.get(repoId);
+							const workspaceId = repo?.linearWorkspaceId;
+							if (workspaceId) {
 								this.agentSessionManager.setActivitySink(
 									sessionId,
-									activitySink,
+									this.createActivitySink(workspaceId),
 								);
 							}
 						}

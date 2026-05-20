@@ -446,6 +446,7 @@ describe("EdgeWorker - Missing Session/Repository Recovery (CYPACK-852)", () => 
 			const mockSession = {
 				id: "agent-session-legacy-789",
 				status: "active",
+				repositories: [{ repositoryId: "test-repo" }],
 				agentRunner: {
 					stop: vi.fn(),
 					isRunning: vi.fn().mockReturnValue(true),

@@ -249,6 +249,8 @@ cyrus/
 
 For a detailed visual representation of how these components interact and map Claude Code sessions to Linear comment threads, see @architecture.md.
 
+> **TODO (multi-platform):** The `issueTrackers` map in `EdgeWorker.ts` is keyed by `linearWorkspaceId`. When other issue-tracking platforms (GitHub Issues, Jira, etc.) are supported, this will need a composite key like `${platform}:${workspaceId}` to avoid collisions across platforms.
+
 ## Testing Best Practices
 
 ### Prompt Assembly Tests

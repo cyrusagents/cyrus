@@ -97,6 +97,7 @@ describe("EdgeWorker - Feedback Delivery Timeout Issue", () => {
 				claudeSessionId: "child-claude-session-456",
 				workspace: { path: "/test/workspaces/CHILD-456" },
 				claudeRunner: mockClaudeRunner,
+				repositories: [{ repositoryId: "test-repo" }],
 			}),
 			getAgentRunner: vi.fn().mockReturnValue(mockClaudeRunner),
 			postAnalyzingThought: vi.fn().mockResolvedValue(undefined),
@@ -178,12 +179,8 @@ describe("EdgeWorker - Feedback Delivery Timeout Issue", () => {
 			"parent-session-123",
 		);
 
-		// Setup single agent session manager and session-to-repo mapping
+		// Setup single agent session manager and repo mapping
 		(edgeWorker as any).agentSessionManager = mockChildAgentSessionManager;
-		(edgeWorker as any).sessionRepositories.set(
-			"child-session-456",
-			"test-repo",
-		);
 		(edgeWorker as any).repositories.set("test-repo", mockRepository);
 
 		// Inject mock issue tracker for the test workspace

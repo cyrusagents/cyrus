@@ -95,6 +95,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 				claudeSessionId: "child-claude-session-456",
 				workspace: { path: "/test/workspaces/CHILD-456" },
 				claudeRunner: mockClaudeRunner,
+				repositories: [{ repositoryId: "test-repo" }],
 			}),
 			getAgentRunner: vi.fn().mockReturnValue(mockClaudeRunner),
 			postAnalyzingThought: vi.fn().mockResolvedValue(undefined),
@@ -181,12 +182,8 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			"parent-session-123",
 		);
 
-		// Setup single agent session manager and session-to-repo mapping
+		// Setup single agent session manager and repo mapping
 		(edgeWorker as any).agentSessionManager = mockChildAgentSessionManager;
-		(edgeWorker as any).sessionRepositories.set(
-			"child-session-456",
-			"test-repo",
-		);
 		(edgeWorker as any).repositories.set("test-repo", mockRepository);
 
 		// Inject mock issue tracker for the test workspace
@@ -398,7 +395,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			);
 		});
 
-		it("should find child session via single session manager and sessionRepositories mapping", async () => {
+		it("should find child session via single session manager and session repositories", async () => {
 			// Arrange - The single ASM has the child session runner
 			mockChildAgentSessionManager.hasAgentRunner.mockReturnValue(true);
 
@@ -418,7 +415,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 				feedbackMessage,
 			);
 
-			// Assert - Should find the child via sessionRepositories and single ASM
+			// Assert - Should find the child via session repositories and single ASM
 			expect(result).toBe(true);
 
 			// Wait for the async handlePromptWithStreamingCheck to complete (fire-and-forget pattern)
