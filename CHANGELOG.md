@@ -464,6 +464,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - **Child agent sessions no longer start duplicate top-level runs** — Cyrus now ignores Linear `AgentSessionEvent.created` webhooks for child sessions it already mapped to a parent, preventing nested session loops on the same issue/worktree. ([NG-64](https://linear.app/digimondo/issue/NG-64/validate-opencode-runner-end-to-end-with-tests-and-f1), [#4](https://github.com/JappyMondo/cyrus/pull/4))
 - **OpenCode sessions can load Cyrus skills from Linear guidance** — OpenCode runs now receive the scoped Cyrus skills plugin through an OpenCode config directory, including a `/using-superpowers` bootstrap skill, so workspace guidance that requires skill loading can be satisfied. ([NG-64](https://linear.app/digimondo/issue/NG-64/validate-opencode-runner-end-to-end-with-tests-and-f1), [#4](https://github.com/JappyMondo/cyrus/pull/4))
+- **OpenCode sessions keep default repository tools when `ALLOWED_TOOLS` is unset** — Cyrus no longer treats an empty global tool default as an explicit MCP-only policy, so OpenCode-selected issues can still read files, load skills, and use safe built-in tools in normal CLI setups. ([NG-64](https://linear.app/digimondo/issue/NG-64/validate-opencode-runner-end-to-end-with-tests-and-f1), [#4](https://github.com/JappyMondo/cyrus/pull/4))
 
 ## [0.2.57] - 2026-05-22
 

@@ -8,6 +8,14 @@ import type { Workspace } from "../config/types.js";
 import type { ConfigService } from "./ConfigService.js";
 import type { Logger } from "./Logger.js";
 
+function parseToolEnv(value: string | undefined): string[] | undefined {
+	const tools = value
+		?.split(",")
+		.map((tool) => tool.trim())
+		.filter(Boolean);
+	return tools && tools.length > 0 ? tools : undefined;
+}
+
 /**
  * Service responsible for EdgeWorker and Cloudflare tunnel management
  */
@@ -195,18 +203,16 @@ export class WorkerService {
 			repositories,
 			cyrusHome: this.cyrusHome,
 			linearAllowedTools:
-				process.env.LINEAR_ALLOWED_TOOLS?.split(",").map((t) => t.trim()) ||
-				edgeConfig.linearAllowedTools ||
-				[],
+				parseToolEnv(process.env.LINEAR_ALLOWED_TOOLS) ??
+				edgeConfig.linearAllowedTools,
 			slackAllowedTools: edgeConfig.slackAllowedTools,
 			githubAllowedTools: edgeConfig.githubAllowedTools,
 			slackMcpConfigs: edgeConfig.slackMcpConfigs,
 			linearMcpConfigs: edgeConfig.linearMcpConfigs,
 			githubMcpConfigs: edgeConfig.githubMcpConfigs,
 			defaultDisallowedTools:
-				process.env.DISALLOWED_TOOLS?.split(",").map((t) => t.trim()) ||
-				edgeConfig.defaultDisallowedTools ||
-				undefined,
+				parseToolEnv(process.env.DISALLOWED_TOOLS) ??
+				edgeConfig.defaultDisallowedTools,
 			// Model configuration: environment variables take precedence over config file.
 			// Legacy env vars/keys are still accepted for backwards compatibility.
 			claudeDefaultModel:
