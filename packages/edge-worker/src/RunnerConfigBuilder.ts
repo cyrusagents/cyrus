@@ -150,8 +150,8 @@ export interface IssueRunnerConfigInput {
 	/**
 	 * Allow-list of skill names enabled for the session (after scope filtering),
 	 * or `"all"` to enable every discovered skill, or `undefined` to defer to
-	 * provider defaults. Claude passes this to the SDK directly; Codex uses it
-	 * to stage the same scoped skills into its native repository discovery layout.
+	 * provider defaults. Managed-skill runners consume this according to their
+	 * native discovery layout.
 	 */
 	skills?: string[] | "all";
 	/** SDK sandbox settings (enabled, network proxy ports) for Claude runner */
@@ -429,9 +429,8 @@ export class RunnerConfigBuilder {
 			// Plugins providing managed skills.
 			...(this.runnerSupportsManagedSkills(runnerType) &&
 				input.plugins?.length && { plugins: input.plugins }),
-			// Skill scope allow-list. Claude passes this through to the SDK's
-			// `query()` `skills` option; Codex uses it to stage only allowed skill
-			// directories into the session worktree for repository-scope discovery.
+			// Skill scope allow-list. Each managed-skill runner maps this into its
+			// native skill discovery mechanism.
 			...(this.runnerSupportsManagedSkills(runnerType) &&
 				input.skills !== undefined && { skills: input.skills }),
 			// SDK sandbox settings (Claude runner only):
@@ -505,7 +504,11 @@ export class RunnerConfigBuilder {
 	}
 
 	private runnerSupportsManagedSkills(runnerType: RunnerType): boolean {
-		return runnerType === "claude" || runnerType === "codex";
+		return (
+			runnerType === "claude" ||
+			runnerType === "codex" ||
+			runnerType === "opencode"
+		);
 	}
 
 	/**

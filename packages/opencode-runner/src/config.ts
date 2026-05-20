@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import {
+	cpSync,
+	type Dirent,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { basename, join, resolve } from "node:path";
 import type { OpenCodeRunnerConfig } from "./types.js";
 
@@ -49,6 +58,17 @@ interface CyrusMcpServerConfig {
 }
 
 const ENV_DENY_PATTERNS = ["*.env", "*.env.*"];
+const OPENCODE_BOOTSTRAP_SKILL = `---
+name: using-superpowers
+description: Bootstrap skill for Cyrus OpenCode sessions.
+---
+
+# Using Superpowers
+
+Read this skill before doing work when Linear guidance asks for /using-superpowers.
+
+For OpenCode sessions, use the available Cyrus skills from this config directory. If the task matches a listed skill such as debug, implementation, verify-and-ship, or summarize, follow that skill before continuing.
+`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -390,6 +410,7 @@ export function buildOpenCodeRuntimeEnv(
 	// ~/.local/share/opencode and friends.
 	return {
 		OPENCODE_CONFIG_CONTENT: JSON.stringify(built.config),
+		OPENCODE_CONFIG_DIR: join(stateRoot, "opencode-config"),
 		XDG_DATA_HOME: join(stateRoot, "data"),
 		XDG_STATE_HOME: join(stateRoot, "state"),
 		XDG_CACHE_HOME: join(stateRoot, "cache"),
@@ -411,6 +432,7 @@ export function ensureOpenCodeStateDirectories(
 	env: Record<string, string>,
 ): void {
 	for (const key of [
+		"OPENCODE_CONFIG_DIR",
 		"XDG_DATA_HOME",
 		"XDG_STATE_HOME",
 		"XDG_CACHE_HOME",
@@ -421,5 +443,70 @@ export function ensureOpenCodeStateDirectories(
 		// OpenCode imports its global path module before running, so these XDG
 		// roots must already exist when the child process starts.
 		mkdirSync(dir, { recursive: true });
+	}
+}
+
+function shouldExposeSkill(
+	skillName: string,
+	skills: OpenCodeRunnerConfig["skills"],
+): boolean {
+	if (skills === undefined || skills === "all") return true;
+	return skills.includes(skillName);
+}
+
+export function prepareOpenCodeRuntime(
+	config: OpenCodeRunnerConfig,
+	env: Record<string, string>,
+): void {
+	ensureOpenCodeStateDirectories(env);
+
+	const configDir = env.OPENCODE_CONFIG_DIR;
+	if (!configDir) return;
+
+	const targetSkillsDir = join(configDir, "skills");
+	rmSync(targetSkillsDir, { recursive: true, force: true });
+	mkdirSync(targetSkillsDir, { recursive: true });
+
+	const copied = new Set<string>();
+	for (const plugin of config.plugins ?? []) {
+		const pluginPath = (plugin as { path?: string }).path;
+		if (!pluginPath) continue;
+
+		const sourceSkillsDir = join(pluginPath, "skills");
+		let entries: Dirent<string>[];
+		try {
+			entries = readdirSync(sourceSkillsDir, {
+				withFileTypes: true,
+				encoding: "utf8",
+			});
+		} catch {
+			continue;
+		}
+
+		for (const entry of entries) {
+			if (!(entry.isDirectory() || entry.isSymbolicLink())) continue;
+			if (copied.has(entry.name)) continue;
+			if (!shouldExposeSkill(entry.name, config.skills)) continue;
+
+			cpSync(
+				join(sourceSkillsDir, entry.name),
+				join(targetSkillsDir, entry.name),
+				{
+					recursive: true,
+					dereference: true,
+				},
+			);
+			copied.add(entry.name);
+		}
+	}
+
+	if (!copied.has("using-superpowers")) {
+		const bootstrapSkillDir = join(targetSkillsDir, "using-superpowers");
+		mkdirSync(bootstrapSkillDir, { recursive: true });
+		writeFileSync(
+			join(bootstrapSkillDir, "SKILL.md"),
+			OPENCODE_BOOTSTRAP_SKILL,
+			"utf8",
+		);
 	}
 }

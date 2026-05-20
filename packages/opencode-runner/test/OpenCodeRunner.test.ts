@@ -1,4 +1,10 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -31,7 +37,7 @@ function writeFakeOpenCode(
 	writeFileSync(
 		script,
 		`#!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 const stdin = readFileSync(0, "utf8");
 writeFileSync(${JSON.stringify(captureFile)}, JSON.stringify({ argv: process.argv.slice(2), stdin }));
 ${body}
@@ -308,6 +314,63 @@ process.stdout.write(${JSON.stringify(fixtureLines())});
 				linear_get_issue: "allow",
 			},
 		});
+	});
+
+	it("exposes allowed Cyrus skills and the bootstrap skill through an OpenCode config directory", async () => {
+		const dir = makeTempDir();
+		const pluginPath = join(dir, "cyrus-skills-plugin");
+		const skillPath = join(pluginPath, "skills", "debug");
+		const captureFile = join(dir, "capture.json");
+		mkdirSync(skillPath, { recursive: true });
+		writeFileSync(
+			join(skillPath, "SKILL.md"),
+			[
+				"---",
+				"name: debug",
+				"description: Debug a reported issue",
+				"---",
+				"Reproduce the bug before fixing it.",
+			].join("\n"),
+			{ flag: "w" },
+		);
+		const opencodePath = writeFakeOpenCode(
+			dir,
+			`
+writeFileSync(${JSON.stringify(captureFile)}, JSON.stringify({
+  opencodeConfigDir: process.env.OPENCODE_CONFIG_DIR,
+  debugSkillExists: process.env.OPENCODE_CONFIG_DIR
+    && existsSync(process.env.OPENCODE_CONFIG_DIR + "/skills/debug/SKILL.md")
+    ? readFileSync(process.env.OPENCODE_CONFIG_DIR + "/skills/debug/SKILL.md", "utf8").includes("Debug a reported issue")
+    : false,
+  bootstrapSkillExists: process.env.OPENCODE_CONFIG_DIR
+    && existsSync(process.env.OPENCODE_CONFIG_DIR + "/skills/using-superpowers/SKILL.md")
+    ? readFileSync(process.env.OPENCODE_CONFIG_DIR + "/skills/using-superpowers/SKILL.md", "utf8").includes("Bootstrap skill for Cyrus")
+    : false,
+}));
+process.stdout.write(${JSON.stringify(fixtureLines())});
+`,
+			captureFile,
+		);
+		const runner = new OpenCodeRunner({
+			openCodePath: opencodePath,
+			workingDirectory: dir,
+			cyrusHome: dir,
+			allowedTools: ["Skill"],
+			plugins: [{ type: "local", path: pluginPath } as any],
+			skills: ["debug"],
+		});
+
+		await runner.start("Use /using-superpowers");
+
+		const capture = JSON.parse(readFileSync(captureFile, "utf8"));
+		expect(capture.opencodeConfigDir).toBeTruthy();
+		expect(capture.debugSkillExists).toBe(true);
+		expect(capture.bootstrapSkillExists).toBe(true);
+		expect(
+			existsSync(
+				join(capture.opencodeConfigDir, "skills", "debug", "SKILL.md"),
+			),
+		).toBe(true);
 	});
 
 	it("stops a running OpenCode process", async () => {

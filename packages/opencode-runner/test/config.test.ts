@@ -121,6 +121,9 @@ describe("OpenCode config translation", () => {
 				},
 			},
 		});
+		expect(env.OPENCODE_CONFIG_DIR).toBe(
+			"/tmp/cyrus/opencode-state/repo/opencode-config",
+		);
 		expect(env.XDG_DATA_HOME).toBe("/tmp/cyrus/opencode-state/repo/data");
 		expect(env.XDG_STATE_HOME).toBe("/tmp/cyrus/opencode-state/repo/state");
 		expect(env.XDG_CACHE_HOME).toBe("/tmp/cyrus/opencode-state/repo/cache");

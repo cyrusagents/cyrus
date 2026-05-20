@@ -35,6 +35,28 @@ function makeBuilder(): RunnerConfigBuilder {
 	);
 }
 
+function makeIssueBuilder(
+	runnerType: "claude" | "opencode",
+): RunnerConfigBuilder {
+	const chatToolResolver: IChatToolResolver = {
+		buildChatAllowedTools: () => ["Read(**)"],
+	};
+	const mcpConfigProvider: IMcpConfigProvider = {
+		buildMcpConfig: () => ({}),
+		buildMergedMcpConfigPath: () => undefined,
+	};
+	const runnerSelector: IRunnerSelector = {
+		determineRunnerSelection: () => ({ runnerType }),
+		getDefaultModelForRunner: () => "",
+		getDefaultFallbackModelForRunner: () => "",
+	};
+	return new RunnerConfigBuilder(
+		chatToolResolver,
+		mcpConfigProvider,
+		runnerSelector,
+	);
+}
+
 describe("RunnerConfigBuilder.buildChatConfig", () => {
 	it("includes autoMemoryDirectory in allowedDirectories so the session can read existing memory files (CYPACK-1197)", () => {
 		const builder = makeBuilder();
@@ -84,5 +106,41 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 
 		expect(config.plugins).toEqual(plugins);
 		expect(config.skills).toEqual(["agent-browser", "test-user-skills"]);
+	});
+});
+
+describe("RunnerConfigBuilder.buildIssueConfig", () => {
+	it("passes scoped skills plugins to OpenCode issue sessions", () => {
+		const builder = makeIssueBuilder("opencode");
+		const plugins = [{ type: "local", path: "/tmp/cyrus-skills-plugin" }];
+
+		const { config, runnerType } = builder.buildIssueConfig({
+			session: {
+				issueId: "issue-1",
+				workspace: { path: "/tmp/worktree" },
+				issue: { identifier: "NG-68" },
+			} as any,
+			repository: {
+				id: "repo-1",
+				path: "/tmp/repo",
+			} as any,
+			sessionId: "session-1",
+			systemPrompt: "system",
+			allowedTools: ["Skill", "Read(**)"],
+			allowedDirectories: ["/tmp/worktree"],
+			disallowedTools: [],
+			labels: ["opencode"],
+			cyrusHome: "/tmp/cyrus",
+			logger: silentLogger,
+			onMessage: () => {},
+			onError: () => {},
+			requireLinearWorkspaceId: () => "workspace-1",
+			plugins: plugins as any,
+			skills: ["debug"],
+		});
+
+		expect(runnerType).toBe("opencode");
+		expect((config as any).plugins).toBe(plugins);
+		expect((config as any).skills).toEqual(["debug"]);
 	});
 });
