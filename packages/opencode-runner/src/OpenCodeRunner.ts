@@ -14,7 +14,7 @@ import type {
 import {
 	buildOpenCodeConfig,
 	buildOpenCodeStateRoot,
-	ensureOpenCodeStateDirectories,
+	prepareOpenCodeRuntime,
 } from "./config.js";
 import { OpenCodeMessageFormatter } from "./formatter.js";
 import type {
@@ -310,7 +310,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 			let stdoutBuffer = "";
 			const args = this.buildArgs();
 			const runtimeEnv = this.buildRuntimeEnv();
-			ensureOpenCodeStateDirectories(runtimeEnv);
+			prepareOpenCodeRuntime(this.config, runtimeEnv);
 			const child = spawn(this.config.openCodePath || "opencode", args, {
 				cwd: this.config.workingDirectory || cwd(),
 				env: {
@@ -425,6 +425,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		const stateRoot = buildOpenCodeStateRoot(this.config);
 		return {
 			OPENCODE_CONFIG_CONTENT: JSON.stringify(built.config),
+			OPENCODE_CONFIG_DIR: join(stateRoot, "opencode-config"),
 			XDG_DATA_HOME: join(stateRoot, "data"),
 			XDG_STATE_HOME: join(stateRoot, "state"),
 			XDG_CACHE_HOME: join(stateRoot, "cache"),
