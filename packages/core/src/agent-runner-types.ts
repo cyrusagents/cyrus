@@ -386,7 +386,14 @@ export interface IAgentRunner {
 	getFormatter(): IMessageFormatter;
 }
 
-export type JsonObject = Record<string, unknown>;
+export type JsonValue =
+	| string
+	| number
+	| boolean
+	| null
+	| JsonValue[]
+	| JsonObject;
+export type JsonObject = { [key: string]: JsonValue };
 
 /**
  * Configuration for agent runner
