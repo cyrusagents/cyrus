@@ -1102,6 +1102,7 @@ export class EdgeWorker extends EventEmitter {
 				// Live read so hot-reloaded config (`setConfig`) picks up new
 				// per-platform MCP paths without rebuilding the handler.
 				getPlatformMcpConfigOverrides: () => this.config.slackMcpConfigs,
+				getOpenCodeGlobalConfig: () => this.config.opencode?.config,
 				onWebhookStart: () => {
 					this.activeWebhookCount++;
 				},

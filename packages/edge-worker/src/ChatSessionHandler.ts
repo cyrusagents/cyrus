@@ -7,6 +7,7 @@ import type {
 	CyrusAgentSession,
 	IAgentRunner,
 	ILogger,
+	OpenCodeConfigOverrides,
 } from "cyrus-core";
 import { createLogger } from "cyrus-core";
 import { AgentSessionManager } from "./AgentSessionManager.js";
@@ -91,6 +92,8 @@ export interface ChatSessionHandlerDeps {
 	 * no custom files load (native MCP servers still run as usual).
 	 */
 	getPlatformMcpConfigOverrides?: () => readonly string[] | undefined;
+	/** Read live global OpenCode config overrides at session-build time */
+	getOpenCodeGlobalConfig?: () => OpenCodeConfigOverrides["config"] | undefined;
 	onWebhookStart: () => void;
 	onWebhookEnd: () => void;
 	onStateChange: () => Promise<void>;
@@ -592,6 +595,7 @@ export class ChatSessionHandler<TEvent> {
 			repository: provider.getDefaultRepository(),
 			repositoryPaths: provider.getRepositoryPaths(),
 			platformMcpConfigOverrides: this.deps.getPlatformMcpConfigOverrides?.(),
+			opencodeGlobalConfig: this.deps.getOpenCodeGlobalConfig?.(),
 			logger: sessionLogger,
 			onMessage: (message: SDKMessage) =>
 				this.handleAgentMessage(sessionId, message),

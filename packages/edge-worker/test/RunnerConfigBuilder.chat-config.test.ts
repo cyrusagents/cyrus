@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { ILogger } from "cyrus-core";
+import type { ILogger, RunnerType } from "cyrus-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -16,6 +16,10 @@ const silentLogger: ILogger = {
 } as unknown as ILogger;
 
 function makeBuilder(): RunnerConfigBuilder {
+	return makeChatBuilder("claude");
+}
+
+function makeChatBuilder(defaultRunner: RunnerType): RunnerConfigBuilder {
 	const chatToolResolver: IChatToolResolver = {
 		buildChatAllowedTools: () => ["Read(**)"],
 	};
@@ -25,6 +29,7 @@ function makeBuilder(): RunnerConfigBuilder {
 	};
 	const runnerSelector: IRunnerSelector = {
 		determineRunnerSelection: () => ({ runnerType: "claude" as const }),
+		getDefaultRunner: () => defaultRunner,
 		getDefaultModelForRunner: () => "",
 		getDefaultFallbackModelForRunner: () => "",
 	};
@@ -47,6 +52,7 @@ function makeIssueBuilder(
 	};
 	const runnerSelector: IRunnerSelector = {
 		determineRunnerSelection: () => ({ runnerType }),
+		getDefaultRunner: () => runnerType,
 		getDefaultModelForRunner: () => "",
 		getDefaultFallbackModelForRunner: () => "",
 	};
@@ -84,6 +90,44 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 			expectedAutoMemoryDir,
 			...repositoryPaths,
 		]);
+	});
+
+	it("passes OpenCode config overrides only when chat default runner is OpenCode", () => {
+		const globalConfig = {
+			provider: { anthropic: { options: { baseURL: "https://global.test" } } },
+		};
+		const repositoryConfig = {
+			model: "anthropic/claude-sonnet-4.5",
+		};
+
+		for (const defaultRunner of ["opencode", "claude"] as const) {
+			const builder = makeChatBuilder(defaultRunner);
+			const config = builder.buildChatConfig({
+				workspacePath: "/tmp/chat-workspace",
+				workspaceName: "slack-thread-x",
+				systemPrompt: "test",
+				sessionId: "sess-1",
+				cyrusHome: "/tmp/cyrus-home-test",
+				platformName: "slack",
+				repository: {
+					id: "repo-1",
+					path: "/tmp/repo",
+					opencode: { config: repositoryConfig },
+				} as any,
+				opencodeGlobalConfig: globalConfig,
+				logger: silentLogger,
+				onMessage: () => {},
+				onError: () => {},
+			});
+
+			if (defaultRunner === "opencode") {
+				expect(config.opencodeGlobalConfig).toBe(globalConfig);
+				expect(config.opencodeRepositoryConfig).toBe(repositoryConfig);
+			} else {
+				expect(config.opencodeGlobalConfig).toBeUndefined();
+				expect(config.opencodeRepositoryConfig).toBeUndefined();
+			}
+		}
 	});
 });
 
