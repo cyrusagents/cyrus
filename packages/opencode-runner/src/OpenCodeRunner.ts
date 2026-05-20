@@ -426,7 +426,6 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		return {
 			OPENCODE_CONFIG_CONTENT: JSON.stringify(built.config),
 			OPENCODE_CONFIG_DIR: join(stateRoot, "opencode-config"),
-			XDG_DATA_HOME: join(stateRoot, "data"),
 			XDG_STATE_HOME: join(stateRoot, "state"),
 			XDG_CACHE_HOME: join(stateRoot, "cache"),
 			XDG_CONFIG_HOME: join(stateRoot, "config"),
