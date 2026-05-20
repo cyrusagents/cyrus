@@ -53,6 +53,7 @@ function createBetaMessage(
 		},
 		container: null,
 		context_management: null,
+		diagnostics: null,
 	};
 }
 

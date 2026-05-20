@@ -54,11 +54,13 @@ export const availableTools = [
 	"EnterWorktree",
 	"ExitWorktree",
 
+	// Language Server Protocol
+	"LSP",
+
 	// Scheduling and cron tools
 	"CronCreate",
 	"CronDelete",
 	"CronList",
-	"RemoteTrigger",
 	"ScheduleWakeup",
 
 	// Monitoring and task lifecycle

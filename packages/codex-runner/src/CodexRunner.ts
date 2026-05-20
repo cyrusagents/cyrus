@@ -109,6 +109,7 @@ function createAssistantToolUseMessage(
 		},
 		container: null,
 		context_management: null,
+		diagnostics: null,
 	};
 }
 
@@ -163,6 +164,7 @@ function createAssistantBetaMessage(
 		},
 		container: null,
 		context_management: null,
+		diagnostics: null,
 	};
 }
 
