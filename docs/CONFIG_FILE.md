@@ -50,6 +50,71 @@ Expected file format:
 
 Learn more about MCP: https://code.claude.com/docs/en/mcp
 
+### `opencode.config` (object)
+
+OpenCode sessions run with Cyrus-managed runtime isolation. Cyrus sets OpenCode's config, state, and cache roots under the Cyrus home directory for each workspace so a session does not implicitly inherit arbitrary machine-wide OpenCode runtime state. This keeps generated MCP servers and permission rules deterministic, but it also means plugins, skills, hooks, and other OpenCode-native settings from your normal global OpenCode config are not automatically visible inside Cyrus sessions.
+
+Use `opencode.config` when an OpenCode session needs OpenCode-native runtime configuration such as plugins, instructions, formatters, providers, themes, or other OpenCode config keys. It can be configured globally or per repository.
+
+**Global OpenCode config example:**
+
+```json
+{
+  "opencode": {
+    "config": {
+      "plugin": ["opencode-wakatime"],
+      "instructions": ["~/.config/opencode/CYRUS.md"],
+      "share": "disabled"
+    }
+  },
+  "repositories": [
+    {
+      "id": "main-app",
+      "name": "Main Application",
+      "repositoryPath": "/path/to/repo"
+    }
+  ]
+}
+```
+
+**Repository OpenCode config example:**
+
+```json
+{
+  "repositories": [
+    {
+      "id": "main-app",
+      "name": "Main Application",
+      "repositoryPath": "/path/to/repo",
+      "opencode": {
+        "config": {
+          "plugin": ["@company/opencode-repo-plugin"],
+          "instructions": ["OPENCODE.md"],
+          "formatter": true
+        }
+      }
+    }
+  ]
+}
+```
+
+OpenCode runtime config is merged in this order:
+
+1. Global `opencode.config`
+2. Repository `opencode.config`
+3. Cyrus-generated MCP configuration
+4. Cyrus-generated permission configuration
+
+Merge behavior:
+
+- Objects deep-merge.
+- Arrays replace earlier arrays instead of concatenating.
+- Repository values override global values for the same non-object key.
+- Cyrus-generated MCP servers win over user-provided MCP servers with the same name.
+- Cyrus-generated permissions replace user-provided OpenCode permissions because they are Cyrus safety controls.
+
+For MCP servers that should work across runners, prefer `mcpConfigPath`. Cyrus reads those MCP server definitions and translates them for Claude, OpenCode, and other supported runners. Use `opencode.config` for OpenCode-native runtime config that only applies to OpenCode.
+
 ### `teamKeys` (array of strings)
 
 Routes Linear issues from specific teams to this repository. When specified, only issues from matching teams trigger Cyrus.
