@@ -129,13 +129,103 @@ Result: PASS. Session stopped and pagination returned 7 coherent activities with
 
 ### Runtime Extension Probe Commands
 
-The current F1 server hardcodes its `EdgeWorkerConfig` in `apps/f1/server.ts` and has no environment/config-file injection point for `opencode.config`. To avoid expanding Task 5 scope, the runtime-extension check used the closest available validation: direct `OpenCodeRunner` launch with a fake OpenCode executable that reads `OPENCODE_CONFIG_CONTENT` and executes the configured local extension command.
+The current F1 server hardcodes its `EdgeWorkerConfig` in `apps/f1/server.ts` and has no environment/config-file injection point for `opencode.config`. To avoid expanding Task 5 scope, the runtime-extension check used the closest available validation: direct `OpenCodeRunner` launch with a fake OpenCode executable that reads `OPENCODE_CONFIG_CONTENT` and executes the configured local extension command. This proves Cyrus passes the merged OpenCode config and environment to the launched process, and that the launched process can consume the configured `mcp` entry. It does not prove the real OpenCode CLI successfully loads or invokes that MCP server.
 
 Temporary probe files:
 
 - `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/fake-opencode.mjs`
 - `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/local-extension.mjs`
-- `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/probe.mjs`
+- `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/probe.mjs` (the exact passing rerun used the inline `node --input-type=module` command below instead of this temp file)
+
+Reproducible setup used for the probe:
+
+```bash
+mkdir -p "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp"
+```
+
+Create the two executable files below at the listed paths, then run the `chmod` and inline `node --input-type=module` commands in this section from the repository root.
+
+`fake-opencode.mjs`:
+
+```javascript
+#!/usr/bin/env node
+import { spawnSync } from "node:child_process";
+
+const config = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT || "{}");
+const server = config.mcp?.["ng71-local-extension"];
+
+if (!server || server.type !== "local" || !Array.isArray(server.command)) {
+  console.error("missing ng71-local-extension MCP config");
+  process.exit(2);
+}
+
+const [command, ...args] = server.command;
+const child = spawnSync(command, args, {
+  env: { ...process.env, ...(server.environment || {}) },
+  encoding: "utf8",
+});
+
+if (child.status !== 0) {
+  console.error(child.stderr || child.stdout || `MCP exited ${child.status}`);
+  process.exit(child.status || 3);
+}
+
+const output = (child.stdout || "").trim();
+if (output !== "NG71_MCP_EXTENSION_OK") {
+  console.error(`unexpected MCP output: ${output}`);
+  process.exit(4);
+}
+
+const sessionID = "ng71-opencode-config-probe";
+console.log(JSON.stringify({ type: "step_start", sessionID }));
+console.log(
+  JSON.stringify({
+    type: "tool_use",
+    part: {
+      callID: "tool-ng71",
+      tool: "mcp_ng71-local-extension_probe",
+      state: { status: "running", input: {} },
+    },
+  }),
+);
+console.log(
+  JSON.stringify({
+    type: "tool_use",
+    part: {
+      callID: "tool-ng71",
+      tool: "mcp_ng71-local-extension_probe",
+      state: { status: "completed", output },
+    },
+  }),
+);
+console.log(
+  JSON.stringify({
+    type: "text",
+    part: { text: `Runtime extension returned ${output}` },
+  }),
+);
+console.log(
+  JSON.stringify({
+    type: "step_finish",
+    sessionID,
+    result: "NG71_OPENCODE_CONFIG_OVERRIDE_OK",
+    cost: 0,
+    usage: { inputTokens: 1, outputTokens: 1 },
+  }),
+);
+```
+
+`local-extension.mjs`:
+
+```javascript
+#!/usr/bin/env node
+if (process.env.NG71_EXTENSION_TOKEN !== "configured-through-opencode-config") {
+  console.error("missing configured extension environment");
+  process.exit(1);
+}
+
+console.log("NG71_MCP_EXTENSION_OK");
+```
 
 ```bash
 chmod +x "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/fake-opencode.mjs" "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/local-extension.mjs"
@@ -164,10 +254,10 @@ NG71_OPENCODE_CONFIG_OVERRIDE_OK
 messages=5
 ```
 
-Result: PASS. The exact evidence command above confirms the configured local extension output `NG71_MCP_EXTENSION_OK` was present in `OpenCodeRunner` messages, proving the extension was available through `opencodeRepositoryConfig.mcp` to the Cyrus-launched OpenCode process.
+Result: PASS. The exact evidence command above confirms `OpenCodeRunner` passed the configured `opencodeRepositoryConfig.mcp` data into `OPENCODE_CONFIG_CONTENT`, passed the configured MCP environment through that fake OpenCode process, and captured the fake process's `NG71_MCP_EXTENSION_OK` output in runner messages. This is a config propagation probe, not proof that real OpenCode loaded or invoked the MCP server.
 
 ## Final Retrospective
 
 NG-71 unit, package, and type verification passed. F1 validated issue creation, repository selection, worktree creation, renderer activity quality, pagination, and OpenCode runner selection.
 
-The full F1 runtime-extension validation could not be performed without modifying F1 because `apps/f1/server.ts` does not provide a way to inject `opencode.config` into the hardcoded `EdgeWorkerConfig`. Real OpenCode execution also failed with `Session not found` after runner selection. Within Task 5 scope, the closest deterministic validation passed by launching `OpenCodeRunner` with a configured local MCP extension and verifying the launched OpenCode process could read and execute that configured extension.
+The full F1 runtime-extension validation could not be performed without modifying F1 because `apps/f1/server.ts` does not provide a way to inject `opencode.config` into the hardcoded `EdgeWorkerConfig`. Real OpenCode execution also failed with `Session not found` after runner selection. Within Task 5 scope, the closest deterministic validation passed by launching `OpenCodeRunner` with a fake OpenCode process and verifying Cyrus propagated the configured MCP entry and environment to that process.
