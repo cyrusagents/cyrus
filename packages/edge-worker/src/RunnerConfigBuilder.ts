@@ -394,13 +394,12 @@ export class RunnerConfigBuilder {
 				this.runnerSelector.getDefaultFallbackModelForRunner(runnerType),
 			logger: log,
 			hooks,
-			// Plugins providing skills (Claude and OpenCode runners)
-			...((runnerType === "claude" || runnerType === "opencode") &&
+			// Plugins providing Claude SDK skills, agents, hooks, etc.
+			// Other CLI adapters use their own native environment/configuration.
+			...(runnerType === "claude" &&
 				input.plugins?.length && { plugins: input.plugins }),
-			// Skill scope allow-list (Claude runner only). Passed through to the
-			// SDK's `query()` `skills` option, and to OpenCode's generated
-			// config directory, so unlisted skills are hidden from the model.
-			...((runnerType === "claude" || runnerType === "opencode") &&
+			// Skill scope allow-list for Claude SDK sessions.
+			...(runnerType === "claude" &&
 				input.skills !== undefined && { skills: input.skills }),
 			// SDK sandbox settings (Claude runner only):
 			// - Merge base settings with per-session filesystem.allowWrite (worktree path)

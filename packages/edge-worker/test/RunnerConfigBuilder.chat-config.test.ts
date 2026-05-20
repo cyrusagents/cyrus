@@ -88,7 +88,7 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 });
 
 describe("RunnerConfigBuilder.buildIssueConfig", () => {
-	it("passes scoped skills plugins to OpenCode issue sessions", () => {
+	it("does not pass Claude SDK skills plugins to OpenCode issue sessions", () => {
 		const builder = makeIssueBuilder("opencode");
 		const plugins = [{ type: "local", path: "/tmp/cyrus-skills-plugin" }];
 
@@ -118,6 +118,40 @@ describe("RunnerConfigBuilder.buildIssueConfig", () => {
 		});
 
 		expect(runnerType).toBe("opencode");
+		expect((config as any).plugins).toBeUndefined();
+		expect((config as any).skills).toBeUndefined();
+	});
+
+	it("passes scoped skills plugins to Claude issue sessions", () => {
+		const builder = makeIssueBuilder("claude");
+		const plugins = [{ type: "local", path: "/tmp/cyrus-skills-plugin" }];
+
+		const { config, runnerType } = builder.buildIssueConfig({
+			session: {
+				issueId: "issue-1",
+				workspace: { path: "/tmp/worktree" },
+				issue: { identifier: "NG-68" },
+			} as any,
+			repository: {
+				id: "repo-1",
+				path: "/tmp/repo",
+			} as any,
+			sessionId: "session-1",
+			systemPrompt: "system",
+			allowedTools: ["Skill", "Read(**)"],
+			allowedDirectories: ["/tmp/worktree"],
+			disallowedTools: [],
+			labels: ["claude"],
+			cyrusHome: "/tmp/cyrus",
+			logger: silentLogger,
+			onMessage: () => {},
+			onError: () => {},
+			requireLinearWorkspaceId: () => "workspace-1",
+			plugins: plugins as any,
+			skills: ["debug"],
+		});
+
+		expect(runnerType).toBe("claude");
 		expect((config as any).plugins).toBe(plugins);
 		expect((config as any).skills).toEqual(["debug"]);
 	});
