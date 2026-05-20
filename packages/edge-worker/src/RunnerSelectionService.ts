@@ -167,9 +167,18 @@ export class RunnerSelectionService {
 		const isCodexModel = (model: string): boolean =>
 			/gpt-[a-z0-9.-]*codex$/i.test(model) || /^gpt-[a-z0-9.-]+$/i.test(model);
 
+		const isOpenCodeProviderModel = (model: string): boolean =>
+			/^[a-z0-9_.-]+\/[a-z0-9_.:/-]+$/i.test(model);
+
 		const inferRunnerFromModel = (model?: string): RunnerType | undefined => {
 			if (!model) return undefined;
 			const normalizedModel = model.toLowerCase();
+			if (
+				this.config.inferOpenCodeRunnerFromProviderModel &&
+				isOpenCodeProviderModel(normalizedModel)
+			) {
+				return "opencode";
+			}
 			if (normalizedModel.startsWith("gemini")) return "gemini";
 			if (
 				normalizedModel === "fable" ||

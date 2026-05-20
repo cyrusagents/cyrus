@@ -371,6 +371,9 @@ export const EdgeConfigSchema = z.object({
 	/** Default OpenCode fallback model if primary OpenCode model is unavailable */
 	opencodeDefaultFallbackModel: z.string().optional(),
 
+	/** Infer OpenCode runner when a model selector uses OpenCode provider/model syntax (e.g., "anthropic/claude-sonnet-4.5") */
+	inferOpenCodeRunnerFromProviderModel: z.boolean().optional(),
+
 	/**
 	 * Default runner/harness to use when no runner is specified via labels or description tags.
 	 * If omitted, auto-detected from available API keys (if exactly one is configured),
