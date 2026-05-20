@@ -152,6 +152,35 @@ describe("OpenCodeRunner", () => {
 		expect(result.usage.cache_read_input_tokens).toBe(3);
 	});
 
+	it("preserves provider-qualified models for OpenCode CLI", async () => {
+		const dir = makeTempDir();
+		const captureFile = join(dir, "capture.json");
+		const opencodePath = writeFakeOpenCode(
+			dir,
+			`process.stdout.write(${JSON.stringify(fixtureLines())});`,
+			captureFile,
+		);
+		const runner = new OpenCodeRunner({
+			openCodePath: opencodePath,
+			workingDirectory: dir,
+			cyrusHome: dir,
+			model: "openai/gpt-5.5",
+		});
+
+		await runner.start("Run with OpenAI model");
+
+		const capture = JSON.parse(readFileSync(captureFile, "utf8"));
+		expect(capture.argv).toContain("--model");
+		expect(capture.argv).toContain("openai/gpt-5.5");
+
+		const init = runner.getMessages()[0];
+		expect(init).toMatchObject({
+			type: "system",
+			subtype: "init",
+			model: "openai/gpt-5.5",
+		});
+	});
+
 	it("coerces realistic OpenCode JSON events into Cyrus messages and final result", async () => {
 		const dir = makeTempDir();
 		const opencodePath = writeFakeOpenCode(
@@ -288,7 +317,7 @@ process.stdout.write(${JSON.stringify(fixtureLines())});
 
 		const capture = JSON.parse(readFileSync(captureFile, "utf8"));
 		const stateRoot = `${dir}/opencode-state/${dir.split("/").at(-1)}`;
-		expect(capture.xdgDataHome).toBe(`${stateRoot}/data`);
+		expect(capture.xdgDataHome).toBeUndefined();
 		expect(capture.xdgStateHome).toBe(`${stateRoot}/state`);
 		expect(capture.xdgCacheHome).toBe(`${stateRoot}/cache`);
 		expect(capture.xdgConfigHome).toBe(`${stateRoot}/config`);

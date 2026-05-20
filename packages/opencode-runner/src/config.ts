@@ -385,13 +385,11 @@ export function buildOpenCodeRuntimeEnv(
 	const stateRoot = buildOpenCodeStateRoot(config);
 	// OpenCode loads OPENCODE_CONFIG_CONTENT after project config, making this
 	// the safest supported place for Cyrus-enforced MCP and permission rules.
-	// It writes logs/SQLite state under XDG data/state roots, so set all XDG
-	// roots to a Cyrus-owned per-workspace directory instead of the default
-	// ~/.local/share/opencode and friends.
+	// Keep XDG_DATA_HOME unset so OpenCode can use its CLI-managed auth and
+	// provider catalog from the user's data home.
 	return {
 		OPENCODE_CONFIG_CONTENT: JSON.stringify(built.config),
 		OPENCODE_CONFIG_DIR: join(stateRoot, "opencode-config"),
-		XDG_DATA_HOME: join(stateRoot, "data"),
 		XDG_STATE_HOME: join(stateRoot, "state"),
 		XDG_CACHE_HOME: join(stateRoot, "cache"),
 		XDG_CONFIG_HOME: join(stateRoot, "config"),
@@ -413,7 +411,6 @@ export function ensureOpenCodeStateDirectories(
 ): void {
 	for (const key of [
 		"OPENCODE_CONFIG_DIR",
-		"XDG_DATA_HOME",
 		"XDG_STATE_HOME",
 		"XDG_CACHE_HOME",
 		"XDG_CONFIG_HOME",
