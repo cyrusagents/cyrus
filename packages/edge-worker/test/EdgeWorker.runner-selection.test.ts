@@ -597,6 +597,19 @@ Issue: {{issue_identifier}}`;
 			expect(capturedRunnerType).toBe("opencode");
 			expect(OpenCodeRunner).toHaveBeenCalled();
 			expect(ClaudeRunner).not.toHaveBeenCalled();
+			expect(capturedRunnerConfig.workingDirectory).toBe(
+				"/test/workspaces/TEST-123",
+			);
+			expect(capturedRunnerConfig.cyrusHome).toBe(TEST_CYRUS_HOME);
+			expect(capturedRunnerConfig.allowedTools).toEqual(
+				expect.arrayContaining([
+					"Read",
+					"Edit",
+					"mcp__linear",
+					"mcp__cyrus-tools",
+					"mcp__cyrus-docs",
+				]),
+			);
 			expect(capturedRunnerConfig.model).toBeUndefined();
 		});
 
@@ -739,6 +752,51 @@ Issue: {{issue_identifier}}`;
 
 			expect(capturedRunnerType).toBe("opencode");
 			expect(OpenCodeRunner).toHaveBeenCalled();
+			expect(capturedRunnerConfig.workingDirectory).toBe(
+				"/test/workspaces/TEST-123",
+			);
+			expect(capturedRunnerConfig.allowedTools).toEqual(
+				expect.arrayContaining([
+					"Read",
+					"Edit",
+					"mcp__linear",
+					"mcp__cyrus-tools",
+					"mcp__cyrus-docs",
+				]),
+			);
+			expect(capturedRunnerConfig.model).toBeUndefined();
+		});
+
+		it("should let [agent=opencode] description selector override Claude labels", async () => {
+			const mockIssue = createMockIssueWithLabels(
+				["claude", "sonnet"],
+				"Work item\\n\\n[agent=opencode]",
+			);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("opencode");
+			expect(OpenCodeRunner).toHaveBeenCalled();
+			expect(ClaudeRunner).not.toHaveBeenCalled();
+			expect(capturedRunnerConfig.model).toBeUndefined();
 		});
 
 		it("should select model from [model=...] description tag and infer runner", async () => {
