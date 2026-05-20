@@ -399,9 +399,15 @@ export class RuntimeAgentSession extends EventEmitter {
 				harness: this.harness,
 				success: exitCode === 0 && !runStopped,
 				exitCode,
-				result: this.adapter.extractResult?.(turnEvents),
+				// extractResult/extractSessionId run over the FULL transcript
+				// (not just turnEvents) — the harness session id is usually
+				// emitted in a `system.init` event on turn 1 and stays
+				// referenced by every subsequent turn, so per-turn-slice
+				// would miss it on continuation turns.
+				result: this.adapter.extractResult?.(this.observedEvents),
+				harnessSessionId: this.adapter.extractSessionId?.(this.observedEvents),
 				events: turnEvents,
-				destroy: () => this.destroy(),
+				destroy: () => this.destroySandboxOnce(),
 			};
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error(String(error));
@@ -418,8 +424,9 @@ export class RuntimeAgentSession extends EventEmitter {
 				harness: this.harness,
 				success: false,
 				error: err,
+				harnessSessionId: this.adapter.extractSessionId?.(this.observedEvents),
 				events: turnEvents,
-				destroy: () => this.destroy(),
+				destroy: () => this.destroySandboxOnce(),
 			};
 		} finally {
 			this.currentRunStreaming = false;

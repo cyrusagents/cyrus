@@ -80,6 +80,15 @@ export const claudeHarness: HarnessAdapter = {
 			args.push("--strict-mcp-config");
 		}
 
+		// Caller-supplied harness session resume (from the volumes branch).
+		// `resumeHarnessSessionId` is the session id returned in a prior
+		// AgentSessionResult.harnessSessionId — Claude maps this to its
+		// `--resume <id>` flag, which loads the transcript at the
+		// matching id from the harness's state-backing.
+		if (config.resumeHarnessSessionId) {
+			args.push("--resume", config.resumeHarnessSessionId);
+		}
+
 		return createCommand(config, "claude", args);
 	},
 	parseStdoutLine(line, context) {
@@ -95,8 +104,32 @@ export const claudeHarness: HarnessAdapter = {
 			? result.raw.result
 			: undefined;
 	},
+	extractSessionId(events) {
+		// Claude Code's stream-json emits a `system` event with
+		// `subtype: "init"` and a `session_id` at the start of every run.
+		// That value is the only stable harness-native session id, and
+		// `claude --resume <id>` accepts it verbatim. Scan in arrival
+		// order — the first init carries the session id; later events
+		// (assistant, result) repeat it but the init is canonical.
+		for (const event of events) {
+			if (!isRecord(event.raw)) continue;
+			const sessionId =
+				stringField(event.raw, "session_id") ??
+				stringField(event.raw, "sessionId");
+			if (sessionId) return sessionId;
+		}
+		return undefined;
+	},
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringField(
+	record: Record<string, unknown>,
+	key: string,
+): string | undefined {
+	const value = record[key];
+	return typeof value === "string" ? value : undefined;
 }

@@ -247,6 +247,13 @@ export interface RuntimeVolumeConfig {
 	source?: string;
 	kind?: "bind" | "fuse" | "provider";
 	readOnly?: boolean;
+	/**
+	 * Provider-defined prefix within the volume to expose at `mountPath`.
+	 * The sandbox sees only data under this subpath; sibling subpaths are
+	 * invisible. Used for per-binding / per-tenant isolation when many
+	 * sandboxes share one provider volume (the Daytona Volumes pattern).
+	 */
+	subpath?: string;
 }
 
 export interface RuntimeNetworkEgressConfig {
@@ -349,6 +356,16 @@ export interface CreateAgentSessionConfig {
 	 * that consume `--input-format stream-json` or similar.
 	 */
 	interactiveInput?: boolean;
+	/**
+	 * Harness-native session id to resume. Caller-supplied — typically the
+	 * `harnessSessionId` captured from a prior {@link AgentSessionResult}.
+	 * The harness adapter translates it into the appropriate CLI flag
+	 * (e.g. `--resume <id>` for Claude). Pair with a persistent
+	 * {@link RuntimeVolumeConfig} (or another mechanism that exposes the
+	 * harness's transcript across sandbox lifetimes) so the resumed run
+	 * can actually read its prior conversation.
+	 */
+	resumeHarnessSessionId?: string;
 }
 
 /**
@@ -445,6 +462,13 @@ export interface HarnessAdapter {
 		context: TranscriptParseContext,
 	): TranscriptEvent | undefined;
 	extractResult?(events: TranscriptEvent[]): string | undefined;
+	/**
+	 * Pull the harness-native session id out of the observed transcript
+	 * (e.g. Claude's `system.init.session_id`). Returned on
+	 * {@link AgentSessionResult.harnessSessionId} so callers can persist it
+	 * for the next reply in the same binding.
+	 */
+	extractSessionId?(events: TranscriptEvent[]): string | undefined;
 }
 
 export interface TranscriptParseContext {
@@ -574,6 +598,15 @@ export interface AgentSessionResult<H extends HarnessKind = HarnessKind> {
 	result?: string;
 	error?: Error;
 	events: TranscriptEvent<HarnessRawByKind[H]>[];
+	/**
+	 * Harness-native session id observed in the transcript (e.g. Claude's
+	 * `system.init.session_id`). Undefined when the harness does not
+	 * surface one or the run failed before emitting it. Callers persist
+	 * this per-binding and pass it back as
+	 * {@link CreateAgentSessionConfig.resumeHarnessSessionId} on the next
+	 * reply so the harness can resume context from the prior turn.
+	 */
+	harnessSessionId?: string;
 	/**
 	 * Release the underlying sandbox. Equates to ComputeSDK's
 	 * `ProviderSandbox.destroy()` for ComputeSDK-backed providers (deletes

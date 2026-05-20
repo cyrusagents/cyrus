@@ -78,6 +78,51 @@ describe("harness adapters", () => {
 		expect(command.args[idx + 1]).toBe("bypassPermissions");
 	});
 
+	it("appends --resume when resumeHarnessSessionId is set", () => {
+		const command = buildHarnessInvocation(
+			{
+				...baseConfig,
+				resumeHarnessSessionId: "abc-uuid",
+			},
+			{ userPrompt: "next turn" },
+		);
+		expect(command.args).toContain("--resume");
+		const resumeAt = command.args.indexOf("--resume");
+		expect(command.args[resumeAt + 1]).toBe("abc-uuid");
+	});
+
+	it("extracts the harness-native session id from Claude's init event", () => {
+		const adapter = getHarnessAdapter("claude");
+		const sessionId = adapter.extractSessionId?.([
+			{
+				sessionId: "cy-1",
+				harness: "claude",
+				timestamp: new Date().toISOString(),
+				kind: "system",
+				raw: {
+					type: "system",
+					subtype: "init",
+					session_id: "claude-uuid-42",
+				},
+			},
+		]);
+		expect(sessionId).toBe("claude-uuid-42");
+	});
+
+	it("returns undefined when no event carries a session id", () => {
+		const adapter = getHarnessAdapter("claude");
+		const sessionId = adapter.extractSessionId?.([
+			{
+				sessionId: "cy-1",
+				harness: "claude",
+				timestamp: new Date().toISOString(),
+				kind: "text",
+				raw: "no session id here",
+			},
+		]);
+		expect(sessionId).toBeUndefined();
+	});
+
 	it("builds a Codex JSON command", () => {
 		const command = buildHarnessInvocation(
 			{

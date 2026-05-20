@@ -48,6 +48,7 @@ export const RuntimeSandboxConfigSchema = z.object({
 				source: z.string().optional(),
 				kind: z.enum(["bind", "fuse", "provider"]).optional(),
 				readOnly: z.boolean().optional(),
+				subpath: z.string().optional(),
 			}),
 		)
 		.optional(),
@@ -205,4 +206,5 @@ export const CreateAgentSessionConfigSchema = z.object({
 	networkEgress: RuntimeNetworkEgressConfigSchema.optional(),
 	metadata: z.record(z.string(), z.unknown()).optional(),
 	interactiveInput: z.boolean().optional(),
+	resumeHarnessSessionId: z.string().min(1).optional(),
 });

@@ -24,6 +24,15 @@ This package is intentionally built as a new standalone runtime layer with minim
 - The common ComputeSDK `runCommand()` API is treated as sufficient for one-shot harness runs.
 - Streaming process execution is modeled as a capability, but is not assumed for every ComputeSDK provider. Full interactive harness support requires a provider-specific streaming process implementation.
 - Volumes, FUSE mounts, snapshots, ports, and network egress are represented in config types even when a provider cannot enforce them yet.
+- `RuntimeVolumeConfig.subpath` carries the provider-defined prefix used to scope a shared volume. The Daytona Volumes pattern is the reference use case; other providers map `subpath` as appropriate.
+
+## Session Resume Contract
+
+- The runtime exposes two resume primitives. The caller (Cyrus's `AgentSessionManager`) owns the mapping between its session records and harness-native session ids.
+  - `CreateAgentSessionConfig.resumeHarnessSessionId`: caller-supplied prior id. Harness adapters translate it into the right CLI flag (e.g. `--resume <id>` for Claude).
+  - `AgentSessionResult.harnessSessionId`: the new harness-native id observed in this run's transcript, surfaced for the caller to persist for next time.
+- Harness adapters extract the harness-native session id from transcript events via `extractSessionId(events)`. Claude's `system.init.session_id` is the canonical example.
+- The runtime does not persist transcripts itself. For the harness to actually see prior conversation on resume, the caller must arrange durable storage for the harness's config dir — for example by attaching a `RuntimeVolumeConfig` (Daytona Volumes are the reference) mounted at the harness's config path and setting the matching env var (`CLAUDE_CONFIG_DIR` for Claude).
 - Daytona's ComputeSDK provider was smoke-tested with a remote working directory of `/home/daytona`; `/workspace` should not be assumed portable across providers.
 - Cursor Agent was smoke-tested inside Daytona by installing the CLI with `curl https://cursor.com/install -fsS | bash` and running `/home/daytona/.local/bin/cursor-agent` with `CURSOR_API_KEY` provided as a secret environment variable.
 - Codex Agent was smoke-tested inside Daytona far enough to authenticate and start a turn by materializing `~/.codex/auth.json` as a sensitive runtime file. Passing only `OPENAI_API_KEY` from the local Codex auth file produced a remote 401. The authenticated Codex turn later hit the account usage limit.

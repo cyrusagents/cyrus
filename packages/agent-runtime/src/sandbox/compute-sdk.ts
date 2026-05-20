@@ -116,10 +116,26 @@ export class ComputeSdkSandboxProvider implements SandboxProvider {
 			namespace: config.namespace,
 			name: config.name,
 			directory: config.workingDirectory,
-			volumes: config.volumes,
+			volumes: translateVolumes(config.volumes),
 			networkEgress: config.networkEgress,
 		});
 	}
+}
+
+/**
+ * Bridge our generic {@link RuntimeVolumeConfig} shape to the field names
+ * provider-native SDKs expect. ComputeSDK's daytona wrapper destructures
+ * known fields and spreads the rest straight into `@daytonaio/sdk`'s
+ * `create({ volumes })`, which expects `volumeId` rather than `name` —
+ * without translation, Daytona sees `volumeId: undefined` and throws
+ * "Volume 'undefined' not found". We emit BOTH so other providers that
+ * read `name` (e.g. fly machines, bind-mount providers) still see it.
+ */
+function translateVolumes(
+	volumes: RuntimeSandboxConfig["volumes"],
+): unknown[] | undefined {
+	if (!volumes || volumes.length === 0) return undefined;
+	return volumes.map((v) => ({ ...v, volumeId: v.name }));
 }
 
 export class ComputeSdkRunnerSandbox implements RunnerSandbox {

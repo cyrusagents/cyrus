@@ -785,7 +785,7 @@ export class EdgeWorker extends EventEmitter {
 		// for webhook URL verification to succeed.
 		this.registerGitHubEventTransport();
 		this.registerGitLabEventTransport();
-		this.registerSlackEventTransport();
+		await this.registerSlackEventTransport();
 
 		// 3. Create and register ConfigUpdater (both platforms)
 		this.configUpdater = new ConfigUpdater(
@@ -991,7 +991,7 @@ export class EdgeWorker extends EventEmitter {
 	 * Register the Slack event transport for receiving forwarded Slack webhooks from CYHOST.
 	 * This creates a /slack-webhook endpoint that handles @mention events from Slack.
 	 */
-	private registerSlackEventTransport(): void {
+	private async registerSlackEventTransport(): Promise<void> {
 		// Live provider reads from the repository map on demand — no snapshot needed
 		const chatRepositoryProvider = new LiveChatRepositoryProvider(
 			this.repositories,
