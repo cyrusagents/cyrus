@@ -597,7 +597,7 @@ Issue: {{issue_identifier}}`;
 			expect(capturedRunnerType).toBe("opencode");
 			expect(OpenCodeRunner).toHaveBeenCalled();
 			expect(ClaudeRunner).not.toHaveBeenCalled();
-			expect(capturedRunnerConfig.model).toBe("opencode");
+			expect(capturedRunnerConfig.model).toBeUndefined();
 		});
 
 		it("should pass OpenCode default model config to the runner", async () => {

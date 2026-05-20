@@ -19,7 +19,7 @@ export class RunnerSelectionService {
 	 *
 	 * Priority:
 	 * 1. Explicit `defaultRunner` in config
-	 * 2. Auto-detect from available API keys (if exactly one runner has keys)
+	 * 2. Auto-detect from available provider credentials (if exactly one runner has keys)
 	 * 3. Fall back to "claude"
 	 */
 	public getDefaultRunner(): RunnerType {
@@ -41,9 +41,6 @@ export class RunnerSelectionService {
 		if (process.env.CURSOR_API_KEY) {
 			available.push("cursor");
 		}
-		if (process.env.OPENCODE_API_KEY) {
-			available.push("opencode");
-		}
 
 		if (available.length === 1 && available[0]) {
 			return available[0];
@@ -55,7 +52,7 @@ export class RunnerSelectionService {
 	/**
 	 * Resolve default model for a given runner from config with sensible built-in defaults.
 	 */
-	public getDefaultModelForRunner(runnerType: RunnerType): string {
+	public getDefaultModelForRunner(runnerType: RunnerType): string | undefined {
 		if (runnerType === "claude") {
 			return (
 				this.config.claudeDefaultModel || this.config.defaultModel || "opus"
@@ -68,7 +65,7 @@ export class RunnerSelectionService {
 			return this.config.cursorDefaultModel || "composer-2";
 		}
 		if (runnerType === "opencode") {
-			return this.config.opencodeDefaultModel || "opencode";
+			return this.config.opencodeDefaultModel;
 		}
 		return this.config.codexDefaultModel || "gpt-5.5";
 	}
@@ -77,7 +74,9 @@ export class RunnerSelectionService {
 	 * Resolve default fallback model for a given runner from config with sensible built-in defaults.
 	 * Supports legacy Claude fallback key for backwards compatibility.
 	 */
-	public getDefaultFallbackModelForRunner(runnerType: RunnerType): string {
+	public getDefaultFallbackModelForRunner(
+		runnerType: RunnerType,
+	): string | undefined {
 		if (runnerType === "claude") {
 			return (
 				this.config.claudeDefaultFallbackModel ||
@@ -95,7 +94,7 @@ export class RunnerSelectionService {
 			return this.config.cursorDefaultFallbackModel || "composer-2";
 		}
 		if (runnerType === "opencode") {
-			return this.config.opencodeDefaultFallbackModel || "opencode";
+			return this.config.opencodeDefaultFallbackModel;
 		}
 		return "gpt-5";
 	}
@@ -150,14 +149,14 @@ export class RunnerSelectionService {
 			"model",
 		);
 
-		const defaultModelByRunner: Record<RunnerType, string> = {
+		const defaultModelByRunner: Record<RunnerType, string | undefined> = {
 			claude: this.getDefaultModelForRunner("claude"),
 			gemini: this.getDefaultModelForRunner("gemini"),
 			codex: this.getDefaultModelForRunner("codex"),
 			cursor: this.getDefaultModelForRunner("cursor"),
 			opencode: this.getDefaultModelForRunner("opencode"),
 		};
-		const defaultFallbackByRunner: Record<RunnerType, string> = {
+		const defaultFallbackByRunner: Record<RunnerType, string | undefined> = {
 			claude: this.getDefaultFallbackModelForRunner("claude"),
 			gemini: this.getDefaultFallbackModelForRunner("gemini"),
 			codex: this.getDefaultFallbackModelForRunner("codex"),
@@ -329,10 +328,9 @@ export class RunnerSelectionService {
 			defaultModelByRunner[runnerType] ||
 			this.getDefaultModelForRunner(runnerType);
 
-		let fallbackModelOverride = inferFallbackModel(
-			resolvedModelOverride,
-			runnerType,
-		);
+		let fallbackModelOverride = modelOverride
+			? inferFallbackModel(modelOverride, runnerType)
+			: undefined;
 		if (!fallbackModelOverride) {
 			fallbackModelOverride = defaultFallbackByRunner[runnerType];
 		}
