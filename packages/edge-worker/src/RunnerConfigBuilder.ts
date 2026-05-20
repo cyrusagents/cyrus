@@ -60,8 +60,8 @@ export interface IRunnerSelector {
 		modelOverride?: string;
 		fallbackModelOverride?: string;
 	};
-	getDefaultModelForRunner(runnerType: RunnerType): string;
-	getDefaultFallbackModelForRunner(runnerType: RunnerType): string;
+	getDefaultModelForRunner(runnerType: RunnerType): string | undefined;
+	getDefaultFallbackModelForRunner(runnerType: RunnerType): string | undefined;
 }
 
 /**
