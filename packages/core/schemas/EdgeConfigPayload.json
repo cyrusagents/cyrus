@@ -539,6 +539,9 @@
 		"opencodeDefaultFallbackModel": {
 			"type": "string"
 		},
+		"inferOpenCodeRunnerFromProviderModel": {
+			"type": "boolean"
+		},
 		"defaultRunner": {
 			"type": "string",
 			"enum": ["claude", "gemini", "codex", "cursor", "opencode"]

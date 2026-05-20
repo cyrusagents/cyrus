@@ -45,6 +45,7 @@ describe("JSON Schema export", () => {
 				"codexDefaultModel",
 				"opencodeDefaultModel",
 				"opencodeDefaultFallbackModel",
+				"inferOpenCodeRunnerFromProviderModel",
 				"defaultRunner",
 				"defaultModel",
 				"defaultFallbackModel",

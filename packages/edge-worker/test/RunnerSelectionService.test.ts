@@ -51,4 +51,42 @@ describe("RunnerSelectionService", () => {
 			service.getDefaultFallbackModelForRunner("opencode"),
 		).toBeUndefined();
 	});
+
+	it("does not infer OpenCode from provider/model syntax unless configured", () => {
+		const service = new RunnerSelectionService({} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection(
+			[],
+			"[model=anthropic/claude-sonnet-4.5]",
+		);
+
+		expect(selection.runnerType).toBe("claude");
+		expect(selection.modelOverride).toBe("anthropic/claude-sonnet-4.5");
+	});
+
+	it("infers OpenCode from provider/model syntax when configured", () => {
+		const service = new RunnerSelectionService({
+			inferOpenCodeRunnerFromProviderModel: true,
+		} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection(
+			[],
+			"[model=anthropic/claude-sonnet-4.5]",
+		);
+
+		expect(selection.runnerType).toBe("opencode");
+		expect(selection.modelOverride).toBe("anthropic/claude-sonnet-4.5");
+	});
+
+	it("keeps explicit OpenCode model selection independent of provider/model inference", () => {
+		const service = new RunnerSelectionService({} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection(
+			[],
+			"[agent=opencode]\n[model=openai/gpt-5]",
+		);
+
+		expect(selection.runnerType).toBe("opencode");
+		expect(selection.modelOverride).toBe("openai/gpt-5");
+	});
 });
