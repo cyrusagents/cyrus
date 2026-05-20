@@ -1116,6 +1116,7 @@ export class EdgeWorker extends EventEmitter {
 					);
 					return { plugins, skills };
 				},
+				getOpenCodeGlobalConfig: () => this.config.opencode?.config,
 				onWebhookStart: () => {
 					this.activeWebhookCount++;
 				},

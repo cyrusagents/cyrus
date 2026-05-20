@@ -237,6 +237,7 @@ export class WorkerService {
 				edgeConfig.opencodeDefaultFallbackModel,
 			inferOpenCodeRunnerFromProviderModel:
 				edgeConfig.inferOpenCodeRunnerFromProviderModel,
+			opencode: edgeConfig.opencode,
 			defaultRunner:
 				(process.env.CYRUS_DEFAULT_RUNNER as
 					| "claude"

@@ -7,6 +7,7 @@ import type {
 	CyrusAgentSession,
 	IAgentRunner,
 	ILogger,
+	OpenCodeConfigOverrides,
 	RepositoryConfig,
 } from "cyrus-core";
 import { createLogger } from "cyrus-core";
@@ -97,6 +98,8 @@ export interface ChatSessionHandlerDeps {
 		repository?: RepositoryConfig;
 		repositoryPaths: string[];
 	}) => Promise<{ plugins?: SdkPluginConfig[]; skills?: string[] | "all" }>;
+	/** Read live global OpenCode config overrides at session-build time */
+	getOpenCodeGlobalConfig?: () => OpenCodeConfigOverrides["config"] | undefined;
 	onWebhookStart: () => void;
 	onWebhookEnd: () => void;
 	onStateChange: () => Promise<void>;
@@ -662,6 +665,7 @@ export class ChatSessionHandler<TEvent> {
 			platformMcpConfigOverrides: this.deps.getPlatformMcpConfigOverrides?.(),
 			plugins: skillsConfig.plugins,
 			skills: skillsConfig.skills,
+			opencodeGlobalConfig: this.deps.getOpenCodeGlobalConfig?.(),
 			logger: sessionLogger,
 			onMessage: (message: SDKMessage) =>
 				this.handleAgentMessage(sessionId, message),

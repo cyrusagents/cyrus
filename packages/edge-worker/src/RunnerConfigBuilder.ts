@@ -53,6 +53,7 @@ export interface IChatToolResolver {
  * Subset of RunnerSelectionService consumed by RunnerConfigBuilder.
  */
 export interface IRunnerSelector {
+	getDefaultRunner(): RunnerType;
 	determineRunnerSelection(
 		labels: string[],
 		issueDescription?: string,
@@ -103,6 +104,8 @@ export interface ChatRunnerConfigInput {
 	 * these skills into its repository discovery layout.
 	 */
 	skills?: string[] | "all";
+	/** Global OpenCode runtime config overrides from Cyrus config */
+	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
 	logger: ILogger;
 	onMessage: (message: SDKMessage) => void | Promise<void>;
 	onError: (error: Error) => void;
@@ -259,6 +262,7 @@ export class RunnerConfigBuilder {
 		);
 
 		input.logger.debug("Chat session allowed tools:", allowedTools);
+		const runnerType = this.runnerSelector.getDefaultRunner();
 
 		// Shared auto-memory across all chat threads on this platform. Lives
 		// under cyrusHome (not the per-thread workspace) so memory built up in
@@ -290,6 +294,10 @@ export class RunnerConfigBuilder {
 				: {}),
 			...(input.plugins?.length ? { plugins: input.plugins } : {}),
 			...(input.skills !== undefined ? { skills: input.skills } : {}),
+			...(runnerType === "opencode" && {
+				opencodeGlobalConfig: input.opencodeGlobalConfig,
+				opencodeRepositoryConfig: input.repository?.opencode?.config,
+			}),
 			logger: input.logger,
 			maxTurns: 200,
 			onMessage: input.onMessage,
