@@ -37,6 +37,48 @@ export interface GitServiceOptions {
 	cyrusHome?: string;
 }
 
+export interface DeleteWorktreeOptions {
+	/**
+	 * Repositories involved with this issue's workspace. When provided, each
+	 * repo's `cyrus-teardown.sh` (if present) is invoked before worktree removal,
+	 * with `cwd` set to that repo's worktree subdirectory.
+	 *
+	 * In the single-repo layout, the worktree subdirectory is the workspace root.
+	 * In multi-repo layouts, it is `<workspace>/<repository.name>/`.
+	 */
+	repositories?: RepositoryConfig[];
+}
+
+/** Timeout for repo setup scripts (cyrus-setup.*). */
+const SETUP_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Timeout for repo teardown scripts (cyrus-teardown.*). */
+const TEARDOWN_TIMEOUT_MS = 2 * 60 * 1000;
+
+type HookKind = "setup" | "teardown";
+
+interface HookScriptOptions {
+	scriptPath: string;
+	hook: HookKind;
+	/** Origin of the script for user-facing log messages. */
+	originLabel: string;
+	/** Working directory for the spawned process. */
+	cwd: string;
+	/** Environment variables to merge with `process.env`. */
+	env: Record<string, string>;
+	/** Timeout in milliseconds for the spawned process. */
+	timeoutMs: number;
+}
+
+interface NodeExecError {
+	signal?: string;
+	message?: string;
+}
+
+function isNodeExecError(value: unknown): value is NodeExecError {
+	return typeof value === "object" && value !== null;
+}
+
 /**
  * Service responsible for Git worktree operations
  */
@@ -131,101 +173,6 @@ export class GitService {
 		}
 
 		return [...resolvedDirectories];
-	}
-
-	/**
-	 * Run a setup script with proper error handling and logging
-	 */
-	private async runSetupScript(
-		scriptPath: string,
-		scriptType: "global" | "repository",
-		workspacePath: string,
-		issue: Issue,
-	): Promise<void> {
-		// Expand ~ to home directory
-		const expandedPath = scriptPath.replace(/^~/, homedir());
-
-		// Check if script exists
-		if (!existsSync(expandedPath)) {
-			this.logger.warn(
-				`⚠️  ${scriptType === "global" ? "Global" : "Repository"} setup script not found: ${scriptPath}`,
-			);
-			return;
-		}
-
-		// Check if script is executable (Unix only)
-		if (process.platform !== "win32") {
-			try {
-				const stats = statSync(expandedPath);
-				// Check if file has execute permission for the owner
-				if (!(stats.mode & 0o100)) {
-					this.logger.warn(
-						`⚠️  ${scriptType === "global" ? "Global" : "Repository"} setup script is not executable: ${scriptPath}`,
-					);
-					this.logger.warn(`   Run: chmod +x "${expandedPath}"`);
-					return;
-				}
-			} catch (error) {
-				this.logger.warn(
-					`⚠️  Cannot check permissions for ${scriptType} setup script: ${(error as Error).message}`,
-				);
-				return;
-			}
-		}
-
-		const scriptName = basename(expandedPath);
-		this.logger.info(`ℹ️  Running ${scriptType} setup script: ${scriptName}`);
-
-		try {
-			// Determine the command based on the script extension and platform
-			let command: string;
-			const isWindows = process.platform === "win32";
-
-			if (scriptPath.endsWith(".ps1")) {
-				command = `powershell -ExecutionPolicy Bypass -File "${expandedPath}"`;
-			} else if (scriptPath.endsWith(".cmd") || scriptPath.endsWith(".bat")) {
-				command = `"${expandedPath}"`;
-			} else if (isWindows) {
-				// On Windows, try to run with bash if available (Git Bash/WSL)
-				command = `bash "${expandedPath}"`;
-			} else {
-				// On Unix, run directly with bash
-				command = `bash "${expandedPath}"`;
-			}
-
-			execSync(command, {
-				cwd: workspacePath,
-				stdio: "inherit",
-				env: {
-					...process.env,
-					LINEAR_ISSUE_ID: issue.id,
-					LINEAR_ISSUE_IDENTIFIER: issue.identifier,
-					LINEAR_ISSUE_TITLE: issue.title || "",
-				},
-				timeout: 5 * 60 * 1000, // 5 minute timeout
-			});
-
-			this.logger.info(
-				`✅ ${scriptType === "global" ? "Global" : "Repository"} setup script completed successfully`,
-			);
-		} catch (error) {
-			const errorMessage =
-				(error as any).signal === "SIGTERM"
-					? "Script execution timed out (exceeded 5 minutes)"
-					: (error as Error).message;
-
-			this.logger.error(
-				`❌ ${scriptType === "global" ? "Global" : "Repository"} setup script failed: ${errorMessage}`,
-			);
-
-			// Log stderr if available
-			if ((error as any).stderr) {
-				this.logger.error("   stderr:", (error as any).stderr.toString());
-			}
-
-			// Continue execution despite setup script failure
-			this.logger.info(`   Continuing with worktree creation...`);
-		}
 	}
 
 	/**
@@ -879,9 +826,19 @@ export class GitService {
 	 * handling both single-repo and multi-repo layouts since the issue identifier
 	 * directory is the root in both cases.
 	 *
+	 * If `options.repositories` is supplied, each repo's per-repo
+	 * `cyrus-teardown.sh` (if present in its repo root) is invoked **before**
+	 * the worktrees are removed, with `cwd` set to that repo's worktree
+	 * subdirectory. A failure in one repo's teardown does not block the others
+	 * or the final `rmSync`.
+	 *
 	 * @param issueIdentifier - The issue identifier (e.g., "DEF-123")
+	 * @param options - Optional teardown wiring (see {@link DeleteWorktreeOptions})
 	 */
-	deleteWorktree(issueIdentifier: string): void {
+	async deleteWorktree(
+		issueIdentifier: string,
+		options: DeleteWorktreeOptions = {},
+	): Promise<void> {
 		const workspacePath = join(
 			getDefaultWorktreesDir(this.cyrusHome),
 			issueIdentifier,
@@ -901,6 +858,14 @@ export class GitService {
 		// Find all git worktrees that are within this workspace path.
 		// In multi-repo layouts, there may be subdirectories that are each worktrees.
 		const worktreePaths = this.findWorktreesUnderPath(workspacePath);
+
+		// Run per-repo teardown scripts before any worktree is torn down.
+		// Each repo's script runs with cwd set to its own worktree subdirectory.
+		await this.runTeardownsForIssue({
+			issueIdentifier,
+			workspacePath,
+			repositories: options.repositories,
+		});
 
 		// Collect parent repository paths so we can prune stale entries after deletion
 		const parentRepoPaths = new Set<string>();
@@ -951,6 +916,72 @@ export class GitService {
 				});
 			} catch {
 				// Best-effort: prune failure is not critical
+			}
+		}
+	}
+
+	/**
+	 * Run per-repo teardown scripts for each repository whose worktree is about
+	 * to be removed. Prefers the explicit `repositories` list passed by the
+	 * caller (source-of-truth from the session manager); falls back to inferring
+	 * the repo mapping from `worktreePaths` (filesystem-driven) — i.e. matches
+	 * each worktree subdirectory to a configured `RepositoryConfig` by
+	 * `repository.repositoryPath`.
+	 *
+	 * Each repo's teardown runs with `cwd` set to its own worktree subdirectory.
+	 * Failures are isolated: one repo failing does not skip subsequent repos
+	 * and does not block worktree deletion.
+	 */
+	private async runTeardownsForIssue(opts: {
+		issueIdentifier: string;
+		workspacePath: string;
+		repositories?: RepositoryConfig[];
+	}): Promise<void> {
+		const { issueIdentifier, workspacePath, repositories } = opts;
+
+		// Build (repoPath, cwd) tuples. Prefer the explicit list from the caller.
+		const targets: Array<{ repositoryPath: string; cwd: string }> = [];
+
+		if (repositories && repositories.length > 0) {
+			if (repositories.length === 1) {
+				// Single-repo layout: workspace root IS the worktree.
+				targets.push({
+					repositoryPath: repositories[0]!.repositoryPath,
+					cwd: workspacePath,
+				});
+			} else {
+				// Multi-repo layout: each repo's worktree is a named subdir.
+				for (const repo of repositories) {
+					targets.push({
+						repositoryPath: repo.repositoryPath,
+						cwd: join(workspacePath, repo.name),
+					});
+				}
+			}
+		}
+
+		if (targets.length === 0) {
+			// No repos provided — nothing to do. The filesystem-driven fallback
+			// would require the caller to provide a repository registry, which
+			// the EdgeWorker is the source of truth for. Without it we skip
+			// teardown rather than guessing.
+			return;
+		}
+
+		for (const target of targets) {
+			try {
+				await this.runRepoTeardownScript(
+					target.repositoryPath,
+					target.cwd,
+					issueIdentifier,
+				);
+			} catch (error) {
+				// runRepoTeardownScript already swallows execSync failures and
+				// logs them; this catch is defensive against unexpected throws
+				// (e.g. unreadable directory) so one bad repo cannot abort the loop.
+				this.logger.error(
+					`Unexpected error running teardown for ${target.repositoryPath}: ${(error as Error).message}`,
+				);
 			}
 		}
 	}
@@ -1037,49 +1068,193 @@ export class GitService {
 		workspacePath: string,
 		issue: Issue,
 	): Promise<void> {
+		await this.runRepoHookScript({
+			hook: "setup",
+			repositoryPath,
+			workspacePath,
+			env: {
+				LINEAR_ISSUE_ID: issue.id,
+				LINEAR_ISSUE_IDENTIFIER: issue.identifier,
+				LINEAR_ISSUE_TITLE: issue.title || "",
+			},
+			timeoutMs: SETUP_TIMEOUT_MS,
+		});
+	}
+
+	/**
+	 * Find and run a repository-specific teardown script (cyrus-teardown.sh/.ps1/.cmd/.bat).
+	 *
+	 * Mirrors {@link runRepoSetupScript} but is invoked from {@link deleteWorktree}
+	 * immediately before the worktree subdirectory is removed. Only
+	 * `LINEAR_ISSUE_IDENTIFIER` is guaranteed in the teardown environment because
+	 * the terminal-state message bus path does not carry the full Issue object.
+	 */
+	private async runRepoTeardownScript(
+		repositoryPath: string,
+		workspacePath: string,
+		issueIdentifier: string,
+	): Promise<void> {
+		await this.runRepoHookScript({
+			hook: "teardown",
+			repositoryPath,
+			workspacePath,
+			env: {
+				LINEAR_ISSUE_IDENTIFIER: issueIdentifier,
+			},
+			timeoutMs: TEARDOWN_TIMEOUT_MS,
+		});
+	}
+
+	/**
+	 * Shared discovery+dispatch for repo-scoped hook scripts (setup and teardown).
+	 * Looks in `repositoryPath` for `cyrus-<hook>.{sh,ps1,cmd,bat}` and runs the
+	 * first compatible variant with `cwd` set to `workspacePath`.
+	 */
+	private async runRepoHookScript(opts: {
+		hook: HookKind;
+		repositoryPath: string;
+		workspacePath: string;
+		env: Record<string, string>;
+		timeoutMs: number;
+	}): Promise<void> {
 		const isWindows = process.platform === "win32";
-		const setupScripts = [
-			{
-				file: "cyrus-setup.sh",
-				platform: "unix",
-			},
-			{
-				file: "cyrus-setup.ps1",
-				platform: "windows",
-			},
-			{
-				file: "cyrus-setup.cmd",
-				platform: "windows",
-			},
-			{
-				file: "cyrus-setup.bat",
-				platform: "windows",
-			},
+		const candidates = [
+			{ file: `cyrus-${opts.hook}.sh`, platform: "unix" as const },
+			{ file: `cyrus-${opts.hook}.ps1`, platform: "windows" as const },
+			{ file: `cyrus-${opts.hook}.cmd`, platform: "windows" as const },
+			{ file: `cyrus-${opts.hook}.bat`, platform: "windows" as const },
 		];
 
-		// Find the first available setup script for the current platform
-		const availableScript = setupScripts.find((script) => {
-			const scriptPath = join(repositoryPath, script.file);
+		const available = candidates.find((c) => {
+			const scriptPath = join(opts.repositoryPath, c.file);
 			const isCompatible = isWindows
-				? script.platform === "windows"
-				: script.platform === "unix";
+				? c.platform === "windows"
+				: c.platform === "unix";
 			return existsSync(scriptPath) && isCompatible;
 		});
 
-		// Fallback: on Windows, try bash if no Windows scripts found (for Git Bash/WSL users)
-		const fallbackScript =
-			!availableScript && isWindows
-				? setupScripts.find((script) => {
-						const scriptPath = join(repositoryPath, script.file);
-						return script.platform === "unix" && existsSync(scriptPath);
+		// Windows fallback: try bash variant when no Windows-native script exists.
+		const fallback =
+			!available && isWindows
+				? candidates.find((c) => {
+						const scriptPath = join(opts.repositoryPath, c.file);
+						return c.platform === "unix" && existsSync(scriptPath);
 					})
 				: null;
 
-		const scriptToRun = availableScript || fallbackScript;
+		const scriptToRun = available || fallback;
+		if (!scriptToRun) return;
 
-		if (scriptToRun) {
-			const scriptPath = join(repositoryPath, scriptToRun.file);
-			await this.runSetupScript(scriptPath, "repository", workspacePath, issue);
+		const scriptPath = join(opts.repositoryPath, scriptToRun.file);
+		await this.runHookScript({
+			scriptPath,
+			hook: opts.hook,
+			originLabel: "repository",
+			cwd: opts.workspacePath,
+			env: opts.env,
+			timeoutMs: opts.timeoutMs,
+		});
+	}
+
+	/**
+	 * Run a hook script (setup or teardown) with proper error handling and logging.
+	 * Failure is non-blocking — errors are logged and execution continues.
+	 */
+	private async runHookScript(opts: HookScriptOptions): Promise<void> {
+		const { scriptPath, hook, originLabel, cwd, env, timeoutMs } = opts;
+
+		// Expand ~ to home directory
+		const expandedPath = scriptPath.replace(/^~/, homedir());
+		const labelTitle = `${originLabel.charAt(0).toUpperCase()}${originLabel.slice(1)} ${hook}`;
+
+		if (!existsSync(expandedPath)) {
+			this.logger.warn(`⚠️  ${labelTitle} script not found: ${scriptPath}`);
+			return;
 		}
+
+		// Check if script is executable (Unix only)
+		if (process.platform !== "win32") {
+			try {
+				const stats = statSync(expandedPath);
+				if (!(stats.mode & 0o100)) {
+					this.logger.warn(
+						`⚠️  ${labelTitle} script is not executable: ${scriptPath}`,
+					);
+					this.logger.warn(`   Run: chmod +x "${expandedPath}"`);
+					return;
+				}
+			} catch (error) {
+				this.logger.warn(
+					`⚠️  Cannot check permissions for ${labelTitle.toLowerCase()} script: ${(error as Error).message}`,
+				);
+				return;
+			}
+		}
+
+		const scriptName = basename(expandedPath);
+		this.logger.info(
+			`ℹ️  Running ${labelTitle.toLowerCase()} script: ${scriptName}`,
+		);
+
+		try {
+			let command: string;
+			const isWindows = process.platform === "win32";
+			if (scriptPath.endsWith(".ps1")) {
+				command = `powershell -ExecutionPolicy Bypass -File "${expandedPath}"`;
+			} else if (scriptPath.endsWith(".cmd") || scriptPath.endsWith(".bat")) {
+				command = `"${expandedPath}"`;
+			} else if (isWindows) {
+				command = `bash "${expandedPath}"`;
+			} else {
+				command = `bash "${expandedPath}"`;
+			}
+
+			execSync(command, {
+				cwd,
+				stdio: "inherit",
+				env: {
+					...process.env,
+					...env,
+				},
+				timeout: timeoutMs,
+			});
+
+			this.logger.info(`✅ ${labelTitle} script completed successfully`);
+		} catch (error) {
+			const timeoutMinutes = Math.round(timeoutMs / 60_000);
+			const isTimeout = isNodeExecError(error) && error.signal === "SIGTERM";
+			const errorMessage = isTimeout
+				? `Script execution timed out (exceeded ${timeoutMinutes} minute${timeoutMinutes === 1 ? "" : "s"})`
+				: error instanceof Error
+					? error.message
+					: String(error);
+
+			this.logger.error(`❌ ${labelTitle} script failed: ${errorMessage}`);
+			this.logger.info(`   Continuing despite ${hook} script failure...`);
+		}
+	}
+
+	/**
+	 * Find and run a global setup script (path resolved from EdgeConfig).
+	 * Kept as a thin wrapper to preserve the existing call sites.
+	 */
+	private async runSetupScript(
+		scriptPath: string,
+		scriptType: "global" | "repository",
+		workspacePath: string,
+		issue: Issue,
+	): Promise<void> {
+		await this.runHookScript({
+			scriptPath,
+			hook: "setup",
+			originLabel: scriptType,
+			cwd: workspacePath,
+			env: {
+				LINEAR_ISSUE_ID: issue.id,
+				LINEAR_ISSUE_IDENTIFIER: issue.identifier,
+				LINEAR_ISSUE_TITLE: issue.title || "",
+			},
+			timeoutMs: SETUP_TIMEOUT_MS,
+		});
 	}
 }

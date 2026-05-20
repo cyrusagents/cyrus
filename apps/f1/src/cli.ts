@@ -23,6 +23,7 @@ import { createStartChatSessionCommand } from "./commands/startChatSession.js";
 import { createStartSessionCommand } from "./commands/startSession.js";
 import { createStatusCommand } from "./commands/status.js";
 import { createStopSessionCommand } from "./commands/stopSession.js";
+import { createTerminateIssueCommand } from "./commands/terminateIssue.js";
 import { createVersionCommand } from "./commands/version.js";
 import { createViewChatThreadCommand } from "./commands/viewChatThread.js";
 import { createViewSessionCommand } from "./commands/viewSession.js";
@@ -72,6 +73,7 @@ program.addCommand(createPromptChatThreadCommand());
 program.addCommand(createViewSessionCommand());
 program.addCommand(createPromptSessionCommand());
 program.addCommand(createStopSessionCommand());
+program.addCommand(createTerminateIssueCommand());
 program.addCommand(createInitTestRepoCommand());
 
 // Parse arguments

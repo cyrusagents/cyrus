@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from "node:events";
+import type { InternalMessage } from "../../messages/index.js";
 import type { AgentEvent } from "../AgentEvent.js";
 import type {
 	AgentEventTransportEvents,
@@ -109,6 +110,19 @@ export class CLIEventTransport
 	 */
 	emitEvent(event: AgentEvent): void {
 		this.emit("event", event);
+	}
+
+	/**
+	 * Manually emit an internal message on the unified message bus.
+	 *
+	 * Used by CLI/F1 code paths that need to deliver an `InternalMessage`
+	 * (for example an `IssueStateChangeMessage` when an issue is terminated
+	 * via the F1 RPC) without going through HTTP webhooks.
+	 *
+	 * @param message - The internal message to emit
+	 */
+	emitMessage(message: InternalMessage): void {
+		this.emit("message", message);
 	}
 
 	/**

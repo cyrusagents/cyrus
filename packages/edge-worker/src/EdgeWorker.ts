@@ -722,6 +722,12 @@ export class EdgeWorker extends EventEmitter {
 					this.handleWebhook(event as unknown as Webhook, repos);
 				});
 
+				// Listen for unified internal messages (used by F1 to emit
+				// IssueStateChangeMessage when an issue is terminated).
+				cliEventTransport.on("message", (message: InternalMessage) => {
+					this.handleMessage(message);
+				});
+
 				// Listen for errors
 				cliEventTransport.on("error", (error: Error) => {
 					this.handleError(error);
@@ -3255,8 +3261,25 @@ ${taskSection}`;
 			this.agentSessionManager.removeSession(session.id);
 		}
 
+		// Build the set of repositories involved with this issue so per-repo
+		// cyrus-teardown.sh scripts (if present) can run before worktrees are
+		// removed. Source-of-truth is the session manager: each session's
+		// repositoryId maps to a configured RepositoryConfig.
+		const repoIds = new Set<string>();
+		for (const session of sessions) {
+			const repoId = this.sessionRepositories.get(session.id);
+			if (repoId) repoIds.add(repoId);
+		}
+		const teardownRepositories: RepositoryConfig[] = [];
+		for (const repoId of repoIds) {
+			const repo = this.repositories.get(repoId);
+			if (repo) teardownRepositories.push(repo);
+		}
+
 		// Delete worktrees for this issue, keyed by the Linear issue identifier.
-		this.gitService.deleteWorktree(message.workItemIdentifier);
+		await this.gitService.deleteWorktree(message.workItemIdentifier, {
+			repositories: teardownRepositories,
+		});
 
 		this.logger.info(
 			`Completed cleanup for ${message.workItemIdentifier}: stopped ${sessions.length} session(s)`,

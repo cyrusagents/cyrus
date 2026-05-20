@@ -11,7 +11,12 @@
  * @module issue-tracker/adapters/CLIIssueTrackerService
  */
 
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
+import type {
+	IssueStateChangeMessage,
+	LinearIssueStateChangePlatformData,
+} from "../../messages/index.js";
 import type { AgentEvent } from "../AgentEvent.js";
 import type {
 	AgentEventTransportConfig,
@@ -1111,6 +1116,90 @@ export class CLIIssueTrackerService
 	}
 
 	/**
+	 * Terminate an issue by moving it to a terminal state (completed / canceled /
+	 * deleted) and emit an {@link IssueStateChangeMessage} on the unified message
+	 * bus. This mirrors what {@link LinearMessageTranslator} does for real Linear
+	 * `issueStatusChanged` / `Issue.remove` webhooks, so the EdgeWorker's
+	 * terminal-state cleanup path (worktree removal, `cyrus-teardown.sh`, etc.)
+	 * is exercised the same way in F1 as it is in production.
+	 *
+	 * For `"deleted"` the issue is removed from the in-memory state; for
+	 * `"completed"` / `"canceled"` the issue's `stateId` is moved to the seeded
+	 * `state-done` / `state-canceled` workflow state respectively.
+	 *
+	 * @param issueId - The issue ID to terminate
+	 * @param action - Terminal action: "completed", "canceled", or "deleted"
+	 * @returns The issue's identifier (e.g., "DEF-1")
+	 */
+	async terminateIssue(
+		issueId: string,
+		action: "completed" | "canceled" | "deleted",
+	): Promise<string> {
+		const issueData = this.state.issues.get(issueId);
+		if (!issueData) {
+			throw new Error(`Issue ${issueId} not found`);
+		}
+
+		const identifier = issueData.identifier;
+		const title = issueData.title;
+		const team = issueData.teamId
+			? this.state.teams.get(issueData.teamId)
+			: undefined;
+
+		// Update in-memory state to reflect the transition.
+		if (action === "completed" || action === "canceled") {
+			const targetStateId =
+				action === "completed" ? "state-done" : "state-canceled";
+			const targetState = this.state.workflowStates.get(targetStateId);
+			if (!targetState) {
+				throw new Error(
+					`Seeded workflow state ${targetStateId} not found — call seedDefaultData() first`,
+				);
+			}
+			issueData.stateId = targetStateId;
+			issueData.completedAt = new Date();
+			issueData.updatedAt = new Date();
+		} else {
+			// "deleted"
+			this.state.issues.delete(issueId);
+		}
+
+		// Emit IssueStateChangeMessage on the unified message bus so that
+		// EdgeWorker.handleIssueStateChangeMessage runs the terminal-state
+		// cleanup (stop sessions, run cyrus-teardown.sh, remove worktrees).
+		if (this.eventTransport) {
+			const platformData: LinearIssueStateChangePlatformData = {
+				issue: {
+					id: issueId,
+					identifier,
+					title,
+					url: `cli://issues/${identifier}`,
+					team: team
+						? { id: team.id, name: team.name, key: team.key }
+						: undefined,
+				},
+			};
+
+			const message: IssueStateChangeMessage = {
+				id: randomUUID(),
+				source: "linear",
+				action: "issue_state_change",
+				receivedAt: new Date().toISOString(),
+				organizationId: "cli-workspace",
+				sessionKey: issueId,
+				workItemId: issueId,
+				workItemIdentifier: identifier,
+				isTerminal: true,
+				platformData,
+			};
+
+			this.eventTransport.emitMessage(message);
+		}
+
+		return identifier;
+	}
+
+	/**
 	 * Prompt an agent session with a user message.
 	 * This creates a comment on the associated issue and emits a prompted event.
 	 *
@@ -1457,6 +1546,17 @@ export class CLIIssueTrackerService
 				color: "#5e6ad2",
 				type: "completed",
 				position: 2,
+				teamId: defaultTeam.id,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+			{
+				id: "state-canceled",
+				name: "Canceled",
+				description: "Work that was abandoned",
+				color: "#95a5a6",
+				type: "canceled",
+				position: 3,
 				teamId: defaultTeam.id,
 				createdAt: new Date(),
 				updatedAt: new Date(),

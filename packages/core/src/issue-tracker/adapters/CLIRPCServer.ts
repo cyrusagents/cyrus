@@ -32,7 +32,8 @@ export type RPCCommand =
 	| "viewSession"
 	| "promptSession"
 	| "stopSession"
-	| "listAgentSessions";
+	| "listAgentSessions"
+	| "terminateIssue";
 
 /**
  * JSON-RPC 2.0 request ID type
@@ -260,6 +261,28 @@ export interface StopSessionData {
 }
 
 /**
+ * Terminate-issue command parameters.
+ *
+ * Moves the issue to a terminal state and emits an `IssueStateChangeMessage`
+ * on the unified message bus. Used by F1 to exercise EdgeWorker's terminal-
+ * state cleanup (worktree removal, `cyrus-teardown.sh`).
+ */
+export interface TerminateIssueParams {
+	issueId: string;
+	action: "completed" | "canceled" | "deleted";
+}
+
+/**
+ * Terminate-issue command response data.
+ */
+export interface TerminateIssueData {
+	success: boolean;
+	issueId: string;
+	identifier: string;
+	action: "completed" | "canceled" | "deleted";
+}
+
+/**
  * List agent sessions command parameters
  */
 export interface ListAgentSessionsParams {
@@ -407,6 +430,12 @@ export class CLIRPCServer {
 			case "listAgentSessions":
 				return this.handleListAgentSessions(
 					params as ListAgentSessionsParams,
+					requestId,
+				);
+
+			case "terminateIssue":
+				return this.handleTerminateIssue(
+					params as TerminateIssueParams,
 					requestId,
 				);
 
@@ -966,6 +995,75 @@ export class CLIRPCServer {
 						error instanceof Error
 							? error.message
 							: "Failed to list agent sessions",
+				},
+				id: requestId,
+			};
+		}
+	}
+
+	/**
+	 * Handle terminateIssue command — move an issue to a terminal state and
+	 * emit an `IssueStateChangeMessage` so EdgeWorker runs its terminal-state
+	 * cleanup (stops sessions, runs `cyrus-teardown.sh`, removes worktrees).
+	 */
+	private async handleTerminateIssue(
+		params: TerminateIssueParams,
+		requestId: RPCRequestId,
+	): Promise<RPCResponse<TerminateIssueData>> {
+		const { issueId, action } = params ?? ({} as TerminateIssueParams);
+
+		if (!issueId) {
+			return {
+				jsonrpc: "2.0",
+				error: {
+					code: RPCErrorCodes.INVALID_PARAMS,
+					message: "Missing required parameter: issueId is required",
+				},
+				id: requestId,
+			};
+		}
+
+		if (
+			action !== "completed" &&
+			action !== "canceled" &&
+			action !== "deleted"
+		) {
+			return {
+				jsonrpc: "2.0",
+				error: {
+					code: RPCErrorCodes.INVALID_PARAMS,
+					message:
+						"Invalid action: must be one of 'completed', 'canceled', 'deleted'",
+				},
+				id: requestId,
+			};
+		}
+
+		try {
+			const identifier = await this.config.issueTracker.terminateIssue(
+				issueId,
+				action,
+			);
+
+			return {
+				jsonrpc: "2.0",
+				result: {
+					success: true,
+					issueId,
+					identifier,
+					action,
+				},
+				id: requestId,
+			};
+		} catch (error) {
+			return {
+				jsonrpc: "2.0",
+				error: {
+					code: RPCErrorCodes.SERVER_ERROR,
+					message:
+						error instanceof Error
+							? error.message
+							: "Failed to terminate issue",
 				},
 				id: requestId,
 			};

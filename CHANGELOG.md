@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Per-repo `cyrus-teardown.sh` auto-detection** — Place a `cyrus-teardown.sh` (or `.ps1` / `.cmd` / `.bat`) script in your repository root and Cyrus runs it inside the issue's worktree directory immediately before the worktree is removed when the Linear issue is **completed**, **canceled**, or **deleted**. Symmetric to the existing `cyrus-setup.sh` mechanism — no configuration needed, just commit the script. In multi-repo issues each repo's teardown runs independently with `cwd` set to that repo's worktree subdirectory; failures in one repo do not block other repos' teardowns or worktree removal. The script gets `LINEAR_ISSUE_IDENTIFIER` in env, a 2-minute timeout, and is non-blocking on failure. Closes upstream [cyrusagents/cyrus#1065](https://github.com/cyrusagents/cyrus/issues/1065); credit to @matthewbjones for the original direction in [#1111](https://github.com/cyrusagents/cyrus/pull/1111). ([CYPACK-1219](https://linear.app/ceedar/issue/CYPACK-1219), [#1233](https://github.com/cyrusagents/cyrus/pull/1233))
+
 ### Security
 - **Patched 9 transitive dependency advisories** — Bumped `pnpm.overrides` for `hono` (≥4.12.18, fixes CSS injection / JWT validation / Cache Middleware cross-user leakage), `fast-uri` (≥3.1.2, path traversal + host confusion), `ip-address` (≥10.1.1, `Address6` XSS), `@anthropic-ai/sdk` (≥0.91.1, insecure default file permissions in local filesystem memory tool), and `@opentelemetry/sdk-node` / `@opentelemetry/exporter-prometheus` (≥0.217.0, Prometheus exporter process crash via malformed HTTP request). `pnpm audit` now reports zero advisories. ([CYPACK-1206](https://linear.app/ceedar/issue/CYPACK-1206))
 

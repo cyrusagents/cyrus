@@ -397,7 +397,7 @@ The agent automatically moves issues to the "started" state when assigned. Linea
    - Uses pnpm as package manager (v10.11.0)
    - TypeScript for all new packages
 
-3. **Git Worktrees**: When processing issues, the agent creates separate git worktrees. If a `cyrus-setup.sh` script exists in the repository root, it's executed in new worktrees for project-specific initialization.
+3. **Git Worktrees**: When processing issues, the agent creates separate git worktrees. If a `cyrus-setup.sh` script exists in the repository root, it's executed in new worktrees for project-specific initialization. Symmetrically, if a `cyrus-teardown.sh` script exists in the repository root, it's executed in the worktree directory immediately before the worktree is removed when the issue reaches a terminal state (completed / canceled / deleted).
 
 4. **Testing**: Uses Vitest for all packages. Run tests before committing changes.
 
