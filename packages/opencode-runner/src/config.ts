@@ -21,7 +21,7 @@ export interface OpenCodeMcpRemoteConfig {
 	enabled?: boolean;
 }
 
-export interface OpenCodeRuntimeConfig {
+export interface OpenCodeRuntimeConfig extends Record<string, unknown> {
 	$schema?: string;
 	mcp?: Record<string, OpenCodeMcpLocalConfig | OpenCodeMcpRemoteConfig>;
 	permission?: Record<string, OpenCodePermissionRule>;
@@ -323,6 +323,27 @@ function loadMcpConfigFromPaths(
 	return servers;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return isRecord(value);
+}
+
+function deepMergeConfig(
+	base: Record<string, unknown>,
+	override: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+	if (!override) return { ...base };
+	const merged: Record<string, unknown> = { ...base };
+	for (const [key, value] of Object.entries(override)) {
+		const existing = merged[key];
+		if (isPlainObject(existing) && isPlainObject(value)) {
+			merged[key] = deepMergeConfig(existing, value);
+		} else {
+			merged[key] = value;
+		}
+	}
+	return merged;
+}
+
 export function buildOpenCodeConfig(
 	config: OpenCodeRunnerConfig,
 ): OpenCodeConfigBuildResult {
@@ -357,11 +378,29 @@ export function buildOpenCodeConfig(
 		if (mapped) mcp[name] = mapped;
 	}
 
-	const runtimeConfig: OpenCodeRuntimeConfig = {
+	const userConfig = deepMergeConfig(
+		deepMergeConfig({}, config.opencodeGlobalConfig),
+		config.opencodeRepositoryConfig,
+	) as OpenCodeRuntimeConfig;
+
+	const generatedConfig: OpenCodeRuntimeConfig = {
 		$schema: "https://opencode.ai/config.json",
-		permission,
 		...(Object.keys(mcp).length > 0 ? { mcp } : {}),
+		permission,
 	};
+	const runtimeConfig = deepMergeConfig(
+		userConfig,
+		generatedConfig,
+	) as OpenCodeRuntimeConfig;
+	if (isRecord(userConfig.mcp) || Object.keys(mcp).length > 0) {
+		runtimeConfig.mcp = {
+			...(isRecord(userConfig.mcp) ? userConfig.mcp : {}),
+			...mcp,
+		} as Record<string, OpenCodeMcpLocalConfig | OpenCodeMcpRemoteConfig>;
+	}
+	// Cyrus permissions are safety controls, so they replace user-provided
+	// permission config instead of preserving non-conflicting entries.
+	runtimeConfig.permission = permission;
 
 	return { config: runtimeConfig, unsupported };
 }

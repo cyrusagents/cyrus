@@ -386,6 +386,8 @@ export interface IAgentRunner {
 	getFormatter(): IMessageFormatter;
 }
 
+export type JsonObject = Record<string, unknown>;
+
 /**
  * Configuration for agent runner
  *
@@ -433,6 +435,10 @@ export interface AgentRunnerConfig {
 	mcpConfigPath?: string | string[];
 	/** MCP server configurations (inline) */
 	mcpConfig?: Record<string, McpServerConfig>;
+	/** Global OpenCode runtime config overrides from Cyrus config */
+	opencodeGlobalConfig?: JsonObject;
+	/** Repository OpenCode runtime config overrides from Cyrus config */
+	opencodeRepositoryConfig?: JsonObject;
 	/** AI model to use (e.g., "opus", "sonnet", "haiku") */
 	model?: string;
 	/** Fallback model if primary is unavailable */
