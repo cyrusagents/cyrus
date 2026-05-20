@@ -15,6 +15,7 @@ import type {
 	CyrusAgentSession,
 	ILogger,
 	OnAskUserQuestion,
+	OpenCodeConfigOverrides,
 	RepositoryConfig,
 	RunnerType,
 } from "cyrus-core";
@@ -147,6 +148,8 @@ export interface IssueRunnerConfigInput {
 	requireLinearWorkspaceId: (repo: RepositoryConfig) => string;
 	/** Plugins to load for the session (provides skills, hooks, etc.) */
 	plugins?: SdkPluginConfig[];
+	/** Global OpenCode runtime config overrides from Cyrus config */
+	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
 	/**
 	 * Allow-list of skill names enabled for the session (after scope filtering),
 	 * or `"all"` to enable every discovered skill, or `undefined` to defer to
@@ -447,6 +450,10 @@ export class RunnerConfigBuilder {
 						resolvedWorkspaceId,
 					),
 				}),
+			...(runnerType === "opencode" && {
+				opencodeGlobalConfig: input.opencodeGlobalConfig,
+				opencodeRepositoryConfig: input.repository.opencode?.config,
+			}),
 			onMessage: input.onMessage,
 			onError: input.onError,
 		};
