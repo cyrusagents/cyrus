@@ -130,6 +130,8 @@ import {
 import {
 	type CyrusToolsOptions,
 	createCyrusToolsServer,
+	createFetchFailureModesClient,
+	type FailureModesHttpClient,
 } from "cyrus-mcp-tools";
 import {
 	SlackEventTransport,
@@ -5540,19 +5542,86 @@ ${taskSection}`;
 		);
 	}
 
+	private failureModesClient: FailureModesHttpClient | null = null;
+
+	/**
+	 * Lazily build the HTTP client used by `log_failure_mode` to POST to
+	 * cyrus-hosted. Returns null when either the proxy base URL or the
+	 * `CYRUS_API_KEY` are missing — in that mode the tool is simply not
+	 * registered, so customer-mode CLI users without a control plane don't
+	 * see a broken tool.
+	 */
+	private getFailureModesClient(): FailureModesHttpClient | null {
+		if (this.failureModesClient) return this.failureModesClient;
+		const apiKey = process.env.CYRUS_API_KEY?.trim();
+		const baseUrl =
+			process.env.CYRUS_PROXY_URL?.trim() ||
+			this.config.proxyUrl ||
+			DEFAULT_PROXY_URL;
+		if (!apiKey || !baseUrl) return null;
+		this.failureModesClient = createFetchFailureModesClient({
+			baseUrl,
+			apiKey,
+		});
+		return this.failureModesClient;
+	}
+
+	/**
+	 * Resolve a working-directory string to the agent session id that owns
+	 * that workspace. The `log_failure_mode` MCP tool calls this with the
+	 * agent's reported `cwd`. We normalize and compare against each known
+	 * session's `workspace.path` (and any sub-repo paths the session opens).
+	 */
+	private resolveSessionFromCwd(cwd: string): string | null {
+		if (!cwd) return null;
+		const normalize = (p: string) => p.replace(/\/+$/, "");
+		const target = normalize(cwd);
+
+		const sessions = this.agentSessionManager.getAllSessions();
+		for (const session of sessions) {
+			if (normalize(session.workspace?.path ?? "") === target) {
+				return session.id;
+			}
+			const repoPaths = session.workspace?.repoPaths;
+			if (repoPaths) {
+				for (const p of Object.values(repoPaths)) {
+					if (typeof p === "string" && normalize(p) === target) {
+						return session.id;
+					}
+				}
+			}
+		}
+		// Best-effort prefix match for nested cwd within a session workspace.
+		for (const session of sessions) {
+			const root = normalize(session.workspace?.path ?? "");
+			if (root && target.startsWith(`${root}/`)) {
+				return session.id;
+			}
+		}
+		return null;
+	}
+
 	private createCyrusToolsOptions(parentSessionId?: string): CyrusToolsOptions {
-		return {
+		const failureModesClient = this.getFailureModesClient();
+		const options: CyrusToolsOptions = {
 			parentSessionId,
-			onSessionCreated: (childSessionId, parentId) => {
+			onSessionCreated: (childSessionId: string, parentId: string) => {
 				this.handleChildSessionMapping(childSessionId, parentId);
 			},
-			onFeedbackDelivery: async (childSessionId, message) => {
+			onFeedbackDelivery: async (childSessionId: string, message: string) => {
 				return this.handleFeedbackDeliveryToChildSession(
 					childSessionId,
 					message,
 				);
 			},
 		};
+		if (failureModesClient) {
+			options.failureModes = {
+				resolveSessionFromCwd: (cwd: string) => this.resolveSessionFromCwd(cwd),
+				httpClient: failureModesClient,
+			};
+		}
+		return options;
 	}
 
 	private handleChildSessionMapping(

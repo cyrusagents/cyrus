@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Self-reported failure modes.** Every customer-facing agent session now has access to a new `mcp__cyrus-tools__log_failure_mode` MCP tool and is instructed (via a shared system-prompt addendum appended to all Linear prompt flavors, the Slack entrypoint, and the GitHub entrypoint) to call it when the user expresses dissatisfaction or when it recognizes it has made 3+ unsuccessful attempts at the same problem. The tool POSTs to cyrus-hosted, which opens (or comments on) a Linear ticket in the internal failure-modes project so the Cyrus team can intervene before churn. Self-reporting is internal — users are not told about it. ([CYPACK-1226](https://linear.app/ceedar/issue/CYPACK-1226))
+
 ### Security
 - **Patched 9 transitive dependency advisories** — Bumped `pnpm.overrides` for `hono` (≥4.12.18, fixes CSS injection / JWT validation / Cache Middleware cross-user leakage), `fast-uri` (≥3.1.2, path traversal + host confusion), `ip-address` (≥10.1.1, `Address6` XSS), `@anthropic-ai/sdk` (≥0.91.1, insecure default file permissions in local filesystem memory tool), and `@opentelemetry/sdk-node` / `@opentelemetry/exporter-prometheus` (≥0.217.0, Prometheus exporter process crash via malformed HTTP request). `pnpm audit` now reports zero advisories. ([CYPACK-1206](https://linear.app/ceedar/issue/CYPACK-1206))
 

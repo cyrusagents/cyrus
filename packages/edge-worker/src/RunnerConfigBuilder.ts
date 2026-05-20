@@ -18,6 +18,7 @@ import type {
 	RunnerType,
 } from "cyrus-core";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
+import { appendFailureModeAddendum } from "./prompts/failureModePromptAddendum.js";
 
 /**
  * Subset of McpConfigService consumed by RunnerConfigBuilder.
@@ -207,7 +208,7 @@ export class RunnerConfigBuilder {
 			workspaceName: input.workspaceName,
 			cyrusHome: input.cyrusHome,
 			autoMemoryDirectory,
-			appendSystemPrompt: input.systemPrompt,
+			appendSystemPrompt: appendFailureModeAddendum(input.systemPrompt),
 			...(mcpConfig ? { mcpConfig } : {}),
 			...(mcpConfigPath ? { mcpConfigPath } : {}),
 			...(input.resumeSessionId
@@ -310,7 +311,7 @@ export class RunnerConfigBuilder {
 			cyrusHome: input.cyrusHome,
 			mcpConfigPath,
 			mcpConfig,
-			appendSystemPrompt: input.systemPrompt || "",
+			appendSystemPrompt: appendFailureModeAddendum(input.systemPrompt),
 			// Priority order: label override > repository config > global default
 			model: finalModel,
 			fallbackModel:
