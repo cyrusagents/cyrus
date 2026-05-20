@@ -315,6 +315,11 @@ export class RunnerConfigBuilder {
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("cursor");
 			fallbackModelOverride =
 				this.runnerSelector.getDefaultFallbackModelForRunner("cursor");
+		} else if (input.session.opencodeSessionId && runnerType !== "opencode") {
+			runnerType = "opencode";
+			modelOverride = this.runnerSelector.getDefaultModelForRunner("opencode");
+			fallbackModelOverride =
+				this.runnerSelector.getDefaultFallbackModelForRunner("opencode");
 		}
 
 		// Log model override if found

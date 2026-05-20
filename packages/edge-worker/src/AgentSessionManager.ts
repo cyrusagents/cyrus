@@ -244,7 +244,9 @@ export class AgentSessionManager extends EventEmitter {
 					? "codex"
 					: runner?.constructor.name === "CursorRunner"
 						? "cursor"
-						: "claude";
+						: runner?.constructor.name === "OpenCodeRunner"
+							? "opencode"
+							: "claude";
 
 		// Update the appropriate session ID based on runner type
 		if (runnerType === "gemini") {
@@ -253,6 +255,8 @@ export class AgentSessionManager extends EventEmitter {
 			linearSession.codexSessionId = claudeSystemMessage.session_id;
 		} else if (runnerType === "cursor") {
 			linearSession.cursorSessionId = claudeSystemMessage.session_id;
+		} else if (runnerType === "opencode") {
+			linearSession.opencodeSessionId = claudeSystemMessage.session_id;
 		} else {
 			linearSession.claudeSessionId = claudeSystemMessage.session_id;
 		}
@@ -300,7 +304,9 @@ export class AgentSessionManager extends EventEmitter {
 					? "codex"
 					: runner?.constructor.name === "CursorRunner"
 						? "cursor"
-						: "claude";
+						: runner?.constructor.name === "OpenCodeRunner"
+							? "opencode"
+							: "claude";
 
 		const sessionEntry: CyrusAgentSessionEntry = {
 			// Set the appropriate session ID based on runner type
@@ -310,7 +316,9 @@ export class AgentSessionManager extends EventEmitter {
 					? { codexSessionId: sdkMessage.session_id }
 					: runnerType === "cursor"
 						? { cursorSessionId: sdkMessage.session_id }
-						: { claudeSessionId: sdkMessage.session_id }),
+						: runnerType === "opencode"
+							? { opencodeSessionId: sdkMessage.session_id }
+							: { claudeSessionId: sdkMessage.session_id }),
 			type: sdkMessage.type,
 			content: this.extractContent(sdkMessage),
 			metadata: {
@@ -640,7 +648,9 @@ export class AgentSessionManager extends EventEmitter {
 					? "codex"
 					: runner?.constructor.name === "CursorRunner"
 						? "cursor"
-						: "claude";
+						: runner?.constructor.name === "OpenCodeRunner"
+							? "opencode"
+							: "claude";
 
 		// For error results, content may be in errors[] rather than result
 		// For success results from Claude, prefer the buffered last assistant message
@@ -672,7 +682,9 @@ export class AgentSessionManager extends EventEmitter {
 					? { codexSessionId: resultMessage.session_id }
 					: runnerType === "cursor"
 						? { cursorSessionId: resultMessage.session_id }
-						: { claudeSessionId: resultMessage.session_id }),
+						: runnerType === "opencode"
+							? { opencodeSessionId: resultMessage.session_id }
+							: { claudeSessionId: resultMessage.session_id }),
 			type: "result",
 			content,
 			metadata: {
@@ -1418,7 +1430,7 @@ export class AgentSessionManager extends EventEmitter {
 		const log = this.sessionLog(sessionId);
 		const session = this.sessions.get(sessionId);
 
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			log.debug(
 				`Skipping ${label} - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,
 			);
@@ -1681,7 +1693,7 @@ export class AgentSessionManager extends EventEmitter {
 		message: SDKStatusMessage,
 	): Promise<void> {
 		const session = this.sessions.get(sessionId);
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			const log = this.sessionLog(sessionId);
 			log.debug(
 				`Skipping status message - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,

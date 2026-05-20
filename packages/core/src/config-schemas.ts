@@ -3,7 +3,13 @@ import { z } from "zod";
 /**
  * Supported runner/harness types for agent execution.
  */
-export const RunnerTypeSchema = z.enum(["claude", "gemini", "codex", "cursor"]);
+export const RunnerTypeSchema = z.enum([
+	"claude",
+	"gemini",
+	"codex",
+	"cursor",
+	"opencode",
+]);
 export type RunnerType = z.infer<typeof RunnerTypeSchema>;
 
 /**
@@ -358,6 +364,12 @@ export const EdgeConfigSchema = z.object({
 
 	/** Default Cursor fallback model if primary Cursor model is unavailable */
 	cursorDefaultFallbackModel: z.string().optional(),
+
+	/** Default OpenCode model to use across all repositories (e.g., "opencode", "anthropic/claude-sonnet-4.5") */
+	opencodeDefaultModel: z.string().optional(),
+
+	/** Default OpenCode fallback model if primary OpenCode model is unavailable */
+	opencodeDefaultFallbackModel: z.string().optional(),
 
 	/**
 	 * Default runner/harness to use when no runner is specified via labels or description tags.

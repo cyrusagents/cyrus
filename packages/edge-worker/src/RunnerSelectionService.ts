@@ -41,6 +41,9 @@ export class RunnerSelectionService {
 		if (process.env.CURSOR_API_KEY) {
 			available.push("cursor");
 		}
+		if (process.env.OPENCODE_API_KEY) {
+			available.push("opencode");
+		}
 
 		if (available.length === 1 && available[0]) {
 			return available[0];
@@ -63,6 +66,9 @@ export class RunnerSelectionService {
 		}
 		if (runnerType === "cursor") {
 			return this.config.cursorDefaultModel || "composer-2";
+		}
+		if (runnerType === "opencode") {
+			return this.config.opencodeDefaultModel || "opencode";
 		}
 		return this.config.codexDefaultModel || "gpt-5.5";
 	}
@@ -87,6 +93,9 @@ export class RunnerSelectionService {
 		}
 		if (runnerType === "cursor") {
 			return this.config.cursorDefaultFallbackModel || "composer-2";
+		}
+		if (runnerType === "opencode") {
+			return this.config.opencodeDefaultFallbackModel || "opencode";
 		}
 		return "gpt-5";
 	}
@@ -113,7 +122,7 @@ export class RunnerSelectionService {
 	 * Determine runner type and model using labels + issue description tags.
 	 *
 	 * Supported description tags:
-	 * - [agent=claude|gemini|codex|cursor]
+	 * - [agent=claude|gemini|codex|cursor|opencode]
 	 * - [model=<model-name>]
 	 *
 	 * Precedence:
@@ -146,12 +155,14 @@ export class RunnerSelectionService {
 			gemini: this.getDefaultModelForRunner("gemini"),
 			codex: this.getDefaultModelForRunner("codex"),
 			cursor: this.getDefaultModelForRunner("cursor"),
+			opencode: this.getDefaultModelForRunner("opencode"),
 		};
 		const defaultFallbackByRunner: Record<RunnerType, string> = {
 			claude: this.getDefaultFallbackModelForRunner("claude"),
 			gemini: this.getDefaultFallbackModelForRunner("gemini"),
 			codex: this.getDefaultFallbackModelForRunner("codex"),
 			cursor: this.getDefaultFallbackModelForRunner("cursor"),
+			opencode: this.getDefaultFallbackModelForRunner("opencode"),
 		};
 
 		const isCodexModel = (model: string): boolean =>
@@ -212,12 +223,18 @@ export class RunnerSelectionService {
 			if (isCodexModel(normalizedModel)) {
 				return "gpt-5.2-codex";
 			}
+			if (runnerType === "opencode") {
+				return defaultFallbackByRunner.opencode;
+			}
 			return "gpt-5";
 		};
 
 		const resolveAgentFromLabel = (
 			lowercaseLabels: string[],
 		): RunnerType | undefined => {
+			if (lowercaseLabels.includes("opencode")) {
+				return "opencode";
+			}
 			if (lowercaseLabels.includes("cursor")) {
 				return "cursor";
 			}
@@ -276,15 +293,18 @@ export class RunnerSelectionService {
 
 		const agentFromDescription = descriptionAgentTagRaw?.toLowerCase();
 		const resolvedAgentFromDescription =
-			agentFromDescription === "cursor"
-				? "cursor"
-				: agentFromDescription === "codex" || agentFromDescription === "openai"
-					? "codex"
-					: agentFromDescription === "gemini"
-						? "gemini"
-						: agentFromDescription === "claude"
-							? "claude"
-							: undefined;
+			agentFromDescription === "opencode"
+				? "opencode"
+				: agentFromDescription === "cursor"
+					? "cursor"
+					: agentFromDescription === "codex" ||
+							agentFromDescription === "openai"
+						? "codex"
+						: agentFromDescription === "gemini"
+							? "gemini"
+							: agentFromDescription === "claude"
+								? "claude"
+								: undefined;
 		const resolvedAgentFromLabels = resolveAgentFromLabel(normalizedLabels);
 
 		const modelFromDescription = descriptionModelTagRaw;

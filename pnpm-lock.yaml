@@ -356,6 +356,9 @@ importers:
       cyrus-mcp-tools:
         specifier: workspace:*
         version: link:../mcp-tools
+      cyrus-opencode-runner:
+        specifier: workspace:*
+        version: link:../opencode-runner
       cyrus-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner

@@ -224,6 +224,11 @@ export class ConfigManager extends EventEmitter {
 				cursorDefaultFallbackModel:
 					parsedConfig.cursorDefaultFallbackModel ||
 					this.config.cursorDefaultFallbackModel,
+				opencodeDefaultModel:
+					parsedConfig.opencodeDefaultModel || this.config.opencodeDefaultModel,
+				opencodeDefaultFallbackModel:
+					parsedConfig.opencodeDefaultFallbackModel ||
+					this.config.opencodeDefaultFallbackModel,
 				defaultRunner: parsedConfig.defaultRunner || this.config.defaultRunner,
 				promptDefaults:
 					parsedConfig.promptDefaults || this.config.promptDefaults,
@@ -344,6 +349,8 @@ export class ConfigManager extends EventEmitter {
 			"codexDefaultModel",
 			"cursorDefaultModel",
 			"cursorDefaultFallbackModel",
+			"opencodeDefaultModel",
+			"opencodeDefaultFallbackModel",
 			"defaultModel",
 			"defaultFallbackModel",
 			"linearAllowedTools",
