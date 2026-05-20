@@ -665,6 +665,7 @@ describe("SlackChatAdapter system prompt", () => {
 		expect(systemPrompt).toContain("mcp__linear__get_user");
 		expect(systemPrompt).toContain('query: "me"');
 		expect(systemPrompt).toContain("linear_get_agent_sessions");
+		expect(systemPrompt).toContain("[agent=opencode]");
 	});
 
 	const appMentionEvent = {

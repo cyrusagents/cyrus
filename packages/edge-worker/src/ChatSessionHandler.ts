@@ -222,7 +222,8 @@ export class ChatSessionHandler<TEvent> {
 						existingSession.claudeSessionId ||
 						existingSession.geminiSessionId ||
 						existingSession.codexSessionId ||
-						existingSession.cursorSessionId;
+						existingSession.cursorSessionId ||
+						existingSession.opencodeSessionId;
 
 					if (resumeSessionId) {
 						try {
