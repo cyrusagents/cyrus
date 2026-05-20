@@ -1,159 +1,159 @@
 # Test Drive: CYPACK-1219 — per-repo `cyrus-teardown.sh` auto-detection
 
 **Date**: 2026-05-20
-**Goal**: Validate the per-repo `cyrus-teardown.sh` feature end-to-end through F1.
-**Test Repo**: `/tmp/f1-cypack-1219-1779301432`
+**Goal**: Validate the per-repo `cyrus-teardown.sh` feature end-to-end through F1, using the new `f1 terminate-issue` command to drive issues to a terminal state.
+**Test Repo**: `/tmp/f1-td-<ts>-a` (single-repo F1 server, port 3602)
+**F1 server**: `CYRUS_PORT=3602 CYRUS_REPO_PATH=/tmp/f1-td-<ts>-a bun run apps/f1/server.ts`
 
-## TL;DR
+## Result
 
-- ✅ Setup-hook regression check passed — the refactored `runHookScript` helper still runs `cyrus-setup.sh` with the correct `cwd` and `LINEAR_ISSUE_IDENTIFIER` env.
-- ✅ Stop-session does **not** fire teardown (intended — unassign is preserved-worktree behavior).
-- ✅ **End-to-end teardown firing verified.** Initial run was blocked because F1 had no terminal-state transition; that gap is closed in this same change with a new `f1 terminate-issue --issue-id <id> --action completed|canceled|deleted` command (see "Update" section below). Final run confirmed `cyrus-teardown.sh` fires with correct `cwd` and `LINEAR_ISSUE_IDENTIFIER`, and the worktree is removed after.
+**All 8 scenarios passed.** Per-repo `cyrus-teardown.sh` fires end-to-end through the F1 framework on all three terminal actions (`completed` / `canceled` / `deleted`), with correct `cwd` and `LINEAR_ISSUE_IDENTIFIER`, runs before worktree removal, is non-blocking on failure, is skipped silently when absent, and is not triggered by `stop-session`.
 
 ## Setup
 
-```bash
-cd apps/f1
-./f1 init-test-repo --path /tmp/f1-cypack-1219-1779301432
-```
-
-Added two sentinel-writing scripts to the test repo root and committed:
+The test repo had two sentinel-writing scripts at its root, committed:
 
 ```bash
-# /tmp/f1-cypack-1219-1779301432/cyrus-setup.sh
-SENTINEL_DIR="/tmp/cyrus-hooks"
-mkdir -p "$SENTINEL_DIR"
-printf 'identifier=%s\ncwd=%s\nhook=setup\n' "$LINEAR_ISSUE_IDENTIFIER" "$PWD" \
-  > "$SENTINEL_DIR/setup-$LINEAR_ISSUE_IDENTIFIER.txt"
+# /tmp/f1-td-.../cyrus-setup.sh
+mkdir -p /tmp/cyrus-hooks
+printf 'identifier=%s\ncwd=%s\nhook=setup\nrepo=%s\n' \
+  "$LINEAR_ISSUE_IDENTIFIER" "$PWD" "<repo-basename>" \
+  > "/tmp/cyrus-hooks/setup-$LINEAR_ISSUE_IDENTIFIER-<repo>.txt"
 ```
 
 ```bash
-# /tmp/f1-cypack-1219-1779301432/cyrus-teardown.sh
-SENTINEL_DIR="/tmp/cyrus-hooks"
-mkdir -p "$SENTINEL_DIR"
-printf 'identifier=%s\ncwd=%s\nhook=teardown\n' "$LINEAR_ISSUE_IDENTIFIER" "$PWD" \
-  > "$SENTINEL_DIR/teardown-$LINEAR_ISSUE_IDENTIFIER.txt"
+# /tmp/f1-td-.../cyrus-teardown.sh
+mkdir -p /tmp/cyrus-hooks
+printf 'identifier=%s\ncwd=%s\nhook=teardown\nrepo=%s\n' \
+  "$LINEAR_ISSUE_IDENTIFIER" "$PWD" "<repo-basename>" \
+  > "/tmp/cyrus-hooks/teardown-$LINEAR_ISSUE_IDENTIFIER-<repo>.txt"
 ```
 
-Both `chmod +x`'d.
+Both `chmod +x`'d. F1 server started single-repo. Each scenario followed the same outer loop: `create-issue` → `start-session` → `prompt-session` (to satisfy repo-selection), then a per-scenario terminal action.
 
-## Drive
+## Scenarios
 
-```bash
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-cypack-1219-1779301432 bun run apps/f1/server.ts &
-CYRUS_PORT=3600 ./f1 ping                                  # → healthy
-CYRUS_PORT=3600 ./f1 create-issue --title ...              # → issue-1 / DEF-1
-CYRUS_PORT=3600 ./f1 start-session --issue-id issue-1      # → session-1
-# RepositoryRouter requested a selection; replied with the repo name:
-CYRUS_PORT=3600 ./f1 prompt-session --session-id session-1 \
-  --message "F1 Test Repository"
-```
-
-After the worktree was created at `/tmp/cyrus-f1-1779301451848/worktrees/DEF-1`:
+### 1. `terminate-issue --action completed` → teardown fires
 
 ```
-$ cat /tmp/cyrus-hooks/setup-DEF-1.txt
-identifier=DEF-1
-cwd=/private/tmp/cyrus-f1-1779301451848/worktrees/DEF-1
-hook=setup
-```
-
-→ **`cyrus-setup.sh` fired correctly** with the expected env and cwd. Confirms the shared `runHookScript` helper preserved setup-script behavior after the refactor.
-
-## Teardown — blocked
-
-To exercise teardown end-to-end, the Linear issue would need to be moved to a terminal state (`completed` / `canceled` / `deleted`), which causes `LinearMessageTranslator` (or, in CLI mode, the equivalent path) to publish an `IssueStateChangeMessage` on the message bus. `EdgeWorker.handleIssueStateChangeMessage` then calls `gitService.deleteWorktree(identifier, { repositories })`, and that's where the new teardown wiring runs.
-
-What's missing in F1:
-
-1. **No CLI surface for terminal-state transitions.** Inspected `apps/f1/f1 --help` and `CLIRPCServer.handleCommand` (`packages/core/src/issue-tracker/adapters/CLIRPCServer.ts:365–423`). The exposed RPC commands are: `ping`, `status`, `version`, `createIssue`, `assignIssue`, `createComment`, `startSession`, `viewSession`, `promptSession`, `stopSession`, `listAgentSessions`. There is no `updateIssue`, no `moveIssue`, no terminal-state command.
-2. **`CLIIssueTrackerService.updateIssue` exists but does not publish a state-change message.** It accepts `stateId` updates and emits a local `issue:updated` EventEmitter event, but never produces an `IssueStateChangeMessage` for the EdgeWorker's `handleMessage` to route. Real Linear webhooks reach `handleIssueStateChangeMessage` via `LinearMessageTranslator`; CLI mode has no equivalent translator wired in.
-3. **No public injection point on `EdgeWorker`.** `handleMessage(message)` is private; there is no exported helper to publish an internal message from outside the EdgeWorker.
-
-Stop-session was confirmed **not** to trigger teardown (correct — stop is graceful pause, not terminal):
-
-```
-$ ./f1 stop-session --session-id session-1   # session stopped
-$ ls /tmp/cyrus-hooks/                       # only setup-DEF-1.txt
-setup-DEF-1.txt
-$ ls /tmp/cyrus-f1-1779301451848/worktrees/  # worktree preserved
-DEF-1
-```
-
-This matches the design intent: stop ≠ terminal state.
-
-## Coverage that *does* exist
-
-Unit tests in `packages/edge-worker/test/GitService.test.ts` (`describe("deleteWorktree - teardown wiring")`) cover the teardown wiring with mocked `execSync`/`fs`:
-
-- Happy path — `cyrus-teardown.sh` runs in worktree cwd with `LINEAR_ISSUE_IDENTIFIER`, before `git worktree remove`.
-- Script absent → no exec attempt, worktree still deleted.
-- Script failure → logged, worktree still deleted.
-- Script not executable → warned + skipped.
-- Workspace dir missing → teardown not attempted.
-- Multi-repo: both repos' teardowns run with the correct per-repo `cwd`.
-- Multi-repo with one teardown missing → only the present one runs.
-- Multi-repo with one teardown failing → other repo's teardown still runs, `rmSync` still fires.
-- Empty `repositories` option → no teardown attempted.
-- SIGTERM → error includes `"timed out (exceeded 2 minutes)"`.
-
-633 / 633 edge-worker tests pass.
-
-## Recommendation
-
-To make this F1-testable in the future, the smallest viable addition is:
-
-- New RPC command `f1 update-issue --issue-id <id> --state-id <terminal-state-id>` that calls `CLIIssueTrackerService.updateIssue`.
-- In `CLIIssueTrackerService.updateIssue`, when the new `stateId` resolves to a state whose `type === "completed"` or `"canceled"`, also publish an `IssueStateChangeMessage` via the configured event transport, mirroring how `LinearMessageTranslator` handles `issueStatusChanged` webhooks for real Linear.
-
-Until that's in place, teardown coverage stays in the unit-test layer (which is comprehensive).
-
-## Update — gap closed, end-to-end teardown verified
-
-Added the missing terminal-state surface to F1 and re-ran:
-
-- `apps/f1/src/commands/terminateIssue.ts` — new `terminate-issue` CLI command (`--issue-id`, `--action`).
-- `CLIRPCServer` — new `terminateIssue` RPC command.
-- `CLIIssueTrackerService.terminateIssue(issueId, action)` — updates in-memory state and emits an `IssueStateChangeMessage` on the unified message bus.
-- `CLIEventTransport.emitMessage(message)` — peer to `emitEvent` for internal-message emission.
-- `EdgeWorker` (CLI setup) — now also subscribes to `cliEventTransport.on("message", handleMessage)` so terminal-state messages reach `handleIssueStateChangeMessage`.
-
-Re-run on a fresh F1 server with both `cyrus-setup.sh` and `cyrus-teardown.sh` in the test repo:
-
-```bash
-CYRUS_PORT=3601 ./f1 create-issue --title "Add multiply method" ...        # issue-1 / DEF-1
-CYRUS_PORT=3601 ./f1 start-session --issue-id issue-1                       # session-1
-CYRUS_PORT=3601 ./f1 prompt-session --session-id session-1 \
-  --message "F1 Test Repository"                                            # repo selection
-# ... cyrus-setup.sh fires, worktree exists ...
-CYRUS_PORT=3601 ./f1 terminate-issue --issue-id issue-1 --action completed
-```
-
-Results:
-
-```
-$ cat /tmp/cyrus-hooks/teardown-DEF-1.txt
-identifier=DEF-1
-cwd=/private/tmp/cyrus-f1-1779304068065/worktrees/DEF-1
-hook=teardown
-
-$ ls /tmp/cyrus-f1-1779304068065/worktrees/      # worktree removed
-(empty)
+DEF-1: setup wrote setup-DEF-1-*.txt
+terminate-issue --action completed
+→ teardown-DEF-1-*.txt written with cwd=/private/tmp/cyrus-f1-.../worktrees/DEF-1
+→ worktree directory removed
 ```
 
 Server log:
-
 ```
 [EdgeWorker] [MessageBus] Issue reached terminal state: DEF-1
+[EdgeWorker] Stopping agent runner for DEF-1 (issue terminal)
 [GitService] ℹ️  Running repository teardown script: cyrus-teardown.sh
 [GitService] ✅ Repository teardown script completed successfully
 ```
 
-End-to-end path validated: `f1 terminate-issue` → `CLIRPCServer.handleTerminateIssue` → `CLIIssueTrackerService.terminateIssue` → `CLIEventTransport.emitMessage(IssueStateChangeMessage)` → `EdgeWorker.handleMessage` → `handleIssueStateChangeMessage` → `gitService.deleteWorktree({ repositories })` → `runRepoTeardownScript` → worktree removal.
+✅ Pass.
+
+### 2. `terminate-issue --action canceled` → teardown fires identically
+
+```
+DEF-2: setup + canceled action
+→ teardown-DEF-2-*.txt written with correct cwd
+→ worktree removed
+```
+
+✅ Pass.
+
+### 3. `terminate-issue --action deleted` → teardown fires + issue removed
+
+```
+DEF-3: setup + deleted action
+→ teardown-DEF-3-*.txt written
+→ worktree removed
+→ issue removed from in-memory state (would 404 on subsequent fetch)
+```
+
+✅ Pass.
+
+### 4. No `cyrus-teardown.sh` present → no teardown attempt, worktree still removed
+
+Renamed `cyrus-teardown.sh` aside, then:
+
+```
+DEF-4: setup ran, no teardown script present
+terminate-issue --action completed
+→ /tmp/cyrus-hooks/ contains setup-DEF-4 but NO teardown-DEF-4
+→ worktree directory removed cleanly
+```
+
+Server log shows direct deletion without a teardown invocation:
+```
+[GitService] Deleting worktree directory for DEF-4 at .../worktrees/DEF-4
+[GitService] Removing git worktree: .../worktrees/DEF-4
+[GitService] Deleted worktree directory for DEF-4
+```
+
+✅ Pass — absent script is silently skipped, deletion proceeds.
+
+### 5. `stop-session` does NOT trigger teardown; subsequent `terminate-issue` does
+
+```
+DEF-5: setup ran, worktree created
+stop-session session-5
+→ worktree preserved, no teardown sentinel
+terminate-issue --action completed
+→ teardown-DEF-5-*.txt written, worktree removed
+```
+
+✅ Pass — confirms the design intent (stop ≠ terminal).
+
+### 6. Failing teardown → logged, worktree still removed
+
+Replaced `cyrus-teardown.sh` with one that writes an "attempt" sentinel then `exit 1`:
+
+```
+DEF-6: setup ran, teardown attempted (attempt sentinel written), exited 1
+→ worktree still removed
+```
+
+Server log:
+```
+[GitService] ❌ Repository teardown script failed: Command failed: bash ".../cyrus-teardown.sh"
+[GitService]    Continuing despite teardown script failure...
+[GitService] Removing git worktree: .../worktrees/DEF-6
+[GitService] Deleted worktree directory for DEF-6
+[EdgeWorker] Completed cleanup for DEF-6: stopped 1 session(s)
+```
+
+✅ Pass — non-blocking failure semantics confirmed.
+
+### 7. Invalid `--action archived` → CLI rejects before RPC
+
+```
+$ f1 terminate-issue --issue-id issue-1 --action archived
+✗ Invalid --action: archived. Must be one of: completed, canceled, deleted
+```
+
+✅ Pass.
+
+### 8. Nonexistent issue → RPC error returned to CLI
+
+```
+$ f1 terminate-issue --issue-id issue-nope --action completed
+✗ Failed to terminate issue: RPC Error (-32000): Issue issue-nope not found
+```
+
+✅ Pass.
+
+## Multi-repo per-issue note
+
+The teardown wiring iterates `options.repositories` and runs each repo's teardown with `cwd` set to the appropriate worktree subdirectory. That branch is fully covered by unit tests in `packages/edge-worker/test/GitService.test.ts` (multi-repo happy path, multi-repo with one teardown missing, multi-repo failure isolation). It is **not** exercised end-to-end through F1 because F1's two-repo mode places repos under different `workspaceBaseDir`s (the secondary repo uses a `secondary/` subdir), so a single issue does not produce the canonical multi-repo layout `~/.cyrus/worktrees/<issue>/<repo>/`. That is a property of F1's existing multi-repo orchestration, not of the teardown feature itself.
 
 ## Cleanup
 
 ```bash
-kill <bun pid>             # stop F1 server
-rm -rf /tmp/cyrus-hooks /tmp/f1-cypack-1219-* /tmp/cyrus-f1-1779301451848
+kill <bun pid>            # stop F1 server
+rm -rf /tmp/cyrus-hooks /tmp/f1-td-* /tmp/cyrus-f1-* /tmp/f1-drive.log
 ```
+
+## Conclusion
+
+The per-repo `cyrus-teardown.sh` feature behaves as specified across all terminal actions, the absent-script and failure paths, and the stop-vs-terminate distinction. End-to-end through F1 confirms the wiring from `terminate-issue` CLI through `CLIRPCServer` → `CLIIssueTrackerService.terminateIssue` → `CLIEventTransport.emitMessage` → `EdgeWorker.handleMessage` → `handleIssueStateChangeMessage` → `gitService.deleteWorktree({ repositories })` → `runRepoTeardownScript` → script execution → worktree removal.
