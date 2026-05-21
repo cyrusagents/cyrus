@@ -100,6 +100,8 @@ export interface ChatRunnerConfigInput {
 	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
 	/** Global OpenCode CLI state scope from Cyrus config */
 	opencodeGlobalStateScope?: OpenCodeConfigOverrides["stateScope"];
+	/** Existing runner type to preserve when resuming a completed chat session */
+	runnerType?: RunnerType;
 	logger: ILogger;
 	onMessage: (message: SDKMessage) => void | Promise<void>;
 	onError: (error: Error) => void;
@@ -232,7 +234,8 @@ export class RunnerConfigBuilder {
 		);
 
 		input.logger.debug("Chat session allowed tools:", allowedTools);
-		const runnerType = this.runnerSelector.getDefaultRunner();
+		const runnerType =
+			input.runnerType ?? this.runnerSelector.getDefaultRunner();
 
 		// Shared auto-memory across all chat threads on this platform. Lives
 		// under cyrusHome (not the per-thread workspace) so memory built up in
@@ -243,6 +246,7 @@ export class RunnerConfigBuilder {
 		);
 
 		return {
+			runnerType,
 			workingDirectory: input.workspacePath,
 			allowedTools,
 			disallowedTools: [] as string[],

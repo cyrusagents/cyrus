@@ -107,7 +107,7 @@ describe("EdgeWorker - child AgentSessionEvent.created webhooks", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("ignores a created webhook for a child session already mapped to a parent", async () => {
+	it("starts a created webhook for a child session already mapped to a parent", async () => {
 		const childSessionId = "child-session-123";
 		const parentSessionId = "parent-session-456";
 		(edgeWorker as any).globalSessionRegistry.setParentSession(
@@ -120,7 +120,13 @@ describe("EdgeWorker - child AgentSessionEvent.created webhooks", () => {
 				(edgeWorker as any).repositoryRouter,
 				"determineRepositoryForWebhook",
 			)
-			.mockResolvedValue({ type: "none" });
+			.mockResolvedValue({
+				type: "selected",
+				repositories: [mockRepository],
+			});
+		const initializeSpy = vi
+			.spyOn(edgeWorker as any, "initializeAgentRunner")
+			.mockResolvedValue(undefined);
 
 		const webhook: LinearAgentSessionCreatedWebhook = {
 			type: "AgentSessionEvent",
@@ -146,9 +152,15 @@ describe("EdgeWorker - child AgentSessionEvent.created webhooks", () => {
 			mockRepository,
 		]);
 
-		expect(routeSpy).not.toHaveBeenCalled();
-		expect(
-			mockAgentSessionManager.createCyrusAgentSession,
-		).not.toHaveBeenCalled();
+		expect(routeSpy).toHaveBeenCalledOnce();
+		expect(initializeSpy).toHaveBeenCalledWith(
+			webhook.agentSession,
+			[mockRepository],
+			"test-workspace",
+			undefined,
+			"This thread is for an agent session",
+			undefined,
+			undefined,
+		);
 	});
 });

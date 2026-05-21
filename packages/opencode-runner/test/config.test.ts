@@ -105,6 +105,29 @@ describe("OpenCode config translation", () => {
 		);
 	});
 
+	it("allows standard issue-session Bash and file tools through default-deny permissions", () => {
+		const result = buildOpenCodeConfig({
+			workingDirectory: "/work/repo",
+			cyrusHome: "/tmp/cyrus",
+			allowedTools: ["Read(**)", "Edit(**)", "Write(**)", "Bash"],
+		});
+
+		expect(result.config.permission).toMatchObject({
+			"*": "deny",
+			read: {
+				"*": "deny",
+				"**": "allow",
+			},
+			edit: {
+				"*": "deny",
+				"**": "allow",
+			},
+			bash: {
+				"*": "allow",
+			},
+		});
+	});
+
 	it("builds inline config and inherits terminal state by default", () => {
 		const env = buildOpenCodeRuntimeEnv({
 			workingDirectory: "/work/repo",

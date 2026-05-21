@@ -1091,8 +1091,9 @@ export class EdgeWorker extends EventEmitter {
 				cyrusHome: this.cyrusHome,
 				chatRepositoryProvider,
 				runnerConfigBuilder: this.runnerConfigBuilder,
-				createRunner: (config) => {
-					const runnerType = this.runnerSelectionService.getDefaultRunner();
+				createRunner: (config, chatRunnerType) => {
+					const runnerType =
+						chatRunnerType ?? this.runnerSelectionService.getDefaultRunner();
 					return this.createRunnerForType(runnerType, {
 						...config,
 						model: this.getDefaultModelForRunner(runnerType),
@@ -4202,9 +4203,8 @@ ${taskSection}`;
 
 		if (agentSessionId && parentSessionId) {
 			this.logger.info(
-				`Ignoring child agent session created webhook for ${agentSessionId}; parent session is ${parentSessionId}`,
+				`Handling child agent session created webhook for ${agentSessionId}; parent session is ${parentSessionId}`,
 			);
-			return;
 		}
 
 		const issueId = webhook.agentSession?.issue?.id;

@@ -134,6 +134,26 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 			}
 		}
 	});
+
+	it("preserves the stored runner type when resuming chat sessions", () => {
+		const builder = makeChatBuilder("claude");
+		const config = builder.buildChatConfig({
+			workspacePath: "/tmp/chat-workspace",
+			workspaceName: "slack-thread-x",
+			systemPrompt: "test",
+			sessionId: "sess-1",
+			resumeSessionId: "opencode-chat-session",
+			runnerType: "opencode",
+			cyrusHome: "/tmp/cyrus-home-test",
+			platformName: "slack",
+			logger: silentLogger,
+			onMessage: () => {},
+			onError: () => {},
+		});
+
+		expect((config as any).runnerType).toBe("opencode");
+		expect(config.resumeSessionId).toBe("opencode-chat-session");
+	});
 });
 
 describe("RunnerConfigBuilder.buildIssueConfig", () => {
