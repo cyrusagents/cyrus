@@ -58,8 +58,10 @@ export const availableTools = [
 	"CronCreate",
 	"CronDelete",
 	"CronList",
-	"RemoteTrigger",
 	"ScheduleWakeup",
+
+	// IDE integration
+	"LSP",
 
 	// Monitoring and task lifecycle
 	"Monitor",
