@@ -434,6 +434,14 @@ export interface AgentRunnerConfig {
 	tools?: string[];
 	/** Cyrus home directory (required) */
 	cyrusHome: string;
+	/**
+	 * Custom directory path for Claude's auto-memory storage. Forwarded to the
+	 * Claude SDK as settings.autoMemoryDirectory. When unset, the SDK falls
+	 * back to its default (~/.claude/projects/<sanitized-cwd>/memory/). Chat
+	 * sessions set this to a per-platform shared directory so memory built up
+	 * in one chat thread carries over to every other thread on that platform.
+	 */
+	autoMemoryDirectory?: string;
 	/** Prompt template version information */
 	promptVersions?: {
 		userPromptVersion?: string;
@@ -443,6 +451,17 @@ export interface AgentRunnerConfig {
 	hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
 	/** Plugins that provide skills, agents, hooks, and MCP servers to the session */
 	plugins?: SdkPluginConfig[];
+	/**
+	 * Optional allow-list of skill names enabled for the session. Mirrors the
+	 * Claude Agent SDK's `skills` option:
+	 * - `undefined`: no filter (provider defaults).
+	 * - `'all'`: enable every discovered skill.
+	 * - `string[]`: enable only the listed skills.
+	 *
+	 * Used to enforce per-skill scope (repository / Linear team / Linear label).
+	 * Only the Claude runner respects this today.
+	 */
+	skills?: string[] | "all";
 	/**
 	 * Callback for handling AskUserQuestion tool invocations.
 	 * When provided, intercepts the AskUserQuestion tool to allow presenting

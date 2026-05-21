@@ -4,11 +4,71 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Self-Managed GitLab MR replies** — `EdgeWorker` was instantiating `GitLabCommentService` with no `apiBaseUrl`, so every MR-reply request on a Self-Managed instance hit `gitlab.com` and 404'd. The base URL is now derived from the URL origin of the first configured repo with a `gitlabUrl`, so MR replies post against the correct host. ([#1191](https://github.com/cyrusagents/cyrus/pull/1191))
+
+### Security
+- **Patched 9 transitive dependency advisories** — Bumped `pnpm.overrides` for `hono` (≥4.12.18, fixes CSS injection / JWT validation / Cache Middleware cross-user leakage), `fast-uri` (≥3.1.2, path traversal + host confusion), `ip-address` (≥10.1.1, `Address6` XSS), `@anthropic-ai/sdk` (≥0.91.1, insecure default file permissions in local filesystem memory tool), and `@opentelemetry/sdk-node` / `@opentelemetry/exporter-prometheus` (≥0.217.0, Prometheus exporter process crash via malformed HTTP request). `pnpm audit` now reports zero advisories. ([CYPACK-1206](https://linear.app/ceedar/issue/CYPACK-1206))
+
+## [0.2.52] - 2026-05-13
+
+### Added
+- **User skills can now be scoped to specific repositories, Linear teams, or Linear labels** — Skills synced from cyrus-hosted with `repositoryIds`, `linearTeamIds`, or `linearLabelIds` are only loaded into sessions whose context matches every populated dimension (AND across dimensions, OR within each list). Unscoped skills continue to load for every session, and old payloads without scope fields keep working as global. Scope is persisted as a `scope.json` sidecar alongside `SKILL.md` and enforced at runtime via the Claude Agent SDK's `skills` option so the model can't see or invoke out-of-scope skills. ([CYPACK-1156](https://linear.app/ceedar/issue/CYPACK-1156), [#1205](https://github.com/cyrusagents/cyrus/pull/1205))
+- **Shared auto-memory across Slack chat sessions** — Slack-triggered chat sessions now share a persistent Claude auto-memory directory at `<cyrusHome>/slack-memory/`, so memory built up in one Slack thread carries over to every other Slack thread. ([CYPACK-1190](https://linear.app/ceedar/issue/CYPACK-1190), [#1199](https://github.com/cyrusagents/cyrus/pull/1199))
+
+### Fixed
+- **Session Stop hook now actually reminds the agent to ship before stopping** — Replaced the broken Stop-hook return shape (`additionalContext` + `continue: true`, which the Claude Agent SDK silently drops) with the SDK's documented `decision: "block"` + `reason` form. The first stop attempt now blocks and feeds the commit/push/PR reminder back into the next turn; a second stop (with `stop_hook_active === true`) proceeds, preventing infinite loops. ([CYPACK-1204](https://linear.app/ceedar/issue/CYPACK-1204), [#1210](https://github.com/cyrusagents/cyrus/pull/1210))
+- **Slack chat sessions can now read and edit their shared auto-memory** — The shared auto-memory directory (`<cyrusHome>/slack-memory/`) is now included in `allowedDirectories` for chat sessions. Previously, sessions could create new memory files via shell redirects, but `Read`/`Edit`/`Glob` against existing memory files (including `MEMORY.md`) were denied by the home-directory restriction rules, leaving the auto-memory feature half-working. ([CYPACK-1197](https://linear.app/ceedar/issue/CYPACK-1197), [#1206](https://github.com/cyrusagents/cyrus/pull/1206))
+
 ### Changed
 - **Slack mention prompt nudges agents toward `linear_agent_give_feedback` for live child sessions** — When responding in Slack, Cyrus is now told to send mid-flight corrections to a running child agent session via `mcp__cyrus-tools__linear_agent_give_feedback` instead of falling back to `mcp__linear__save_comment`. Produces a stronger signal when correcting work that is already in progress. ([CYPACK-1189](https://linear.app/ceedar/issue/CYPACK-1189), [#1198](https://github.com/cyrusagents/cyrus/pull/1198))
 
-### Fixed
-- **Self-Managed GitLab MR replies** — `EdgeWorker` was instantiating `GitLabCommentService` with no `apiBaseUrl`, so every MR-reply request on a Self-Managed instance hit `gitlab.com` and 404'd. The base URL is now derived from the URL origin of the first configured repo with a `gitlabUrl`, so MR replies post against the correct host. ([#1191](https://github.com/cyrusagents/cyrus/pull/1191))
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.52
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.52
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.52
+
+#### cyrus-core
+- cyrus-core@0.2.52
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.52
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.52
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.52
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.52
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.52
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.52
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.52
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.52
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.52
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.52
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.52
 
 ## [0.2.51] - 2026-04-30
 

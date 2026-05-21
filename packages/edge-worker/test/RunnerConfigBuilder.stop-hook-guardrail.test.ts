@@ -1,94 +1,79 @@
-import { execSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import type { ILogger } from "cyrus-core";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { inspectGitGuardrail } from "../src/RunnerConfigBuilder.js";
+import type { StopHookInput } from "cyrus-claude-runner";
+import { describe, expect, it } from "vitest";
+import { buildStopHook } from "../src/RunnerConfigBuilder.js";
 
-const silentLogger: ILogger = {
-	debug: () => {},
-	info: () => {},
-	warn: () => {},
-	error: () => {},
-} as unknown as ILogger;
-
-function git(cwd: string, args: string): void {
-	execSync(`git ${args}`, {
-		cwd,
-		stdio: ["ignore", "ignore", "ignore"],
-		env: {
-			...process.env,
-			GIT_AUTHOR_NAME: "test",
-			GIT_AUTHOR_EMAIL: "test@example.com",
-			GIT_COMMITTER_NAME: "test",
-			GIT_COMMITTER_EMAIL: "test@example.com",
-		},
-	});
+function getStopHookCallback() {
+	const hooks = buildStopHook();
+	const stop = hooks.Stop;
+	if (!stop || stop.length === 0) {
+		throw new Error("expected Stop hook entries");
+	}
+	const matcher = stop[0];
+	expect(matcher.matcher).toBe(".*");
+	const callback = matcher.hooks[0];
+	if (!callback) {
+		throw new Error("expected at least one Stop hook callback");
+	}
+	return callback;
 }
 
-describe("inspectGitGuardrail", () => {
-	let workdir: string;
+function makeStopInput(overrides: Partial<StopHookInput> = {}): StopHookInput {
+	return {
+		hook_event_name: "Stop",
+		session_id: "test-session",
+		transcript_path: "/tmp/transcript",
+		cwd: "/tmp",
+		stop_hook_active: false,
+		...overrides,
+	} as StopHookInput;
+}
 
-	beforeEach(() => {
-		workdir = mkdtempSync(join(tmpdir(), "cyrus-stop-hook-"));
+describe("buildStopHook", () => {
+	it("returns the Stop hook with a single `.*` matcher", () => {
+		const hooks = buildStopHook();
+		expect(Object.keys(hooks)).toEqual(["Stop"]);
+		expect(hooks.Stop).toHaveLength(1);
+		expect(hooks.Stop?.[0].matcher).toBe(".*");
+		expect(hooks.Stop?.[0].hooks).toHaveLength(1);
 	});
 
-	afterEach(() => {
-		rmSync(workdir, { recursive: true, force: true });
+	it("blocks the first stop attempt with the commit/push/PR reminder", async () => {
+		const callback = getStopHookCallback();
+		const result = await callback(
+			makeStopInput({ stop_hook_active: false }),
+			"tool-use-id",
+			{ signal: new AbortController().signal },
+		);
+
+		expect(result).toEqual({
+			decision: "block",
+			reason:
+				"Before stopping, ensure you have committed and pushed all code changes " +
+				"and created/updated a PR (if you made any code changes).\n\n" +
+				"If you have already done this (or no code changes were made), you may stop again.",
+		});
 	});
 
-	it("returns null when cwd is not a git repository", () => {
-		expect(inspectGitGuardrail(workdir, silentLogger)).toBeNull();
+	it("does not use the invalid `additionalContext` or `continue` fields", async () => {
+		const callback = getStopHookCallback();
+		const result = (await callback(
+			makeStopInput({ stop_hook_active: false }),
+			"tool-use-id",
+			{ signal: new AbortController().signal },
+		)) as Record<string, unknown>;
+
+		expect(result).not.toHaveProperty("additionalContext");
+		expect(result).not.toHaveProperty("continue");
 	});
 
-	it("returns null on a clean repo with no commits ahead of upstream", () => {
-		// Create a bare "remote" and a clone, so we have an upstream and a clean tree.
-		const remote = mkdtempSync(join(tmpdir(), "cyrus-stop-hook-remote-"));
-		try {
-			execSync(`git init --bare`, { cwd: remote, stdio: "ignore" });
-			git(workdir, "init -b main");
-			git(workdir, `remote add origin ${remote}`);
-			writeFileSync(join(workdir, "README.md"), "hello\n");
-			git(workdir, "add README.md");
-			git(workdir, 'commit -m "init"');
-			git(workdir, "push -u origin main");
+	it("allows the stop through when `stop_hook_active` is true", async () => {
+		const callback = getStopHookCallback();
+		const result = await callback(
+			makeStopInput({ stop_hook_active: true }),
+			"tool-use-id",
+			{ signal: new AbortController().signal },
+		);
 
-			expect(inspectGitGuardrail(workdir, silentLogger)).toBeNull();
-		} finally {
-			rmSync(remote, { recursive: true, force: true });
-		}
-	});
-
-	it("returns a guardrail message when there are uncommitted changes", () => {
-		git(workdir, "init -b main");
-		writeFileSync(join(workdir, "a.txt"), "stuff\n");
-
-		const message = inspectGitGuardrail(workdir, silentLogger);
-		expect(message).toContain("1 uncommitted file change");
-		expect(message).toContain("Create or update a pull request");
-	});
-
-	it("counts commits ahead of upstream as unshipped work", () => {
-		const remote = mkdtempSync(join(tmpdir(), "cyrus-stop-hook-remote-"));
-		try {
-			execSync(`git init --bare`, { cwd: remote, stdio: "ignore" });
-			git(workdir, "init -b main");
-			git(workdir, `remote add origin ${remote}`);
-			writeFileSync(join(workdir, "README.md"), "hello\n");
-			git(workdir, "add README.md");
-			git(workdir, 'commit -m "init"');
-			git(workdir, "push -u origin main");
-
-			writeFileSync(join(workdir, "feature.txt"), "feature\n");
-			git(workdir, "add feature.txt");
-			git(workdir, 'commit -m "feature"');
-
-			const message = inspectGitGuardrail(workdir, silentLogger);
-			expect(message).toContain("1 commit");
-			expect(message).toContain("not yet on the remote");
-		} finally {
-			rmSync(remote, { recursive: true, force: true });
-		}
+		expect(result).toEqual({});
 	});
 });

@@ -71,6 +71,39 @@ function resolveSkillDir(
 }
 
 /**
+ * Normalize the scope dimensions of an UpdateSkillPayload. Returns null when
+ * no dimension carries any values (global skill). Coerces non-array / empty
+ * arrays to undefined and drops empty string entries.
+ */
+function normalizeSkillScope(payload: UpdateSkillPayload): {
+	repositoryIds?: string[];
+	linearTeamIds?: string[];
+	linearLabelIds?: string[];
+} | null {
+	const clean = (values: unknown): string[] | undefined => {
+		if (!Array.isArray(values)) return undefined;
+		const filtered = values.filter(
+			(v): v is string => typeof v === "string" && v.length > 0,
+		);
+		return filtered.length > 0 ? filtered : undefined;
+	};
+
+	const repositoryIds = clean(payload.repositoryIds);
+	const linearTeamIds = clean(payload.linearTeamIds);
+	const linearLabelIds = clean(payload.linearLabelIds);
+
+	if (!repositoryIds && !linearTeamIds && !linearLabelIds) {
+		return null;
+	}
+
+	return {
+		...(repositoryIds ? { repositoryIds } : {}),
+		...(linearTeamIds ? { linearTeamIds } : {}),
+		...(linearLabelIds ? { linearLabelIds } : {}),
+	};
+}
+
+/**
  * Escape a string for safe inclusion as a YAML scalar value.
  * Wraps in double quotes if the value contains special characters.
  */
@@ -126,6 +159,22 @@ export async function handleUpdateSkill(
 
 		await mkdir(dirResult.path, { recursive: true });
 		await writeFile(skillPath, skillContent, "utf-8");
+
+		// Persist scope sidecar separately from SKILL.md so the model never sees
+		// scope metadata in its context. Write the file only when at least one
+		// dimension is populated; otherwise remove any stale sidecar so the
+		// skill becomes global again.
+		const scopePath = join(dirResult.path, "scope.json");
+		const scope = normalizeSkillScope(payload);
+		if (scope) {
+			await writeFile(scopePath, JSON.stringify(scope, null, "\t"), "utf-8");
+		} else {
+			try {
+				await rm(scopePath);
+			} catch (error: any) {
+				if (error.code !== "ENOENT") throw error;
+			}
+		}
 
 		return {
 			success: true,

@@ -320,6 +320,26 @@ export class ChatSessionHandler<TEvent> {
 	}
 
 	/**
+	 * Test/inspection: list all known thread keys and their session IDs.
+	 * Used by F1 to discover chat sessions for follow-up prompts and replay.
+	 */
+	listThreads(): Array<{ threadKey: string; sessionId: string }> {
+		return Array.from(this.threadSessions.entries()).map(
+			([threadKey, sessionId]) => ({ threadKey, sessionId }),
+		);
+	}
+
+	/**
+	 * Test/inspection: resolve a chat thread to its runner. Returns undefined
+	 * when the thread is unknown or the runner has been disposed.
+	 */
+	getRunnerForThread(threadKey: string): IAgentRunner | undefined {
+		const sessionId = this.threadSessions.get(threadKey);
+		if (!sessionId) return undefined;
+		return this.sessionManager.getAgentRunner(sessionId);
+	}
+
+	/**
 	 * Resume an existing session with a new prompt (--continue behavior).
 	 */
 	private async resumeSession(
@@ -482,6 +502,7 @@ export class ChatSessionHandler<TEvent> {
 			sessionId,
 			resumeSessionId,
 			cyrusHome: this.deps.cyrusHome,
+			platformName: this.adapter.platformName,
 			linearWorkspaceId: provider.getDefaultLinearWorkspaceId(),
 			repository: provider.getDefaultRepository(),
 			repositoryPaths: provider.getRepositoryPaths(),

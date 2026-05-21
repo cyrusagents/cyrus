@@ -133,6 +133,15 @@ export interface UpdateSkillPayload {
 	description: string;
 	/** Full skill content (Markdown body, excluding the frontmatter — frontmatter is generated from name + description) */
 	content: string;
+	/**
+	 * Optional scope restrictions. When any dimension is non-empty, the skill is
+	 * only available in sessions whose context matches every populated dimension
+	 * (AND across dimensions, OR within each list). When all dimensions are
+	 * omitted/empty the skill is globally available.
+	 */
+	repositoryIds?: string[];
+	linearTeamIds?: string[];
+	linearLabelIds?: string[];
 }
 
 /**

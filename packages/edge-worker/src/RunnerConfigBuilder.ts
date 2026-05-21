@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { join } from "node:path";
 import type {
 	HookCallbackMatcher,
 	HookEvent,
@@ -70,6 +70,8 @@ export interface ChatRunnerConfigInput {
 	sessionId: string;
 	resumeSessionId?: string;
 	cyrusHome: string;
+	/** Chat platform name (e.g. "slack") — used to namespace the shared auto-memory dir */
+	platformName: string;
 	/** Linear workspace ID for building fresh MCP config at session start */
 	linearWorkspaceId?: string;
 	/** Repository to source user-configured MCP paths from (V1: first available repo) */
@@ -111,6 +113,12 @@ export interface IssueRunnerConfigInput {
 	requireLinearWorkspaceId: (repo: RepositoryConfig) => string;
 	/** Plugins to load for the session (provides skills, hooks, etc.) */
 	plugins?: SdkPluginConfig[];
+	/**
+	 * Allow-list of skill names enabled for the session (after scope filtering),
+	 * or `"all"` to enable every discovered skill, or `undefined` to defer to
+	 * provider defaults. Only the Claude runner respects this today.
+	 */
+	skills?: string[] | "all";
 	/** SDK sandbox settings (enabled, network proxy ports) for Claude runner */
 	sandboxSettings?: SandboxSettings;
 	/** CA cert path for MITM TLS termination — passed via child process env */
@@ -179,13 +187,26 @@ export class RunnerConfigBuilder {
 
 		input.logger.debug("Chat session allowed tools:", allowedTools);
 
+		// Shared auto-memory across all chat threads on this platform. Lives
+		// under cyrusHome (not the per-thread workspace) so memory built up in
+		// one Slack thread is available to every other Slack thread.
+		const autoMemoryDirectory = join(
+			input.cyrusHome,
+			`${input.platformName}-memory`,
+		);
+
 		return {
 			workingDirectory: input.workspacePath,
 			allowedTools,
 			disallowedTools: [] as string[],
-			allowedDirectories: [input.workspacePath, ...repositoryPaths],
+			allowedDirectories: [
+				input.workspacePath,
+				autoMemoryDirectory,
+				...repositoryPaths,
+			],
 			workspaceName: input.workspaceName,
 			cyrusHome: input.cyrusHome,
+			autoMemoryDirectory,
 			appendSystemPrompt: input.systemPrompt,
 			...(mcpConfig ? { mcpConfig } : {}),
 			...(mcpConfigPath ? { mcpConfigPath } : {}),
@@ -301,6 +322,11 @@ export class RunnerConfigBuilder {
 			// Plugins providing skills (Claude runner only)
 			...(runnerType === "claude" &&
 				input.plugins?.length && { plugins: input.plugins }),
+			// Skill scope allow-list (Claude runner only). Passed through to the
+			// SDK's `query()` `skills` option so unlisted skills are hidden from
+			// the model.
+			...(runnerType === "claude" &&
+				input.skills !== undefined && { skills: input.skills }),
 			// SDK sandbox settings (Claude runner only):
 			// - Merge base settings with per-session filesystem.allowWrite (worktree path)
 			// - Pass CA cert path via env for MITM TLS termination
@@ -349,43 +375,16 @@ export class RunnerConfigBuilder {
 	}
 
 	/**
-	 * Build a Stop hook that ensures the agent creates a PR before ending the
-	 * session when code changes were made. Inspects the working tree at the
-	 * session cwd and blocks the first stop attempt if there are uncommitted
-	 * changes or commits ahead of the upstream branch. The `stop_hook_active`
-	 * flag prevents infinite loops — once the hook has already fired, the next
-	 * stop is always allowed through.
+	 * Build a Stop hook that reminds the agent to commit, push, and open a PR
+	 * before ending the session. Blocks the first stop attempt and feeds the
+	 * guidance back to the agent via the SDK's native `decision: "block"` +
+	 * `reason` mechanism. The `stop_hook_active` flag prevents infinite loops —
+	 * once the hook has already fired, the next stop is always allowed through.
 	 */
 	private buildStopHook(
-		log: ILogger,
+		_log: ILogger,
 	): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
-		return {
-			Stop: [
-				{
-					matcher: ".*",
-					hooks: [
-						async (input) => {
-							const stopInput = input as StopHookInput;
-
-							// Prevent infinite loops: if the hook already fired, allow the stop.
-							if (stopInput.stop_hook_active) {
-								return {};
-							}
-
-							const guardrail = inspectGitGuardrail(stopInput.cwd, log);
-							if (!guardrail) {
-								return {};
-							}
-
-							return {
-								decision: "block",
-								reason: guardrail,
-							};
-						},
-					],
-				},
-			],
-		};
+		return buildStopHook();
 	}
 
 	/**
@@ -543,74 +542,38 @@ export class RunnerConfigBuilder {
 }
 
 /**
- * Inspect the working tree at `cwd` and return a guardrail message if there
- * is unshipped work (uncommitted changes or commits ahead of the upstream).
- * Returns null when the tree is clean, when `cwd` isn't a git repo, or when
- * git is unavailable — in those cases the stop should not be blocked.
+ * Build a Stop hook that reminds the agent to commit, push, and open a PR
+ * before ending the session. Blocks the first stop attempt and feeds the
+ * guidance back to the agent via the SDK's native `decision: "block"` +
+ * `reason` mechanism. The `stop_hook_active` flag prevents infinite loops —
+ * once the hook has already fired, the next stop is always allowed through.
  */
-export function inspectGitGuardrail(cwd: string, log: ILogger): string | null {
-	const runGit = (args: string): string => {
-		return execSync(`git ${args}`, {
-			cwd,
-			encoding: "utf8",
-			stdio: ["ignore", "pipe", "ignore"],
-		}).trim();
+export function buildStopHook(): Partial<
+	Record<HookEvent, HookCallbackMatcher[]>
+> {
+	return {
+		Stop: [
+			{
+				matcher: ".*",
+				hooks: [
+					async (input) => {
+						const stopInput = input as StopHookInput;
+
+						// Prevent infinite loops: if the hook already fired, allow the stop.
+						if (stopInput.stop_hook_active) {
+							return {};
+						}
+
+						return {
+							decision: "block",
+							reason:
+								"Before stopping, ensure you have committed and pushed all code changes " +
+								"and created/updated a PR (if you made any code changes).\n\n" +
+								"If you have already done this (or no code changes were made), you may stop again.",
+						};
+					},
+				],
+			},
+		],
 	};
-
-	let status: string;
-	try {
-		status = runGit("status --porcelain");
-	} catch (err) {
-		log.debug(
-			`PR guardrail: skipping (cwd is not a git repo or git failed): ${(err as Error).message}`,
-		);
-		return null;
-	}
-
-	const uncommittedFiles = status
-		.split("\n")
-		.map((line) => line.trim())
-		.filter((line) => line.length > 0);
-	const hasUncommitted = uncommittedFiles.length > 0;
-
-	let unpushedCount = 0;
-	try {
-		unpushedCount = parseInt(runGit("rev-list --count @{u}..HEAD"), 10) || 0;
-	} catch {
-		// No upstream configured — fall back to comparing against origin's default branch.
-		try {
-			const baseRef = runGit("rev-parse --verify --abbrev-ref origin/HEAD");
-			if (baseRef) {
-				unpushedCount =
-					parseInt(runGit(`rev-list --count ${baseRef}..HEAD`), 10) || 0;
-			}
-		} catch {
-			// Can't determine a base — be conservative and don't block on commits alone.
-		}
-	}
-
-	if (!hasUncommitted && unpushedCount === 0) {
-		return null;
-	}
-
-	const parts: string[] = [];
-	if (hasUncommitted) {
-		parts.push(
-			`${uncommittedFiles.length} uncommitted file change${uncommittedFiles.length === 1 ? "" : "s"}`,
-		);
-	}
-	if (unpushedCount > 0) {
-		parts.push(
-			`${unpushedCount} commit${unpushedCount === 1 ? "" : "s"} not yet on the remote`,
-		);
-	}
-
-	return (
-		`You appear to be ending the session, but the working tree has ${parts.join(" and ")}. ` +
-		"Before stopping:\n" +
-		"1. Commit any uncommitted changes with a descriptive message.\n" +
-		"2. Push the branch to the remote.\n" +
-		"3. Create or update a pull request that summarizes the change.\n\n" +
-		"If the work is genuinely complete and a PR is not appropriate (for example, a question or research task with no intended code changes), you may stop again — this guardrail only blocks once per session."
-	);
 }

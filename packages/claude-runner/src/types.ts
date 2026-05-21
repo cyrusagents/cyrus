@@ -48,6 +48,18 @@ export interface ClaudeRunnerConfig {
 	};
 	hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>; // Claude SDK hooks
 	plugins?: SdkPluginConfig[]; // Plugins providing skills, agents, hooks, and MCP servers
+	/**
+	 * Filter which Skills the main session can invoke. Passed through to the
+	 * SDK's `query()` `skills` option.
+	 * - `undefined`: no SDK auto-configuration (CLI defaults apply).
+	 * - `'all'`: enable every discovered skill.
+	 * - `string[]`: enable only the listed skills (by SKILL.md `name` /
+	 *   directory name, or `plugin:skill` for plugin-qualified skills).
+	 *
+	 * This is a context filter, not a sandbox — unlisted skills are hidden from
+	 * the model's listing but the files remain on disk.
+	 */
+	skills?: string[] | "all";
 	outputFormat?: OutputFormatConfig; // Structured output format configuration
 	sandbox?: SandboxSettings; // Sandbox settings (enabled, network proxy ports, etc.)
 	/** Additional environment variables to pass to the Claude child process (merged after process.env) */
@@ -77,6 +89,12 @@ export interface ClaudeRunnerConfig {
 	 * the ephemeral worktree and can be resumed from any host.
 	 */
 	sessionStore?: SessionStore;
+	/**
+	 * Custom directory path for Claude's auto-memory storage. Forwarded to the
+	 * Claude SDK as settings.autoMemoryDirectory. When unset, the SDK falls
+	 * back to its default (~/.claude/projects/<sanitized-cwd>/memory/).
+	 */
+	autoMemoryDirectory?: string;
 }
 
 export interface ClaudeSessionInfo {
