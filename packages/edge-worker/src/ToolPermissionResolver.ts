@@ -64,8 +64,10 @@ export class ToolPermissionResolver {
 	/**
 	 * Build allowed tools for chat sessions.
 	 *
-	 * Chat sessions get read-only tools plus MCP tool prefixes derived from
-	 * the provided MCP config keys and user-configured MCP server names.
+	 * Chat sessions get the team-configured Slack tool list (or, when the team
+	 * has not customized it, the built-in read-only tool set) plus MCP tool
+	 * prefixes derived from the provided MCP config keys and user-configured
+	 * MCP server names.
 	 *
 	 * @param mcpConfigKeys - Built-in MCP server names (keys from inline McpServerConfig record)
 	 * @param userMcpTools - User-configured MCP tool entries from repository allowedTools (already mcp__* prefixed)
@@ -78,14 +80,51 @@ export class ToolPermissionResolver {
 			(server) => `mcp__${server}`,
 		);
 
+		// Slack chat sessions: prefer team-configured slackAllowedTools when set,
+		// otherwise fall back to the read-only default.
+		const baseChatTools =
+			this.config.slackAllowedTools && this.config.slackAllowedTools.length > 0
+				? this.config.slackAllowedTools
+				: getReadOnlyTools();
+
 		return Array.from(
 			new Set([
-				...getReadOnlyTools(),
+				...baseChatTools,
 				...mcpToolPermissions,
 				...(userMcpTools ?? []),
 				"Bash(git -C * pull)",
 			]),
 		);
+	}
+
+	/**
+	 * Build allowed tools for GitHub-triggered agent sessions.
+	 *
+	 * GitHub sessions today reuse the Linear-style resolution path (repo +
+	 * global defaults). When `githubAllowedTools` is set at the workspace
+	 * level it takes precedence over `defaultAllowedTools`. Workspace MCP
+	 * tools are always appended.
+	 */
+	public buildGithubAllowedTools(
+		repositories: RepositoryConfig | RepositoryConfig[],
+		promptType?: PromptType,
+	): string[] {
+		// If the workspace defines a GitHub-specific list, treat it like a
+		// global default that overrides config.defaultAllowedTools for the
+		// duration of this resolution.
+		if (
+			this.config.githubAllowedTools &&
+			this.config.githubAllowedTools.length > 0
+		) {
+			const originalDefault = this.config.defaultAllowedTools;
+			this.config.defaultAllowedTools = this.config.githubAllowedTools;
+			try {
+				return this.buildAllowedTools(repositories, promptType);
+			} finally {
+				this.config.defaultAllowedTools = originalDefault;
+			}
+		}
+		return this.buildAllowedTools(repositories, promptType);
 	}
 
 	/**

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Per-platform allowed tools — `slackAllowedTools` and `githubAllowedTools` on `EdgeConfig`** — `EdgeConfig` now accepts two new optional top-level keys. When `slackAllowedTools` is set, `ToolPermissionResolver.buildChatAllowedTools()` uses it as the base list for Slack `@mention` sessions instead of the built-in read-only set (workspace MCP prefixes are still appended). A new `buildGithubAllowedTools()` helper resolves tools for GitHub-triggered sessions, honoring `githubAllowedTools` over `defaultAllowedTools` when set. Older runtimes that don't read these keys silently ignore them. ([CYHOST-967](https://linear.app/ceedar/issue/CYHOST-967))
+
 ### Fixed
 - **Self-Managed GitLab MR replies** — `EdgeWorker` was instantiating `GitLabCommentService` with no `apiBaseUrl`, so every MR-reply request on a Self-Managed instance hit `gitlab.com` and 404'd. The base URL is now derived from the URL origin of the first configured repo with a `gitlabUrl`, so MR replies post against the correct host. Thanks [@tenforty](https://github.com/tenfourty) ([#1191](https://github.com/cyrusagents/cyrus/pull/1191))
 

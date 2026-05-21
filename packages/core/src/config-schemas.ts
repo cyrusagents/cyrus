@@ -388,6 +388,21 @@ export const EdgeConfigSchema = z.object({
 	defaultDisallowedTools: z.array(z.string()).optional(),
 
 	/**
+	 * Allowed tools for Slack @mention chat sessions. When set, overrides the
+	 * built-in read-only chat tool set used by ToolPermissionResolver. The
+	 * workspace MCP tool prefixes (mcp__linear, mcp__cyrus-tools, etc.) are
+	 * still appended automatically.
+	 */
+	slackAllowedTools: z.array(z.string()).optional(),
+
+	/**
+	 * Allowed tools for GitHub-triggered agent sessions. When set, overrides
+	 * `defaultAllowedTools` specifically for sessions originating from GitHub
+	 * (PR comments, automated fix-on-failure flows, etc.).
+	 */
+	githubAllowedTools: z.array(z.string()).optional(),
+
+	/**
 	 * Whether to trigger agent sessions when issue title, description, or attachments are updated.
 	 * When enabled, the agent receives context showing what changed (old vs new values).
 	 * Defaults to true if not specified.

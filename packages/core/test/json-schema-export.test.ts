@@ -49,6 +49,8 @@ describe("JSON Schema export", () => {
 				"global_setup_script",
 				"defaultAllowedTools",
 				"defaultDisallowedTools",
+				"slackAllowedTools",
+				"githubAllowedTools",
 				"issueUpdateTrigger",
 				"userAccessControl",
 				"promptDefaults",

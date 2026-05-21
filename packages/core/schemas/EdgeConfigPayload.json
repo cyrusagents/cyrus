@@ -558,6 +558,18 @@
 				"type": "string"
 			}
 		},
+		"slackAllowedTools": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"githubAllowedTools": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
 		"issueUpdateTrigger": {
 			"type": "boolean"
 		},
