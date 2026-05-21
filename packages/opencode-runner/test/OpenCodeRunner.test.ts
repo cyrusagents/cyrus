@@ -12,8 +12,9 @@ import type {
 	SDKResultMessage,
 	SDKUserMessage,
 } from "cyrus-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { OpenCodeRunner } from "../src/OpenCodeRunner.js";
+import { SimpleOpenCodeRunner } from "../src/SimpleOpenCodeRunner.js";
 
 function makeTempDir(): string {
 	return mkdtempSync(join(tmpdir(), "cyrus-opencode-runner-"));
@@ -279,6 +280,36 @@ describe("OpenCodeRunner", () => {
 		expect(capture.argv).toContain("oc_existing");
 	});
 
+	it("warns when shared runner config fields are unsupported by OpenCode", async () => {
+		const dir = makeTempDir();
+		const opencodePath = writeFakeOpenCode(
+			dir,
+			`process.stdout.write(${JSON.stringify(fixtureLines())});`,
+		);
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const runner = new OpenCodeRunner({
+			openCodePath: opencodePath,
+			workingDirectory: dir,
+			cyrusHome: dir,
+			appendSystemPrompt: "Use terse answers",
+			maxTurns: 3,
+			fallbackModel: "anthropic/claude-haiku-4.5",
+		});
+
+		await runner.start("Configured run");
+
+		expect(warn).toHaveBeenCalledWith(
+			"[OpenCodeRunner] Unsupported config entry skipped: appendSystemPrompt: OpenCode CLI does not support appended system prompts for `opencode run`",
+		);
+		expect(warn).toHaveBeenCalledWith(
+			"[OpenCodeRunner] Unsupported config entry skipped: maxTurns: OpenCode CLI does not expose a max-turns runtime option",
+		);
+		expect(warn).toHaveBeenCalledWith(
+			"[OpenCodeRunner] Unsupported config entry skipped: fallbackModel: OpenCode CLI does not expose a fallback-model runtime option",
+		);
+		warn.mockRestore();
+	});
+
 	it("passes OpenCode runtime config through environment", async () => {
 		const dir = makeTempDir();
 		const captureFile = join(dir, "capture.json");
@@ -345,6 +376,74 @@ process.stdout.write(${JSON.stringify(fixtureLines())});
 					"rm *": "deny",
 				},
 				linear_get_issue: "allow",
+			},
+		});
+	});
+
+	it("SimpleOpenCodeRunner extracts the final result when no assistant text is emitted", async () => {
+		const dir = makeTempDir();
+		const opencodePath = writeFakeOpenCode(
+			dir,
+			`
+process.stdout.write(JSON.stringify({ type: "step_start", sessionID: "oc_simple" }) + "\\n");
+process.stdout.write(JSON.stringify({ type: "step_finish", result: "approve" }) + "\\n");
+`,
+		);
+		const runner = new SimpleOpenCodeRunner({
+			validResponses: ["approve", "reject"] as const,
+			cyrusHome: dir,
+			workingDirectory: dir,
+			openCodePath: opencodePath,
+		} as any);
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		const result = await runner.query("Should we approve?");
+		warn.mockRestore();
+
+		expect(result.response).toBe("approve");
+		expect(result.messages.at(-1)).toMatchObject({
+			type: "result",
+			result: "approve",
+		});
+	});
+
+	it("SimpleOpenCodeRunner grants read, glob, and grep when file reading is allowed", async () => {
+		const dir = makeTempDir();
+		const captureFile = join(dir, "capture.json");
+		const opencodePath = writeFakeOpenCode(
+			dir,
+			`
+writeFileSync(${JSON.stringify(captureFile)}, JSON.stringify({
+  opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT,
+}));
+process.stdout.write(JSON.stringify({ type: "step_start", sessionID: "oc_simple" }) + "\\n");
+process.stdout.write(JSON.stringify({ type: "step_finish", result: "approve" }) + "\\n");
+`,
+			captureFile,
+		);
+		const runner = new SimpleOpenCodeRunner({
+			validResponses: ["approve", "reject"] as const,
+			cyrusHome: dir,
+			workingDirectory: dir,
+			openCodePath: opencodePath,
+		} as any);
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		await runner.query("Should we approve?", { allowFileReading: true });
+		warn.mockRestore();
+
+		const capture = JSON.parse(readFileSync(captureFile, "utf8"));
+		expect(JSON.parse(capture.opencodeConfig).permission).toMatchObject({
+			"*": "deny",
+			read: {
+				"*": "deny",
+				"**": "allow",
+			},
+			glob: {
+				"*": "allow",
+			},
+			grep: {
+				"*": "allow",
 			},
 		});
 	});
@@ -433,5 +532,31 @@ setTimeout(() => process.exit(0), 3000);
 		expect(result.type).toBe("result");
 		expect(result.is_error).toBe(true);
 		expect(result.subtype).toBe("error_during_execution");
+	});
+
+	it("finalizes once when child error and close events both fire", async () => {
+		const dir = makeTempDir();
+		const errors: Error[] = [];
+		let completeCount = 0;
+		const messages: unknown[] = [];
+		const runner = new OpenCodeRunner({
+			openCodePath: join(dir, "missing-opencode"),
+			workingDirectory: dir,
+			cyrusHome: dir,
+			onError: (error) => errors.push(error),
+			onComplete: () => completeCount++,
+			onMessage: (message) => messages.push(message),
+		});
+
+		await runner.start("Run missing binary");
+
+		expect(errors).toHaveLength(1);
+		expect(completeCount).toBe(1);
+		expect(
+			messages.filter((message: any) => message.type === "result"),
+		).toHaveLength(1);
+		expect(
+			runner.getMessages().filter((message) => message.type === "result"),
+		).toHaveLength(1);
 	});
 });

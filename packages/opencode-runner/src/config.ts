@@ -348,6 +348,21 @@ export function buildOpenCodeConfig(
 	config: OpenCodeRunnerConfig,
 ): OpenCodeConfigBuildResult {
 	const unsupported: string[] = [];
+	if (config.appendSystemPrompt) {
+		unsupported.push(
+			"appendSystemPrompt: OpenCode CLI does not support appended system prompts for `opencode run`",
+		);
+	}
+	if (config.maxTurns !== undefined) {
+		unsupported.push(
+			"maxTurns: OpenCode CLI does not expose a max-turns runtime option",
+		);
+	}
+	if (config.fallbackModel) {
+		unsupported.push(
+			"fallbackModel: OpenCode CLI does not expose a fallback-model runtime option",
+		);
+	}
 	const workingDirectory = config.workingDirectory || process.cwd();
 	// OpenCode defaults to allowing tools unless permission rules say
 	// otherwise. Cyrus sessions must be deny-by-default so hosted/sandboxed
