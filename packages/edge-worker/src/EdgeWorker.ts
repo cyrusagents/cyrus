@@ -137,11 +137,11 @@ import {
 } from "cyrus-slack-event-transport";
 import { Sessions, streamableHttp } from "fastify-mcp";
 import { ActivityPoster } from "./ActivityPoster.js";
+import { AgentChatSessionHandler } from "./AgentChatSessionHandler.js";
 import { AgentSessionManager } from "./AgentSessionManager.js";
 import { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
 import { AttachmentService } from "./AttachmentService.js";
 import { LiveChatRepositoryProvider } from "./ChatRepositoryProvider.js";
-import { ChatSessionHandler } from "./ChatSessionHandler.js";
 import { ConfigManager, type RepositoryChanges } from "./ConfigManager.js";
 import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { EgressProxy } from "./EgressProxy.js";
@@ -209,7 +209,7 @@ export class EdgeWorker extends EventEmitter {
 	private gitHubAppTokenProvider: GitHubAppTokenProvider | null = null; // Self-hosted GitHub App token minting
 	private gitLabEventTransport: GitLabEventTransport | null = null; // GitLab event transport for forwarded GitLab webhooks
 	private slackEventTransport: SlackEventTransport | null = null;
-	private chatSessionHandler: ChatSessionHandler<SlackWebhookEvent> | null =
+	private chatSessionHandler: AgentChatSessionHandler<SlackWebhookEvent> | null =
 		null;
 	private gitHubCommentService: GitHubCommentService; // Service for posting comments back to GitHub PRs
 	private gitLabCommentService: GitLabCommentService; // Service for posting comments back to GitLab MRs
@@ -803,7 +803,7 @@ export class EdgeWorker extends EventEmitter {
 		// for webhook URL verification to succeed.
 		this.registerGitHubEventTransport();
 		this.registerGitLabEventTransport();
-		this.registerSlackEventTransport();
+		await this.registerSlackEventTransport();
 
 		// 3. Create and register ConfigUpdater (both platforms)
 		this.configUpdater = new ConfigUpdater(
@@ -1009,7 +1009,7 @@ export class EdgeWorker extends EventEmitter {
 	 * Register the Slack event transport for receiving forwarded Slack webhooks from CYHOST.
 	 * This creates a /slack-webhook endpoint that handles @mention events from Slack.
 	 */
-	private registerSlackEventTransport(): void {
+	private async registerSlackEventTransport(): Promise<void> {
 		// Live provider reads from the repository map on demand — no snapshot needed
 		const chatRepositoryProvider = new LiveChatRepositoryProvider(
 			this.repositories,
@@ -1033,28 +1033,18 @@ export class EdgeWorker extends EventEmitter {
 			);
 		}
 
-		this.chatSessionHandler = new ChatSessionHandler(
+		this.chatSessionHandler = new AgentChatSessionHandler(
 			slackAdapter,
 			{
-				cyrusHome: this.cyrusHome,
-				chatRepositoryProvider,
-				runnerConfigBuilder: this.runnerConfigBuilder,
-				createRunner: (config) => {
-					const runnerType = this.runnerSelectionService.getDefaultRunner();
-					return this.createRunnerForType(runnerType, {
-						...config,
-						model: this.getDefaultModelForRunner(runnerType),
-						fallbackModel: this.getDefaultFallbackModelForRunner(runnerType),
-					});
-				},
 				onWebhookStart: () => {
 					this.activeWebhookCount++;
 				},
 				onWebhookEnd: () => {
 					this.activeWebhookCount--;
 				},
-				onStateChange: () => this.savePersistedState(),
-				onClaudeError: (error) => this.handleClaudeError(error),
+				onError: (error) => this.handleClaudeError(error),
+				provider: this.config.defaultProvider,
+				buildMcpServers: (event) => this.buildChatMcpServers(event),
 			},
 			this.logger,
 		);
@@ -2381,6 +2371,43 @@ ${taskSection}`;
 	}
 
 	/**
+	 * Build the MCP servers attached to a Slack chat session.
+	 *
+	 * Chat sessions aren't tied to a specific repository, but they still
+	 * benefit from the workspace-level MCP servers — Linear, cyrus-tools,
+	 * cyrus-docs, and (optionally) Slack. We delegate to
+	 * `McpConfigService.buildMcpConfig` with a synthetic repo ID and
+	 * the first configured Linear workspace, since that's the same set
+	 * of servers a repo-bound session would see. Returns undefined when
+	 * no Linear workspace is configured, in which case the chat session
+	 * runs with no MCP servers (the Claude CLI default toolset only).
+	 *
+	 * Re-invoked on each new thread; idempotent for the same context.
+	 */
+	private async buildChatMcpServers(
+		event: SlackWebhookEvent,
+	): Promise<Record<string, McpServerConfig> | undefined> {
+		const workspaces = this.config.linearWorkspaces ?? {};
+		const linearWorkspaceId = Object.keys(workspaces)[0];
+		if (!linearWorkspaceId) {
+			this.logger.debug(
+				"buildChatMcpServers: no Linear workspace configured; session will run with no MCP servers",
+			);
+			return undefined;
+		}
+		// Tag the context with the Slack thread so cyrus-tools can scope
+		// requests for this chat. The repoId here is synthetic — chat
+		// sessions don't have a real repo, but McpConfigService uses
+		// `<repoId>:<parentSessionId>` only as a cache key.
+		const threadKey = `${event.payload.channel}:${event.payload.thread_ts || event.payload.ts}`;
+		return this.mcpConfigService.buildMcpConfig(
+			`chat-${event.teamId}`,
+			linearWorkspaceId,
+			`chat-${threadKey}`,
+		);
+	}
+
+	/**
 	 * Test-only: dispatch a synthetic Slack webhook event through the chat
 	 * session handler. Used by the F1 test harness to exercise the Slack →
 	 * ClaudeRunner code path end-to-end without a real Slack signature.
@@ -2410,40 +2437,18 @@ ${taskSection}`;
 
 	/**
 	 * Test-only: fetch the last assistant text reply for a chat thread.
-	 * Returns null when the thread or runner is unknown, or no assistant
-	 * message has been produced yet.
+	 *
+	 * NOTE: deliberately disabled on this branch (agent-runtime-backed
+	 * Slack chat). The previous implementation reached into the
+	 * IAgentRunner's message list, which `AgentChatSessionHandler` does
+	 * not expose. F1 tests that depended on this need to be reworked.
 	 */
-	getChatThreadLastReply(threadKey: string): {
+	getChatThreadLastReply(_threadKey: string): {
 		text: string;
 		isRunning: boolean;
 		messageCount: number;
 	} | null {
-		if (!this.chatSessionHandler) return null;
-		const runner = this.chatSessionHandler.getRunnerForThread(threadKey);
-		if (!runner) return null;
-		const messages = runner.getMessages();
-		const lastAssistant = [...messages]
-			.reverse()
-			.find((m) => m.type === "assistant");
-		let text = "";
-		if (
-			lastAssistant &&
-			lastAssistant.type === "assistant" &&
-			"message" in lastAssistant
-		) {
-			const msg = lastAssistant as {
-				message: { content: Array<{ type: string; text?: string }> };
-			};
-			const block = msg.message.content?.find(
-				(b) => b.type === "text" && b.text,
-			);
-			if (block?.text) text = block.text;
-		}
-		return {
-			text,
-			isRunning: runner.isRunning(),
-			messageCount: messages.length,
-		};
+		return null;
 	}
 
 	/**
@@ -2463,15 +2468,10 @@ ${taskSection}`;
 			);
 		}
 
-		// get all agent runners (including chat platform sessions)
+		// Stop all issue-session agent runners.
 		const agentRunners: IAgentRunner[] = [
 			...this.agentSessionManager.getAllAgentRunners(),
 		];
-		if (this.chatSessionHandler) {
-			agentRunners.push(...this.chatSessionHandler.getAllRunners());
-		}
-
-		// Kill all agent processes with null checking
 		for (const runner of agentRunners) {
 			if (runner) {
 				try {
@@ -2479,6 +2479,15 @@ ${taskSection}`;
 				} catch (error) {
 					this.logger.error("Error stopping Claude runner:", error);
 				}
+			}
+		}
+
+		// Tear down chat platform sessions (agent-runtime-backed).
+		if (this.chatSessionHandler) {
+			try {
+				await this.chatSessionHandler.shutdown();
+			} catch (error) {
+				this.logger.error("Error shutting down chat session handler:", error);
 			}
 		}
 
@@ -5110,24 +5119,6 @@ ${taskSection}`;
 			context.linearLabelIds = [...(fullIssue?.labelIds ?? [])];
 		}
 		return context;
-	}
-
-	/**
-	 * Resolve default model for a given runner from config with sensible built-in defaults.
-	 * Supports legacy config keys for backwards compatibility.
-	 */
-	private getDefaultModelForRunner(runnerType: RunnerType): string {
-		return this.runnerSelectionService.getDefaultModelForRunner(runnerType);
-	}
-
-	/**
-	 * Resolve default fallback model for a given runner from config with sensible built-in defaults.
-	 * Supports legacy Claude fallback key for backwards compatibility.
-	 */
-	private getDefaultFallbackModelForRunner(runnerType: RunnerType): string {
-		return this.runnerSelectionService.getDefaultFallbackModelForRunner(
-			runnerType,
-		);
 	}
 
 	/**

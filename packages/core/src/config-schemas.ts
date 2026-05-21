@@ -7,6 +7,18 @@ export const RunnerTypeSchema = z.enum(["claude", "gemini", "codex", "cursor"]);
 export type RunnerType = z.infer<typeof RunnerTypeSchema>;
 
 /**
+ * Supported sandbox provider types for agent execution.
+ *
+ * - "local": Run the agent harness directly on the host (no sandbox provider).
+ * - "daytona": Run the agent harness inside a Daytona-managed cloud sandbox.
+ *
+ * Additional providers (e.g. other ComputeSDK backends) may be added here as
+ * they're wired through the runtime.
+ */
+export const ProviderTypeSchema = z.enum(["local", "daytona"]);
+export type ProviderType = z.infer<typeof ProviderTypeSchema>;
+
+/**
  * User identifier for access control matching.
  * Supports multiple formats for flexibility:
  * - String: treated as user ID (e.g., "usr_abc123")
@@ -365,6 +377,13 @@ export const EdgeConfigSchema = z.object({
 	 * otherwise falls back to "claude".
 	 */
 	defaultRunner: RunnerTypeSchema.optional(),
+
+	/**
+	 * Default sandbox provider to use when no provider is specified for a session.
+	 * Accepts "local" (run on host) or "daytona" (run inside a Daytona sandbox).
+	 * If omitted, the runtime falls back to "local".
+	 */
+	defaultProvider: ProviderTypeSchema.optional(),
 
 	/**
 	 * @deprecated Use claudeDefaultModel instead.

@@ -1,0 +1,756 @@
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+	AgentSession,
+	CreateAgentSessionConfigFor,
+	McpServerRuntimeConfig,
+	TranscriptEvent,
+} from "cyrus-agent-runtime";
+import { createAgentSession } from "cyrus-agent-runtime";
+import type { McpServerConfig } from "cyrus-claude-runner";
+import type { ILogger, ProviderType } from "cyrus-core";
+import { createLogger } from "cyrus-core";
+
+/**
+ * Generic chat platform adapter for the agent-runtime-backed handler.
+ *
+ * NOTE: `postReply` here takes a plain string (the final assistant text
+ * extracted by the harness adapter), not an `IAgentRunner`. This decouples
+ * platform adapters from the runner machinery — they only need to know how
+ * to convert agent output back into a platform message.
+ */
+export type ChatPlatformName = "slack" | "linear" | "github";
+
+export interface ChatPlatformAdapter<TEvent> {
+	readonly platformName: ChatPlatformName;
+	extractTaskInstructions(event: TEvent): string;
+	getThreadKey(event: TEvent): string;
+	getEventId(event: TEvent): string;
+	buildSystemPrompt(event: TEvent): string;
+	fetchThreadContext(event: TEvent): Promise<string>;
+	postReply(event: TEvent, finalText: string): Promise<void>;
+	acknowledgeReceipt(event: TEvent): Promise<void>;
+	notifyBusy(event: TEvent, threadKey: string): Promise<void>;
+}
+
+export interface AgentChatSessionHandlerDeps<TEvent = unknown> {
+	onWebhookStart: () => void;
+	onWebhookEnd: () => void;
+	onError: (error: Error) => void;
+	/**
+	 * How long a thread's warm session can sit idle before the handler
+	 * destroys it (sandbox torn down, slot freed). Default 15 minutes.
+	 * Next mention after eviction starts a fresh sandbox + fresh Claude
+	 * session.
+	 */
+	idleTtlMs?: number;
+	/**
+	 * Sandbox provider to run sessions in. Defaults to `"local"`.
+	 *
+	 * - `"local"`: harness runs directly on the host. The host must have
+	 *   `claude` on `PATH` (or `claudeCliPath` set). No `DAYTONA_API_KEY`
+	 *   required. `destroyWhileInactive` is a no-op for this provider.
+	 * - `"daytona"`: each thread gets a Daytona sandbox. Requires
+	 *   `DAYTONA_API_KEY` in the environment; by default Claude CLI is
+	 *   installed inside the sandbox via `npm install -g`. Idle sandboxes
+	 *   are paused between turns (preserving on-disk state for
+	 *   `--continue`) and destroyed after the idle TTL.
+	 *
+	 *   Optional env vars:
+	 *   - `DAYTONA_SNAPSHOT`: pre-built Daytona snapshot to seed the
+	 *     sandbox from. When set, the npm-install setup is skipped (the
+	 *     snapshot is expected to have Claude preinstalled) and the CLI
+	 *     path defaults to `claude` on `PATH`.
+	 *   - `DAYTONA_WORKING_DIR`: home/working directory inside the
+	 *     sandbox (default `/home/daytona`). Set this when your snapshot
+	 *     uses a different user, e.g. `/home/cyrus`.
+	 *   - `DAYTONA_CLAUDE_CLI_PATH`: absolute path to the `claude`
+	 *     binary inside the sandbox. Defaults to
+	 *     `<workingDir>/.npm-global/bin/claude` without a snapshot, or
+	 *     `claude` (PATH-resolved) with a snapshot.
+	 */
+	provider?: ProviderType;
+	/**
+	 * Override the `claude` binary path for local sessions. When unset,
+	 * the harness resolves `claude` via the host's `PATH`. Ignored for
+	 * the daytona provider, which always uses the in-sandbox install
+	 * path.
+	 */
+	claudeCliPath?: string;
+	/**
+	 * Build the MCP servers to attach to a thread's session, called once
+	 * per thread on first creation. Return `undefined` or an empty
+	 * record to run with no MCP servers. The returned config is wrapped
+	 * into a `RuntimePlugin` named `"chat"` and passed to the runtime
+	 * via `plugins[]`, which the materializer fans out into the
+	 * harness's native MCP wiring (Claude reads `.mcp.json`; other
+	 * harnesses get their equivalent).
+	 *
+	 * Per-server transports supported: `type: "http"` and `type: "sse"`
+	 * (forwarded verbatim with `url` + `headers`) and stdio (`command` +
+	 * `args` + `env`, with `type` omitted or set to `"stdio"`). SDK-only
+	 * `type: "sdk"` configs require an in-process server instance and
+	 * are NOT supported across the runtime's subprocess boundary —
+	 * those callers should expose the same server as an HTTP endpoint
+	 * instead (which `McpConfigService` already does for cyrus-tools).
+	 */
+	buildMcpServers?: (
+		event: TEvent,
+	) => Promise<Record<string, McpServerConfig> | undefined>;
+}
+
+const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+// Default Daytona working directory — matches the directory used in the
+// streaming spike that validated this end-to-end. Daytona's default base
+// image puts the user at /home/daytona; custom snapshots may use a
+// different layout (overridable via DAYTONA_WORKING_DIR).
+const DEFAULT_DAYTONA_WORKING_DIR = "/home/daytona";
+
+// Default claude binary path for the default base image — where `claude`
+// lands after `npm install -g` with our custom npm prefix. When a custom
+// snapshot is in use, the default switches to `claude` (resolved via the
+// sandbox PATH) since the snapshot author owns the install layout.
+function defaultClaudeCliPath(workingDir: string): string {
+	return `${workingDir}/.npm-global/bin/claude`;
+}
+
+// Setup commands that run inside a fresh Daytona sandbox before the
+// harness invocation. Used only when no custom snapshot is supplied —
+// a custom snapshot is expected to have Claude preinstalled.
+//
+// Claude CLI is pinned to a specific version so the stream-json shape
+// the harness emits matches what `@anthropic-ai/claude-agent-sdk@0.2.141`
+// (the SDK we type `HarnessRawByKind["claude"]` against) describes.
+// Using `@latest` here would let a future CLI release silently introduce
+// fields/variants the SDK pin doesn't know about — exactly the kind of
+// drift the SDK-typed events were meant to eliminate.
+const PINNED_CLAUDE_CLI_VERSION = "2.1.145";
+function buildDefaultClaudeSetupCommands(
+	workingDir: string,
+	cliPath: string,
+): string[] {
+	return [
+		`npm config set prefix ${workingDir}/.npm-global`,
+		`npm install -g @anthropic-ai/claude-code@${PINNED_CLAUDE_CLI_VERSION} >/dev/null 2>&1`,
+		`${cliPath} --version`,
+	];
+}
+
+/**
+ * Discriminated union of the three Claude auth modes the handler accepts.
+ * They are NOT interchangeable — Claude Code treats them as different
+ * sources with different billing / proxy semantics, so we preserve which
+ * one came in and forward only that env var to the harness.
+ *
+ * - `oauth`: token from `CLAUDE_CODE_OAUTH_TOKEN` (Claude Code Pro/Max
+ *   subscription).
+ * - `apiKey`: key from `ANTHROPIC_API_KEY` (direct Anthropic API
+ *   access).
+ * - `authToken`: token from `ANTHROPIC_AUTH_TOKEN` (used by deployments
+ *   that point Claude Code at an Anthropic-compatible proxy / gateway;
+ *   the existing claude-runner forwards this env var alongside the
+ *   other two — see `packages/claude-runner/src/session-env.ts`'s
+ *   `AUTH_ENV_KEYS`).
+ */
+export type ClaudeCredential =
+	| { kind: "oauth"; token: string }
+	| { kind: "apiKey"; token: string }
+	| { kind: "authToken"; token: string };
+
+export function readClaudeCredential(): ClaudeCredential | undefined {
+	// OAuth takes precedence: subscription users running Claude Code
+	// against their plan generally want that to be the active path even
+	// if one of the Anthropic-key env vars happens to be set. Then
+	// ANTHROPIC_API_KEY, then ANTHROPIC_AUTH_TOKEN — matches the
+	// AUTH_ENV_KEYS order in claude-runner/src/session-env.ts so the
+	// chat handler and the legacy runner pick the same one on hosts
+	// that have multiple set.
+	const oauth = process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim();
+	if (oauth) return { kind: "oauth", token: oauth };
+	const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+	if (apiKey) return { kind: "apiKey", token: apiKey };
+	const authToken = process.env.ANTHROPIC_AUTH_TOKEN?.trim();
+	if (authToken) return { kind: "authToken", token: authToken };
+	return undefined;
+}
+
+/**
+ * Translate the Claude SDK's `McpServerConfig` union into the runtime's
+ * permissive `McpServerRuntimeConfig` shape.
+ *
+ * The runtime forwards entries verbatim to the materializer, which
+ * writes them straight into `.mcp.json` (Claude) or the equivalent
+ * harness-native config file. That means the SDK fields (`type`,
+ * `url`, `headers`, `command`, `args`, `env`, `alwaysLoad`, `tools`,
+ * ...) are exactly what the harness needs at runtime — we just need a
+ * type-safe bridge to drop them into a record the runtime accepts.
+ *
+ * SDK-instance servers (`type: "sdk"`, which carry a live `McpServer`
+ * object) are NOT representable across the runtime's subprocess
+ * boundary and are silently dropped here. Callers that want those
+ * tools available to a subprocess harness should expose the same
+ * server over HTTP/SSE instead (which `McpConfigService` already does
+ * for `cyrus-tools`).
+ */
+function toRuntimeMcpServers(
+	servers: Record<string, McpServerConfig>,
+): Record<string, McpServerRuntimeConfig> {
+	const out: Record<string, McpServerRuntimeConfig> = {};
+	for (const [name, entry] of Object.entries(servers)) {
+		// `type: "sdk"` entries can't be carried across IPC; skip.
+		if ((entry as { type?: string }).type === "sdk") continue;
+		// Spread the SDK entry directly. `McpServerRuntimeConfig` has a
+		// `[k: string]: unknown` index signature so unknown SDK keys
+		// (e.g. `alwaysLoad`, `tools`) flow through unchanged.
+		out[name] = { ...(entry as Record<string, unknown>) };
+	}
+	return out;
+}
+
+// Guard against multiple compute.setConfig() calls — ComputeSDK uses a
+// module-global config so we only need to set it once per process.
+let computeConfigured = false;
+
+async function configureDaytonaCompute(apiKey: string): Promise<void> {
+	if (computeConfigured) return;
+	const { daytona } = await import("@computesdk/daytona");
+	const { compute } = await import("computesdk");
+	compute.setConfig({
+		provider: daytona({ apiKey, timeout: 300_000 }),
+	});
+	computeConfigured = true;
+}
+
+interface ThreadState<TEvent> {
+	// Chat sessions are Claude-only today (see "Claude harness only" in
+	// the class docstring). Narrowing here surfaces `SDKMessage` typing
+	// on `state.session.transcript()` / `result.events` so the assistant-
+	// text extractor doesn't need manual casts on `event.raw`.
+	session: AgentSession<"claude">;
+	lastActivityAt: number;
+	/**
+	 * In-flight run promise, if any. Used so a second webhook for the
+	 * same thread can detect "busy" without racing on session.run().
+	 */
+	inFlight?: Promise<unknown>;
+	/** Last event the handler answered for; used as the busy-notify target. */
+	lastEvent: TEvent;
+}
+
+/**
+ * Chat-session handler built on top of `cyrus-agent-runtime`'s
+ * `createAgentSession` + multi-turn `session.run()`. Replaces the old
+ * `ChatSessionHandler` + `IAgentRunner` + `AgentSessionManager` stack.
+ *
+ * Provider-aware: each handler instance is configured for either the
+ * `local` or `daytona` sandbox provider via `deps.provider` (defaulting
+ * to `local`). The first message in a thread creates a fresh agent
+ * session against that provider; follow-up messages reuse it via
+ * Claude's `--continue` flag. After `idleTtlMs` of inactivity the
+ * handler destroys the session and frees the slot.
+ *
+ * **Provider details**
+ *
+ * - **local** — harness runs directly on the host. The host must have
+ *   `claude` reachable via `PATH` (or pass `deps.claudeCliPath`).
+ *   `destroyWhileInactive` is a no-op; eviction still calls
+ *   `session.destroy()` to clean up the per-session HOME under
+ *   `~/.cyrus-agent-sessions/`.
+ *
+ * - **daytona** — each thread gets a Daytona sandbox seeded with
+ *   `@anthropic-ai/claude-code` via `npm install -g`. Requires
+ *   `DAYTONA_API_KEY`. Idle sandboxes are paused between turns
+ *   (`destroyWhileInactive: true`) so on-disk state survives but
+ *   compute is freed; eviction destroys them outright.
+ *
+ * **Common requirements**
+ *
+ * - One of `CLAUDE_CODE_OAUTH_TOKEN` (Claude Code subscription OAuth)
+ *   or `ANTHROPIC_API_KEY` (direct Anthropic API access). The handler
+ *   forwards exactly the env var that was set — these are distinct
+ *   auth modes in Claude Code with different billing semantics, so
+ *   we never set both. `CLAUDE_CODE_OAUTH_TOKEN` wins if both are
+ *   present.
+ *
+ * **MCP servers**
+ *
+ * Wired via `deps.buildMcpServers(event)`, invoked once per thread on
+ * first session creation. The handler wraps the returned config into a
+ * single anonymous `RuntimePlugin` (`name: "chat"`) which the runtime
+ * materializer fans out into the harness's native MCP surface (for
+ * Claude that's `<plugin-root>/.mcp.json`). HTTP, SSE, and stdio
+ * transports are supported; in-process SDK-instance configs are
+ * dropped (they can't cross the subprocess boundary — expose them
+ * over HTTP/SSE instead, which `McpConfigService` already does for
+ * `cyrus-tools`).
+ *
+ * **Known limitations**
+ *
+ * - **No mid-flight stream injection.** A second message while the
+ *   thread's session is still answering the first triggers
+ *   `notifyBusy()` rather than injecting into stdin. Future work:
+ *   route through `AgentSession.addMessage()` with
+ *   `interactiveInput: true`.
+ * - **Claude harness only.** No runner-selection layer for chat yet.
+ * - **No cross-process recovery.** EdgeWorker restart drops the
+ *   warm-thread map; next mention is a cold start. Daytona's own
+ *   `autoStopInterval` eventually reclaims any orphaned sandboxes.
+ */
+export class AgentChatSessionHandler<TEvent> {
+	private readonly adapter: ChatPlatformAdapter<TEvent>;
+	private readonly deps: AgentChatSessionHandlerDeps<TEvent>;
+	private readonly logger: ILogger;
+	private readonly threadSessions = new Map<string, ThreadState<TEvent>>();
+	private readonly provider: ProviderType;
+	private readonly daytonaApiKey: string | undefined;
+	private readonly daytonaSnapshot: string | undefined;
+	private readonly daytonaWorkingDir: string;
+	private readonly daytonaClaudeCliPath: string;
+	private readonly daytonaSetupCommands: readonly string[];
+	private readonly claudeCliPath: string | undefined;
+	private readonly idleTtlMs: number;
+	private idleSweepTimer?: NodeJS.Timeout;
+	private shuttingDown = false;
+
+	constructor(
+		adapter: ChatPlatformAdapter<TEvent>,
+		deps: AgentChatSessionHandlerDeps<TEvent>,
+		logger?: ILogger,
+	) {
+		this.adapter = adapter;
+		this.deps = deps;
+		this.logger =
+			logger ?? createLogger({ component: "AgentChatSessionHandler" });
+
+		this.provider = deps.provider ?? "local";
+		this.claudeCliPath = deps.claudeCliPath?.trim() || undefined;
+
+		if (this.provider === "daytona") {
+			const apiKey = process.env.DAYTONA_API_KEY?.trim();
+			if (!apiKey) {
+				throw new Error(
+					"AgentChatSessionHandler with provider='daytona' requires DAYTONA_API_KEY " +
+						"in the environment. Set it before starting Cyrus, switch to " +
+						"provider='local', or disable the chat integration.",
+				);
+			}
+			this.daytonaApiKey = apiKey;
+			this.daytonaSnapshot = process.env.DAYTONA_SNAPSHOT?.trim() || undefined;
+			this.daytonaWorkingDir =
+				process.env.DAYTONA_WORKING_DIR?.trim() || DEFAULT_DAYTONA_WORKING_DIR;
+			// With a custom snapshot the install layout belongs to the
+			// snapshot author, so default to `claude` on PATH; without one
+			// we drive the install ourselves under the working dir.
+			const defaultCliPath = this.daytonaSnapshot
+				? "claude"
+				: defaultClaudeCliPath(this.daytonaWorkingDir);
+			this.daytonaClaudeCliPath =
+				process.env.DAYTONA_CLAUDE_CLI_PATH?.trim() || defaultCliPath;
+			// A custom snapshot is expected to have Claude preinstalled,
+			// so the npm-install setup is skipped. Without a snapshot we
+			// install Claude into the working dir on every cold start.
+			this.daytonaSetupCommands = this.daytonaSnapshot
+				? []
+				: buildDefaultClaudeSetupCommands(
+						this.daytonaWorkingDir,
+						this.daytonaClaudeCliPath,
+					);
+		} else {
+			this.daytonaApiKey = undefined;
+			this.daytonaSnapshot = undefined;
+			this.daytonaWorkingDir = DEFAULT_DAYTONA_WORKING_DIR;
+			this.daytonaClaudeCliPath = defaultClaudeCliPath(
+				DEFAULT_DAYTONA_WORKING_DIR,
+			);
+			this.daytonaSetupCommands = [];
+		}
+
+		this.idleTtlMs = deps.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
+
+		// Sweep every minute; sweep work is cheap (just a map iteration + maybe
+		// a destroy() per expired entry).
+		this.idleSweepTimer = setInterval(() => {
+			void this.sweepIdle();
+		}, 60_000);
+		this.idleSweepTimer.unref?.();
+	}
+
+	/** Returns true if any thread on this handler has an in-flight session. */
+	isAnyRunnerBusy(): boolean {
+		for (const state of this.threadSessions.values()) {
+			if (state.inFlight) return true;
+		}
+		return false;
+	}
+
+	/** Test/inspection: enumerate active threads. */
+	listThreads(): Array<{ threadKey: string; sessionId: string }> {
+		return Array.from(this.threadSessions.entries()).map(
+			([threadKey, state]) => ({
+				threadKey,
+				sessionId: state.session.sessionId,
+			}),
+		);
+	}
+
+	async handleEvent(event: TEvent): Promise<void> {
+		this.deps.onWebhookStart();
+		try {
+			const eventId = this.adapter.getEventId(event);
+			const threadKey = this.adapter.getThreadKey(event);
+			this.logger.info(
+				`Processing ${this.adapter.platformName} webhook: ${eventId} (thread ${threadKey})`,
+			);
+
+			// Fire-and-forget acknowledgement (e.g. emoji reaction).
+			this.adapter.acknowledgeReceipt(event).catch((err: unknown) => {
+				this.logger.warn(
+					`Failed to acknowledge ${this.adapter.platformName} event: ${err instanceof Error ? err.message : err}`,
+				);
+			});
+
+			// Busy thread → notify and bail. No stdin injection today.
+			const existing = this.threadSessions.get(threadKey);
+			if (existing?.inFlight) {
+				this.logger.info(
+					`Thread ${threadKey} has an in-flight session; notifying user.`,
+				);
+				await this.adapter.notifyBusy(event, threadKey);
+				return;
+			}
+
+			const credential = readClaudeCredential();
+			if (!credential) {
+				this.logger.error(
+					"Cannot run chat session: no CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, or ANTHROPIC_AUTH_TOKEN in environment",
+				);
+				await this.adapter.postReply(
+					event,
+					"I'm not configured with a Claude credential, so I can't respond. " +
+						"Ask your admin to set one of CLAUDE_CODE_OAUTH_TOKEN (Claude Code subscription), " +
+						"ANTHROPIC_API_KEY (direct API access), or ANTHROPIC_AUTH_TOKEN (proxy / gateway).",
+				);
+				return;
+			}
+
+			if (this.provider === "daytona") {
+				// Lazy provider init — `daytonaApiKey` is set in the
+				// constructor when the provider is "daytona", so the
+				// non-null assertion is safe here.
+				await configureDaytonaCompute(this.daytonaApiKey as string);
+			}
+
+			const taskInstructions = this.adapter.extractTaskInstructions(event);
+			const isFirstTurn = !existing;
+
+			// Thread context is injected only on the first turn — subsequent
+			// turns are continuations of the same Claude session, which already
+			// knows the prior conversation.
+			const userPrompt = isFirstTurn
+				? await this.buildFirstTurnPrompt(event, taskInstructions)
+				: taskInstructions;
+
+			let state: ThreadState<TEvent>;
+			if (existing) {
+				state = existing;
+			} else {
+				const systemPrompt = this.adapter.buildSystemPrompt(event);
+				const sessionId = `${this.adapter.platformName}-${eventId}`;
+				this.logger.info(
+					`Creating ${this.provider} AgentSession ${sessionId} for thread ${threadKey}`,
+				);
+				const mcpServers = this.deps.buildMcpServers
+					? await this.deps.buildMcpServers(event).catch((err: unknown) => {
+							this.logger.warn(
+								`buildMcpServers threw for ${threadKey}; running session with no MCP servers: ${
+									err instanceof Error ? err.message : err
+								}`,
+							);
+							return undefined;
+						})
+					: undefined;
+				const sessionConfig = this.buildSessionConfig({
+					sessionId,
+					threadKey,
+					systemPrompt,
+					credential,
+					mcpServers,
+				});
+				// Explicit `<"claude">` so the returned session is
+				// `AgentSession<"claude">`, threading SDKMessage typing
+				// through to state.session, result.events, and the
+				// extractAssistantFallback walker. Chat is Claude-only
+				// today; if that changes, swap to a discriminated config
+				// + per-harness narrowing.
+				const session = await createAgentSession<"claude">(sessionConfig, {
+					callbacks: {
+						onTranscriptEvent: (te) => {
+							this.logger.debug(`[${sessionId}] transcript event: ${te.kind}`);
+						},
+					},
+				});
+				state = {
+					session,
+					lastActivityAt: Date.now(),
+					lastEvent: event,
+				};
+				this.threadSessions.set(threadKey, state);
+			}
+
+			// Mark the run as in-flight so concurrent webhooks see "busy".
+			const runPromise = state.session.run(userPrompt);
+			state.inFlight = runPromise;
+			state.lastEvent = event;
+
+			try {
+				const result = await runPromise;
+				state.lastActivityAt = Date.now();
+
+				if (!result.success) {
+					this.logger.error(
+						`Session ${state.session.sessionId} turn did not succeed (exitCode=${result.exitCode})`,
+						result.error,
+					);
+					if (result.error) this.deps.onError(result.error);
+					try {
+						await this.adapter.postReply(
+							event,
+							result.error
+								? `I hit an error: ${result.error.message}`
+								: `I couldn't complete the request (exit code ${result.exitCode}).`,
+						);
+					} catch (postErr) {
+						this.logger.error(
+							`Failed to post failure notice for session ${state.session.sessionId}`,
+							postErr instanceof Error ? postErr : new Error(String(postErr)),
+						);
+					}
+					// A failed run kills the thread — destroy and free the slot
+					// so the next mention starts fresh.
+					await this.destroyThread(threadKey);
+					return;
+				}
+
+				const finalText =
+					result.result ?? this.extractAssistantFallback(result.events);
+				if (!finalText) {
+					this.logger.warn(
+						`Session ${state.session.sessionId} completed but produced no result text`,
+					);
+					return;
+				}
+
+				try {
+					await this.adapter.postReply(event, finalText);
+					this.logger.info(
+						`Posted reply for session ${state.session.sessionId}`,
+					);
+				} catch (postErr) {
+					this.logger.error(
+						`Failed to post reply for session ${state.session.sessionId}`,
+						postErr instanceof Error ? postErr : new Error(String(postErr)),
+					);
+				}
+			} finally {
+				state.inFlight = undefined;
+			}
+		} catch (error) {
+			this.logger.error(
+				`Failed to process ${this.adapter.platformName} webhook`,
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			this.deps.onError(
+				error instanceof Error ? error : new Error(String(error)),
+			);
+		} finally {
+			this.deps.onWebhookEnd();
+		}
+	}
+
+	/**
+	 * Stop the idle sweeper and destroy every warm thread session.
+	 */
+	async shutdown(): Promise<void> {
+		this.shuttingDown = true;
+		if (this.idleSweepTimer) {
+			clearInterval(this.idleSweepTimer);
+			this.idleSweepTimer = undefined;
+		}
+		const states = Array.from(this.threadSessions.values());
+		this.threadSessions.clear();
+		await Promise.all(
+			states.map(async (state) => {
+				try {
+					await state.session.destroy();
+				} catch (err) {
+					this.logger.warn(
+						`Failed to destroy session ${state.session.sessionId} during shutdown: ${err instanceof Error ? err.message : err}`,
+					);
+				}
+			}),
+		);
+	}
+
+	private async buildFirstTurnPrompt(
+		event: TEvent,
+		taskInstructions: string,
+	): Promise<string> {
+		const threadContext = await this.adapter.fetchThreadContext(event);
+		return threadContext
+			? `${threadContext}\n\n${taskInstructions}`
+			: taskInstructions;
+	}
+
+	/**
+	 * Assemble the `CreateAgentSessionConfig` for a fresh thread session.
+	 * Provider-specific config (harness path, packages, sandbox shape)
+	 * lives here so the rest of `handleEvent` stays provider-agnostic.
+	 */
+	private buildSessionConfig(args: {
+		sessionId: string;
+		threadKey: string;
+		systemPrompt: string;
+		credential: ClaudeCredential;
+		mcpServers?: Record<string, McpServerConfig>;
+	}): CreateAgentSessionConfigFor<"claude"> {
+		const { sessionId, threadKey, systemPrompt, credential, mcpServers } = args;
+		// Forward exactly the env var the operator actually set. Setting
+		// more than one would be a bug: Claude Code treats
+		// `CLAUDE_CODE_OAUTH_TOKEN` (subscription OAuth), `ANTHROPIC_API_KEY`
+		// (direct API access), and `ANTHROPIC_AUTH_TOKEN` (proxy-style
+		// auth) as distinct auth modes with different billing / routing,
+		// so they must not be conflated.
+		const secrets: Record<string, string> =
+			credential.kind === "oauth"
+				? { CLAUDE_CODE_OAUTH_TOKEN: credential.token }
+				: credential.kind === "apiKey"
+					? { ANTHROPIC_API_KEY: credential.token }
+					: { ANTHROPIC_AUTH_TOKEN: credential.token };
+		// Wrap the chat-session MCP servers into a single anonymous
+		// RuntimePlugin so the runtime materializer fans them out into
+		// the harness's native MCP config surface. Omitted entirely when
+		// the caller returned undefined / no entries.
+		const plugins =
+			mcpServers && Object.keys(mcpServers).length > 0
+				? [{ name: "chat", mcpServers: toRuntimeMcpServers(mcpServers) }]
+				: undefined;
+
+		if (this.provider === "daytona") {
+			return {
+				sessionId,
+				harness: {
+					kind: "claude",
+					command: this.daytonaClaudeCliPath,
+				},
+				systemPrompt,
+				secrets,
+				// The Daytona sandbox is the isolation boundary, so
+				// permission prompts inside it are noise — bypass them
+				// so the agent can use Bash/Read/Write etc. without
+				// blocking on prompts that no user will ever answer.
+				permissions: { mode: "bypass" },
+				...(this.daytonaSetupCommands.length > 0
+					? { packages: { commands: [...this.daytonaSetupCommands] } }
+					: {}),
+				...(plugins ? { plugins } : {}),
+				sandbox: {
+					provider: "daytona",
+					name: `cyrus-${this.adapter.platformName}-${sessionId}`,
+					workingDirectory: this.daytonaWorkingDir,
+					timeoutMs: 300_000,
+					// Pause the sandbox between turns so we stop paying for
+					// idle compute. Daytona preserves on-disk state during
+					// stop, so the next turn's `--continue` finds the prior
+					// `.claude/` intact.
+					destroyWhileInactive: true,
+					...(this.daytonaSnapshot ? { snapshot: this.daytonaSnapshot } : {}),
+					metadata: {
+						purpose: `cyrus-${this.adapter.platformName}-chat`,
+						threadKey,
+					},
+				},
+			};
+		}
+
+		// Local provider: harness runs on the host. `claude` must be on
+		// PATH or `claudeCliPath` must be set. The runtime gives each
+		// session its own HOME under `~/.cyrus-agent-sessions/<id>/` so
+		// per-thread `.claude/` state persists across `--continue` turns
+		// without colliding with the operator's real `~/.claude/`.
+		// Narrow `kind: "claude"` as a literal (not HarnessKind) so the
+		// containing return value satisfies CreateAgentSessionConfigFor<"claude">.
+		const harnessConfig = {
+			kind: "claude" as const,
+			...(this.claudeCliPath ? { command: this.claudeCliPath } : {}),
+		};
+		return {
+			sessionId,
+			harness: harnessConfig,
+			systemPrompt,
+			secrets,
+			...(plugins ? { plugins } : {}),
+			sandbox: {
+				provider: "local",
+			},
+			metadata: {
+				purpose: `cyrus-${this.adapter.platformName}-chat`,
+				threadKey,
+			},
+		};
+	}
+
+	private async destroyThread(threadKey: string): Promise<void> {
+		const state = this.threadSessions.get(threadKey);
+		if (!state) return;
+		this.threadSessions.delete(threadKey);
+		try {
+			await state.session.destroy();
+		} catch (err) {
+			this.logger.warn(
+				`Failed to destroy thread ${threadKey} session ${state.session.sessionId}: ${err instanceof Error ? err.message : err}`,
+			);
+		}
+	}
+
+	private async sweepIdle(): Promise<void> {
+		if (this.shuttingDown) return;
+		const now = Date.now();
+		const expired: string[] = [];
+		for (const [threadKey, state] of this.threadSessions) {
+			if (state.inFlight) continue;
+			if (now - state.lastActivityAt >= this.idleTtlMs) {
+				expired.push(threadKey);
+			}
+		}
+		for (const threadKey of expired) {
+			this.logger.info(
+				`Evicting idle thread ${threadKey} after ${Math.round(this.idleTtlMs / 1000)}s of inactivity`,
+			);
+			await this.destroyThread(threadKey);
+		}
+	}
+
+	/**
+	 * Walk the transcript backwards looking for the last assistant text
+	 * block. Used when the harness adapter's `extractResult()` returns
+	 * undefined.
+	 *
+	 * Now type-safe: `state.session` is `AgentSession<"claude">`, so
+	 * `events` is `TranscriptEvent<SDKMessage>[]` and `event.raw`
+	 * narrows directly via the Claude SDK's discriminated union — no
+	 * hand-written guards or casts.
+	 */
+	private extractAssistantFallback(
+		events: readonly TranscriptEvent<SDKMessage>[],
+	): string | undefined {
+		for (let i = events.length - 1; i >= 0; i -= 1) {
+			const e = events[i];
+			if (!e) continue;
+			if (e.raw.type !== "assistant") continue;
+			for (const block of e.raw.message.content) {
+				if (block.type === "text" && block.text) return block.text;
+			}
+		}
+		return undefined;
+	}
+}

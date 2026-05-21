@@ -1,0 +1,12 @@
+diff --git a/package.json b/package.json
+index 584c3dcd70df3deaff63f3b00c00543ad803c539..968c1ed91ac8e8f90276cc47ca83df3629f75f0f 100644
+--- a/package.json
++++ b/package.json
+@@ -72,6 +72,7 @@
+     "@aws-sdk/client-s3": "^3.787.0",
+     "@aws-sdk/lib-storage": "^3.798.0",
+     "@iarna/toml": "^2.2.5",
++    "tslib": "^2",
+     "@opentelemetry/api": "^1.9.0",
+     "@opentelemetry/exporter-trace-otlp-http": "^0.217.0",
+     "@opentelemetry/instrumentation-http": "^0.217.0",

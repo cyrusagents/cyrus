@@ -10,6 +10,12 @@ export type {
 	UserIdentifier,
 	Workspace,
 } from "cyrus-core";
+export type {
+	AgentChatSessionHandlerDeps,
+	ChatPlatformAdapter,
+	ChatPlatformName,
+} from "./AgentChatSessionHandler.js";
+export { AgentChatSessionHandler } from "./AgentChatSessionHandler.js";
 export { AgentSessionManager } from "./AgentSessionManager.js";
 export type {
 	AskUserQuestionHandlerConfig,
@@ -18,12 +24,6 @@ export type {
 export { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
 export type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 export { LiveChatRepositoryProvider } from "./ChatRepositoryProvider.js";
-export type {
-	ChatPlatformAdapter,
-	ChatPlatformName,
-	ChatSessionHandlerDeps,
-} from "./ChatSessionHandler.js";
-export { ChatSessionHandler } from "./ChatSessionHandler.js";
 export { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 export { EdgeWorker } from "./EdgeWorker.js";
 export { EgressProxy } from "./EgressProxy.js";

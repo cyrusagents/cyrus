@@ -1,0 +1,46 @@
+{
+	"name": "@cyrus-ai/cursor-runner",
+	"version": "0.2.51",
+	"description": "Cursor SDK runner — spawned by Cyrus's agent-runtime as a process boundary around @cursor/sdk, emitting SDKMessage events as JSONL on stdout so consumers get typed events with no schema drift.",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"bin": {
+		"cursor-runner": "dist/index.js"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"test": "vitest",
+		"test:run": "vitest run --passWithNoTests",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@cursor/sdk": "1.0.13"
+	},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"typescript": "^5.3.3",
+		"vitest": "^3.1.4"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"keywords": [
+		"cursor",
+		"cursor-sdk",
+		"cli",
+		"jsonl",
+		"agent",
+		"streaming"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cyrusagents/cyrus.git",
+		"directory": "packages/cursor-sdk-runner"
+	}
+}

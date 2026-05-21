@@ -222,6 +222,7 @@ export class WorkerService {
 					| "codex"
 					| "cursor"
 					| undefined) || edgeConfig.defaultRunner,
+			defaultProvider: edgeConfig.defaultProvider,
 			issueUpdateTrigger: edgeConfig.issueUpdateTrigger,
 			promptDefaults: edgeConfig.promptDefaults,
 			linearWorkspaces: edgeConfig.linearWorkspaces,
