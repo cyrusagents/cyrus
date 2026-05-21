@@ -1,7 +1,7 @@
 # Test Drive: NG-71 OpenCode Config Overrides
 
 **Date**: 2026-05-20
-**Goal**: Validate NG-71 OpenCode runtime config overrides, including access to an explicitly configured runtime extension.
+**Goal**: Validate NG-71 OpenCode runtime config override wiring and document the remaining gap for real OpenCode CLI runtime-extension loading.
 **Test Repo**: `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-f1/repo`
 
 ## Verification Results
@@ -27,8 +27,8 @@
 - [x] Runner selection reached OpenCode, shown by the activity `Using model: opencode`.
 - [ ] Full real OpenCode execution did not complete; OpenCode exited with `Session not found` before the task prompt ran.
 
-### OpenCode Runtime Extension Probe
-- [x] Closest scoped validation passed using `OpenCodeRunner` with a deterministic local MCP-like extension configured through `opencodeRepositoryConfig.mcp`.
+### Fake OpenCode Runtime Extension Probe
+- [x] Closest scoped validation passed using `OpenCodeRunner` with a deterministic fake OpenCode executable and local MCP-like extension configured through `opencodeRepositoryConfig.mcp`.
 - [x] The launched OpenCode process received `OPENCODE_CONFIG_CONTENT`, found `mcp.ng71-local-extension`, executed its configured local command, and returned `NG71_MCP_EXTENSION_OK`.
 - [x] Runner messages included final sentinel `NG71_OPENCODE_CONFIG_OVERRIDE_OK`.
 - [ ] Real OpenCode CLI runtime-extension loading remains unvalidated in F1 because this F1 server cannot inject `opencode.config`, and the real OpenCode-selected smoke exited with `Session not found` before the prompt ran.
@@ -128,9 +128,9 @@ CYRUS_PORT=3600 ./f1 view-session --session-id session-1 --limit 10 --offset 0
 
 Result: PASS. Session stopped and pagination returned 7 coherent activities with final status `complete`.
 
-### Runtime Extension Probe Commands
+### Fake Runtime Extension Probe Commands
 
-The current F1 server hardcodes its `EdgeWorkerConfig` in `apps/f1/server.ts` and has no environment/config-file injection point for `opencode.config`. To avoid expanding Task 5 scope, the runtime-extension check used the closest available validation: direct `OpenCodeRunner` launch with a fake OpenCode executable that reads `OPENCODE_CONFIG_CONTENT` and executes the configured local extension command. This proves Cyrus passes the merged OpenCode config and environment to the launched process, and that the launched process can consume the configured `mcp` entry. It does not prove the real OpenCode CLI successfully loads or invokes that MCP server.
+The current F1 server hardcodes its `EdgeWorkerConfig` in `apps/f1/server.ts` and has no environment/config-file injection point for `opencode.config`. To avoid expanding Task 5 scope, the runtime-extension check used probe-only validation: direct `OpenCodeRunner` launch with a fake OpenCode executable that reads `OPENCODE_CONFIG_CONTENT` and executes the configured local extension command. This proves Cyrus passes the merged OpenCode config and environment to the launched process, and that a launched process can consume the configured `mcp` entry. It does not prove the real OpenCode CLI successfully loads or invokes that MCP server.
 
 Temporary probe files:
 
