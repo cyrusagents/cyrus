@@ -53,16 +53,21 @@ export class McpConfigService {
 	/**
 	 * Build MCP configuration with automatic Linear server injection and cyrus-tools over Fastify MCP.
 	 * Workspace-level servers (Linear, cyrus-tools, Slack) are configured once using workspace-level token.
+	 *
+	 * Whether the agent can actually CALL into any of these servers is gated
+	 * by the per-platform allowed-tools array (`teams.{linear,slack,github}_allowed_tools`),
+	 * not by anything done here — so it's safe to always spin them up when
+	 * their underlying transport credentials exist (Slack inline via
+	 * `SLACK_BOT_TOKEN`, Linear via the workspace's Linear token, etc.).
+	 *
 	 * @param repoId - Repository ID for MCP context scoping
 	 * @param linearWorkspaceId - Linear workspace ID (from webhook.organizationId or repo config)
 	 * @param parentSessionId - Parent session ID for cyrus-tools context
-	 * @param options.excludeSlackMcp - When true, excludes the Slack MCP server even if SLACK_BOT_TOKEN is set
 	 */
 	buildMcpConfig(
 		repoId: string,
 		linearWorkspaceId: string,
 		parentSessionId?: string,
-		options?: { excludeSlackMcp?: boolean },
 	): Record<string, McpServerConfig> {
 		const contextId = this.buildContextId(repoId, parentSessionId);
 
@@ -125,10 +130,11 @@ export class McpConfigService {
 			},
 		};
 
-		// Conditionally inject the Slack MCP server when SLACK_BOT_TOKEN is available
-		// https://github.com/korotovsky/slack-mcp-server
+		// Inject the Slack MCP server whenever SLACK_BOT_TOKEN is available —
+		// per-platform availability is enforced upstream by the allowed-tools
+		// array. https://github.com/korotovsky/slack-mcp-server
 		const slackBotToken = process.env.SLACK_BOT_TOKEN?.trim();
-		if (slackBotToken && !options?.excludeSlackMcp) {
+		if (slackBotToken) {
 			mcpConfig.slack = {
 				command: "npx",
 				args: ["-y", "slack-mcp-server@latest", "--transport", "stdio"],

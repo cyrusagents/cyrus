@@ -1406,7 +1406,6 @@ export class EdgeWorker extends EventEmitter {
 					undefined, // labels
 					undefined, // issueDescription
 					200, // maxTurns
-					{ excludeSlackMcp: true }, // Exclude Slack MCP server from GitHub sessions
 					undefined, // linearWorkspaceId
 					undefined, // skillContext
 					"github", // sessionPlatform → uses githubMcpConfigs override
@@ -2075,7 +2074,6 @@ ${taskSection}`;
 					undefined, // labels
 					undefined, // issueDescription
 					200, // maxTurns
-					{ excludeSlackMcp: true }, // Exclude Slack MCP server from GitLab sessions
 					undefined, // linearWorkspaceId
 					undefined, // skillContext
 					"gitlab", // sessionPlatform → uses githubMcpConfigs override
@@ -4400,7 +4398,6 @@ ${taskSection}`;
 					labels, // Pass labels for runner selection and model override
 					fullIssue.description || undefined, // Description tags can override label selectors
 					undefined, // maxTurns
-					undefined, // mcpOptions
 					linearWorkspaceId,
 					this.buildSkillSessionContext(primaryRepo, fullIssue),
 				);
@@ -6106,7 +6103,6 @@ ${input.userComment}
 		labels?: string[],
 		issueDescription?: string,
 		maxTurns?: number,
-		mcpOptions?: { excludeSlackMcp?: boolean },
 		linearWorkspaceId?: string,
 		skillContext?: SkillSessionContext,
 		/**
@@ -6146,7 +6142,6 @@ ${input.userComment}
 			labels,
 			issueDescription,
 			maxTurns,
-			mcpOptions,
 			// Per-platform MCP config overrides — GitHub + GitLab share the
 			// `githubMcpConfigs` knob (single-repo PR contexts both); Linear
 			// gets `linearMcpConfigs`. When the override list is empty the
@@ -6923,7 +6918,6 @@ ${input.userComment}
 				labels, // Always pass labels to preserve model override
 				fullIssue.description || undefined, // Description tags can override label selectors
 				maxTurns, // Pass maxTurns if specified
-				undefined, // mcpOptions
 				resolvedWorkspaceId,
 				this.buildSkillSessionContext(repository, fullIssue),
 			);
