@@ -5585,12 +5585,29 @@ ${taskSection}`;
 	 * workspace-path or sub-repo-path match; if neither hits, we fall
 	 * back to a prefix match for nested cwds (e.g. shells in a subdir).
 	 */
+	/**
+	 * Aggregator over every place active sessions live in this process.
+	 * Today: the primary AgentSessionManager (issue sessions) and the
+	 * ChatSessionHandler's private one (Slack / GitHub-PR-chat / future
+	 * chat platforms). New session origins should be added here so
+	 * downstream consumers (currently just resolveSessionFromCwd) keep
+	 * working without modification — single open extension point (OCP),
+	 * single responsibility (SRP: this method's only job is "where do
+	 * sessions live?", separate from "how do we match one by cwd?").
+	 */
+	private getAllKnownSessions(): CyrusAgentSession[] {
+		return [
+			...this.agentSessionManager.getAllSessions(),
+			...(this.chatSessionHandler?.getAllChatSessions() ?? []),
+		];
+	}
+
 	private resolveSessionFromCwd(cwd: string): ResolvedSession | null {
 		if (!cwd) return null;
 		const normalize = (p: string) => p.replace(/\/+$/, "");
 		const target = normalize(cwd);
 
-		const sessions = this.agentSessionManager.getAllSessions();
+		const sessions = this.getAllKnownSessions();
 
 		const exact = sessions.find((session) => {
 			if (normalize(session.workspace?.path ?? "") === target) return true;

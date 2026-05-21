@@ -320,6 +320,18 @@ export class ChatSessionHandler<TEvent> {
 	}
 
 	/**
+	 * Expose every active chat session this handler owns, so EdgeWorker
+	 * can resolve a cwd → session bundle from outside (e.g. the
+	 * `log_failure_mode` MCP tool needs to find a Slack/GitHub chat
+	 * session's runner session id). Chat sessions live in this handler's
+	 * dedicated AgentSessionManager — they aren't reachable from
+	 * EdgeWorker's primary AgentSessionManager.
+	 */
+	getAllChatSessions(): CyrusAgentSession[] {
+		return this.sessionManager.getAllSessions();
+	}
+
+	/**
 	 * Test/inspection: list all known thread keys and their session IDs.
 	 * Used by F1 to discover chat sessions for follow-up prompts and replay.
 	 */
