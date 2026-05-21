@@ -23,10 +23,13 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.2.123",
+		"@anthropic-ai/claude-agent-sdk": "0.2.141",
+		"@computesdk/daytona": "^1.7.26",
 		"@linear/sdk": "^64.0.0",
 		"@ngrok/ngrok": "^1.5.1",
 		"chokidar": "^4.0.3",
+		"computesdk": "^4.0.0",
+		"cyrus-agent-runtime": "workspace:*",
 		"cyrus-claude-runner": "workspace:*",
 		"cyrus-cloudflare-tunnel-client": "workspace:*",
 		"cyrus-codex-runner": "workspace:*",

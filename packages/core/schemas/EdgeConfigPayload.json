@@ -537,6 +537,10 @@
 			"type": "string",
 			"enum": ["claude", "gemini", "codex", "cursor"]
 		},
+		"defaultProvider": {
+			"type": "string",
+			"enum": ["local", "daytona"]
+		},
 		"defaultModel": {
 			"type": "string"
 		},

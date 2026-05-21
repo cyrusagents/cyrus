@@ -17,6 +17,8 @@ export {
 	migrateEdgeConfig,
 	type NetworkPolicy,
 	NetworkPolicySchema,
+	type ProviderType,
+	ProviderTypeSchema,
 	type RepositoryConfig,
 	type RepositoryConfigPayload,
 	RepositoryConfigPayloadSchema,

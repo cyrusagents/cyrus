@@ -1,4 +1,4 @@
-import type { IAgentRunner, ILogger } from "cyrus-core";
+import type { ILogger } from "cyrus-core";
 import { createLogger } from "cyrus-core";
 import {
 	SlackMessageService,
@@ -7,8 +7,8 @@ import {
 	type SlackWebhookEvent,
 	stripMention as stripSlackMention,
 } from "cyrus-slack-event-transport";
+import type { ChatPlatformAdapter } from "./AgentChatSessionHandler.js";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
-import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
 
 /**
  * Slack implementation of ChatPlatformAdapter.
@@ -195,35 +195,9 @@ Supported mrkdwn syntax:
 		}
 	}
 
-	async postReply(
-		event: SlackWebhookEvent,
-		runner: IAgentRunner,
-	): Promise<void> {
+	async postReply(event: SlackWebhookEvent, finalText: string): Promise<void> {
 		try {
-			// Get the last assistant message from the runner as the summary
-			const messages = runner.getMessages();
-			const lastAssistantMessage = [...messages]
-				.reverse()
-				.find((m) => m.type === "assistant");
-
-			let summary = "Task completed.";
-			if (
-				lastAssistantMessage &&
-				lastAssistantMessage.type === "assistant" &&
-				"message" in lastAssistantMessage
-			) {
-				const msg = lastAssistantMessage as {
-					message: {
-						content: Array<{ type: string; text?: string }>;
-					};
-				};
-				const textBlock = msg.message.content?.find(
-					(block) => block.type === "text" && block.text,
-				);
-				if (textBlock?.text) {
-					summary = textBlock.text;
-				}
-			}
+			const summary = finalText.trim() || "Task completed.";
 
 			const token = this.getSlackBotToken(event);
 			if (!token) {

@@ -1,0 +1,39 @@
+{
+	"name": "cyrus-agent-runtime",
+	"version": "0.2.51",
+	"description": "Unified agent harness runtime with pluggable sandbox providers",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist",
+		"ASSUMPTIONS.md",
+		"VALIDATION.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"test": "vitest",
+		"test:run": "vitest run --passWithNoTests",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@computesdk/daytona": "^1.7.26",
+		"@cyrus-ai/cursor-runner": "workspace:*",
+		"computesdk": "^4.0.0",
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@anthropic-ai/claude-agent-sdk": "0.2.141",
+		"@cursor/sdk": "1.0.13",
+		"@google/gemini-cli-core": "0.42.0",
+		"@openai/codex-sdk": "0.131.0",
+		"@opencode-ai/sdk": "1.15.5",
+		"@types/node": "^20.0.0",
+		"typescript": "^5.3.3",
+		"vitest": "^3.1.4"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}
