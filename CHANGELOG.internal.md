@@ -5,7 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Added
-- Documented the OpenCode config validation boundary: explicit `opencode.config` inheritance is implemented, while real OpenCode CLI extension loading still needs an F1 config-injection path for automated validation.
+- Documented the OpenCode config validation boundary: explicit `opencode.config` inheritance is implemented and covered by runner-level fake-process validation, while real OpenCode CLI extension loading still needs an F1 config-injection path for automated validation.
 - Added OpenCode runner validation coverage with richer replay fixtures, activity timeline mapping tests, guarded live probe documentation, runner-selection assertions, empty-default tool permission regression coverage, and F1 test-drive reports.
 - Added `cyrus-opencode-runner`, an OpenCode CLI runner adapter package with NDJSON event parsing, Cyrus SDK-shaped message projection, tool activity mapping, resume support, formatter coverage, and replay-fixture tests.
 
@@ -70,7 +70,7 @@ _No internal-only changes._
 - Added blocked-by dependency deferral to `EdgeWorker`: `checkBlockedByDependencies` fetches issue relations via `fetchBlockingIssues` and filters to unresolved blockers. Blocked sessions are parked in a `parkedSessions` Map (keyed by issue ID). Added `isIssueStateChangeWebhook` type guard to cyrus-core for detecting `stateId` changes in `updatedFrom`. Added `handleIssueStateChange` handler — when blocking issues complete, removes them from parked sessions and replays `initializeAgentRunner`. Added `handleParkedSessionReprompt` (Branch 1.5 in prompted handler) for re-checking blockers on user re-prompt. Added `postThoughtActivity` to `ActivityPoster`. 12 new tests (5 for `getSessionsByBaseBranch`, 7 for `isIssueStateChangeWebhook`). ([CYPACK-978](https://linear.app/ceedar/issue/CYPACK-978), [#1004](https://github.com/ceedaragents/cyrus/pull/1004))
 
 ### Changed
-- Documented dependency security policy in `CLAUDE.md`: prefer direct-dep bumps in the owning package; only use root `pnpm.overrides` when a direct-dep bump cannot reach the vulnerable transitive; remove overrides when a future bump makes them redundant. ([CYPACK-1101](https://linear.app/ceedar/issue/CYPACK-1101), [#1128](https://github.com/ceedaragents/cyrus/pull/1128))
+- Documented dependency security policy in `CLAUDE.md`: prefer direct-dep bumps in the owning package; only use workspace-level overrides when a direct-dep bump cannot reach the vulnerable transitive; remove overrides when a future bump makes them redundant. ([CYPACK-1101](https://linear.app/ceedar/issue/CYPACK-1101), [#1128](https://github.com/ceedaragents/cyrus/pull/1128))
 - Improved `ClaudeRunner` diagnostics when `CYRUS_LOG_LEVEL=DEBUG`: the child subprocess now receives `DEBUG_CLAUDE_AGENT_SDK=1` so the Claude Agent SDK's own debug output (including `--debug-to-stderr`) is forwarded, and the full `query()` options are logged as JSON before dispatch. Non-serializable members (AbortController, async iterables, callbacks) are replaced with diagnostic placeholders so the output is valid JSON. ([CYPACK-1124](https://linear.app/ceedar/issue/CYPACK-1124), [#1153](https://github.com/cyrusagents/cyrus/pull/1153))
 
 ### Fixed

@@ -1,5 +1,12 @@
-import type { EdgeWorkerConfig, RepositoryConfig } from "cyrus-core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+	EdgeConfig,
+	EdgeWorkerConfig,
+	RepositoryConfig,
+} from "cyrus-core";
+import type { GitService } from "cyrus-edge-worker";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ConfigService } from "./ConfigService.js";
+import type { Logger } from "./Logger.js";
 
 const edgeWorkerInstances: Array<{
 	config: EdgeWorkerConfig;
@@ -43,6 +50,42 @@ describe("WorkerService", () => {
 		edgeWorkerInstances.length = 0;
 	});
 
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	function createWorkerService(edgeConfig: EdgeConfig) {
+		const configService = {
+			load: () => edgeConfig,
+			getConfigPath: () => "/tmp/cyrus/config.json",
+		} as unknown as ConfigService;
+		const gitService = { createGitWorktree: vi.fn() } as unknown as GitService;
+		const logger = {
+			info: vi.fn(),
+			success: vi.fn(),
+			error: vi.fn(),
+			warn: vi.fn(),
+		} as unknown as Logger;
+
+		return new WorkerService(
+			configService,
+			gitService,
+			"/tmp/cyrus",
+			logger,
+			"test-version",
+		);
+	}
+
+	async function startService(edgeConfig: EdgeConfig) {
+		await createWorkerService(edgeConfig).startEdgeWorker({
+			repositories: [repository],
+			onOAuthCallback: vi.fn(),
+		});
+
+		expect(edgeWorkerInstances).toHaveLength(1);
+		return edgeWorkerInstances[0].config;
+	}
+
 	it("forwards top-level OpenCode config overrides to EdgeWorker", async () => {
 		const opencode = {
 			config: {
@@ -51,28 +94,48 @@ describe("WorkerService", () => {
 				},
 			},
 		};
-		const service = new WorkerService(
-			{
-				load: () => ({ opencode }),
-				getConfigPath: () => "/tmp/cyrus/config.json",
-			} as any,
-			{ createGitWorktree: vi.fn() } as any,
-			"/tmp/cyrus",
-			{
-				info: vi.fn(),
-				success: vi.fn(),
-				error: vi.fn(),
-				warn: vi.fn(),
-			} as any,
-			"test-version",
-		);
+		const config = await startService({ repositories: [], opencode });
 
-		await service.startEdgeWorker({
-			repositories: [repository],
-			onOAuthCallback: vi.fn(),
+		expect(config.opencode).toBe(opencode);
+	});
+
+	it("forwards OpenCode model config defaults to EdgeWorker", async () => {
+		const config = await startService({
+			repositories: [],
+			opencodeDefaultModel: "anthropic/claude-sonnet-4.5",
+			opencodeDefaultFallbackModel: "anthropic/claude-haiku-4.5",
+			inferOpenCodeRunnerFromProviderModel: true,
 		});
 
-		expect(edgeWorkerInstances).toHaveLength(1);
-		expect(edgeWorkerInstances[0].config.opencode).toBe(opencode);
+		expect(config.opencodeDefaultModel).toBe("anthropic/claude-sonnet-4.5");
+		expect(config.opencodeDefaultFallbackModel).toBe(
+			"anthropic/claude-haiku-4.5",
+		);
+		expect(config.inferOpenCodeRunnerFromProviderModel).toBe(true);
+	});
+
+	it("prefers OpenCode model environment defaults over config defaults", async () => {
+		vi.stubEnv("CYRUS_OPENCODE_DEFAULT_MODEL", "openai/gpt-5.5");
+		vi.stubEnv("CYRUS_OPENCODE_DEFAULT_FALLBACK_MODEL", "openai/gpt-5-mini");
+
+		const config = await startService({
+			repositories: [],
+			opencodeDefaultModel: "anthropic/claude-sonnet-4.5",
+			opencodeDefaultFallbackModel: "anthropic/claude-haiku-4.5",
+		});
+
+		expect(config.opencodeDefaultModel).toBe("openai/gpt-5.5");
+		expect(config.opencodeDefaultFallbackModel).toBe("openai/gpt-5-mini");
+	});
+
+	it("prefers OpenCode provider/model inference environment default over config default", async () => {
+		vi.stubEnv("CYRUS_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL", "true");
+
+		const config = await startService({
+			repositories: [],
+			inferOpenCodeRunnerFromProviderModel: false,
+		});
+
+		expect(config.inferOpenCodeRunnerFromProviderModel).toBe(true);
 	});
 });

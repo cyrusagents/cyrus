@@ -16,6 +16,13 @@ function parseToolEnv(value: string | undefined): string[] | undefined {
 	return tools && tools.length > 0 ? tools : undefined;
 }
 
+function parseBooleanEnv(value: string | undefined): boolean | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	return value.toLowerCase().trim() === "true";
+}
+
 /**
  * Service responsible for EdgeWorker and Cloudflare tunnel management
  */
@@ -236,7 +243,9 @@ export class WorkerService {
 				process.env.CYRUS_OPENCODE_DEFAULT_FALLBACK_MODEL ||
 				edgeConfig.opencodeDefaultFallbackModel,
 			inferOpenCodeRunnerFromProviderModel:
-				edgeConfig.inferOpenCodeRunnerFromProviderModel,
+				parseBooleanEnv(
+					process.env.CYRUS_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL,
+				) ?? edgeConfig.inferOpenCodeRunnerFromProviderModel,
 			opencode: edgeConfig.opencode,
 			defaultRunner:
 				(process.env.CYRUS_DEFAULT_RUNNER as
