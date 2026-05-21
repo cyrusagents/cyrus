@@ -31,6 +31,7 @@
 - [x] Closest scoped validation passed using `OpenCodeRunner` with a deterministic local MCP-like extension configured through `opencodeRepositoryConfig.mcp`.
 - [x] The launched OpenCode process received `OPENCODE_CONFIG_CONTENT`, found `mcp.ng71-local-extension`, executed its configured local command, and returned `NG71_MCP_EXTENSION_OK`.
 - [x] Runner messages included final sentinel `NG71_OPENCODE_CONFIG_OVERRIDE_OK`.
+- [ ] Real OpenCode CLI runtime-extension loading remains unvalidated in F1 because this F1 server cannot inject `opencode.config`, and the real OpenCode-selected smoke exited with `Session not found` before the prompt ran.
 
 ## Session Log
 
@@ -260,4 +261,6 @@ Result: PASS. The exact evidence command above confirms `OpenCodeRunner` passed 
 
 NG-71 unit, package, and type verification passed. F1 validated issue creation, repository selection, worktree creation, renderer activity quality, pagination, and OpenCode runner selection.
 
-The full F1 runtime-extension validation could not be performed without modifying F1 because `apps/f1/server.ts` does not provide a way to inject `opencode.config` into the hardcoded `EdgeWorkerConfig`. Real OpenCode execution also failed with `Session not found` after runner selection. Within Task 5 scope, the closest deterministic validation passed by launching `OpenCodeRunner` with a fake OpenCode process and verifying Cyrus propagated the configured MCP entry and environment to that process.
+The implemented NG-71 product decision is the explicit Cyrus-managed OpenCode config path: users copy selected OpenCode-native config into global or repository `opencode.config`, while Cyrus-generated MCP and permission rules remain authoritative. This avoids implicitly inheriting the user's entire global OpenCode plugin/config surface into agent sessions.
+
+The full F1 runtime-extension validation could not be performed without modifying F1 because `apps/f1/server.ts` does not provide a way to inject `opencode.config` into the hardcoded `EdgeWorkerConfig`. Real OpenCode execution also failed with `Session not found` after runner selection. Within NG-71 scope, the closest deterministic validation passed by launching `OpenCodeRunner` with a fake OpenCode process and verifying Cyrus propagated the configured MCP entry and environment to that process. A future F1 enhancement should add an `opencode.config` injection point if we want automated real-CLI validation for configured OpenCode plugins or MCP servers.
