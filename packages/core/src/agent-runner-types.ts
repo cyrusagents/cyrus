@@ -11,7 +11,7 @@ import type {
 // Import the AskUserQuestionInput type from the SDK's tool input types
 // This ensures we use the SDK's official type definitions
 import type { AskUserQuestionInput as SDKAskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
-import type { OpenCodeStateScope } from "./config-schemas.js";
+import type { OpenCodeStateScope, RunnerType } from "./config-schemas.js";
 import type { ILogger } from "./logging/ILogger.js";
 
 // ============================================================================
@@ -471,6 +471,8 @@ export interface AgentRunnerConfig {
 	additionalDirectories?: string[];
 	/** Session ID to resume from a previous session */
 	resumeSessionId?: string;
+	/** Runner implementation that owns resumeSessionId, used to avoid cross-runner resumes */
+	runnerType?: RunnerType;
 	/** Workspace name for logging and organization */
 	workspaceName?: string;
 	/** Additional text to append to default system prompt */
