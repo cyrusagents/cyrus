@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
-- **Self-Managed GitLab MR replies** — `EdgeWorker` was instantiating `GitLabCommentService` with no `apiBaseUrl`, so every MR-reply request on a Self-Managed instance hit `gitlab.com` and 404'd. The base URL is now derived from the URL origin of the first configured repo with a `gitlabUrl`, so MR replies post against the correct host. ([#1191](https://github.com/cyrusagents/cyrus/pull/1191))
+- **Self-Managed GitLab MR replies** — `EdgeWorker` was instantiating `GitLabCommentService` with no `apiBaseUrl`, so every MR-reply request on a Self-Managed instance hit `gitlab.com` and 404'd. The base URL is now derived from the URL origin of the first configured repo with a `gitlabUrl`, so MR replies post against the correct host. Thanks [@tenforty](https://github.com/tenfourty) ([#1191](https://github.com/cyrusagents/cyrus/pull/1191))
 
 ### Security
 - **Patched 9 transitive dependency advisories** — Bumped `pnpm.overrides` for `hono` (≥4.12.18, fixes CSS injection / JWT validation / Cache Middleware cross-user leakage), `fast-uri` (≥3.1.2, path traversal + host confusion), `ip-address` (≥10.1.1, `Address6` XSS), `@anthropic-ai/sdk` (≥0.91.1, insecure default file permissions in local filesystem memory tool), and `@opentelemetry/sdk-node` / `@opentelemetry/exporter-prometheus` (≥0.217.0, Prometheus exporter process crash via malformed HTTP request). `pnpm audit` now reports zero advisories. ([CYPACK-1206](https://linear.app/ceedar/issue/CYPACK-1206))
