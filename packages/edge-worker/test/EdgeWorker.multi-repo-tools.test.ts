@@ -358,7 +358,7 @@ describe("EdgeWorker - Multi-Repo Tool Authorization", () => {
 		it("should treat empty global defaults as unset for repository sessions", () => {
 			const configEmptyDefaults: EdgeWorkerConfig = {
 				...mockConfig,
-				defaultAllowedTools: [],
+				linearAllowedTools: [],
 			};
 			const ew = new EdgeWorker(configEmptyDefaults);
 			const buildAllowedTools = getBuildAllowedTools(ew);
@@ -369,12 +369,7 @@ describe("EdgeWorker - Multi-Repo Tool Authorization", () => {
 
 			const tools = buildAllowedTools(repository);
 
-			expect(tools).toEqual([
-				...getSafeTools(),
-				"mcp__linear",
-				"mcp__cyrus-tools",
-				"mcp__cyrus-docs",
-			]);
+			expect(tools).toEqual([...LINEAR_DEFAULT_ALLOWED_TOOLS]);
 		});
 
 		it("should still work with a single repository (backwards compatible)", () => {

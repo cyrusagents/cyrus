@@ -218,7 +218,10 @@ export class ToolPermissionResolver {
 		// 4. Workspace default allowed tools (the platform default the
 		//    surrounding `buildAllowedTools` / `buildGithubAllowedTools`
 		//    swapped in, if any).
-		if (this.config.linearAllowedTools && this.config.linearAllowedTools.length > 0) {
+		if (
+			this.config.linearAllowedTools &&
+			this.config.linearAllowedTools.length > 0
+		) {
 			return this.config.linearAllowedTools;
 		}
 		// 5. Final fallback — Linear platform default.
