@@ -150,6 +150,26 @@ OPENCODE_CONFIG=/path/to/opencode-auth-config.json opencode mcp auth sentry
 
 After authentication, keep the same MCP server name (`sentry` in this example) in Cyrus `opencode.config.mcp` or `mcpConfigPath`. OpenCode stores the OAuth credentials in its data home, while Cyrus supplies the runtime MCP config for agent sessions.
 
+**Authenticating other CLI tools for OpenCode sessions:**
+
+OpenCode-launched tools inherit the same isolated `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, and `XDG_CACHE_HOME` that Cyrus gives the agent. CLIs that store auth under XDG paths, such as `glab`, may not see credentials from your normal shell config. To pre-authenticate one of these tools exactly where the agent will look, run the CLI with the same environment shape:
+
+```bash
+CYRUS_HOME="${CYRUS_HOME:-$HOME/.cyrus}"
+WORKSPACE_NAME="NG-71" # Usually the Linear issue identifier for issue sessions
+STATE_ROOT="$CYRUS_HOME/opencode-state/$WORKSPACE_NAME"
+
+mkdir -p "$STATE_ROOT/opencode-config" "$STATE_ROOT/state" "$STATE_ROOT/cache" "$STATE_ROOT/config"
+
+OPENCODE_CONFIG_DIR="$STATE_ROOT/opencode-config" \
+XDG_STATE_HOME="$STATE_ROOT/state" \
+XDG_CACHE_HOME="$STATE_ROOT/cache" \
+XDG_CONFIG_HOME="$STATE_ROOT/config" \
+glab auth login
+```
+
+Credentials written this way persist in the Cyrus OpenCode state root and are available to later agent turns that use the same workspace name. For Linear issue sessions, the workspace name is the issue identifier, so this is per issue. New issues get their own state roots unless the tool stores credentials outside XDG paths or you configure that tool to use a shared auth location.
+
 ### `teamKeys` (array of strings)
 
 Routes Linear issues from specific teams to this repository. When specified, only issues from matching teams trigger Cyrus.
