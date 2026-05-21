@@ -50,7 +50,6 @@ export interface FailureModesHttpClient {
 		recap: string;
 		userQuoteSnippet: string;
 		agentFailureSnippet: string;
-		sessionLogsUrl?: string;
 		runnerSessionId?: string | null;
 		runnerType?: string | null;
 		linearIssueIdentifier?: string | null;
@@ -140,11 +139,6 @@ export function registerLogFailureModeTool(
 					.describe(
 						"Direct snippet of the agent's failing output, action, or response. Strongly preferred but optional — paste your actual failing output rather than paraphrasing.",
 					),
-				session_logs_url: z
-					.string()
-					.url()
-					.optional()
-					.describe("Optional URL to session logs if available."),
 			},
 		},
 		async ({
@@ -153,7 +147,6 @@ export function registerLogFailureModeTool(
 			recap,
 			user_quote_snippet,
 			agent_failure_snippet,
-			session_logs_url,
 		}) => {
 			const resolved = options.resolveSessionFromCwd(cwd);
 			if (!resolved && !options.fallbackSessionId) {
@@ -184,7 +177,6 @@ export function registerLogFailureModeTool(
 				recap,
 				userQuoteSnippet: user_quote_snippet ?? "<not captured>",
 				agentFailureSnippet: agent_failure_snippet ?? "<not captured>",
-				sessionLogsUrl: session_logs_url,
 				runnerSessionId: ctx.runnerSessionId ?? null,
 				runnerType: ctx.runnerType ?? null,
 				linearIssueIdentifier: ctx.linearIssueIdentifier ?? null,

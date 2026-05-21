@@ -58,7 +58,6 @@ describe("log_failure_mode tool", () => {
 			recap: "User asked for PR screenshots and none were posted.",
 			userQuoteSnippet: "where are the screenshots?",
 			agentFailureSnippet: "PR opened: https://github.com/x/y/pull/1",
-			sessionLogsUrl: undefined,
 			runnerSessionId: null,
 			runnerType: null,
 			linearIssueIdentifier: null,

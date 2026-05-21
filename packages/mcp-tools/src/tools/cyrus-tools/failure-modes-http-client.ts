@@ -45,9 +45,6 @@ export function createFetchFailureModesClient(
 						...(input.sessionSource
 							? { sessionSource: input.sessionSource }
 							: {}),
-						...(input.sessionLogsUrl
-							? { sessionLogsUrl: input.sessionLogsUrl }
-							: {}),
 						...(input.runnerSessionId
 							? { runnerSessionId: input.runnerSessionId }
 							: {}),
