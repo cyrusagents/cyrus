@@ -98,6 +98,8 @@ export interface ChatRunnerConfigInput {
 	platformMcpConfigOverrides?: readonly string[];
 	/** Global OpenCode runtime config overrides from Cyrus config */
 	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
+	/** Global OpenCode CLI state scope from Cyrus config */
+	opencodeGlobalStateScope?: OpenCodeConfigOverrides["stateScope"];
 	logger: ILogger;
 	onMessage: (message: SDKMessage) => void | Promise<void>;
 	onError: (error: Error) => void;
@@ -145,6 +147,8 @@ export interface IssueRunnerConfigInput {
 	plugins?: SdkPluginConfig[];
 	/** Global OpenCode runtime config overrides from Cyrus config */
 	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
+	/** Global OpenCode CLI state scope from Cyrus config */
+	opencodeGlobalStateScope?: OpenCodeConfigOverrides["stateScope"];
 	/**
 	 * Allow-list of skill names enabled for the session (after scope filtering),
 	 * or `"all"` to enable every discovered skill, or `undefined` to defer to
@@ -261,6 +265,10 @@ export class RunnerConfigBuilder {
 			...(runnerType === "opencode" && {
 				opencodeGlobalConfig: input.opencodeGlobalConfig,
 				opencodeRepositoryConfig: input.repository?.opencode?.config,
+				opencodeStateScope:
+					input.repository?.opencode?.stateScope ??
+					input.opencodeGlobalStateScope,
+				opencodeStateKey: input.repository?.id,
 			}),
 			logger: input.logger,
 			maxTurns: 200,
@@ -429,6 +437,10 @@ export class RunnerConfigBuilder {
 			...(runnerType === "opencode" && {
 				opencodeGlobalConfig: input.opencodeGlobalConfig,
 				opencodeRepositoryConfig: input.repository.opencode?.config,
+				opencodeStateScope:
+					input.repository.opencode?.stateScope ??
+					input.opencodeGlobalStateScope,
+				opencodeStateKey: input.repository.id,
 			}),
 			onMessage: input.onMessage,
 			onError: input.onError,

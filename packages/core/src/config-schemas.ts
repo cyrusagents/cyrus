@@ -84,7 +84,15 @@ export const JsonObjectSchema: z.ZodType<JsonObject> = z.record(
 	JsonValueSchema,
 );
 
+export const OpenCodeStateScopeSchema = z.enum([
+	"inherit",
+	"shared",
+	"repository",
+]);
+export type OpenCodeStateScope = z.infer<typeof OpenCodeStateScopeSchema>;
+
 export const OpenCodeConfigSchema = z.object({
+	stateScope: OpenCodeStateScopeSchema.optional(),
 	config: JsonObjectSchema.optional(),
 });
 

@@ -19,6 +19,10 @@ export interface OpenCodeRunnerConfig extends AgentRunnerConfig {
 	agent?: string;
 	/** Extra environment variables for the OpenCode child process. */
 	env?: Record<string, string | undefined>;
+	/** OpenCode CLI config/state/cache scope. Defaults to inheriting parent env. */
+	opencodeStateScope?: "inherit" | "shared" | "repository";
+	/** Stable key used when opencodeStateScope is repository. */
+	opencodeStateKey?: string;
 }
 
 export interface OpenCodeSessionInfo extends AgentSessionInfo {

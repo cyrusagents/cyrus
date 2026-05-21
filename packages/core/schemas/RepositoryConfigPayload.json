@@ -474,6 +474,10 @@
 		"opencode": {
 			"type": "object",
 			"properties": {
+				"stateScope": {
+					"type": "string",
+					"enum": ["inherit", "shared", "repository"]
+				},
 				"config": {
 					"type": "object",
 					"propertyNames": {

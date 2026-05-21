@@ -9,6 +9,7 @@ import type {
 // Import the AskUserQuestionInput type from the SDK's tool input types
 // This ensures we use the SDK's official type definitions
 import type { AskUserQuestionInput as SDKAskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
+import type { OpenCodeStateScope } from "./config-schemas.js";
 import type { ILogger } from "./logging/ILogger.js";
 
 // ============================================================================
@@ -446,6 +447,10 @@ export interface AgentRunnerConfig {
 	opencodeGlobalConfig?: JsonObject;
 	/** Repository OpenCode runtime config overrides from Cyrus config */
 	opencodeRepositoryConfig?: JsonObject;
+	/** OpenCode CLI config/state/cache scope. Defaults to inheriting parent env. */
+	opencodeStateScope?: OpenCodeStateScope;
+	/** Stable key used when opencodeStateScope is repository. */
+	opencodeStateKey?: string;
 	/** AI model to use (e.g., "opus", "sonnet", "haiku") */
 	model?: string;
 	/** Fallback model if primary is unavailable */

@@ -77,6 +77,7 @@ export type {
 	NetworkPolicy,
 	OAuthCallbackHandler,
 	OpenCodeConfigOverrides,
+	OpenCodeStateScope,
 	RepositoryConfig,
 	RepositoryConfigPayload,
 	RunnerType,

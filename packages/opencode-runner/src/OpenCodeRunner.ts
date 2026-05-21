@@ -1,7 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
-import { join } from "node:path";
 import { cwd } from "node:process";
 import type {
 	IAgentRunner,
@@ -13,7 +12,7 @@ import type {
 } from "cyrus-core";
 import {
 	buildOpenCodeConfig,
-	buildOpenCodeStateRoot,
+	buildOpenCodeRuntimeEnv,
 	ensureOpenCodeStateDirectories,
 } from "./config.js";
 import { OpenCodeMessageFormatter } from "./formatter.js";
@@ -422,14 +421,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 				`[OpenCodeRunner] Unsupported config entry skipped: ${entry}`,
 			);
 		}
-		const stateRoot = buildOpenCodeStateRoot(this.config);
-		return {
-			OPENCODE_CONFIG_CONTENT: JSON.stringify(built.config),
-			OPENCODE_CONFIG_DIR: join(stateRoot, "opencode-config"),
-			XDG_STATE_HOME: join(stateRoot, "state"),
-			XDG_CACHE_HOME: join(stateRoot, "cache"),
-			XDG_CONFIG_HOME: join(stateRoot, "config"),
-		};
+		return buildOpenCodeRuntimeEnv(this.config);
 	}
 
 	private buildArgs(): string[] {
