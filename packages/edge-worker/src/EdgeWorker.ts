@@ -461,8 +461,6 @@ export class EdgeWorker extends EventEmitter {
 					parentSessionId,
 					prompt,
 					childSessionId,
-					repo,
-					this.agentSessionManager,
 				);
 			},
 		);
@@ -2662,8 +2660,6 @@ ${taskSection}`;
 		parentSessionId: string,
 		prompt: string,
 		childSessionId: string,
-		_childRepo: RepositoryConfig,
-		childAgentSessionManager: AgentSessionManager,
 	): Promise<void> {
 		const log = this.logger.withContext({ sessionId: parentSessionId });
 		log.info(
@@ -2694,8 +2690,7 @@ ${taskSection}`;
 		);
 
 		// Get the child session to access its workspace path
-		// Child session is in the child's manager (passed in from the callback)
-		const childSession = childAgentSessionManager.getSession(childSessionId);
+		const childSession = this.agentSessionManager.getSession(childSessionId);
 		const childWorkspaceDirs: string[] = [];
 		if (childSession) {
 			childWorkspaceDirs.push(childSession.workspace.path);
