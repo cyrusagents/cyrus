@@ -56,6 +56,8 @@ OpenCode sessions run with Cyrus-managed inline runtime config for generated MCP
 
 Use `opencode.config` when an OpenCode session needs OpenCode-native runtime configuration such as plugins, instructions, formatters, providers, themes, or other OpenCode config keys. It can be configured globally or per repository.
 
+Cyrus does not automatically import your existing global OpenCode config or plugin list into agent sessions. Copy only the OpenCode-native settings you want Cyrus sessions to use into `opencode.config`; Cyrus then merges those explicit settings with its generated MCP and permission rules.
+
 Use `opencode.stateScope` to control how OpenCode-launched CLI tools store config/state/cache:
 
 - `inherit` (default): do not override `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`, or `OPENCODE_CONFIG_DIR`; CLI tools inherit the same storage your Cyrus process has.
@@ -124,6 +126,8 @@ Merge behavior:
 - Cyrus-generated permissions replace user-provided OpenCode permissions because they are Cyrus safety controls.
 
 This describes Cyrus's inline config merge order, not OpenCode's complete config-loading precedence. OpenCode applies Cyrus's inline config after project config, so the managed inline config can still override OpenCode settings that were loaded earlier.
+
+This explicit merge path is intentional: it keeps Cyrus-launched OpenCode sessions predictable and reviewable while still allowing opt-in OpenCode plugins, instructions, and provider/runtime settings.
 
 For MCP servers that should work across runners, prefer `mcpConfigPath`. Cyrus reads those MCP server definitions and translates them for Claude, OpenCode, and other supported runners. Use `opencode.config` for OpenCode-native runtime config that only applies to OpenCode.
 
