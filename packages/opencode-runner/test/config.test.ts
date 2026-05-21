@@ -105,7 +105,7 @@ describe("OpenCode config translation", () => {
 		);
 	});
 
-	it("builds inline config and isolates OpenCode state under Cyrus home", () => {
+	it("builds inline config and inherits terminal state by default", () => {
 		const env = buildOpenCodeRuntimeEnv({
 			workingDirectory: "/work/repo",
 			cyrusHome: "/tmp/cyrus",
@@ -121,13 +121,53 @@ describe("OpenCode config translation", () => {
 				},
 			},
 		});
+		expect(env.OPENCODE_CONFIG_DIR).toBeUndefined();
+		expect(env.XDG_DATA_HOME).toBeUndefined();
+		expect(env.XDG_STATE_HOME).toBeUndefined();
+		expect(env.XDG_CACHE_HOME).toBeUndefined();
+		expect(env.XDG_CONFIG_HOME).toBeUndefined();
+	});
+
+	it("can use shared Cyrus OpenCode state across sessions", () => {
+		const env = buildOpenCodeRuntimeEnv({
+			workingDirectory: "/work/repo",
+			cyrusHome: "/tmp/cyrus",
+			opencodeStateScope: "shared",
+			allowedTools: ["Read(**)"],
+		});
+
 		expect(env.OPENCODE_CONFIG_DIR).toBe(
-			"/tmp/cyrus/opencode-state/repo/opencode-config",
+			"/tmp/cyrus/opencode-state/shared/opencode-config",
 		);
 		expect(env.XDG_DATA_HOME).toBeUndefined();
-		expect(env.XDG_STATE_HOME).toBe("/tmp/cyrus/opencode-state/repo/state");
-		expect(env.XDG_CACHE_HOME).toBe("/tmp/cyrus/opencode-state/repo/cache");
-		expect(env.XDG_CONFIG_HOME).toBe("/tmp/cyrus/opencode-state/repo/config");
+		expect(env.XDG_STATE_HOME).toBe("/tmp/cyrus/opencode-state/shared/state");
+		expect(env.XDG_CACHE_HOME).toBe("/tmp/cyrus/opencode-state/shared/cache");
+		expect(env.XDG_CONFIG_HOME).toBe("/tmp/cyrus/opencode-state/shared/config");
+	});
+
+	it("can use repository-scoped Cyrus OpenCode state across issues", () => {
+		const env = buildOpenCodeRuntimeEnv({
+			workingDirectory: "/work/repo",
+			cyrusHome: "/tmp/cyrus",
+			opencodeStateScope: "repository",
+			opencodeStateKey: "main-app",
+			workspaceName: "NG-71",
+			allowedTools: ["Read(**)"],
+		});
+
+		expect(env.OPENCODE_CONFIG_DIR).toBe(
+			"/tmp/cyrus/opencode-state/repositories/main-app/opencode-config",
+		);
+		expect(env.XDG_DATA_HOME).toBeUndefined();
+		expect(env.XDG_STATE_HOME).toBe(
+			"/tmp/cyrus/opencode-state/repositories/main-app/state",
+		);
+		expect(env.XDG_CACHE_HOME).toBe(
+			"/tmp/cyrus/opencode-state/repositories/main-app/cache",
+		);
+		expect(env.XDG_CONFIG_HOME).toBe(
+			"/tmp/cyrus/opencode-state/repositories/main-app/config",
+		);
 	});
 
 	it("merges global and repository OpenCode config before Cyrus-generated config", () => {

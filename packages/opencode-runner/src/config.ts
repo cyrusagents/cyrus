@@ -410,6 +410,24 @@ function sanitizePathSegment(value: string): string {
 }
 
 export function buildOpenCodeStateRoot(config: OpenCodeRunnerConfig): string {
+	const scope = config.opencodeStateScope ?? "inherit";
+	if (scope === "shared") {
+		return join(config.cyrusHome, "opencode-state", "shared");
+	}
+	if (scope === "repository") {
+		const key =
+			config.opencodeStateKey ||
+			config.workspaceName ||
+			sanitizePathSegment(
+				basename(resolve(config.workingDirectory || process.cwd())),
+			);
+		return join(
+			config.cyrusHome,
+			"opencode-state",
+			"repositories",
+			sanitizePathSegment(key) || "repository",
+		);
+	}
 	const workingDirectory = resolve(config.workingDirectory || process.cwd());
 	const workspaceName =
 		config.workspaceName || sanitizePathSegment(basename(workingDirectory));
@@ -421,13 +439,19 @@ export function buildOpenCodeRuntimeEnv(
 	config: OpenCodeRunnerConfig,
 ): Record<string, string> {
 	const built = buildOpenCodeConfig(config);
-	const stateRoot = buildOpenCodeStateRoot(config);
 	// OpenCode loads OPENCODE_CONFIG_CONTENT after project config, making this
 	// the safest supported place for Cyrus-enforced MCP and permission rules.
+	const env: Record<string, string> = {
+		OPENCODE_CONFIG_CONTENT: JSON.stringify(built.config),
+	};
+	if ((config.opencodeStateScope ?? "inherit") === "inherit") {
+		return env;
+	}
+	const stateRoot = buildOpenCodeStateRoot(config);
 	// Keep XDG_DATA_HOME unset so OpenCode can use its CLI-managed auth and
 	// provider catalog from the user's data home.
 	return {
-		OPENCODE_CONFIG_CONTENT: JSON.stringify(built.config),
+		...env,
 		OPENCODE_CONFIG_DIR: join(stateRoot, "opencode-config"),
 		XDG_STATE_HOME: join(stateRoot, "state"),
 		XDG_CACHE_HOME: join(stateRoot, "cache"),

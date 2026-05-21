@@ -19,6 +19,8 @@ export {
 	NetworkPolicySchema,
 	type OpenCodeConfigOverrides,
 	OpenCodeConfigSchema,
+	type OpenCodeStateScope,
+	OpenCodeStateScopeSchema,
 	type RepositoryConfig,
 	type RepositoryConfigPayload,
 	RepositoryConfigPayloadSchema,

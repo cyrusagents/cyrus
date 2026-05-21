@@ -302,6 +302,11 @@ process.stdout.write(${JSON.stringify(fixtureLines())});
 			openCodePath: opencodePath,
 			workingDirectory: dir,
 			cyrusHome: dir,
+			env: {
+				XDG_STATE_HOME: "/parent/state",
+				XDG_CACHE_HOME: "/parent/cache",
+				XDG_CONFIG_HOME: "/parent/config",
+			},
 			allowedTools: ["Read(**)", "mcp__linear__get_issue"],
 			disallowedTools: ["Bash(rm:*)"],
 			mcpConfig: {
@@ -316,11 +321,10 @@ process.stdout.write(${JSON.stringify(fixtureLines())});
 		await runner.start("Configured run");
 
 		const capture = JSON.parse(readFileSync(captureFile, "utf8"));
-		const stateRoot = `${dir}/opencode-state/${dir.split("/").at(-1)}`;
 		expect(capture.xdgDataHome).toBeUndefined();
-		expect(capture.xdgStateHome).toBe(`${stateRoot}/state`);
-		expect(capture.xdgCacheHome).toBe(`${stateRoot}/cache`);
-		expect(capture.xdgConfigHome).toBe(`${stateRoot}/config`);
+		expect(capture.xdgStateHome).toBe("/parent/state");
+		expect(capture.xdgCacheHome).toBe("/parent/cache");
+		expect(capture.xdgConfigHome).toBe("/parent/config");
 		expect(JSON.parse(capture.opencodeConfig)).toMatchObject({
 			mcp: {
 				linear: {
@@ -382,6 +386,7 @@ process.stdout.write(${JSON.stringify(fixtureLines())});
 			openCodePath: opencodePath,
 			workingDirectory: dir,
 			cyrusHome: dir,
+			opencodeStateScope: "shared",
 			allowedTools: ["Skill"],
 			plugins: [{ type: "local", path: pluginPath } as any],
 			skills: ["debug"],

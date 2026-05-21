@@ -134,9 +134,10 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 				repository: {
 					id: "repo-1",
 					path: "/tmp/repo",
-					opencode: { config: repositoryConfig },
+					opencode: { config: repositoryConfig, stateScope: "repository" },
 				} as any,
 				opencodeGlobalConfig: globalConfig,
+				opencodeGlobalStateScope: "shared",
 				logger: silentLogger,
 				onMessage: () => {},
 				onError: () => {},
@@ -145,9 +146,13 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 			if (defaultRunner === "opencode") {
 				expect(config.opencodeGlobalConfig).toBe(globalConfig);
 				expect(config.opencodeRepositoryConfig).toBe(repositoryConfig);
+				expect(config.opencodeStateScope).toBe("repository");
+				expect(config.opencodeStateKey).toBe("repo-1");
 			} else {
 				expect(config.opencodeGlobalConfig).toBeUndefined();
 				expect(config.opencodeRepositoryConfig).toBeUndefined();
+				expect(config.opencodeStateScope).toBeUndefined();
+				expect(config.opencodeStateKey).toBeUndefined();
 			}
 		}
 	});
@@ -241,7 +246,7 @@ describe("RunnerConfigBuilder.buildIssueConfig", () => {
 				repository: {
 					id: "repo-1",
 					path: "/tmp/repo",
-					opencode: { config: repositoryConfig },
+					opencode: { config: repositoryConfig, stateScope: "repository" },
 				} as any,
 				sessionId: "session-1",
 				systemPrompt: "system",
@@ -255,15 +260,20 @@ describe("RunnerConfigBuilder.buildIssueConfig", () => {
 				onError: () => {},
 				requireLinearWorkspaceId: () => "workspace-1",
 				opencodeGlobalConfig: globalConfig,
+				opencodeGlobalStateScope: "shared",
 			});
 
 			expect(runnerType).toBe(selectedRunner);
 			if (selectedRunner === "opencode") {
 				expect(config.opencodeGlobalConfig).toBe(globalConfig);
 				expect(config.opencodeRepositoryConfig).toBe(repositoryConfig);
+				expect(config.opencodeStateScope).toBe("repository");
+				expect(config.opencodeStateKey).toBe("repo-1");
 			} else {
 				expect(config.opencodeGlobalConfig).toBeUndefined();
 				expect(config.opencodeRepositoryConfig).toBeUndefined();
+				expect(config.opencodeStateScope).toBeUndefined();
+				expect(config.opencodeStateKey).toBeUndefined();
 			}
 		}
 	});

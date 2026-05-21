@@ -100,6 +100,10 @@ export interface ChatSessionHandlerDeps {
 	}) => Promise<{ plugins?: SdkPluginConfig[]; skills?: string[] | "all" }>;
 	/** Read live global OpenCode config overrides at session-build time */
 	getOpenCodeGlobalConfig?: () => OpenCodeConfigOverrides["config"] | undefined;
+	/** Read live global OpenCode CLI state scope at session-build time */
+	getOpenCodeGlobalStateScope?: () =>
+		| OpenCodeConfigOverrides["stateScope"]
+		| undefined;
 	onWebhookStart: () => void;
 	onWebhookEnd: () => void;
 	onStateChange: () => Promise<void>;
@@ -666,6 +670,7 @@ export class ChatSessionHandler<TEvent> {
 			plugins: skillsConfig.plugins,
 			skills: skillsConfig.skills,
 			opencodeGlobalConfig: this.deps.getOpenCodeGlobalConfig?.(),
+			opencodeGlobalStateScope: this.deps.getOpenCodeGlobalStateScope?.(),
 			logger: sessionLogger,
 			onMessage: (message: SDKMessage) =>
 				this.handleAgentMessage(sessionId, message),

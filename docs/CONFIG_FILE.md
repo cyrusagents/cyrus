@@ -50,17 +50,26 @@ Expected file format:
 
 Learn more about MCP: https://code.claude.com/docs/en/mcp
 
-### `opencode.config` (object)
+### `opencode` (object)
 
-OpenCode sessions run with Cyrus-managed runtime isolation for config, state, and cache. Cyrus sets OpenCode's config, state, and cache roots under the Cyrus home directory for each workspace so sessions do not implicitly inherit arbitrary machine-wide OpenCode runtime config. Cyrus intentionally leaves OpenCode's data home unchanged so CLI-managed auth and provider metadata remain available. This keeps generated MCP servers and permission rules deterministic while preserving login/provider setup, but it also means plugins, skills, hooks, and other OpenCode-native settings from your normal global OpenCode config are not automatically visible inside Cyrus sessions.
+OpenCode sessions run with Cyrus-managed inline runtime config for generated MCP servers and permission rules. By default, Cyrus otherwise inherits the parent process environment for CLI config, state, and cache paths, matching the behavior of other agent providers and allowing tools such as `gh` and `glab` to use your normal terminal authentication. You can opt into dedicated Cyrus-managed OpenCode state globally or per repository with `opencode.stateScope`.
 
 Use `opencode.config` when an OpenCode session needs OpenCode-native runtime configuration such as plugins, instructions, formatters, providers, themes, or other OpenCode config keys. It can be configured globally or per repository.
+
+Use `opencode.stateScope` to control how OpenCode-launched CLI tools store config/state/cache:
+
+- `inherit` (default): do not override `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`, or `OPENCODE_CONFIG_DIR`; CLI tools inherit the same storage your Cyrus process has.
+- `shared`: use one dedicated Cyrus OpenCode state root for all OpenCode sessions: `~/.cyrus/opencode-state/shared/`.
+- `repository`: use one dedicated Cyrus OpenCode state root per configured repository: `~/.cyrus/opencode-state/repositories/<repository-id>/`.
+
+`repository` settings override global settings. Cyrus always keeps `OPENCODE_CONFIG_CONTENT` for generated MCP and permission rules regardless of state scope.
 
 **Global OpenCode config example:**
 
 ```json
 {
   "opencode": {
+    "stateScope": "inherit",
     "config": {
       "plugin": ["opencode-wakatime"],
       "instructions": ["~/.config/opencode/CYRUS.md"],
@@ -87,6 +96,7 @@ Use `opencode.config` when an OpenCode session needs OpenCode-native runtime con
       "name": "Main Application",
       "repositoryPath": "/path/to/repo",
       "opencode": {
+        "stateScope": "repository",
         "config": {
           "plugin": ["@company/opencode-repo-plugin"],
           "instructions": ["OPENCODE.md"],
@@ -152,12 +162,19 @@ After authentication, keep the same MCP server name (`sentry` in this example) i
 
 **Authenticating other CLI tools for OpenCode sessions:**
 
-OpenCode-launched tools inherit the same isolated `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, and `XDG_CACHE_HOME` that Cyrus gives the agent. CLIs that store auth under XDG paths, such as `glab`, may not see credentials from your normal shell config. To pre-authenticate one of these tools exactly where the agent will look, run the CLI with the same environment shape:
+With the default `opencode.stateScope: "inherit"`, OpenCode-launched tools use the same CLI auth storage as the Cyrus process, so authenticate them normally before starting Cyrus, for example:
+
+```bash
+glab auth login
+```
+
+If you set `opencode.stateScope` to `shared` or `repository`, CLIs that store auth under XDG paths, such as `glab`, will use the dedicated Cyrus root instead. To pre-authenticate one of these tools exactly where the agent will look, run the CLI with the matching environment shape.
+
+For `shared`:
 
 ```bash
 CYRUS_HOME="${CYRUS_HOME:-$HOME/.cyrus}"
-WORKSPACE_NAME="NG-71" # Usually the Linear issue identifier for issue sessions
-STATE_ROOT="$CYRUS_HOME/opencode-state/$WORKSPACE_NAME"
+STATE_ROOT="$CYRUS_HOME/opencode-state/shared"
 
 mkdir -p "$STATE_ROOT/opencode-config" "$STATE_ROOT/state" "$STATE_ROOT/cache" "$STATE_ROOT/config"
 
@@ -168,7 +185,7 @@ XDG_CONFIG_HOME="$STATE_ROOT/config" \
 glab auth login
 ```
 
-Credentials written this way persist in the Cyrus OpenCode state root and are available to later agent turns that use the same workspace name. For Linear issue sessions, the workspace name is the issue identifier, so this is per issue. New issues get their own state roots unless the tool stores credentials outside XDG paths or you configure that tool to use a shared auth location.
+For `repository`, replace `shared` with `repositories/<repository-id>`, for example `~/.cyrus/opencode-state/repositories/main-app/`. Credentials written this way persist in the configured Cyrus OpenCode state root and are available to later OpenCode sessions using the same scope.
 
 ### `teamKeys` (array of strings)
 
