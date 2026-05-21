@@ -281,6 +281,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 	private totalCostUsd = 0;
 	private startTimestampMs = 0;
 	private wasStopped = false;
+	private hasFinalized = false;
 	private stderr = "";
 
 	constructor(config: OpenCodeRunnerConfig) {
@@ -335,7 +336,6 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 			});
 
 			child.on("error", (error) => {
-				this.emitError(error);
 				this.finalizeSession(error);
 				resolve(this.sessionInfo as OpenCodeSessionInfo);
 			});
@@ -411,6 +411,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		this.totalCostUsd = 0;
 		this.startTimestampMs = Date.now();
 		this.wasStopped = false;
+		this.hasFinalized = false;
 		this.stderr = "";
 	}
 
@@ -659,6 +660,11 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 	}
 
 	private finalizeSession(error?: unknown): void {
+		if (this.hasFinalized) {
+			return;
+		}
+		this.hasFinalized = true;
+
 		if (!this.sessionInfo) {
 			return;
 		}

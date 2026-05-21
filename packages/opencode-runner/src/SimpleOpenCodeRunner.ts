@@ -21,12 +21,16 @@ export class SimpleOpenCodeRunner<
 			: prompt;
 
 		const runner = new OpenCodeRunner({
+			openCodePath: (this.config as { openCodePath?: string }).openCodePath,
 			workingDirectory: this.config.workingDirectory,
 			cyrusHome: this.config.cyrusHome,
 			model: this.config.model,
 			fallbackModel: this.config.fallbackModel,
 			maxTurns: this.config.maxTurns,
 			appendSystemPrompt: this.buildSystemPrompt(),
+			allowedTools: options?.allowFileReading
+				? ["Read(**)", "Glob", "Grep"]
+				: undefined,
 			disallowedTools: options?.allowFileReading
 				? []
 				: ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
@@ -89,6 +93,25 @@ export class SimpleOpenCodeRunner<
 						}
 					}
 				}
+			}
+		}
+
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const message = messages[i];
+			if (message?.type !== "result" || message.is_error) {
+				continue;
+			}
+			const result = "result" in message ? message.result : undefined;
+			if (typeof result !== "string") {
+				continue;
+			}
+			const cleaned = this.cleanResponse(result);
+			if (cleaned) {
+				this.emitProgress({
+					type: "response-detected",
+					candidateResponse: cleaned,
+				});
+				return cleaned;
 			}
 		}
 
