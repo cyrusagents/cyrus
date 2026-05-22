@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
-- **`log_failure_mode` MCP tool now registers when only `CYRUS_API_KEY` is set.** EdgeWorker previously required both `CYRUS_API_KEY` and `CYRUS_APP_URL` env vars to wire up the self-reported-failure-mode tool, so workspaces that hadn't overridden `CYRUS_APP_URL` silently shipped the failure-mode prompt addendum without a corresponding tool. The URL now falls back to the canonical default (`https://app.atcyrus.com`) via the shared `getCyrusAppUrl()` helper, matching the remote session store. ([CYPACK-1232](https://linear.app/ceedar/issue/CYPACK-1232))
+- **`log_failure_mode` MCP tool now registers when only `CYRUS_API_KEY` is set.** EdgeWorker previously required both `CYRUS_API_KEY` and `CYRUS_APP_URL` env vars to wire up the self-reported-failure-mode tool, so workspaces that hadn't overridden `CYRUS_APP_URL` silently shipped the failure-mode prompt addendum without a corresponding tool. The URL now falls back to the canonical default (`https://app.atcyrus.com`) via the shared `getCyrusAppUrl()` helper, matching the remote session store. ([CYPACK-1232](https://linear.app/ceedar/issue/CYPACK-1232), [#1240](https://github.com/cyrusagents/cyrus/pull/1240))
 
 ## [0.2.53] - 2026-05-22
 
