@@ -7,10 +7,61 @@ All notable changes to this project will be documented in this file.
 ### Removed
 - **Claude-in-Chrome browser integration is no longer enabled for agent sessions.** Cyrus previously passed `--chrome` to every Claude runner session, which registered the `mcp__claude-in-chrome__*` MCP tools. In cloud-runtime sessions there is no path from the worker to the user's local Chrome extension, so those tools always failed with "Browser extension is not connected" — leading agents to loop on a misdiagnosis instead of falling back. The flag and the associated screenshot/GIF upload-guidance hooks have been removed. ([PRO-9](https://linear.app/ceedar/issue/PRO-9/failed-chrome-extension-not-connecting-oswaldo-okeefe), [#1244](https://github.com/cyrusagents/cyrus/pull/1244))
 
+## [0.2.55] - 2026-05-22
+
+### Fixed
+- **`~/`-prefixed paths in `slackMcpConfigs`, `linearMcpConfigs`, and `githubMcpConfigs` are now expanded.** When cyrus-hosted writes platform MCP config paths for a self-host runtime, it emits `~/.cyrus/mcp-configs/...` strings that were passed verbatim to `fs.readFileSync`, which does not expand tildes — Claude sessions would crash with `ENOENT: ~/.cyrus/mcp-configs/mcp-supabase.json`. EdgeWorker now runs the three platform MCP config arrays through `resolvePath` at construction and on config hot-reload, mirroring how repository-scoped paths have always been normalized. ([#1242](https://github.com/cyrusagents/cyrus/pull/1242))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.55
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.55
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.55
+
+#### cyrus-core
+- cyrus-core@0.2.55
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.55
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.55
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.55
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.55
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.55
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.55
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.55
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.55
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.55
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.55
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.55
+
 ## [0.2.54] - 2026-05-22
 
 ### Fixed
-- **`~/`-prefixed paths in `slackMcpConfigs`, `linearMcpConfigs`, and `githubMcpConfigs` are now expanded.** When cyrus-hosted writes platform MCP config paths for a self-host runtime, it emits `~/.cyrus/mcp-configs/...` strings that were passed verbatim to `fs.readFileSync`, which does not expand tildes — Claude sessions would crash with `ENOENT: ~/.cyrus/mcp-configs/mcp-supabase.json`. EdgeWorker now runs the three platform MCP config arrays through `resolvePath` at construction and on config hot-reload, mirroring how repository-scoped paths have always been normalized.
 - **`log_failure_mode` MCP tool now registers when only `CYRUS_API_KEY` is set.** EdgeWorker previously required both `CYRUS_API_KEY` and `CYRUS_APP_URL` env vars to wire up the self-reported-failure-mode tool, so workspaces that hadn't overridden `CYRUS_APP_URL` silently shipped the failure-mode prompt addendum without a corresponding tool. The URL now falls back to the canonical default (`https://app.atcyrus.com`) via the shared `getCyrusAppUrl()` helper, matching the remote session store. ([CYPACK-1232](https://linear.app/ceedar/issue/CYPACK-1232), [#1240](https://github.com/cyrusagents/cyrus/pull/1240))
 
 ### Packages

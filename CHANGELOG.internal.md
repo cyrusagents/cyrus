@@ -4,6 +4,11 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.55] - 2026-05-22
+
+### Changed
+- Documented the path-bearing `EdgeWorkerConfig` field gotcha in `CLAUDE.md`: top-level path fields like `slackMcpConfigs` / `linearMcpConfigs` / `githubMcpConfigs` are read directly off `this.config.<field>` and bypass the per-repo resolution loop, so they must be normalized in `EdgeWorker.normalizeConfigPaths()` (called from the constructor and on `configChanged`). ([#1242](https://github.com/cyrusagents/cyrus/pull/1242))
+
 ## [0.2.54] - 2026-05-22
 
 _No internal-only changes._
