@@ -4,8 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.54] - 2026-05-22
+
 ### Fixed
 - **`log_failure_mode` MCP tool now registers when only `CYRUS_API_KEY` is set.** EdgeWorker previously required both `CYRUS_API_KEY` and `CYRUS_APP_URL` env vars to wire up the self-reported-failure-mode tool, so workspaces that hadn't overridden `CYRUS_APP_URL` silently shipped the failure-mode prompt addendum without a corresponding tool. The URL now falls back to the canonical default (`https://app.atcyrus.com`) via the shared `getCyrusAppUrl()` helper, matching the remote session store. ([CYPACK-1232](https://linear.app/ceedar/issue/CYPACK-1232), [#1240](https://github.com/cyrusagents/cyrus/pull/1240))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.54
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.54
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.54
+
+#### cyrus-core
+- cyrus-core@0.2.54
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.54
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.54
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.54
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.54
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.54
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.54
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.54
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.54
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.54
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.54
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.54
 
 ## [0.2.53] - 2026-05-22
 
