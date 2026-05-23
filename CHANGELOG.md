@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- Updated `@anthropic-ai/claude-agent-sdk` from `0.2.123` to `0.3.150` and `@anthropic-ai/sdk` from `^0.91.0` to `^0.98.0`. Refreshed tool allowance lists: removed `RemoteTrigger` (no longer available in SDK 0.3.150+) and added `LSP` (new in SDK). See [SDK changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1241](https://linear.app/ceedar/issue/CYPACK-1241))
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.2.123` to `0.3.150` and `@anthropic-ai/sdk` from `^0.91.0` to `^0.98.0`. Refreshed tool allowance lists: removed `RemoteTrigger` (no longer available in SDK 0.3.150+) and added `LSP` (new in SDK). See [SDK changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1241](https://linear.app/ceedar/issue/CYPACK-1241), [#1249](https://github.com/cyrusagents/cyrus/pull/1249))
 
 ## [0.2.57] - 2026-05-22
 
