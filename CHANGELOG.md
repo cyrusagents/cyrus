@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+- Bumped `qs` to >=6.15.2 to address a remotely triggerable DoS (`qs.stringify` crash on null/undefined entries in comma-format arrays with `encodeValuesOnly`). ([CYPACK-1243](https://linear.app/ceedar/issue/CYPACK-1243))
+
 ## [0.2.57] - 2026-05-22
 
 ### Fixed
