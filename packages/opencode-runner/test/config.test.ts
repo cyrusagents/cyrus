@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildOpenCodeConfig, buildOpenCodeRuntimeEnv } from "../src/config.js";
 
@@ -47,6 +50,49 @@ describe("OpenCode config translation", () => {
 		expect(result.unsupported).toContain(
 			"mcp:legacy-sse: OpenCode runner supports stdio and streamable HTTP MCP servers, not sse",
 		);
+	});
+
+	it("preserves OAuth metadata for remote MCP servers", () => {
+		const configDir = mkdtempSync(join(tmpdir(), "opencode-mcp-oauth-"));
+		const mcpConfigPath = join(configDir, "mcp.json");
+		writeFileSync(
+			mcpConfigPath,
+			JSON.stringify({
+				mcpServers: {
+					sentry: {
+						type: "http",
+						url: "https://mcp.sentry.dev/mcp",
+						oauth: {},
+					},
+				},
+			}),
+		);
+
+		const result = buildOpenCodeConfig({
+			workingDirectory: "/work/repo",
+			cyrusHome: "/tmp/cyrus",
+			mcpConfigPath,
+			mcpConfig: {
+				atlassian: {
+					type: "http",
+					url: "https://mcp.atlassian.com/v1/sse",
+					oauth: { scopes: ["read:jira-work"] },
+				} as any,
+			},
+		});
+
+		expect(result.config.mcp?.sentry).toEqual({
+			type: "remote",
+			url: "https://mcp.sentry.dev/mcp",
+			oauth: {},
+			enabled: true,
+		});
+		expect(result.config.mcp?.atlassian).toEqual({
+			type: "remote",
+			url: "https://mcp.atlassian.com/v1/sse",
+			oauth: { scopes: ["read:jira-work"] },
+			enabled: true,
+		});
 	});
 
 	it("maps Cyrus tool permissions with default-deny OpenCode behavior", () => {

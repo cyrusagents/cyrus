@@ -18,6 +18,7 @@ export interface OpenCodeMcpRemoteConfig {
 	type: "remote";
 	url: string;
 	headers?: Record<string, string>;
+	oauth?: Record<string, unknown>;
 	enabled?: boolean;
 }
 
@@ -46,6 +47,7 @@ interface CyrusMcpServerConfig {
 	env?: Record<string, string>;
 	url?: string;
 	headers?: Record<string, string>;
+	oauth?: Record<string, unknown>;
 }
 
 const ENV_DENY_PATTERNS = ["*.env", "*.env.*"];
@@ -277,6 +279,7 @@ function mapMcpServer(
 			type: "remote",
 			url: server.url,
 			...(server.headers ? { headers: server.headers } : {}),
+			...(isRecord(server.oauth) ? { oauth: server.oauth } : {}),
 			enabled: true,
 		};
 	}
