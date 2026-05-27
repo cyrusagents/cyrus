@@ -260,6 +260,21 @@ function addExternalDirectoryPermissions(
 	}
 }
 
+function addConfiguredMcpPermissions(
+	permission: Record<string, OpenCodePermissionRule>,
+	mcp: Record<string, unknown> | undefined,
+): void {
+	for (const [name, server] of Object.entries(mcp ?? {})) {
+		if (!isRecord(server) || server.enabled === false) continue;
+		addPermissionRule(
+			permission,
+			normalizeMcpToolName(name, null),
+			null,
+			"allow",
+		);
+	}
+}
+
 function mapMcpServer(
 	name: string,
 	server: CyrusMcpServerConfig,
@@ -370,15 +385,6 @@ export function buildOpenCodeConfig(
 	for (const pattern of config.allowedTools ?? []) {
 		addOpenCodePermission(permission, pattern, "allow", unsupported);
 	}
-	for (const pattern of config.disallowedTools ?? []) {
-		addOpenCodePermission(permission, pattern, "deny", unsupported);
-	}
-	applySensitiveFileDenies(permission);
-	addExternalDirectoryPermissions(
-		permission,
-		workingDirectory,
-		config.allowedDirectories,
-	);
 
 	const mcpServers = {
 		...loadMcpConfigFromPaths(config.mcpConfigPath, unsupported),
@@ -411,6 +417,16 @@ export function buildOpenCodeConfig(
 			...mcp,
 		} as Record<string, OpenCodeMcpLocalConfig | OpenCodeMcpRemoteConfig>;
 	}
+	addConfiguredMcpPermissions(permission, runtimeConfig.mcp);
+	for (const pattern of config.disallowedTools ?? []) {
+		addOpenCodePermission(permission, pattern, "deny", unsupported);
+	}
+	applySensitiveFileDenies(permission);
+	addExternalDirectoryPermissions(
+		permission,
+		workingDirectory,
+		config.allowedDirectories,
+	);
 	// Cyrus permissions are safety controls, so they replace user-provided
 	// permission config instead of preserving non-conflicting entries.
 	runtimeConfig.permission = permission;

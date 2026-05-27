@@ -95,6 +95,43 @@ describe("OpenCode config translation", () => {
 		});
 	});
 
+	it("allows configured OpenCode MCP servers through default-deny permissions", () => {
+		const result = buildOpenCodeConfig({
+			workingDirectory: "/work/repo",
+			cyrusHome: "/tmp/cyrus",
+			opencodeGlobalConfig: {
+				mcp: {
+					atlassian: {
+						type: "remote",
+						url: "https://mcp.atlassian.com/v1/mcp/authv2",
+						enabled: true,
+					},
+					"disabled-mcp": {
+						type: "remote",
+						url: "https://disabled.example/mcp",
+						enabled: false,
+					},
+				},
+			},
+			mcpConfig: {
+				linear: {
+					type: "http",
+					url: "https://mcp.linear.app/mcp",
+					headers: { Authorization: "Bearer token" },
+				} as any,
+			},
+			disallowedTools: ["mcp__atlassian__delete_issue"],
+		});
+
+		expect(result.config.permission).toMatchObject({
+			"*": "deny",
+			"atlassian_*": "allow",
+			atlassian_delete_issue: "deny",
+			"linear_*": "allow",
+		});
+		expect(result.config.permission?.["disabled-mcp_*"]).toBeUndefined();
+	});
+
 	it("maps Cyrus tool permissions with default-deny OpenCode behavior", () => {
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
