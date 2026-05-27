@@ -464,6 +464,7 @@ All notable changes to this project will be documented in this file.
 - cyrus-ai@0.2.58
 
 ### Fixed
+- **OpenCode sessions can use configured MCP servers** — MCP servers defined in OpenCode runtime config are now granted matching tool permissions under Cyrus's deny-by-default policy, so configured servers are actually available to OpenCode agents. ([NG-63](https://linear.app/digimondo/issue/NG-63/translate-opencode-mcp-and-permission-configuration-safely))
 - **OpenCode MCP OAuth config is preserved** — Remote MCP servers defined through `mcpConfigPath` or inline Cyrus MCP config now keep their `oauth` metadata when Cyrus translates them for OpenCode sessions. ([NG-84](https://linear.app/digimondo/issue/NG-84/preserve-opencode-mcp-oauth-config-when-translating-mcpconfigpath))
 - **OpenCode runner sessions now report unsupported settings and finish reliably** — Cyrus now warns when OpenCode cannot apply shared runner settings, extracts simple responses from result-only sessions, grants file-reading tools correctly for simple OpenCode checks, and avoids duplicate completion events when OpenCode exits with both error and close signals. ([NG-75](https://linear.app/digimondo/issue/NG-75/fix-opencode-runner-config-response-extraction-and-lifecycle-handling))
 - **Child agent sessions start reliably after delegation** — Cyrus now keeps parent-child session mappings without suppressing the child session's own startup webhook. ([NG-73](https://linear.app/digimondo/issue/NG-73/fix-opencode-edge-worker-session-and-tool-permission-regressions))
