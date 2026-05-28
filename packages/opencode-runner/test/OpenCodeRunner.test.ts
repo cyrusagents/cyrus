@@ -280,6 +280,27 @@ describe("OpenCodeRunner", () => {
 		expect(capture.argv).toContain("oc_existing");
 	});
 
+	it("prepends appended system prompt to OpenCode stdin", async () => {
+		const dir = makeTempDir();
+		const captureFile = join(dir, "capture.json");
+		const opencodePath = writeFakeOpenCode(
+			dir,
+			`process.stdout.write(${JSON.stringify(fixtureLines())});`,
+			captureFile,
+		);
+		const runner = new OpenCodeRunner({
+			openCodePath: opencodePath,
+			workingDirectory: dir,
+			cyrusHome: dir,
+			appendSystemPrompt: "Use terse answers",
+		});
+
+		await runner.start("Configured run");
+
+		const capture = JSON.parse(readFileSync(captureFile, "utf8"));
+		expect(capture.stdin).toBe("Use terse answers\n\nConfigured run");
+	});
+
 	it("warns when shared runner config fields are unsupported by OpenCode", async () => {
 		const dir = makeTempDir();
 		const opencodePath = writeFakeOpenCode(
@@ -291,16 +312,12 @@ describe("OpenCodeRunner", () => {
 			openCodePath: opencodePath,
 			workingDirectory: dir,
 			cyrusHome: dir,
-			appendSystemPrompt: "Use terse answers",
 			maxTurns: 3,
 			fallbackModel: "anthropic/claude-haiku-4.5",
 		});
 
 		await runner.start("Configured run");
 
-		expect(warn).toHaveBeenCalledWith(
-			"[OpenCodeRunner] Unsupported config entry skipped: appendSystemPrompt: OpenCode CLI does not support appended system prompts for `opencode run`",
-		);
 		expect(warn).toHaveBeenCalledWith(
 			"[OpenCodeRunner] Unsupported config entry skipped: maxTurns: OpenCode CLI does not expose a max-turns runtime option",
 		);
