@@ -20,7 +20,7 @@ All notable changes to this project will be documented in this file.
 - **OpenCode sessions keep CLI-managed model access** — Cyrus no longer redirects OpenCode's data home, preserving CLI-managed authentication and provider metadata so default OpenCode sessions can start with configured OpenAI models.
 
 ### Security
-- **Patched current dependency audit advisories** — Updated workspace overrides for `qs` and `uuid` so `pnpm audit` reports no known vulnerabilities.
+- **Patched current dependency audit advisories** — Updated the existing `qs` dependency override so `pnpm audit` reports no known vulnerabilities.
 
 ## [0.2.65] - 2026-06-11
 
