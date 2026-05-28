@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Errors coming from the Claude/Anthropic API (e.g. "API Error: Internal server error") are now clearly labeled as model-provider errors in the Linear activity timeline instead of appearing as a normal Cyrus response, so it's obvious the failure came from Claude and not from Cyrus. ([CYPACK-1262](https://linear.app/ceedar/issue/CYPACK-1262), [#1269](https://github.com/cyrusagents/cyrus/pull/1269))
+
 ## [0.2.60] - 2026-05-28
 
 ### Added

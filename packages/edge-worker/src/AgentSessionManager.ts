@@ -25,6 +25,10 @@ import {
 	type Workspace,
 } from "cyrus-core";
 
+import {
+	formatModelApiError,
+	isModelApiErrorText,
+} from "./runner-error-formatting.js";
 import type {
 	ActivityPostOptions,
 	ActivitySignal,
@@ -647,22 +651,36 @@ export class AgentSessionManager extends EventEmitter {
 		// (structured content) over result.result (plain-text duplicate).
 		const bufferedAssistant = this.lastAssistantBodyBySession.get(sessionId);
 		this.lastAssistantBodyBySession.delete(sessionId);
-		const content = (
+		const errorsText =
+			"errors" in resultMessage &&
+			Array.isArray(resultMessage.errors) &&
+			resultMessage.errors.length > 0
+				? resultMessage.errors.join("\n")
+				: "";
+		const resultText =
+			"result" in resultMessage && typeof resultMessage.result === "string"
+				? resultMessage.result
+				: "";
+		let content = (
 			resultMessage.is_error
-				? resultMessage.is_error &&
-					"errors" in resultMessage &&
-					Array.isArray(resultMessage.errors) &&
-					resultMessage.errors.length > 0
-					? resultMessage.errors.join("\n")
-					: "result" in resultMessage &&
-							typeof resultMessage.result === "string"
-						? resultMessage.result
-						: ""
-				: (bufferedAssistant ??
-					("result" in resultMessage && typeof resultMessage.result === "string"
-						? resultMessage.result
-						: ""))
+				? // For error results, fall back to the buffered assistant text so a
+					// provider error surfaced as the final assistant message (e.g.
+					// "API Error: Internal server error") isn't lost when errors[]/result
+					// are empty.
+					errorsText || resultText || bufferedAssistant || ""
+				: (bufferedAssistant ?? resultText)
 		).trim();
+
+		// Detect provider/model API errors (e.g. Claude returning "API Error:
+		// Internal server error"). These can arrive with a success subtype as the
+		// final assistant text, which would otherwise render as a normal "response"
+		// and look like Cyrus failed. Relabel them as errors and attribute them to
+		// the model provider so the distinction is obvious in Linear.
+		const isModelApiError = isModelApiErrorText(content);
+		const isError = resultMessage.is_error || isModelApiError;
+		if (isModelApiError) {
+			content = formatModelApiError(content, runnerType);
+		}
 
 		const resultEntry: CyrusAgentSessionEntry = {
 			// Set the appropriate session ID based on runner type
@@ -678,7 +696,7 @@ export class AgentSessionManager extends EventEmitter {
 			metadata: {
 				timestamp: Date.now(),
 				durationMs: resultMessage.duration_ms,
-				isError: resultMessage.is_error,
+				isError,
 			},
 		};
 
@@ -1418,7 +1436,7 @@ export class AgentSessionManager extends EventEmitter {
 		const log = this.sessionLog(sessionId);
 		const session = this.sessions.get(sessionId);
 
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			log.debug(
 				`Skipping ${label} - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,
 			);
@@ -1681,7 +1699,7 @@ export class AgentSessionManager extends EventEmitter {
 		message: SDKStatusMessage,
 	): Promise<void> {
 		const session = this.sessions.get(sessionId);
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			const log = this.sessionLog(sessionId);
 			log.debug(
 				`Skipping status message - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,
