@@ -22,19 +22,6 @@ changes, capture screenshots for the user, and drive real browser flows.
 - When reproducing a bug that involves browser behavior (clicks, forms,
   navigation, rendering).
 
-**Common commands:**
-- \`agent-browser open <url> [--session <name>] [--headed]\` — open a URL.
-  Sessions persist cookies/storage across commands; reuse the same session
-  name when logged-in state matters.
-- \`agent-browser screenshot [--path <file>]\` — capture the current page.
-- \`agent-browser snapshot -i\` — list interactive elements with \`@ref\`
-  handles you can pass to \`click\`, \`fill\`, etc.
-- \`agent-browser fill @ref "value"\` — type into an input.
-- \`agent-browser click @ref\` or \`agent-browser click "<css-selector>"\`.
-- \`agent-browser check "text=Label"\` — toggle a checkbox by label.
-- \`agent-browser eval "<js>"\` — run JS in the page context (avoid
-  \`.click()\` on custom React/Turbo dropdowns; use a CSS selector instead).
-
 **Tips:**
 - Add \`sleep 0.5\` between rapid commands — each invocation spawns its own
   process and the browser needs a moment to settle.
