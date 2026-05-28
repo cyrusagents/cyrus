@@ -601,15 +601,7 @@ Issue: {{issue_identifier}}`;
 				"/test/workspaces/TEST-123",
 			);
 			expect(capturedRunnerConfig.cyrusHome).toBe(TEST_CYRUS_HOME);
-			expect(capturedRunnerConfig.allowedTools).toEqual(
-				expect.arrayContaining([
-					"Read",
-					"Edit",
-					"mcp__linear",
-					"mcp__cyrus-tools",
-					"mcp__cyrus-docs",
-				]),
-			);
+			expect(capturedRunnerConfig.allowedTools).toEqual(["Read", "Edit"]);
 			expect(capturedRunnerConfig.model).toBeUndefined();
 		});
 
@@ -755,15 +747,7 @@ Issue: {{issue_identifier}}`;
 			expect(capturedRunnerConfig.workingDirectory).toBe(
 				"/test/workspaces/TEST-123",
 			);
-			expect(capturedRunnerConfig.allowedTools).toEqual(
-				expect.arrayContaining([
-					"Read",
-					"Edit",
-					"mcp__linear",
-					"mcp__cyrus-tools",
-					"mcp__cyrus-docs",
-				]),
-			);
+			expect(capturedRunnerConfig.allowedTools).toEqual(["Read", "Edit"]);
 			expect(capturedRunnerConfig.model).toBeUndefined();
 		});
 

@@ -357,6 +357,9 @@ All notable changes to this project will be documented in this file.
 - **OpenCode sessions keep default repository tools when `ALLOWED_TOOLS` is unset** — Cyrus no longer treats an empty global tool default as an explicit MCP-only policy, so OpenCode-selected issues can still read files, edit files, and use Bash in normal CLI setups. ([NG-73](https://linear.app/digimondo/issue/NG-73/fix-opencode-edge-worker-session-and-tool-permission-regressions))
 - **OpenCode sessions keep CLI-managed model access** — Cyrus no longer redirects OpenCode's data home, preserving CLI-managed authentication and provider metadata so default OpenCode sessions can start with configured OpenAI models. ([NG-42](https://linear.app/digimondo/issue/NG-42/add-mrpr-template-and-agent-dod-checklist))
 
+### Security
+- **Patched current dependency audit advisories** — Updated workspace overrides for `qs` and `uuid` so `pnpm audit` reports no known vulnerabilities. ([NG-65](https://linear.app/digimondo/issue/NG-65/open-upstream-pr-for-cyrus-opencode-runner-support))
+
 ## [0.2.57] - 2026-05-22
 
 ### Fixed
