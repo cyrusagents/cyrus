@@ -1,8 +1,8 @@
-# Test Drive: NG-64 OpenCode tool access follow-up
+# Test Drive: OpenCode Tool Access Follow-Up
 
 **Date**: 2026-05-20
-**Goal**: Re-run an OpenCode-selected F1 issue after the live NG-69 tool exposure blocker and verify file activity plus final response rendering without relying on provider-local setup assumptions.
-**Test Repo**: `/tmp/f1-ng64-opencode-tool-access-20260520`
+**Goal**: Re-run an OpenCode-selected F1 issue after the live tool exposure blocker and verify file activity plus final response rendering without relying on provider-local setup assumptions.
+**Test Repo**: `/tmp/f1-opencode-tool-access-20260520`
 
 ## Verification Results
 
@@ -25,16 +25,16 @@
 ## Session Log
 
 ```bash
-apps/f1/f1 init-test-repo --path /tmp/f1-ng64-opencode-tool-access-20260520
+apps/f1/f1 init-test-repo --path /tmp/f1-opencode-tool-access-20260520
 
-CYRUS_PORT=3625 CYRUS_REPO_PATH=/tmp/f1-ng64-opencode-tool-access-20260520 \
+CYRUS_PORT=3625 CYRUS_REPO_PATH=/tmp/f1-opencode-tool-access-20260520 \
   bun run apps/f1/server.ts
 
 CYRUS_PORT=3625 apps/f1/f1 ping
 CYRUS_PORT=3625 apps/f1/f1 status
 
 CYRUS_PORT=3625 apps/f1/f1 create-issue \
-  --title "NG-64 OpenCode tool access smoke" \
+  --title "OpenCode tool access smoke" \
   --description $'Read README.md and reply exactly: F1_OPENCODE_TOOL_ACCESS_OK\n\n[repo=f1-test-repo]\n[agent=opencode]'
 
 CYRUS_PORT=3625 apps/f1/f1 start-session --issue-id issue-1
