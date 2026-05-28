@@ -4,13 +4,62 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.59] - 2026-05-28
+
 ### Added
-- When a GitHub webhook arrives from a repo Cyrus has no configuration for, and the event is an @-mention or a `pull_request_review` requesting changes, Cyrus now posts a one-time reply on the pull request explaining the failure and citing likely causes (org rename/transfer, typo in the configured GitHub URL, or App installed on an unconfigured repo). Previously the webhook was silently dropped with only a server-side warning log.
-- GitHub App manifest in the `cyrus-setup-github` skill now subscribes to `repository` and `organization` webhook events so future renames, transfers, and org renames can be reconciled automatically.
+- When a GitHub webhook arrives from a repo Cyrus has no configuration for, and the event is an @-mention or a `pull_request_review` requesting changes, Cyrus now posts a one-time reply on the pull request explaining the failure and citing likely causes (org rename/transfer, typo in the configured GitHub URL, or App installed on an unconfigured repo). Previously the webhook was silently dropped with only a server-side warning log. ([#1265](https://github.com/cyrusagents/cyrus/pull/1265))
+- GitHub App manifest in the `cyrus-setup-github` skill now subscribes to `repository` and `organization` webhook events so future renames, transfers, and org renames can be reconciled automatically. ([#1265](https://github.com/cyrusagents/cyrus/pull/1265))
 
 ### Changed
 - Updated `@anthropic-ai/claude-agent-sdk` from `0.2.123` to `0.3.154` and `@anthropic-ai/sdk` from `^0.91.x` to `^0.100.0`. See [claude-agent-sdk CHANGELOG](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md) for details. ([CYPACK-1257](https://linear.app/ceedar/issue/CYPACK-1257), [#1264](https://github.com/cyrusagents/cyrus/pull/1264))
 - Refreshed mandatory tool allowance list per SDK v0.3.154: removed deprecated `RemoteTrigger` tool, added new `Workflow` tool to `availableTools` in `config.ts` and all platform default lists in `allowed-tools-defaults.ts`. ([CYPACK-1257](https://linear.app/ceedar/issue/CYPACK-1257), [#1264](https://github.com/cyrusagents/cyrus/pull/1264))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.59
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.59
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.59
+
+#### cyrus-core
+- cyrus-core@0.2.59
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.59
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.59
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.59
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.59
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.59
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.59
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.59
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.59
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.59
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.59
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.59
 
 ## [0.2.58] - 2026-05-26
 
