@@ -29,6 +29,13 @@ export interface ClaudeRunnerConfig {
 	allowedTools?: string[];
 	disallowedTools?: string[];
 	allowedDirectories?: string[];
+	/**
+	 * Extra working-tree roots passed to the SDK `additionalDirectories` option
+	 * (the `--add-dir` flag). Beyond widening the permission scope, `--add-dir`
+	 * auto-loads each directory's `.claude/skills/` — the documented exception
+	 * that makes repo-local skills in multi-repo sub-worktrees discoverable.
+	 */
+	additionalDirectories?: string[];
 	resumeSessionId?: string; // Session ID to resume from previous Claude session
 	workspaceName?: string;
 	systemPrompt?: string;

@@ -113,6 +113,11 @@ function buildSanitizedQueryOptions(
 	if (Array.isArray(o.allowedDirectories)) {
 		out.allowedDirectoryCount = (o.allowedDirectories as unknown[]).length;
 	}
+	if (Array.isArray(o.additionalDirectories)) {
+		out.additionalDirectoryCount = (
+			o.additionalDirectories as unknown[]
+		).length;
+	}
 	if (Array.isArray(o.settingSources)) {
 		out.settingSources = o.settingSources;
 	}
@@ -669,6 +674,13 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					}),
 					...(this.config.allowedDirectories && {
 						allowedDirectories: this.config.allowedDirectories,
+					}),
+					// `--add-dir` for each extra working-tree root. Beyond the
+					// permission grant, `--add-dir` auto-loads each directory's
+					// `.claude/skills/` — the documented exception that makes
+					// repo-local skills in multi-repo sub-worktrees discoverable.
+					...(this.config.additionalDirectories?.length && {
+						additionalDirectories: this.config.additionalDirectories,
 					}),
 					...(processedAllowedTools && { allowedTools: processedAllowedTools }),
 					...(processedDisallowedTools.length > 0 && {

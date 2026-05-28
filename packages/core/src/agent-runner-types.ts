@@ -414,6 +414,15 @@ export interface AgentRunnerConfig {
 	disallowedTools?: string[];
 	/** Directories the agent can read from */
 	allowedDirectories?: string[];
+	/**
+	 * Extra working-tree roots to register with the agent beyond the cwd.
+	 * For Claude this maps to the SDK `additionalDirectories` option (the
+	 * `--add-dir` flag), which — unlike a plain permission grant — also
+	 * auto-loads each directory's `.claude/skills/`. Used for multi-repo
+	 * sessions where the participating repos live in sibling sub-worktrees of
+	 * the cwd, so their repo-local skills get discovered.
+	 */
+	additionalDirectories?: string[];
 	/** Session ID to resume from a previous session */
 	resumeSessionId?: string;
 	/** Workspace name for logging and organization */

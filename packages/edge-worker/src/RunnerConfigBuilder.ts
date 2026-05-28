@@ -357,11 +357,22 @@ export class RunnerConfigBuilder {
 					: [...input.platformMcpConfigOverrides]
 				: undefined;
 
+		// Multi-repo sessions place each repo in a sibling sub-worktree of the
+		// cwd (the workspace container). Register those sub-worktrees as
+		// `--add-dir` roots so the runner auto-loads each one's `.claude/skills/`
+		// — the cwd-rooted project-skill scan alone would miss them. Single-repo
+		// sessions have cwd === the worktree, so there is nothing extra to add.
+		const cwd = input.session.workspace.path;
+		const additionalDirectories = Object.values(
+			input.session.workspace.repoPaths ?? {},
+		).filter((p): p is string => typeof p === "string" && p !== cwd);
+
 		const config: AgentRunnerConfig & Record<string, unknown> = {
-			workingDirectory: input.session.workspace.path,
+			workingDirectory: cwd,
 			allowedTools: input.allowedTools,
 			disallowedTools: input.disallowedTools,
 			allowedDirectories: input.allowedDirectories,
+			...(additionalDirectories.length > 0 && { additionalDirectories }),
 			workspaceName: input.session.issue?.identifier || input.session.issueId,
 			cyrusHome: input.cyrusHome,
 			mcpConfigPath,

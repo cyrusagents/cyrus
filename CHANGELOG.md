@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- A repository can now ship its own skills: any skill directories under `<repo>/.claude/skills/` are automatically added to the agent's available skills whenever Cyrus works in that repo — for single-repo issues, multi-repo issues (skills from every participating repo are combined), and GitHub/GitLab mentions alike. ([CYPACK-1261](https://linear.app/ceedar/issue/CYPACK-1261), [#1268](https://github.com/cyrusagents/cyrus/pull/1268))
+- A repository can now ship its own skills: any skill directories under `<repo>/.claude/skills/` are automatically discovered and made available to the agent whenever Cyrus works in that repo — for single-repo issues, multi-repo issues (skills from every participating repo are combined), and GitHub/GitLab mentions alike. ([CYPACK-1261](https://linear.app/ceedar/issue/CYPACK-1261), [#1268](https://github.com/cyrusagents/cyrus/pull/1268))
 
 ## [0.2.60] - 2026-05-28
 
