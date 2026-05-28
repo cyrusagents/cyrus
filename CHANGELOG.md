@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Configurable OpenCode CLI state scope** — OpenCode sessions now default to inheriting the same CLI auth storage as the Cyrus process, with optional `shared` or per-`repository` Cyrus-managed state roots for users who want dedicated agent storage.
+- **OpenCode runtime config overrides** — Self-hosted users can define global and per-repository OpenCode runtime config; validation currently covers Cyrus passing merged config to launched OpenCode runner processes while real OpenCode CLI extension loading still needs upstream runtime validation.
+- **Safer OpenCode runner configuration** — OpenCode sessions now receive Cyrus MCP servers and conservative tool permissions through runtime config while preserving normal CLI-managed model access by default.
+- **OpenCode runner selection** — Cyrus can now route sessions to OpenCode with an `opencode` label or `[agent=opencode]` issue description selector, supports OpenCode default/fallback model config, and can optionally infer OpenCode from `provider/model` selectors with `inferOpenCodeRunnerFromProviderModel` or `CYRUS_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL=true`.
+
+### Fixed
+- **OpenCode sessions can use configured MCP servers** — MCP servers defined in OpenCode runtime config are now granted matching tool permissions under Cyrus's deny-by-default policy, so configured servers are actually available to OpenCode agents.
+- **OpenCode MCP OAuth config is preserved** — Remote MCP servers defined through `mcpConfigPath` or inline Cyrus MCP config now keep their `oauth` metadata when Cyrus translates them for OpenCode sessions.
+- **OpenCode runner sessions now report unsupported settings and finish reliably** — Cyrus now warns when OpenCode cannot apply shared runner settings, extracts simple responses from result-only sessions, grants file-reading tools correctly for simple OpenCode checks, and avoids duplicate completion events when OpenCode exits with both error and close signals.
+- **Child agent sessions start reliably after delegation** — Cyrus now keeps parent-child session mappings without suppressing the child session's own startup webhook.
+- **Chat follow-ups resume with the original runner** — Completed chat sessions now preserve the runner that owns the stored session ID, avoiding cross-runner resume attempts when the default runner changes.
+- **OpenCode sessions keep default repository tools when `ALLOWED_TOOLS` is unset** — Cyrus no longer treats an empty global tool default as an explicit MCP-only policy, so OpenCode-selected issues can still read files, edit files, and use Bash in normal CLI setups.
+- **OpenCode sessions keep CLI-managed model access** — Cyrus no longer redirects OpenCode's data home, preserving CLI-managed authentication and provider metadata so default OpenCode sessions can start with configured OpenAI models.
+
+### Security
+- **Patched current dependency audit advisories** — Updated workspace overrides for `qs` and `uuid` so `pnpm audit` reports no known vulnerabilities.
+
 ## [0.2.65] - 2026-06-11
 
 ### Fixed
@@ -250,10 +268,6 @@ All notable changes to this project will be documented in this file.
 - Cyrus now follows along in Slack threads it's been pulled into: once you @mention it in a thread, every later reply in that thread is fed to the same session automatically — no need to re-mention it each time. To avoid chiming in on every message, Cyrus only replies when a message is a question it can genuinely help with or is addressed to it by name; it stays quiet on side conversation, acknowledgements, and chatter not aimed at it. Replies that do @mention it still work as before, and Cyrus ignores its own messages, edits, and plain channel chatter outside threads it's part of. Thread follow-ups keep working even after Cyrus restarts — it no longer goes silent on plain replies until you re-@mention it. **Existing Slack apps must add the `message.channels`, `message.groups`, `message.mpim`, and `message.im` bot events in their Slack app's Event Subscriptions for this to take effect.** ([CYPACK-1267](https://linear.app/ceedar/issue/CYPACK-1267), [#1273](https://github.com/cyrusagents/cyrus/pull/1273))
 - New "PR review trigger" control: when disabled, a pull request review that requests changes on a Cyrus-opened PR no longer auto-starts a Cyrus session or posts an acknowledgement comment. Enabled by default, so existing behaviour is unchanged unless you turn it off. ([CYPACK-1273](https://linear.app/ceedar/issue/CYPACK-1273), [#1278](https://github.com/cyrusagents/cyrus/pull/1278))
 - A repository can now ship its own skills: any skill directories under `<repo>/.claude/skills/` are automatically discovered and made available to the agent whenever Cyrus works in that repo — for single-repo issues, multi-repo issues (skills from every participating repo are combined), and GitHub/GitLab mentions alike. ([CYPACK-1261](https://linear.app/ceedar/issue/CYPACK-1261), [#1268](https://github.com/cyrusagents/cyrus/pull/1268))
-- **Configurable OpenCode CLI state scope** — OpenCode sessions now default to inheriting the same CLI auth storage as the Cyrus process, with optional `shared` or per-`repository` Cyrus-managed state roots for users who want dedicated agent storage.
-- **OpenCode runtime config overrides** — Self-hosted users can define global and per-repository OpenCode runtime config; validation currently covers Cyrus passing merged config to launched OpenCode runner processes while real OpenCode CLI extension loading still needs upstream runtime validation.
-- **Safer OpenCode runner configuration** — OpenCode sessions now receive Cyrus MCP servers and conservative tool permissions through runtime config while preserving normal CLI-managed model access by default.
-- **OpenCode runner selection** — Cyrus can now route sessions to OpenCode with an `opencode` label or `[agent=opencode]` issue description selector, supports OpenCode default/fallback model config, and can optionally infer OpenCode from `provider/model` selectors with `inferOpenCodeRunnerFromProviderModel` or `CYRUS_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL=true`.
 
 ### Packages
 
@@ -462,18 +476,6 @@ All notable changes to this project will be documented in this file.
 
 #### cyrus-ai (CLI)
 - cyrus-ai@0.2.58
-
-### Fixed
-- **OpenCode sessions can use configured MCP servers** — MCP servers defined in OpenCode runtime config are now granted matching tool permissions under Cyrus's deny-by-default policy, so configured servers are actually available to OpenCode agents.
-- **OpenCode MCP OAuth config is preserved** — Remote MCP servers defined through `mcpConfigPath` or inline Cyrus MCP config now keep their `oauth` metadata when Cyrus translates them for OpenCode sessions.
-- **OpenCode runner sessions now report unsupported settings and finish reliably** — Cyrus now warns when OpenCode cannot apply shared runner settings, extracts simple responses from result-only sessions, grants file-reading tools correctly for simple OpenCode checks, and avoids duplicate completion events when OpenCode exits with both error and close signals.
-- **Child agent sessions start reliably after delegation** — Cyrus now keeps parent-child session mappings without suppressing the child session's own startup webhook.
-- **Chat follow-ups resume with the original runner** — Completed chat sessions now preserve the runner that owns the stored session ID, avoiding cross-runner resume attempts when the default runner changes.
-- **OpenCode sessions keep default repository tools when `ALLOWED_TOOLS` is unset** — Cyrus no longer treats an empty global tool default as an explicit MCP-only policy, so OpenCode-selected issues can still read files, edit files, and use Bash in normal CLI setups.
-- **OpenCode sessions keep CLI-managed model access** — Cyrus no longer redirects OpenCode's data home, preserving CLI-managed authentication and provider metadata so default OpenCode sessions can start with configured OpenAI models.
-
-### Security
-- **Patched current dependency audit advisories** — Updated workspace overrides for `qs` and `uuid` so `pnpm audit` reports no known vulnerabilities.
 
 ## [0.2.57] - 2026-05-22
 
@@ -712,6 +714,7 @@ All notable changes to this project will be documented in this file.
 ### Security
 - **Patched 4 transitive dependency advisories** — Bumped `pnpm.overrides` for `brace-expansion` (≥5.0.6, DoS via large numeric ranges defeating `max` protection), `ws` (≥8.20.1, uninitialized memory disclosure on `close()` with `TypedArray` reason), `protobufjs` (≥7.5.8, DoS via unbounded recursive JSON descriptor expansion), and `uuid` (≥11.1.1, missing buffer bounds check in `v3`/`v5`/`v6`). `pnpm audit` now reports zero advisories. ([CYPACK-1230](https://linear.app/ceedar/issue/CYPACK-1230), [#1238](https://github.com/cyrusagents/cyrus/pull/1238))
 - **Patched 9 transitive dependency advisories** — Bumped `pnpm.overrides` for `hono` (≥4.12.18, fixes CSS injection / JWT validation / Cache Middleware cross-user leakage), `fast-uri` (≥3.1.2, path traversal + host confusion), `ip-address` (≥10.1.1, `Address6` XSS), `@anthropic-ai/sdk` (≥0.91.1, insecure default file permissions in local filesystem memory tool), and `@opentelemetry/sdk-node` / `@opentelemetry/exporter-prometheus` (≥0.217.0, Prometheus exporter process crash via malformed HTTP request). `pnpm audit` now reports zero advisories. ([CYPACK-1206](https://linear.app/ceedar/issue/CYPACK-1206))
+
 ### Packages
 
 #### cyrus-cloudflare-tunnel-client
@@ -889,7 +892,7 @@ All notable changes to this project will be documented in this file.
 - **Claude SDK subprocesses now exit at turn end unless warm mode is enabled** — When `CYRUS_ENABLE_WARM_SESSIONS` is unset, the streaming prompt is completed when the SDK emits a `result` message, which lets the underlying Claude Code subprocess actually exit and free its memory at the end of a turn (restores the pre-warm-sessions behavior). When `CYRUS_ENABLE_WARM_SESSIONS=1`, the streaming prompt stays open and the subprocess is kept alive so follow-up messages reuse the warm session.
 
 ### Fixed
-- **Patched 6 high-severity `tar` advisories pulled in by the new `@cursor/sdk` integration** — The `@cursor/sdk` → `sqlite3` → `tar@6.2.1` chain introduced in CYPACK-1149 was flagged by Dependabot for six path-traversal/hardlink/symlink advisories (CVE-2026-24842, CVE-2026-23745, CVE-2026-26960, CVE-2026-29786, CVE-2026-31802, and a related race condition). A workspace override now pins `tar` to `>=7.5.11` for all transitive consumers; `sqlite3`'s install script and the rest of the dep graph still resolve cleanly. ([CYPACK-1159](https://linear.app/ceedar/issue/CYPACK-1159))
+- **Patched 6 high-severity `tar` advisories pulled in by the new `@cursor/sdk` integration** — The `@cursor/sdk` → `sqlite3` → `tar@6.2.1` chain introduced in CYPACK-1149 was flagged by Dependabot for six path-traversal/hardlink/symlink advisories (CVE-2026-24842, CVE-2026-23745, CVE-2026-26960, CVE-2026-29786, CVE-2026-31802, and a related race condition). A root `pnpm.overrides` entry now pins `tar` to `>=7.5.11` for all transitive consumers; `sqlite3`'s install script and the rest of the dep graph still resolve cleanly. ([CYPACK-1159](https://linear.app/ceedar/issue/CYPACK-1159))
 - **Cursor sessions no longer crash with "Could not locate the bindings file" for `sqlite3`** — The `@cursor/sdk` switch in CYPACK-1149 introduced a transitive dependency on `sqlite3@5.1.7`, whose native `node_sqlite3.node` binding is fetched/built by an `install` lifecycle script. pnpm 10 blocks dependency lifecycle scripts by default, so fresh installs ended up with sqlite3 present but no native binding, and the first Cursor session on a clean `pnpm install` crashed at runtime. `sqlite3` is now in `pnpm.onlyBuiltDependencies` so its install script runs and the prebuilt binary lands on disk. ([CYPACK-1158](https://linear.app/ceedar/issue/CYPACK-1158), [#1174](https://github.com/cyrusagents/cyrus/pull/1174))
 - **Stop signals no longer trigger "Request was aborted" errors on non-warm sessions** — Previously, every stop signal called the SDK's `query.interrupt()` regardless of whether the session was warm, which surfaced an `Error: Request was aborted` from non-warm sessions. Stop signals now branch on session state: non-warm sessions are stopped immediately on the first signal, while warm sessions retain the existing two-step interrupt-then-stop UX (interrupt on first stop, full terminate on a second stop within 10s). ([CYPACK-1145](https://linear.app/ceedar/issue/CYPACK-1145), [#1165](https://github.com/ceedaragents/cyrus/pull/1165))
 - **Chat-platform replies (Slack/GitHub) are now posted when warm sessions are enabled** — Previously, `ChatSessionHandler` waited for `runner.startStreaming()` to resolve before calling the adapter's `postReply`. With `CYRUS_ENABLE_WARM_SESSIONS=1` the streaming prompt stays open across turns, so `startStreaming` never resolved and no reply was ever posted. Reply posting is now driven by `result` messages on the runner's message stream, decoupled from session termination. A FIFO queue of pending events per session ensures each turn (initial prompt, resume, or injected follow-up) is paired with its corresponding reply.
