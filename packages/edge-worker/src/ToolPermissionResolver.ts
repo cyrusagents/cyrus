@@ -129,7 +129,8 @@ export class ToolPermissionResolver {
 
 		if (repoArray.length === 0) {
 			const baseTools =
-				this.config.linearAllowedTools && this.config.linearAllowedTools.length > 0
+				this.config.linearAllowedTools &&
+				this.config.linearAllowedTools.length > 0
 					? this.config.linearAllowedTools
 					: [...LINEAR_DEFAULT_ALLOWED_TOOLS];
 			return [...new Set(baseTools)];

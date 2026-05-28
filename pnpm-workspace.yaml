@@ -15,7 +15,7 @@ overrides:
   jws: '>=4.0.1'
   '@modelcontextprotocol/sdk': '>=1.26.0'
   semver: '>=7.5.2'
-  qs: '>=6.14.2'
+  qs: '>=6.15.2'
   vite: '>=7.1.11'
   zod: 4.3.6
   hono: '>=4.12.18'
@@ -41,3 +41,4 @@ overrides:
   brace-expansion: '>=5.0.6'
   ws: '>=8.20.1'
   protobufjs: '>=7.5.8'
+  uuid: '>=11.1.1'
