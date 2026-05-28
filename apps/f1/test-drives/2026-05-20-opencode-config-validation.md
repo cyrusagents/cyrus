@@ -1,8 +1,8 @@
-# NG-63 OpenCode Config Validation F1 Test Drive
+# OpenCode Config Validation F1 Test Drive
 
 Date: 2026-05-20
-Branch: `ng-63-translate-opencode-mcp-and-permission-configuration-safely`
-Worktree: `/Users/jappy/.cyrus/worktrees/NG-63`
+Branch: `opencode-cli-runner-support`
+Worktree: `/Users/jappy/.cyrus/worktrees/opencode-config-validation`
 
 ## Goal
 
@@ -11,22 +11,22 @@ Validate that Cyrus can run an OpenCode-selected issue end to end after injectin
 ## Environment
 
 - F1 server: `http://localhost:3600`
-- F1 repository: `/tmp/f1-test-drive-ng63-opencode-config`
+- F1 repository: `/tmp/f1-test-drive-opencode-config`
 - OpenCode CLI: `/opt/homebrew/bin/opencode`, version `1.15.5`
 
 ## Commands
 
 ```bash
-apps/f1/f1 init-test-repo --path /tmp/f1-test-drive-ng63-opencode-config
+apps/f1/f1 init-test-repo --path /tmp/f1-test-drive-opencode-config
 
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-ng63-opencode-config \
+CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-opencode-config \
   bun run apps/f1/server.ts
 
 CYRUS_PORT=3600 apps/f1/f1 ping
 CYRUS_PORT=3600 apps/f1/f1 status
 
 CYRUS_PORT=3600 apps/f1/f1 create-issue \
-  --title "NG-63 OpenCode config validation" \
+  --title "OpenCode config validation" \
   --description $'Validate OpenCode MCP and permission config injection.\n\n[agent=opencode]\n\nPlease inspect src/index.ts and respond with a short summary. Do not modify files.' \
   --labels opencode
 
@@ -67,7 +67,7 @@ action       {"type":"action","action":"Read","parameter":"/private/var/.../src/
 response     The file is a barrel export for a rate limiter library...
 ```
 
-Server logs showed unsupported Cyrus-only permission patterns being logged and skipped instead of silently ignored. OpenCode completed without the SQLite checkpoint failure seen in the NG-62 test drive, which confirms the XDG state isolation path is effective for this run.
+Server logs showed unsupported Cyrus-only permission patterns being logged and skipped instead of silently ignored. OpenCode completed without the SQLite checkpoint failure seen in the runner-selection test drive, which confirms the XDG state isolation path is effective for this run.
 
 ## Final Retrospective
 

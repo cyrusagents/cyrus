@@ -1,9 +1,9 @@
-# NG-64 OpenCode Runner Validation F1 Test Drive
+# OpenCode Runner Validation F1 Test Drive
 
 **Date**: 2026-05-20
 **Goal**: Validate the OpenCode runner end to end with F1 session activity visibility.
-**Test Repo**: `/tmp/f1-test-drive-ng64-opencode-validation-20260520-1139`
-**Branch**: `ng-64-validate-opencode-runner-end-to-end-with-tests-and-f1`
+**Test Repo**: `/tmp/f1-test-drive-opencode-validation-20260520-1139`
+**Branch**: `opencode-cli-runner-support`
 
 ## Environment
 
@@ -44,18 +44,18 @@ OPENCODE_LIVE=1 OPENCODE_PROBE_MODEL=openai/gpt-5.5 \
 
 ```bash
 apps/f1/f1 init-test-repo \
-  --path /tmp/f1-test-drive-ng64-opencode-validation-20260520-1139
+  --path /tmp/f1-test-drive-opencode-validation-20260520-1139
 
 CYRUS_PORT=3600 \
-CYRUS_REPO_PATH=/tmp/f1-test-drive-ng64-opencode-validation-20260520-1139 \
+CYRUS_REPO_PATH=/tmp/f1-test-drive-opencode-validation-20260520-1139 \
   bun run apps/f1/server.ts
 
 CYRUS_PORT=3600 apps/f1/f1 ping
 CYRUS_PORT=3600 apps/f1/f1 status
 
 CYRUS_PORT=3600 apps/f1/f1 create-issue \
-  --title "NG-64 OpenCode runner validation" \
-  --description $'Validate OpenCode runner end to end for NG-64.\n\n[agent=opencode]\n\nPlease inspect src/index.ts using a read tool and respond with one concise sentence describing what it exports. Do not modify files.' \
+  --title "OpenCode runner validation" \
+  --description $'Validate OpenCode runner end to end.\n\n[agent=opencode]\n\nPlease inspect src/index.ts using a read tool and respond with one concise sentence describing what it exports. Do not modify files.' \
   --labels opencode
 
 CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1

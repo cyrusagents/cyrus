@@ -1,8 +1,8 @@
-# NG-62 OpenCode Runner Selection F1 Test Drive
+# OpenCode Runner Selection F1 Test Drive
 
 Date: 2026-05-20
 Branch: `opencode-cli-runner-support`
-Worktree: `/Users/jappy/.cyrus/worktrees/NG-62`
+Worktree: `/Users/jappy/.cyrus/worktrees/opencode-runner-selection`
 
 ## Goal
 
@@ -11,22 +11,22 @@ Validate that Cyrus can route an issue to the OpenCode runner when the issue use
 ## Environment
 
 - F1 server: `http://localhost:3600`
-- F1 repository: `/tmp/f1-test-drive-ng62-opencode`
+- F1 repository: `/tmp/f1-test-drive-opencode-selection`
 - OpenCode CLI: `/opt/homebrew/bin/opencode`, version `1.15.5`
 
 ## Commands
 
 ```bash
-apps/f1/f1 init-test-repo --path /tmp/f1-test-drive-ng62-opencode
+apps/f1/f1 init-test-repo --path /tmp/f1-test-drive-opencode-selection
 
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-ng62-opencode \
+CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-opencode-selection \
   bun run apps/f1/server.ts
 
 CYRUS_PORT=3600 apps/f1/f1 ping
 CYRUS_PORT=3600 apps/f1/f1 status
 
 CYRUS_PORT=3600 apps/f1/f1 create-issue \
-  --title "NG-62 OpenCode runner selection validation" \
+  --title "OpenCode runner selection validation" \
   --description $'Validate OpenCode runner selection via label and selector.\n\n[agent=opencode]\n\nPlease inspect src/index.ts and respond with a short summary. Do not modify files.' \
   --labels opencode
 

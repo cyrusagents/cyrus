@@ -1,8 +1,8 @@
-# Test Drive: NG-61 OpenCode Runner Package Validation
+# Test Drive: OpenCode Runner Package Validation
 
 **Date**: 2026-05-19
 **Goal**: Validate the surrounding F1 issue/session/activity pipeline for the new `cyrus-opencode-runner` package work.
-**Test Repo**: `/tmp/f1-test-drive-ng61-20260519174857`
+**Test Repo**: `/tmp/f1-test-drive-opencode-runner-20260519174857`
 
 ## Verification Results
 
@@ -18,7 +18,7 @@
 - [x] Activities tracked
 - [ ] OpenCode runner execution verified end-to-end
 
-OpenCode execution was not directly testable in F1 for NG-61 because this ticket only adds `packages/opencode-runner`; runner selection/config wiring is tracked separately by NG-62.
+OpenCode execution was not directly testable in F1 for this package-only validation because this change only adds `packages/opencode-runner`; runner selection/config wiring is covered by the runner-selection validation.
 
 ### Renderer
 - [x] Activity format rendered in `view-session`
@@ -28,11 +28,11 @@ OpenCode execution was not directly testable in F1 for NG-61 because this ticket
 ## Session Log
 
 ```bash
-apps/f1/f1 init-test-repo --path /tmp/f1-test-drive-ng61-20260519174857
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-ng61-20260519174857 bun run apps/f1/server.ts
+apps/f1/f1 init-test-repo --path /tmp/f1-test-drive-opencode-runner-20260519174857
+CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-opencode-runner-20260519174857 bun run apps/f1/server.ts
 CYRUS_PORT=3600 apps/f1/f1 ping
 CYRUS_PORT=3600 apps/f1/f1 status
-CYRUS_PORT=3600 apps/f1/f1 create-issue --title "NG-61 OpenCode runner validation with repo" --description $'Validate F1 session plumbing for NG-61 package work.\n\n[repo=f1-test-repo]\n\nKeep this minimal; OpenCode runner selection is covered by NG-62.'
+CYRUS_PORT=3600 apps/f1/f1 create-issue --title "OpenCode runner package validation with repo" --description $'Validate F1 session plumbing for OpenCode runner package work.\n\n[repo=f1-test-repo]\n\nKeep this minimal; OpenCode runner selection is covered by the dedicated runner-selection validation.'
 CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
 CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 20 --offset 0
 CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1
@@ -50,4 +50,4 @@ Key outputs:
 
 ## Final Retrospective
 
-F1 validated the repository routing and session activity surface around this change. Direct OpenCode runner execution should be covered after NG-62 wires the package into runner selection and config.
+F1 validated the repository routing and session activity surface around this change. Direct OpenCode runner execution is covered by the runner-selection and end-to-end validation passes.

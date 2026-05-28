@@ -1,8 +1,8 @@
-# Test Drive: NG-71 OpenCode Config Overrides
+# Test Drive: OpenCode Config Overrides
 
 **Date**: 2026-05-20
-**Goal**: Validate NG-71 OpenCode runtime config override wiring and document the remaining gap for real OpenCode CLI runtime-extension loading.
-**Test Repo**: `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-f1/repo`
+**Goal**: Validate OpenCode runtime config override wiring and document the remaining gap for real OpenCode CLI runtime-extension loading.
+**Test Repo**: `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-config-f1/repo`
 
 ## Verification Results
 
@@ -29,8 +29,8 @@
 
 ### Fake OpenCode Runtime Extension Probe
 - [x] Closest scoped validation passed using `OpenCodeRunner` with a deterministic fake OpenCode executable and local MCP-like extension configured through `opencodeRepositoryConfig.mcp`.
-- [x] The launched OpenCode process received `OPENCODE_CONFIG_CONTENT`, found `mcp.ng71-local-extension`, executed its configured local command, and returned `NG71_MCP_EXTENSION_OK`.
-- [x] Runner messages included final sentinel `NG71_OPENCODE_CONFIG_OVERRIDE_OK`.
+- [x] The launched OpenCode process received `OPENCODE_CONFIG_CONTENT`, found `mcp.opencode-local-extension`, executed its configured local command, and returned `OPENCODE_MCP_EXTENSION_OK`.
+- [x] Runner messages included final sentinel `OPENCODE_CONFIG_OVERRIDE_OK`.
 - [ ] Real OpenCode CLI runtime-extension loading remains unvalidated in F1 because this F1 server cannot inject `opencode.config`, and the real OpenCode-selected smoke exited with `Session not found` before the prompt ran.
 
 ## Session Log
@@ -70,13 +70,13 @@ Result: PASS. Output was truncated by OpenCode; visible tail showed package suit
 ### F1 Commands
 
 ```bash
-./f1 init-test-repo --path "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-f1/repo"
+./f1 init-test-repo --path "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-config-f1/repo"
 ```
 
 Result: PASS. Test repository created and initial commit made.
 
 ```bash
-CYRUS_PORT=3600 CYRUS_REPO_PATH="/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-f1/repo" bun run server.ts > "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-f1/server.log" 2>&1 &
+CYRUS_PORT=3600 CYRUS_REPO_PATH="/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-config-f1/repo" bun run server.ts > "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-config-f1/server.log" 2>&1 &
 ```
 
 Result: PASS. Server process started as PID `18662`.
@@ -89,7 +89,7 @@ CYRUS_PORT=3600 ./f1 status
 Result: PASS. Ping reported `Server is healthy`; status reported `ready`.
 
 ```bash
-CYRUS_PORT=3600 ./f1 create-issue --title "NG-71 OpenCode runner selection smoke" --description "Validate that F1 can launch a Cyrus OpenCode runner session. Respond briefly with NG71_F1_OPENCODE_OK and do not modify files.\n\n[agent=opencode]"
+CYRUS_PORT=3600 ./f1 create-issue --title "OpenCode runner selection smoke" --description "Validate that F1 can launch a Cyrus OpenCode runner session. Respond briefly with F1_OPENCODE_OK and do not modify files.\n\n[agent=opencode]"
 ```
 
 Result: PASS. Issue created as `issue-1` / `DEF-1`.
@@ -134,14 +134,14 @@ The current F1 server hardcodes its `EdgeWorkerConfig` in `apps/f1/server.ts` an
 
 Temporary probe files:
 
-- `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/fake-opencode.mjs`
-- `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/local-extension.mjs`
-- `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/probe.mjs` (the exact passing rerun used the inline `node --input-type=module` command below instead of this temp file)
+- `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-mcp/fake-opencode.mjs`
+- `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-mcp/local-extension.mjs`
+- `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-mcp/probe.mjs` (the exact passing rerun used the inline `node --input-type=module` command below instead of this temp file)
 
 Reproducible setup used for the probe:
 
 ```bash
-mkdir -p "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp"
+mkdir -p "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-mcp"
 ```
 
 Create the two executable files below at the listed paths, then run the `chmod` and inline `node --input-type=module` commands in this section from the repository root.
@@ -153,10 +153,10 @@ Create the two executable files below at the listed paths, then run the `chmod` 
 import { spawnSync } from "node:child_process";
 
 const config = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT || "{}");
-const server = config.mcp?.["ng71-local-extension"];
+const server = config.mcp?.["opencode-local-extension"];
 
 if (!server || server.type !== "local" || !Array.isArray(server.command)) {
-  console.error("missing ng71-local-extension MCP config");
+  console.error("missing opencode-local-extension MCP config");
   process.exit(2);
 }
 
@@ -172,19 +172,19 @@ if (child.status !== 0) {
 }
 
 const output = (child.stdout || "").trim();
-if (output !== "NG71_MCP_EXTENSION_OK") {
+if (output !== "OPENCODE_MCP_EXTENSION_OK") {
   console.error(`unexpected MCP output: ${output}`);
   process.exit(4);
 }
 
-const sessionID = "ng71-opencode-config-probe";
+const sessionID = "opencode-config-probe";
 console.log(JSON.stringify({ type: "step_start", sessionID }));
 console.log(
   JSON.stringify({
     type: "tool_use",
     part: {
-      callID: "tool-ng71",
-      tool: "mcp_ng71-local-extension_probe",
+      callID: "tool-opencode",
+      tool: "mcp_opencode-local-extension_probe",
       state: { status: "running", input: {} },
     },
   }),
@@ -193,8 +193,8 @@ console.log(
   JSON.stringify({
     type: "tool_use",
     part: {
-      callID: "tool-ng71",
-      tool: "mcp_ng71-local-extension_probe",
+      callID: "tool-opencode",
+      tool: "mcp_opencode-local-extension_probe",
       state: { status: "completed", output },
     },
   }),
@@ -209,7 +209,7 @@ console.log(
   JSON.stringify({
     type: "step_finish",
     sessionID,
-    result: "NG71_OPENCODE_CONFIG_OVERRIDE_OK",
+    result: "OPENCODE_CONFIG_OVERRIDE_OK",
     cost: 0,
     usage: { inputTokens: 1, outputTokens: 1 },
   }),
@@ -220,17 +220,17 @@ console.log(
 
 ```javascript
 #!/usr/bin/env node
-if (process.env.NG71_EXTENSION_TOKEN !== "configured-through-opencode-config") {
+if (process.env.OPENCODE_EXTENSION_TOKEN !== "configured-through-opencode-config") {
   console.error("missing configured extension environment");
   process.exit(1);
 }
 
-console.log("NG71_MCP_EXTENSION_OK");
+console.log("OPENCODE_MCP_EXTENSION_OK");
 ```
 
 ```bash
-chmod +x "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/fake-opencode.mjs" "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/local-extension.mjs"
-node "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp/probe.mjs"
+chmod +x "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-mcp/fake-opencode.mjs" "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-mcp/local-extension.mjs"
+node "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-mcp/probe.mjs"
 ```
 
 First result: FAIL. The fake event shape did not match `OpenCodeRunner`'s expected `tool_use.part.state` schema, so runner messages did not include the extension output.
@@ -238,29 +238,29 @@ First result: FAIL. The fake event shape did not match `OpenCodeRunner`'s expect
 After correcting the temporary fake event shape:
 
 ```bash
-node --input-type=module -e 'import { mkdtempSync } from "node:fs"; import { tmpdir } from "node:os"; import { join } from "node:path"; import { OpenCodeRunner } from "./packages/opencode-runner/dist/index.js"; const root = "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/ng71-mcp"; const runner = new OpenCodeRunner({ openCodePath: join(root, "fake-opencode.mjs"), workingDirectory: mkdtempSync(join(tmpdir(), "ng71-opencode-evidence-workspace-")), cyrusHome: mkdtempSync(join(tmpdir(), "ng71-opencode-evidence-home-")), title: "NG-71 OpenCode config override evidence", allowedTools: ["Read(**)", "mcp__linear__get_issue"], opencodeRepositoryConfig: { mcp: { "ng71-local-extension": { type: "local", command: ["node", join(root, "local-extension.mjs")], environment: { NG71_EXTENSION_TOKEN: "configured-through-opencode-config" }, enabled: true } } } }); await runner.start("Use the configured local MCP extension."); const serialized = JSON.stringify(runner.getMessages()); console.log(`extensionOutput=${serialized.includes("NG71_MCP_EXTENSION_OK")}`); console.log(`finalSentinel=${serialized.includes("NG71_OPENCODE_CONFIG_OVERRIDE_OK")}`); console.log(serialized.match(/NG71_MCP_EXTENSION_OK/)?.[0] || "missing-extension-output"); console.log(`messages=${runner.getMessages().length}`);'
+node --input-type=module -e 'import { mkdtempSync } from "node:fs"; import { tmpdir } from "node:os"; import { join } from "node:path"; import { OpenCodeRunner } from "./packages/opencode-runner/dist/index.js"; const root = "/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/opencode/opencode-mcp"; const runner = new OpenCodeRunner({ openCodePath: join(root, "fake-opencode.mjs"), workingDirectory: mkdtempSync(join(tmpdir(), "opencode-evidence-workspace-")), cyrusHome: mkdtempSync(join(tmpdir(), "opencode-evidence-home-")), title: "OpenCode config override evidence", allowedTools: ["Read(**)", "mcp__linear__get_issue"], opencodeRepositoryConfig: { mcp: { "opencode-local-extension": { type: "local", command: ["node", join(root, "local-extension.mjs")], environment: { OPENCODE_EXTENSION_TOKEN: "configured-through-opencode-config" }, enabled: true } } } }); await runner.start("Use the configured local MCP extension."); const serialized = JSON.stringify(runner.getMessages()); console.log(`extensionOutput=${serialized.includes("OPENCODE_MCP_EXTENSION_OK")}`); console.log(`finalSentinel=${serialized.includes("OPENCODE_CONFIG_OVERRIDE_OK")}`); console.log(serialized.match(/OPENCODE_MCP_EXTENSION_OK/)?.[0] || "missing-extension-output"); console.log(`messages=${runner.getMessages().length}`);'
 ```
 
 ```text
 extensionOutput=true
 finalSentinel=true
-NG71_MCP_EXTENSION_OK
+OPENCODE_MCP_EXTENSION_OK
 messages=5
 ```
 
 Earlier output from the shorter probe command was:
 
 ```text
-NG71_OPENCODE_CONFIG_OVERRIDE_OK
+OPENCODE_CONFIG_OVERRIDE_OK
 messages=5
 ```
 
-Result: PASS. The exact evidence command above confirms `OpenCodeRunner` passed the configured `opencodeRepositoryConfig.mcp` data into `OPENCODE_CONFIG_CONTENT`, passed the configured MCP environment through that fake OpenCode process, and captured the fake process's `NG71_MCP_EXTENSION_OK` output in runner messages. This is a config propagation probe, not proof that real OpenCode loaded or invoked the MCP server.
+Result: PASS. The exact evidence command above confirms `OpenCodeRunner` passed the configured `opencodeRepositoryConfig.mcp` data into `OPENCODE_CONFIG_CONTENT`, passed the configured MCP environment through that fake OpenCode process, and captured the fake process's `OPENCODE_MCP_EXTENSION_OK` output in runner messages. This is a config propagation probe, not proof that real OpenCode loaded or invoked the MCP server.
 
 ## Final Retrospective
 
-NG-71 unit, package, and type verification passed. F1 validated issue creation, repository selection, worktree creation, renderer activity quality, pagination, and OpenCode runner selection.
+OpenCode config override unit, package, and type verification passed. F1 validated issue creation, repository selection, worktree creation, renderer activity quality, pagination, and OpenCode runner selection.
 
-The implemented NG-71 product decision is the explicit Cyrus-managed OpenCode config path: users copy selected OpenCode-native config into global or repository `opencode.config`, while Cyrus-generated MCP and permission rules remain authoritative. This avoids implicitly inheriting the user's entire global OpenCode plugin/config surface into agent sessions.
+The implemented product decision is the explicit Cyrus-managed OpenCode config path: users copy selected OpenCode-native config into global or repository `opencode.config`, while Cyrus-generated MCP and permission rules remain authoritative. This avoids implicitly inheriting the user's entire global OpenCode plugin/config surface into agent sessions.
 
-The full F1 runtime-extension validation could not be performed without modifying F1 because `apps/f1/server.ts` does not provide a way to inject `opencode.config` into the hardcoded `EdgeWorkerConfig`. Real OpenCode execution also failed with `Session not found` after runner selection. Within NG-71 scope, the closest deterministic validation passed by launching `OpenCodeRunner` with a fake OpenCode process and verifying Cyrus propagated the configured MCP entry and environment to that process. A future F1 enhancement should add an `opencode.config` injection point if we want automated real-CLI validation for configured OpenCode plugins or MCP servers.
+The full F1 runtime-extension validation could not be performed without modifying F1 because `apps/f1/server.ts` does not provide a way to inject `opencode.config` into the hardcoded `EdgeWorkerConfig`. Real OpenCode execution also failed with `Session not found` after runner selection. Within this scope, the closest deterministic validation passed by launching `OpenCodeRunner` with a fake OpenCode process and verifying Cyrus propagated the configured MCP entry and environment to that process. A future F1 enhancement should add an `opencode.config` injection point if we want automated real-CLI validation for configured OpenCode plugins or MCP servers.
