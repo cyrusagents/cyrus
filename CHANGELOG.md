@@ -4,8 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.60] - 2026-05-28
+
 ### Added
-- Optional browser-use system prompt addendum that tells the agent it has access to the `agent-browser` CLI and a local Chromium for screenshots and browser automation. Enabled by setting the `CYRUS_BROWSER_USE_ENABLED` environment variable to `true` (off by default for self-host). ([CYHOST-991](https://linear.app/ceedar/issue/CYHOST-991))
+- Optional browser-use system prompt addendum that tells the agent it has access to the `agent-browser` CLI and a local Chromium for screenshots and browser automation. Enabled by setting the `CYRUS_BROWSER_USE_ENABLED` environment variable to `true` (off by default for self-host). ([CYHOST-991](https://linear.app/ceedar/issue/CYHOST-991), [#1257](https://github.com/cyrusagents/cyrus/pull/1257))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.60
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.60
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.60
+
+#### cyrus-core
+- cyrus-core@0.2.60
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.60
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.60
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.60
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.60
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.60
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.60
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.60
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.60
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.60
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.60
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.60
 
 ## [0.2.59] - 2026-05-28
 
