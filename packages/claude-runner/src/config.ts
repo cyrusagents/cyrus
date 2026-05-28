@@ -58,7 +58,6 @@ export const availableTools = [
 	"CronCreate",
 	"CronDelete",
 	"CronList",
-	"RemoteTrigger",
 	"ScheduleWakeup",
 
 	// Monitoring and task lifecycle
@@ -72,6 +71,9 @@ export const availableTools = [
 
 	// Tool discovery
 	"ToolSearch",
+
+	// Workflow orchestration
+	"Workflow",
 ] as const;
 
 export type ToolName = (typeof availableTools)[number];

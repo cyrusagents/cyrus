@@ -464,6 +464,7 @@ export class GeminiRunner extends EventEmitter implements IAgentRunner {
 					},
 					inference_geo: "unknown",
 					iterations: [],
+					output_tokens_details: { thinking_tokens: 0 },
 					server_tool_use: {
 						web_fetch_requests: 0,
 						web_search_requests: 0,

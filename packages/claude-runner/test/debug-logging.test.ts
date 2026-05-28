@@ -105,7 +105,7 @@ describe("ClaudeRunner debug logging", () => {
 			"",
 		);
 		const parsed = JSON.parse(payload);
-		expect(parsed.options.model).toBe("opus");
+		expect(parsed.options.model).toBe("claude-opus-4-8");
 		expect(parsed.options.env.DEBUG_CLAUDE_AGENT_SDK).toBe("1");
 		expect(parsed.options.abortController).toBe("[AbortController]");
 	});

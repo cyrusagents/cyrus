@@ -68,7 +68,6 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"CronCreate",
 	"CronDelete",
 	"CronList",
-	"RemoteTrigger",
 	"ScheduleWakeup",
 
 	// Monitoring + discovery
@@ -80,6 +79,9 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	// Team lifecycle
 	"TeamCreate",
 	"TeamDelete",
+
+	// Workflow orchestration
+	"Workflow",
 
 	// Workspace MCP servers — explicit, no implicit appending. Linear
 	// sessions include `mcp__slack` so Cyrus can post status updates and
@@ -191,7 +193,6 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	"CronCreate",
 	"CronDelete",
 	"CronList",
-	"RemoteTrigger",
 	"ScheduleWakeup",
 
 	// Monitoring + discovery
@@ -203,6 +204,9 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	// Team lifecycle
 	"TeamCreate",
 	"TeamDelete",
+
+	// Workflow orchestration
+	"Workflow",
 
 	// Workspace MCP servers GitHub sessions need
 	"mcp__linear",

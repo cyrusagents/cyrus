@@ -123,7 +123,7 @@ describe("ClaudeRunner", () => {
 			expect(mockQuery).toHaveBeenCalledWith({
 				prompt: "Hello Claude",
 				options: {
-					model: "opus",
+					model: "claude-opus-4-8",
 					fallbackModel: "sonnet",
 					abortController: expect.any(AbortController),
 					cwd: "/tmp/test",
@@ -159,7 +159,7 @@ describe("ClaudeRunner", () => {
 			expect(mockQuery).toHaveBeenCalledWith({
 				prompt: "test",
 				options: {
-					model: "opus",
+					model: "claude-opus-4-8",
 					fallbackModel: "sonnet",
 					abortController: expect.any(AbortController),
 					cwd: "/tmp/test",
@@ -195,7 +195,7 @@ describe("ClaudeRunner", () => {
 			expect(mockQuery).toHaveBeenCalledWith({
 				prompt: "test",
 				options: {
-					model: "opus",
+					model: "claude-opus-4-8",
 					fallbackModel: "sonnet",
 					abortController: expect.any(AbortController),
 					cwd: "/tmp/test",

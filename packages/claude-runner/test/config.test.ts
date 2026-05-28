@@ -39,7 +39,6 @@ describe("config", () => {
 				"CronCreate",
 				"CronDelete",
 				"CronList",
-				"RemoteTrigger",
 				"ScheduleWakeup",
 				"Monitor",
 				"TaskOutput",
@@ -47,6 +46,7 @@ describe("config", () => {
 				"TeamCreate",
 				"TeamDelete",
 				"ToolSearch",
+				"Workflow",
 			]);
 			expect(availableTools).toHaveLength(33);
 		});

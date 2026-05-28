@@ -121,6 +121,7 @@ function createAssistantToolUseMessage(
 		} as SDKAssistantMessage["message"]["usage"],
 		container: null,
 		context_management: null,
+		diagnostics: null,
 	};
 }
 
@@ -150,6 +151,7 @@ function createAssistantTextMessage(
 		} as SDKAssistantMessage["message"]["usage"],
 		container: null,
 		context_management: null,
+		diagnostics: null,
 	};
 }
 

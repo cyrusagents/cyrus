@@ -33,7 +33,6 @@ vi.mock("cyrus-claude-runner", () => ({
 		"CronCreate",
 		"CronDelete",
 		"CronList",
-		"RemoteTrigger",
 		"ScheduleWakeup",
 		"Monitor",
 		"TaskOutput",
@@ -41,6 +40,7 @@ vi.mock("cyrus-claude-runner", () => ({
 		"TeamCreate",
 		"TeamDelete",
 		"ToolSearch",
+		"Workflow",
 	]),
 	getReadOnlyTools: vi.fn(() => [
 		"Read",
@@ -86,7 +86,6 @@ vi.mock("cyrus-claude-runner", () => ({
 		"CronCreate",
 		"CronDelete",
 		"CronList",
-		"RemoteTrigger",
 		"ScheduleWakeup",
 		"Monitor",
 		"TaskOutput",
@@ -94,6 +93,7 @@ vi.mock("cyrus-claude-runner", () => ({
 		"TeamCreate",
 		"TeamDelete",
 		"ToolSearch",
+		"Workflow",
 	]),
 }));
 vi.mock("@linear/sdk");
