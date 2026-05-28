@@ -12,6 +12,14 @@ export interface SkillSessionContext {
 	repositoryId?: string;
 	linearTeamId?: string;
 	linearLabelIds?: string[];
+	/**
+	 * Working-tree paths of the repositories participating in this session.
+	 * Each repo's `<repoPath>/.claude/skills/*` directory names are unioned into
+	 * the resolved skill whitelist so a repo can ship its own skills. Carries one
+	 * path for single-repo / GitHub-mention sessions and every participating
+	 * worktree for multi-repo sessions.
+	 */
+	repoPaths?: string[];
 }
 
 /**
@@ -142,6 +150,13 @@ export class SkillsPluginResolver {
 	 *   dimension matches the session context (AND across dimensions, OR
 	 *   within each list).
 	 * - When `context` is omitted, no filtering is applied (all skills returned).
+	 *
+	 * Repo-local skills: when `context.repoPaths` is provided, each
+	 * `<repoPath>/.claude/skills/*` directory name is also unioned in. These are
+	 * implicitly scoped to the repository by virtue of living in it, so the
+	 * `scope.json` filter is NOT applied to them. They are appended after the
+	 * plugin skills, so a plugin skill of the same name takes precedence in the
+	 * (display-order-sensitive) dedup.
 	 */
 	async discoverSkillNames(
 		plugins: SdkPluginConfig[],
@@ -151,38 +166,51 @@ export class SkillsPluginResolver {
 
 		for (const plugin of plugins) {
 			const skillsDir = join(plugin.path, "skills");
-			let entries: {
-				isDirectory(): boolean;
-				isSymbolicLink(): boolean;
-				name: string;
-			}[];
-			try {
-				entries = await readdir(skillsDir, { withFileTypes: true });
-			} catch {
-				// Plugin directory doesn't exist or isn't readable — skip
-				continue;
-			}
+			const entries = await this.readSkillDirEntries(skillsDir);
 
 			for (const entry of entries) {
-				if (!(entry.isDirectory() || entry.isSymbolicLink())) {
-					continue;
-				}
-
 				if (context) {
-					const scope = await this.loadSkillScope(skillsDir, entry.name);
+					const scope = await this.loadSkillScope(skillsDir, entry);
 					if (!this.scopeMatches(scope, context)) {
 						this.logger.debug(
-							`Skill "${entry.name}" excluded by scope filter for current session`,
+							`Skill "${entry}" excluded by scope filter for current session`,
 						);
 						continue;
 					}
 				}
 
-				skillNames.push(entry.name);
+				skillNames.push(entry);
+			}
+		}
+
+		// Union repo-local skills shipped in each participating repo's working
+		// tree. No scope.json filtering — presence in the repo is the scope.
+		for (const repoPath of context?.repoPaths ?? []) {
+			const skillsDir = join(repoPath, ".claude", "skills");
+			const entries = await this.readSkillDirEntries(skillsDir);
+			for (const entry of entries) {
+				skillNames.push(entry);
 			}
 		}
 
 		return [...new Set(skillNames)];
+	}
+
+	/**
+	 * Read the immediate subdirectory (and symlink) names of a `skills/`
+	 * directory. Returns an empty array when the directory is missing or
+	 * unreadable, so callers can treat "no skills dir" as a no-op.
+	 */
+	private async readSkillDirEntries(skillsDir: string): Promise<string[]> {
+		try {
+			const entries = await readdir(skillsDir, { withFileTypes: true });
+			return entries
+				.filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
+				.map((entry) => entry.name);
+		} catch {
+			// Directory doesn't exist or isn't readable — skip
+			return [];
+		}
 	}
 
 	/**

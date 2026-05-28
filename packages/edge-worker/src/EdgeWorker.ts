@@ -1473,7 +1473,7 @@ export class EdgeWorker extends EventEmitter {
 					undefined, // issueDescription
 					200, // maxTurns
 					undefined, // linearWorkspaceId
-					undefined, // skillContext
+					this.buildSkillSessionContext(repository, undefined, session),
 					"github", // sessionPlatform → uses githubMcpConfigs override
 				);
 
@@ -2141,7 +2141,7 @@ ${taskSection}`;
 					undefined, // issueDescription
 					200, // maxTurns
 					undefined, // linearWorkspaceId
-					undefined, // skillContext
+					this.buildSkillSessionContext(repository, undefined, session),
 					"gitlab", // sessionPlatform → uses githubMcpConfigs override
 				);
 
@@ -4479,7 +4479,7 @@ ${taskSection}`;
 					fullIssue.description || undefined, // Description tags can override label selectors
 					undefined, // maxTurns
 					linearWorkspaceId,
-					this.buildSkillSessionContext(primaryRepo, fullIssue),
+					this.buildSkillSessionContext(primaryRepo, fullIssue, session),
 				);
 
 			log.debug(
@@ -5179,13 +5179,21 @@ ${taskSection}`;
 	 * - the active repository's Cyrus config ID,
 	 * - the Linear team that owns the issue, and
 	 * - the Linear label IDs attached to the issue.
+	 *
+	 * The session's repo working-tree path(s) are also captured so that
+	 * repo-local skills (`<repoPath>/.claude/skills/*`) get unioned into the
+	 * resolved whitelist. When a `session` is provided its workspace is used to
+	 * resolve those paths (covering multi-repo sessions); otherwise the active
+	 * repository's path is used.
 	 */
 	private buildSkillSessionContext(
 		repository: RepositoryConfig,
 		fullIssue?: Issue,
+		session?: CyrusAgentSession,
 	): SkillSessionContext {
 		const context: SkillSessionContext = {
 			repositoryId: repository.id,
+			repoPaths: this.resolveSkillRepoPaths(repository, session),
 		};
 		if (fullIssue?.teamId) {
 			context.linearTeamId = fullIssue.teamId;
@@ -5197,6 +5205,29 @@ ${taskSection}`;
 			context.linearLabelIds = [...(fullIssue?.labelIds ?? [])];
 		}
 		return context;
+	}
+
+	/**
+	 * Resolve the repo working-tree path(s) whose `.claude/skills/` directories
+	 * should contribute to the skill whitelist for a session.
+	 *
+	 * - Multi-repo sessions: every sub-worktree in `workspace.repoPaths`.
+	 * - Single-repo / GitHub-mention sessions: the active repository's path.
+	 */
+	private resolveSkillRepoPaths(
+		repository: RepositoryConfig,
+		session?: CyrusAgentSession,
+	): string[] {
+		const repoPaths = session?.workspace?.repoPaths;
+		if (repoPaths) {
+			const paths = Object.values(repoPaths).filter(
+				(p): p is string => typeof p === "string" && p.length > 0,
+			);
+			if (paths.length > 0) {
+				return [...new Set(paths)];
+			}
+		}
+		return [repository.repositoryPath];
 	}
 
 	/**
@@ -6083,6 +6114,7 @@ ${taskSection}`;
 		const skillsContext = this.buildSkillSessionContext(
 			repositories[0]!,
 			input.fullIssue,
+			input.session,
 		);
 		systemPrompt += await this.skillsPluginResolver.buildSkillsGuidance(
 			undefined,
@@ -6341,6 +6373,7 @@ ${input.userComment}
 		const plugins = await this.skillsPluginResolver.resolve();
 		const resolvedSkillContext: SkillSessionContext = skillContext ?? {
 			repositoryId: repository.id,
+			repoPaths: this.resolveSkillRepoPaths(repository, session),
 		};
 		const allowedSkillNames =
 			await this.skillsPluginResolver.discoverSkillNames(
@@ -7140,7 +7173,7 @@ ${input.userComment}
 				fullIssue.description || undefined, // Description tags can override label selectors
 				maxTurns, // Pass maxTurns if specified
 				resolvedWorkspaceId,
-				this.buildSkillSessionContext(repository, fullIssue),
+				this.buildSkillSessionContext(repository, fullIssue, session),
 			);
 
 		// Create the appropriate runner based on session state
