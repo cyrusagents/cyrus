@@ -5857,12 +5857,15 @@ ${taskSection}`;
 					? "codex"
 					: session.cursorSessionId
 						? "cursor"
-						: null;
+						: session.opencodeSessionId
+							? "opencode"
+							: null;
 		const runnerSessionId =
 			session.claudeSessionId ??
 			session.geminiSessionId ??
 			session.codexSessionId ??
 			session.cursorSessionId ??
+			session.opencodeSessionId ??
 			null;
 
 		const sessionSource = session.id.startsWith("github-")

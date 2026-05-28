@@ -348,11 +348,6 @@ export function buildOpenCodeConfig(
 	config: OpenCodeRunnerConfig,
 ): OpenCodeConfigBuildResult {
 	const unsupported: string[] = [];
-	if (config.appendSystemPrompt) {
-		unsupported.push(
-			"appendSystemPrompt: OpenCode CLI does not support appended system prompts for `opencode run`",
-		);
-	}
 	if (config.maxTurns !== undefined) {
 		unsupported.push(
 			"maxTurns: OpenCode CLI does not expose a max-turns runtime option",

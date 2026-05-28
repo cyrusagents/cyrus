@@ -309,6 +309,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		return new Promise<OpenCodeSessionInfo>((resolve) => {
 			let stdoutBuffer = "";
 			const args = this.buildArgs();
+			const inputPrompt = this.buildInputPrompt(prompt);
 			const runtimeEnv = this.buildRuntimeEnv();
 			ensureOpenCodeStateDirectories(runtimeEnv);
 			const child = spawn(this.config.openCodePath || "opencode", args, {
@@ -359,7 +360,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 				resolve(this.sessionInfo as OpenCodeSessionInfo);
 			});
 
-			child.stdin.end(prompt);
+			child.stdin.end(inputPrompt);
 		});
 	}
 
@@ -447,6 +448,12 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		}
 
 		return args;
+	}
+
+	private buildInputPrompt(prompt: string): string {
+		const systemPrompt = this.config.appendSystemPrompt?.trim();
+		if (!systemPrompt) return prompt;
+		return `${systemPrompt}\n\n${prompt}`;
 	}
 
 	private handleLine(line: string): void {
