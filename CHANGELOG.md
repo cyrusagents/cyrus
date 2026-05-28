@@ -464,16 +464,16 @@ All notable changes to this project will be documented in this file.
 - cyrus-ai@0.2.58
 
 ### Fixed
-- **OpenCode sessions can use configured MCP servers** — MCP servers defined in OpenCode runtime config are now granted matching tool permissions under Cyrus's deny-by-default policy, so configured servers are actually available to OpenCode agents. ([NG-63](https://linear.app/digimondo/issue/NG-63/translate-opencode-mcp-and-permission-configuration-safely))
-- **OpenCode MCP OAuth config is preserved** — Remote MCP servers defined through `mcpConfigPath` or inline Cyrus MCP config now keep their `oauth` metadata when Cyrus translates them for OpenCode sessions. ([NG-84](https://linear.app/digimondo/issue/NG-84/preserve-opencode-mcp-oauth-config-when-translating-mcpconfigpath))
-- **OpenCode runner sessions now report unsupported settings and finish reliably** — Cyrus now warns when OpenCode cannot apply shared runner settings, extracts simple responses from result-only sessions, grants file-reading tools correctly for simple OpenCode checks, and avoids duplicate completion events when OpenCode exits with both error and close signals. ([NG-75](https://linear.app/digimondo/issue/NG-75/fix-opencode-runner-config-response-extraction-and-lifecycle-handling))
-- **Child agent sessions start reliably after delegation** — Cyrus now keeps parent-child session mappings without suppressing the child session's own startup webhook. ([NG-73](https://linear.app/digimondo/issue/NG-73/fix-opencode-edge-worker-session-and-tool-permission-regressions))
-- **Chat follow-ups resume with the original runner** — Completed chat sessions now preserve the runner that owns the stored session ID, avoiding cross-runner resume attempts when the default runner changes. ([NG-73](https://linear.app/digimondo/issue/NG-73/fix-opencode-edge-worker-session-and-tool-permission-regressions))
-- **OpenCode sessions keep default repository tools when `ALLOWED_TOOLS` is unset** — Cyrus no longer treats an empty global tool default as an explicit MCP-only policy, so OpenCode-selected issues can still read files, edit files, and use Bash in normal CLI setups. ([NG-73](https://linear.app/digimondo/issue/NG-73/fix-opencode-edge-worker-session-and-tool-permission-regressions))
-- **OpenCode sessions keep CLI-managed model access** — Cyrus no longer redirects OpenCode's data home, preserving CLI-managed authentication and provider metadata so default OpenCode sessions can start with configured OpenAI models. ([NG-42](https://linear.app/digimondo/issue/NG-42/add-mrpr-template-and-agent-dod-checklist))
+- **OpenCode sessions can use configured MCP servers** — MCP servers defined in OpenCode runtime config are now granted matching tool permissions under Cyrus's deny-by-default policy, so configured servers are actually available to OpenCode agents.
+- **OpenCode MCP OAuth config is preserved** — Remote MCP servers defined through `mcpConfigPath` or inline Cyrus MCP config now keep their `oauth` metadata when Cyrus translates them for OpenCode sessions.
+- **OpenCode runner sessions now report unsupported settings and finish reliably** — Cyrus now warns when OpenCode cannot apply shared runner settings, extracts simple responses from result-only sessions, grants file-reading tools correctly for simple OpenCode checks, and avoids duplicate completion events when OpenCode exits with both error and close signals.
+- **Child agent sessions start reliably after delegation** — Cyrus now keeps parent-child session mappings without suppressing the child session's own startup webhook.
+- **Chat follow-ups resume with the original runner** — Completed chat sessions now preserve the runner that owns the stored session ID, avoiding cross-runner resume attempts when the default runner changes.
+- **OpenCode sessions keep default repository tools when `ALLOWED_TOOLS` is unset** — Cyrus no longer treats an empty global tool default as an explicit MCP-only policy, so OpenCode-selected issues can still read files, edit files, and use Bash in normal CLI setups.
+- **OpenCode sessions keep CLI-managed model access** — Cyrus no longer redirects OpenCode's data home, preserving CLI-managed authentication and provider metadata so default OpenCode sessions can start with configured OpenAI models.
 
 ### Security
-- **Patched current dependency audit advisories** — Updated workspace overrides for `qs` and `uuid` so `pnpm audit` reports no known vulnerabilities. ([NG-65](https://linear.app/digimondo/issue/NG-65/open-upstream-pr-for-cyrus-opencode-runner-support))
+- **Patched current dependency audit advisories** — Updated workspace overrides for `qs` and `uuid` so `pnpm audit` reports no known vulnerabilities.
 
 ## [0.2.57] - 2026-05-22
 
@@ -712,9 +712,6 @@ All notable changes to this project will be documented in this file.
 ### Security
 - **Patched 4 transitive dependency advisories** — Bumped `pnpm.overrides` for `brace-expansion` (≥5.0.6, DoS via large numeric ranges defeating `max` protection), `ws` (≥8.20.1, uninitialized memory disclosure on `close()` with `TypedArray` reason), `protobufjs` (≥7.5.8, DoS via unbounded recursive JSON descriptor expansion), and `uuid` (≥11.1.1, missing buffer bounds check in `v3`/`v5`/`v6`). `pnpm audit` now reports zero advisories. ([CYPACK-1230](https://linear.app/ceedar/issue/CYPACK-1230), [#1238](https://github.com/cyrusagents/cyrus/pull/1238))
 - **Patched 9 transitive dependency advisories** — Bumped `pnpm.overrides` for `hono` (≥4.12.18, fixes CSS injection / JWT validation / Cache Middleware cross-user leakage), `fast-uri` (≥3.1.2, path traversal + host confusion), `ip-address` (≥10.1.1, `Address6` XSS), `@anthropic-ai/sdk` (≥0.91.1, insecure default file permissions in local filesystem memory tool), and `@opentelemetry/sdk-node` / `@opentelemetry/exporter-prometheus` (≥0.217.0, Prometheus exporter process crash via malformed HTTP request). `pnpm audit` now reports zero advisories. ([CYPACK-1206](https://linear.app/ceedar/issue/CYPACK-1206))
-- **Patched 2 additional transitive dependency advisories** — Added workspace overrides for `brace-expansion` (≥5.0.6) and `ws` (≥8.20.1) so the dependency graph remains audit-clean. ([NG-61](https://linear.app/digimondo/issue/NG-61/implement-cyrus-opencode-runner-package))
-- **Patched a transitive `protobufjs` advisory** — Added a workspace override for `protobufjs` (≥7.5.8) so the Gemini test dependency graph remains audit-clean without changing the pinned Gemini CLI test version. ([NG-62](https://linear.app/digimondo/issue/NG-62/wire-opencode-runner-into-cyrus-selection-and-config))
-
 ### Packages
 
 #### cyrus-cloudflare-tunnel-client
