@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - Updated `@anthropic-ai/claude-agent-sdk` from 0.3.154 to 0.3.156 and `@anthropic-ai/sdk` from 0.100.0 to 0.100.1. See the [SDK changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md) for details. ([CYPACK-1265](https://linear.app/ceedar/issue/CYPACK-1265), [#1270](https://github.com/cyrusagents/cyrus/pull/1270))
 
 ### Added
+- On Cyrus cloud, each Bash command the agent runs is now executed under a per-command memory budget so a single runaway command can be stopped without taking down the whole session; if a command is killed for exceeding its budget, the event is reported back to the control plane. This is cloud-only and has no effect on self-host or community installs. ([CYPACK-1274](https://linear.app/ceedar/issue/CYPACK-1274), [#1280](https://github.com/cyrusagents/cyrus/pull/1280))
 - A repository can now ship its own skills: any skill directories under `<repo>/.claude/skills/` are automatically discovered and made available to the agent whenever Cyrus works in that repo — for single-repo issues, multi-repo issues (skills from every participating repo are combined), and GitHub/GitLab mentions alike. ([CYPACK-1261](https://linear.app/ceedar/issue/CYPACK-1261), [#1268](https://github.com/cyrusagents/cyrus/pull/1268))
 
 ## [0.2.60] - 2026-05-28

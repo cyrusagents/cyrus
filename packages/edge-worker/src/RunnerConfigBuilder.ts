@@ -19,6 +19,10 @@ import type {
 	RunnerType,
 } from "cyrus-core";
 import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
+import {
+	buildMemoryLimitHook,
+	buildOomReportHook,
+} from "./hooks/MemoryLimitHook.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
 import { appendFailureModeAddendum } from "./prompts/failureModePromptAddendum.js";
@@ -274,13 +278,20 @@ export class RunnerConfigBuilder {
 		const screenshotHooks = this.buildScreenshotHooks(log);
 		const prMarkerHook = buildPrMarkerHook(log);
 		const intentToAddHook = buildIntentToAddHook(log);
+		// Cloud-only per-Bash cgroup v2 memory budgeting (CYHOST-1012). Both
+		// hooks are no-ops unless CYRUS_RUNTIME=cloud, the budget env var is set,
+		// and the cyrus-tool-exec wrapper exists on the droplet image.
+		const memoryLimitHook = buildMemoryLimitHook(log);
+		const oomReportHook = buildOomReportHook(log);
 		const stopHook = this.buildStopHook(log);
 		const hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> = {
 			...stopHook,
+			PreToolUse: [...(memoryLimitHook.PreToolUse ?? [])],
 			PostToolUse: [
 				...(screenshotHooks.PostToolUse ?? []),
 				...(prMarkerHook.PostToolUse ?? []),
 				...(intentToAddHook.PostToolUse ?? []),
+				...(oomReportHook.PostToolUse ?? []),
 			],
 		};
 

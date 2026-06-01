@@ -5,6 +5,7 @@ export type {
 	HookInput,
 	HookJSONOutput,
 	PostToolUseHookInput,
+	PreToolUseHookInput,
 	Query,
 	StopHookInput,
 	WarmQuery,
