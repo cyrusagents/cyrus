@@ -56,6 +56,7 @@ describe("JSON Schema export", () => {
 				"linearMcpConfigs",
 				"githubMcpConfigs",
 				"issueUpdateTrigger",
+				"prReviewTrigger",
 				"userAccessControl",
 				"promptDefaults",
 				"sandbox",

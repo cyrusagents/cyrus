@@ -1202,6 +1202,16 @@ export class EdgeWorker extends EventEmitter {
 				}
 			}
 
+			// Honor the PR-review trigger toggle: when disabled, ignore
+			// pull_request_review events entirely — no acknowledgement comment and
+			// no agent session. Defaults to enabled when the flag is unset.
+			if (isPullRequestReview && this.config.prReviewTrigger === false) {
+				this.logger.debug(
+					`PR review trigger is disabled, ignoring pull_request_review on ${repoFullName}#${prNumber}`,
+				);
+				return;
+			}
+
 			// Only trigger on comments that mention the bot (when configured)
 			// Skip this check for pull_request_review events — reviews don't @mention the bot
 			if (

@@ -459,6 +459,13 @@ export const EdgeConfigSchema = z.object({
 	issueUpdateTrigger: z.boolean().optional(),
 
 	/**
+	 * Whether to trigger agent sessions when a pull request review requests changes.
+	 * When disabled, a `pull_request_review` event produces no acknowledgement comment
+	 * and no agent session. Defaults to true if not specified.
+	 */
+	prReviewTrigger: z.boolean().optional(),
+
+	/**
 	 * Global user access control settings.
 	 * Applied to all repositories unless overridden.
 	 */
