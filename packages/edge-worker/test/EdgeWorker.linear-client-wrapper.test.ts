@@ -201,6 +201,7 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 					"workspace-123": {
 						linearToken: "refreshed_token",
 						linearRefreshToken: "new_refresh_token",
+						linearTokenExpiresAt: 1780086399000,
 						linearWorkspaceName: "Test Workspace",
 					},
 				},
@@ -208,7 +209,12 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 
 			(edgeWorker as any).updateLinearWorkspaceTokens(newConfig);
 
-			expect(setAccessTokenSpy).toHaveBeenCalledWith("refreshed_token");
+			// CRATE-153: the persisted expiry travels with the token so the
+			// proactive refresh scheduler knows the new token's lifetime.
+			expect(setAccessTokenSpy).toHaveBeenCalledWith(
+				"refreshed_token",
+				1780086399000,
+			);
 		});
 
 		it("should not call setAccessToken when token has not changed", () => {

@@ -606,6 +606,78 @@ export function createCyrusToolsServer(
 	);
 
 	server.registerTool(
+		"linear_update_issue_status",
+		{
+			description:
+				"Update a Linear issue's workflow status (e.g. move to 'In Review' after opening a PR). Goes through Cyrus's own Linear client, which auto-refreshes expired OAuth tokens — prefer this over the hosted Linear MCP server's save_issue for status changes, which can fail with 'requires re-authorization' when the token rotates mid-session.",
+			inputSchema: {
+				issueId: z
+					.string()
+					.describe("Issue identifier (e.g. 'PROJ-123') or UUID"),
+				status: z
+					.string()
+					.describe(
+						"Target workflow state, by name (case-insensitive, e.g. 'In Review', 'Done') or state UUID",
+					),
+			},
+		},
+		async ({ issueId, status }) => {
+			const fail = (payload: Record<string, unknown>) => ({
+				content: [
+					{
+						type: "text" as const,
+						text: JSON.stringify({ success: false, ...payload }),
+					},
+				],
+			});
+			try {
+				const issue = await linearClient.issue(issueId);
+				if (!issue) {
+					return fail({ error: `Issue ${issueId} not found` });
+				}
+
+				const team = await issue.team;
+				if (!team) {
+					return fail({ error: `Could not resolve team for issue ${issueId}` });
+				}
+
+				const states = await team.states();
+				const wanted = status.trim().toLowerCase();
+				const match = states.nodes.find(
+					(s: { id: string; name: string }) =>
+						s.id === status || s.name.toLowerCase() === wanted,
+				);
+				if (!match) {
+					return fail({
+						error: `No workflow state matching '${status}' for issue ${issueId}`,
+						availableStatuses: states.nodes.map(
+							(s: { name: string }) => s.name,
+						),
+					});
+				}
+
+				await linearClient.updateIssue(issue.id, { stateId: match.id });
+
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: JSON.stringify({
+								success: true,
+								message: `Updated ${issue.identifier} status to '${match.name}'`,
+							}),
+						},
+					],
+				};
+			} catch (error) {
+				return fail({
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		},
+	);
+
+	server.registerTool(
 		"linear_get_child_issues",
 		{
 			description:
