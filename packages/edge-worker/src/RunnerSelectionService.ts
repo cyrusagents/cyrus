@@ -64,7 +64,7 @@ export class RunnerSelectionService {
 		if (runnerType === "cursor") {
 			return this.config.cursorDefaultModel || "composer-2";
 		}
-		return this.config.codexDefaultModel || "gpt-5.3-codex";
+		return this.config.codexDefaultModel || "gpt-5.5";
 	}
 
 	/**
@@ -238,7 +238,7 @@ export class RunnerSelectionService {
 			lowercaseLabels: string[],
 		): string | undefined => {
 			const codexModelLabel = lowercaseLabels.find((label) =>
-				/gpt-[a-z0-9.-]*codex/i.test(label),
+				isCodexModel(label),
 			);
 			if (codexModelLabel) {
 				return codexModelLabel;
@@ -301,18 +301,22 @@ export class RunnerSelectionService {
 			modelOverride = undefined;
 		}
 
-		if (!modelOverride) {
-			modelOverride = defaultModelByRunner[runnerType];
-		}
+		const resolvedModelOverride =
+			modelOverride ||
+			defaultModelByRunner[runnerType] ||
+			this.getDefaultModelForRunner(runnerType);
 
-		let fallbackModelOverride = inferFallbackModel(modelOverride, runnerType);
+		let fallbackModelOverride = inferFallbackModel(
+			resolvedModelOverride,
+			runnerType,
+		);
 		if (!fallbackModelOverride) {
 			fallbackModelOverride = defaultFallbackByRunner[runnerType];
 		}
 
 		return {
 			runnerType,
-			modelOverride,
+			modelOverride: resolvedModelOverride,
 			fallbackModelOverride,
 		};
 	}
