@@ -56,7 +56,7 @@ interface ToolProjection {
 	isError: boolean;
 }
 
-const DEFAULT_CODEX_MODEL = "gpt-5.3-codex";
+const DEFAULT_CODEX_MODEL = "gpt-5.5";
 const CODEX_MCP_DOCS_URL = "https://platform.openai.com/docs/docs-mcp";
 
 function toFiniteNumber(value: number | undefined): number {
@@ -538,7 +538,7 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 	/**
 	 * Check if the user has a ChatGPT/Codex subscription by running `codex login status`.
 	 * Returns true when the output contains "Logged in using ChatGPT",
-	 * meaning the user has native Codex auth and can access gpt-5.3-codex.
+	 * meaning the user has native Codex auth and can access the default Codex model.
 	 */
 	private async hasCodexSubscription(): Promise<boolean> {
 		const codexBin = this.config.codexPath || "codex";

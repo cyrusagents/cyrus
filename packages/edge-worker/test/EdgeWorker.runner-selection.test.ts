@@ -490,6 +490,34 @@ Issue: {{issue_identifier}}`;
 			expect(CodexRunner).toHaveBeenCalled();
 			expect(capturedRunnerConfig.model).toBe("gpt-5.2-codex");
 		});
+
+		it("should select Codex runner with gpt-5.5 model when 'gpt-5.5' label is present", async () => {
+			const mockIssue = createMockIssueWithLabels(["gpt-5.5"]);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("codex");
+			expect(CodexRunner).toHaveBeenCalled();
+			expect(capturedRunnerConfig.model).toBe("gpt-5.5");
+		});
 	});
 
 	describe("Cursor Runner Selection", () => {
