@@ -23,6 +23,12 @@ import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
 export const SLACK_NO_RESPONSE_SENTINEL = "<<NO_RESPONSE>>";
 
 /**
+ * Route of the hosted Behaviours settings page (relative to the Cyrus app
+ * base URL) where automatic Slack thread listening can be turned off.
+ */
+export const BEHAVIOURS_PAGE_ROUTE = "/settings/behaviours";
+
+/**
  * Slack implementation of ChatPlatformAdapter.
  *
  * Contains all Slack-specific logic extracted from EdgeWorker:
@@ -35,6 +41,7 @@ export class SlackChatAdapter
 	readonly platformName = "slack" as const;
 	private repositoryProvider: ChatRepositoryProvider;
 	private repositoryRoutingContext: string;
+	private behavioursPageUrl: string;
 	private logger: ILogger;
 	private selfBotId: string | undefined;
 
@@ -43,11 +50,23 @@ export class SlackChatAdapter
 		logger?: ILogger,
 		options?: {
 			repositoryRoutingContext?: string;
+			/**
+			 * Base URL of the hosted Cyrus app (e.g. https://app.atcyrus.com).
+			 * Only set for managed teams — community members have no Behaviours
+			 * page, so the system prompt omits the stop-listening guidance
+			 * entirely when this is empty. The Behaviours page URL is composed
+			 * from this base and BEHAVIOURS_PAGE_ROUTE.
+			 */
+			cyrusAppBaseUrl?: string;
 		},
 	) {
 		this.repositoryProvider = repositoryProvider;
 		this.repositoryRoutingContext =
 			options?.repositoryRoutingContext?.trim() || "";
+		const appBaseUrl = options?.cyrusAppBaseUrl?.trim().replace(/\/+$/, "");
+		this.behavioursPageUrl = appBaseUrl
+			? `${appBaseUrl}${BEHAVIOURS_PAGE_ROUTE}`
+			: "";
 		this.logger = logger ?? createLogger({ component: "SlackChatAdapter" });
 	}
 
@@ -134,6 +153,15 @@ ${repositoryPaths.map((path) => `- ${path}`).join("\n")}
 ## Repository Access
 - No repository paths are configured for this chat session.`;
 
+		const stopListeningSection = this.behavioursPageUrl
+			? `
+
+## Stopping Automatic Listening
+- If the user asks you to stop listening to, following, or responding in this thread:
+  - Tell them automatic thread listening can be turned off on the Behaviours page: <${this.behavioursPageUrl}|Behaviours page>.
+  - From that point on, treat this thread as muted: stay silent (emit \`${SLACK_NO_RESPONSE_SENTINEL}\`) for every subsequent message until someone asks you a direct question — addressing you by name ("Cyrus, …") or with an @mention.`
+			: "";
+
 		return `You are participating in a Slack thread.
 
 ## Context
@@ -147,7 +175,7 @@ ${repositoryPaths.map((path) => `- ${path}`).join("\n")}
   2. Someone addresses you directly — by name ("Cyrus, …") or with an @mention.
 - For anything else — side conversation between people, acknowledgements ("thanks", "👍"), status chatter, or messages clearly not directed at you — do NOT reply.
 - When you should stay silent, output exactly \`${SLACK_NO_RESPONSE_SENTINEL}\` and nothing else. Do not explain why you're staying silent — just emit the token. (Emitting it is how you stay quiet; any other text gets posted to the thread.)
-- When you do respond, be genuinely helpful and concise.
+- When you do respond, be genuinely helpful and concise.${stopListeningSection}
 
 ## Instructions
 - You are running in a transient workspace, not associated with any code repository

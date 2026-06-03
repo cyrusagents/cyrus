@@ -9,6 +9,7 @@ import type { ChatPlatformAdapter } from "../src/ChatSessionHandler.js";
 import { ChatSessionHandler } from "../src/ChatSessionHandler.js";
 import type { RunnerConfigBuilder } from "../src/RunnerConfigBuilder.js";
 import {
+	BEHAVIOURS_PAGE_ROUTE,
 	SLACK_NO_RESPONSE_SENTINEL,
 	SlackChatAdapter,
 } from "../src/SlackChatAdapter.js";
@@ -361,6 +362,38 @@ describe("SlackChatAdapter system prompt", () => {
 		expect(systemPrompt).toContain("mcp__linear__get_user");
 		expect(systemPrompt).toContain('query: "me"');
 		expect(systemPrompt).toContain("linear_get_agent_sessions");
+	});
+
+	const appMentionEvent = {
+		payload: {
+			user: "U1",
+			channel: "C1",
+			text: "<@cyrus> hello",
+			ts: "1700000000.000100",
+			event_ts: "1700000000.000100",
+			type: "app_mention",
+		},
+	} as any;
+
+	it("includes stop-listening guidance with the Behaviours page link when a Cyrus app base URL is configured", () => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]), undefined, {
+			cyrusAppBaseUrl: "https://app.atcyrus.com/",
+		});
+		const systemPrompt = adapter.buildSystemPrompt(appMentionEvent);
+
+		expect(systemPrompt).toContain("## Stopping Automatic Listening");
+		expect(systemPrompt).toContain(
+			`<https://app.atcyrus.com${BEHAVIOURS_PAGE_ROUTE}|Behaviours page>`,
+		);
+		expect(systemPrompt).toContain("until someone asks you a direct question");
+	});
+
+	it("omits stop-listening guidance when no Cyrus app base URL is configured (community)", () => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		const systemPrompt = adapter.buildSystemPrompt(appMentionEvent);
+
+		expect(systemPrompt).not.toContain("## Stopping Automatic Listening");
+		expect(systemPrompt).not.toContain(BEHAVIOURS_PAGE_ROUTE);
 	});
 });
 

@@ -1061,10 +1061,18 @@ export class EdgeWorker extends EventEmitter {
 
 		const routingContext =
 			this.promptBuilder.generateRoutingContextForAllWorkspaces();
+		// Only managed teams (cloud or self-hosted, paired with cyrus-hosted)
+		// have a Behaviours page where automatic Slack thread listening can be
+		// turned off — CYRUS_API_KEY is proof of that pairing, so the
+		// stop-listening prompt guidance is gated on it. Community members
+		// don't have the key (or the page).
+		const cyrusAppBaseUrl = process.env.CYRUS_API_KEY
+			? getCyrusAppUrl()
+			: undefined;
 		const slackAdapter = new SlackChatAdapter(
 			chatRepositoryProvider,
 			this.logger,
-			{ repositoryRoutingContext: routingContext },
+			{ repositoryRoutingContext: routingContext, cyrusAppBaseUrl },
 		);
 
 		if (
