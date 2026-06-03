@@ -238,6 +238,7 @@ export {
 // Linear adapters have been moved to cyrus-linear-event-transport package
 // Import them directly from that package instead of from cyrus-core
 export type {
+	IssueLastSession,
 	SerializableEdgeWorkerState,
 	SerializedCyrusAgentSession,
 	SerializedCyrusAgentSessionEntry,

@@ -4473,6 +4473,40 @@ ${taskSection}`;
 				);
 			}
 
+			// Cross-session resume: when enabled, a brand-new agent session on an
+			// issue with prior Cyrus work resumes the most recent prior runner
+			// conversation instead of cold-starting and re-reading everything.
+			// Seeding the matching runner id onto the session also makes
+			// buildIssueConfig() force the runner type to match the resumed
+			// transcript (see RunnerConfigBuilder.buildIssueConfig).
+			let resumeSessionId: string | undefined;
+			const crossResume = this.resolveCrossSessionResume(
+				fullIssue.id,
+				sessionId,
+				primaryRepo,
+			);
+			if (crossResume) {
+				resumeSessionId = crossResume.resumeSessionId;
+				if (crossResume.runner === "claude")
+					session.claudeSessionId = resumeSessionId;
+				else if (crossResume.runner === "gemini")
+					session.geminiSessionId = resumeSessionId;
+				else if (crossResume.runner === "codex")
+					session.codexSessionId = resumeSessionId;
+				else if (crossResume.runner === "cursor")
+					session.cursorSessionId = resumeSessionId;
+				log.info(
+					`Resuming prior ${crossResume.runner} session ${resumeSessionId} for issue ${fullIssue.identifier} (cross-session resume)`,
+				);
+				await this.activityPoster
+					.postThoughtActivity(
+						sessionId,
+						linearWorkspaceId,
+						"Resuming from a previous session on this issue.",
+					)
+					.catch(() => {});
+			}
+
 			// Create agent runner with system prompt from assembly
 			// buildAgentRunnerConfig now determines runner type from labels internally
 			const { config: runnerConfig, runnerType } =
@@ -4484,7 +4518,7 @@ ${taskSection}`;
 					allowedTools,
 					allowedDirectories,
 					disallowedTools,
-					undefined, // resumeSessionId
+					resumeSessionId,
 					labels, // Pass labels for runner selection and model override
 					fullIssue.description || undefined, // Description tags can override label selectors
 					undefined, // maxTurns
@@ -6631,6 +6665,83 @@ ${input.userComment}
 	}
 
 	/**
+	 * Whether cross-session resume is enabled.
+	 *
+	 * When on, a newly-created agent session for an issue that Cyrus has worked
+	 * before resumes the most recent prior runner conversation instead of
+	 * cold-starting and re-reading all the issue context. Opt-in (it changes
+	 * behavior — the agent picks up potentially stale context) via
+	 * `CYRUS_RESUME_ACROSS_SESSIONS=1` (or `=true`), or per-repository config
+	 * `resumeAcrossSessions: true`.
+	 */
+	private isCrossSessionResumeEnabled(repository?: RepositoryConfig): boolean {
+		if (repository?.resumeAcrossSessions === true) return true;
+		const raw = process.env.CYRUS_RESUME_ACROSS_SESSIONS;
+		if (!raw) return false;
+		const v = raw.toLowerCase().trim();
+		return v === "1" || v === "true";
+	}
+
+	/**
+	 * Resolve a runner session id to resume when creating a NEW agent session
+	 * on an issue with prior Cyrus work. Returns undefined (→ cold start) when
+	 * the feature is off or no prior session is known.
+	 *
+	 * Resolution order:
+	 *  (a) a still-tracked prior session for the same issue (covers
+	 *      re-delegation while the issue is open and not yet pruned), then
+	 *  (b) the durable per-issue record (covers reopen-after-terminal, where
+	 *      the live session was pruned but the SDK transcript survives on disk).
+	 *
+	 * The worktree path is deterministic per issue identifier, so the recreated
+	 * worktree shares the cwd the prior transcript is keyed by — no workspace
+	 * juggling is needed here.
+	 */
+	private resolveCrossSessionResume(
+		issueId: string,
+		currentSessionId: string,
+		repository?: RepositoryConfig,
+	): { resumeSessionId: string; runner: RunnerType } | undefined {
+		if (!this.isCrossSessionResumeEnabled(repository)) return undefined;
+
+		const prior = this.agentSessionManager
+			.getSessionsByIssueId(issueId)
+			.filter((s) => s.id !== currentSessionId)
+			.filter(
+				(s) =>
+					s.claudeSessionId ||
+					s.geminiSessionId ||
+					s.codexSessionId ||
+					s.cursorSessionId,
+			)
+			.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
+
+		const record: {
+			claudeSessionId?: string;
+			geminiSessionId?: string;
+			codexSessionId?: string;
+			cursorSessionId?: string;
+		} = prior
+			? {
+					claudeSessionId: prior.claudeSessionId,
+					geminiSessionId: prior.geminiSessionId,
+					codexSessionId: prior.codexSessionId,
+					cursorSessionId: prior.cursorSessionId,
+				}
+			: (this.agentSessionManager.getLastSessionForIssue(issueId) ?? {});
+
+		if (record.claudeSessionId)
+			return { resumeSessionId: record.claudeSessionId, runner: "claude" };
+		if (record.geminiSessionId)
+			return { resumeSessionId: record.geminiSessionId, runner: "gemini" };
+		if (record.codexSessionId)
+			return { resumeSessionId: record.codexSessionId, runner: "codex" };
+		if (record.cursorSessionId)
+			return { resumeSessionId: record.cursorSessionId, runner: "cursor" };
+		return undefined;
+	}
+
+	/**
 	 * Whether the remote Claude session store is explicitly disabled.
 	 *
 	 * The remote store mirrors SDK transcripts to the Cyrus hosted control
@@ -6813,6 +6924,7 @@ ${input.userComment}
 			agentSessionEntries: serializedState.entries,
 			childToParentAgentSession,
 			issueRepositoryCache,
+			issueLastSession: serializedState.issueLastSession,
 		};
 	}
 
@@ -6825,6 +6937,7 @@ ${input.userComment}
 			this.agentSessionManager.restoreState(
 				state.agentSessions,
 				state.agentSessionEntries,
+				state.issueLastSession,
 			);
 
 			// Rebuild session-to-repo mapping from issueRepositoryCache

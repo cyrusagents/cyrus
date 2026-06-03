@@ -311,6 +311,14 @@ export const RepositoryConfigSchema = z.object({
 
 	// Repository-specific user access control
 	userAccessControl: UserAccessControlConfigSchema.optional(),
+
+	/**
+	 * When true, a newly-created agent session on an issue this repo has worked
+	 * before resumes the most recent prior runner conversation instead of
+	 * cold-starting (re-reading all issue context). Also enableable globally via
+	 * the CYRUS_RESUME_ACROSS_SESSIONS env var. Default false.
+	 */
+	resumeAcrossSessions: z.boolean().optional(),
 });
 
 /**

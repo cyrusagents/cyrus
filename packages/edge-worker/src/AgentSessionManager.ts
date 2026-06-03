@@ -18,6 +18,7 @@ import {
 	createLogger,
 	type IAgentRunner,
 	type ILogger,
+	type IssueLastSession,
 	type IssueMinimal,
 	type RepositoryContext,
 	type SerializedCyrusAgentSession,
@@ -74,6 +75,11 @@ export class AgentSessionManager extends EventEmitter {
 	private taskSubjectsById: Map<string, string> = new Map(); // Cache task subjects by task ID (e.g., "1" → "Fix login bug")
 	private activeStatusActivitiesBySession: Map<string, string> = new Map(); // Maps session ID to active compacting status activity ID
 	private stopRequestedSessions: Set<string> = new Set(); // Sessions explicitly stopped by user signal
+	// Durable per-issue record of the most recent runner session id. Unlike
+	// `sessions`, this is NOT cleared by removeSession()/cleanup(), so a later
+	// re-delegation on the same issue (a fresh agent session) can resume the
+	// prior runner conversation instead of cold-starting. Keyed by issue ID.
+	private issueLastSession: Map<string, IssueLastSession> = new Map();
 	// Per-session serialization queue for handleClaudeMessage. The EdgeWorker's
 	// onMessage callback is fire-and-forget, so without serialization the async
 	// handlers can interleave — causing tool_result to be processed before its
@@ -265,6 +271,46 @@ export class AgentSessionManager extends EventEmitter {
 			permissionMode: claudeSystemMessage.permissionMode,
 			apiKeySource: claudeSystemMessage.apiKeySource,
 		};
+
+		// Record this as the issue's most recent runner session so a future
+		// re-delegation can resume it even after this session is pruned.
+		this.recordLastSessionForIssue(linearSession, runnerType);
+	}
+
+	/**
+	 * Update the durable per-issue last-session record from a live session.
+	 * Only the field matching `runnerType` is set, mirroring how a session
+	 * carries exactly one runner id.
+	 */
+	private recordLastSessionForIssue(
+		session: CyrusAgentSession,
+		runnerType: "claude" | "gemini" | "codex" | "cursor",
+	): void {
+		const issueId = this.getSessionIssueId(session);
+		if (!issueId) return;
+		const sessionId =
+			runnerType === "gemini"
+				? session.geminiSessionId
+				: runnerType === "codex"
+					? session.codexSessionId
+					: runnerType === "cursor"
+						? session.cursorSessionId
+						: session.claudeSessionId;
+		if (!sessionId) return;
+		this.issueLastSession.set(issueId, {
+			[`${runnerType}SessionId`]: sessionId,
+			workspacePath: session.workspace?.path,
+			updatedAt: Date.now(),
+		});
+	}
+
+	/**
+	 * Durable record of the most recent runner session for an issue, kept even
+	 * after the live session has been pruned. Used to resume a prior
+	 * conversation when a new agent session is created on the same issue.
+	 */
+	getLastSessionForIssue(issueId: string): IssueLastSession | undefined {
+		return this.issueLastSession.get(issueId);
 	}
 
 	/**
@@ -1418,7 +1464,7 @@ export class AgentSessionManager extends EventEmitter {
 		const log = this.sessionLog(sessionId);
 		const session = this.sessions.get(sessionId);
 
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			log.debug(
 				`Skipping ${label} - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,
 			);
@@ -1589,6 +1635,7 @@ export class AgentSessionManager extends EventEmitter {
 	serializeState(): {
 		sessions: Record<string, SerializedCyrusAgentSession>;
 		entries: Record<string, SerializedCyrusAgentSessionEntry[]>;
+		issueLastSession: Record<string, IssueLastSession>;
 	} {
 		const sessions: Record<string, SerializedCyrusAgentSession> = {};
 		const entries: Record<string, SerializedCyrusAgentSessionEntry[]> = {};
@@ -1607,7 +1654,11 @@ export class AgentSessionManager extends EventEmitter {
 			}));
 		}
 
-		return { sessions, entries };
+		const issueLastSession = Object.fromEntries(
+			this.issueLastSession.entries(),
+		);
+
+		return { sessions, entries, issueLastSession };
 	}
 
 	/**
@@ -1616,10 +1667,21 @@ export class AgentSessionManager extends EventEmitter {
 	restoreState(
 		serializedSessions: Record<string, SerializedCyrusAgentSession>,
 		serializedEntries: Record<string, SerializedCyrusAgentSessionEntry[]>,
+		serializedIssueLastSession?: Record<string, IssueLastSession>,
 	): void {
 		// Clear existing state
 		this.sessions.clear();
 		this.entries.clear();
+		this.issueLastSession.clear();
+
+		// Restore durable per-issue last-session records (survives pruning)
+		if (serializedIssueLastSession) {
+			for (const [issueId, record] of Object.entries(
+				serializedIssueLastSession,
+			)) {
+				this.issueLastSession.set(issueId, record);
+			}
+		}
 
 		// Restore sessions (migrate old sessions without repositories field)
 		for (const [sessionId, sessionData] of Object.entries(serializedSessions)) {
@@ -1681,7 +1743,7 @@ export class AgentSessionManager extends EventEmitter {
 		message: SDKStatusMessage,
 	): Promise<void> {
 		const session = this.sessions.get(sessionId);
-		if (!session || !session.externalSessionId) {
+		if (!session?.externalSessionId) {
 			const log = this.sessionLog(sessionId);
 			log.debug(
 				`Skipping status message - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,

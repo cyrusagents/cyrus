@@ -470,6 +470,9 @@
 				}
 			},
 			"additionalProperties": false
+		},
+		"resumeAcrossSessions": {
+			"type": "boolean"
 		}
 	},
 	"required": [
