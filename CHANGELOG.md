@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.159` to `0.3.162`; added new `RemoteTrigger` tool to all platform default allowed-tool lists. ([CYPACK-1285](https://linear.app/ceedar/issue/CYPACK-1285), [#1290](https://github.com/cyrusagents/cyrus/pull/1290))
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.159` to `0.3.162`; added new `RemoteTrigger` tool to all platform default allowed-tool lists. ([CYPACK-1285](https://linear.app/ceedar/issue/CYPACK-1285), [#1289](https://github.com/cyrusagents/cyrus/pull/1289))
 - Codex sessions now default to `gpt-5.5`, and Linear model labels such as `gpt-5.5` are recognized as Codex model overrides alongside the existing `*-codex` labels. ([CYPACK-1282](https://linear.app/ceedar/issue/CYPACK-1282), [#1288](https://github.com/cyrusagents/cyrus/pull/1288))
 
 ### Fixed
