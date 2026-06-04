@@ -47,8 +47,9 @@ describe("config", () => {
 				"TeamDelete",
 				"ToolSearch",
 				"Workflow",
+				"RemoteTrigger",
 			]);
-			expect(availableTools).toHaveLength(33);
+			expect(availableTools).toHaveLength(34);
 		});
 
 		it("should define read-only tools", () => {
