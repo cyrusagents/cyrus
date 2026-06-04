@@ -468,7 +468,8 @@ export interface AgentRunnerConfig {
 	 * - `string[]`: enable only the listed skills.
 	 *
 	 * Used to enforce per-skill scope (repository / Linear team / Linear label).
-	 * Only the Claude runner respects this today.
+	 * Claude passes this to its SDK; Codex uses it to stage only allowed skills
+	 * into its native repository skill discovery layout.
 	 */
 	skills?: string[] | "all";
 	/**

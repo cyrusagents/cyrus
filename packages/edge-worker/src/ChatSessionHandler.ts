@@ -1,12 +1,13 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { SDKMessage } from "cyrus-claude-runner";
+import type { SDKMessage, SdkPluginConfig } from "cyrus-claude-runner";
 import type {
 	AgentRunnerConfig,
 	AgentSessionInfo,
 	CyrusAgentSession,
 	IAgentRunner,
 	ILogger,
+	RepositoryConfig,
 } from "cyrus-core";
 import { createLogger } from "cyrus-core";
 import { AgentSessionManager } from "./AgentSessionManager.js";
@@ -91,6 +92,11 @@ export interface ChatSessionHandlerDeps {
 	 * no custom files load (native MCP servers still run as usual).
 	 */
 	getPlatformMcpConfigOverrides?: () => readonly string[] | undefined;
+	/** Resolve managed skill plugins and scoped skill names for a chat session. */
+	resolveSkillsConfig?: (input: {
+		repository?: RepositoryConfig;
+		repositoryPaths: string[];
+	}) => Promise<{ plugins?: SdkPluginConfig[]; skills?: string[] | "all" }>;
 	onWebhookStart: () => void;
 	onWebhookEnd: () => void;
 	onStateChange: () => Promise<void>;
@@ -287,7 +293,7 @@ export class ChatSessionHandler<TEvent> {
 			const systemPrompt = this.adapter.buildSystemPrompt(event);
 
 			// Build runner config
-			const runnerConfig = this.buildRunnerConfig(
+			const runnerConfig = await this.buildRunnerConfig(
 				session.workspace.path,
 				sessionId,
 				systemPrompt,
@@ -418,7 +424,7 @@ export class ChatSessionHandler<TEvent> {
 	): Promise<void> {
 		const systemPrompt = this.adapter.buildSystemPrompt(event);
 
-		const runnerConfig = this.buildRunnerConfig(
+		const runnerConfig = await this.buildRunnerConfig(
 			existingSession.workspace.path,
 			sessionId,
 			systemPrompt,
@@ -561,13 +567,13 @@ export class ChatSessionHandler<TEvent> {
 	 * Build a runner config for a chat session.
 	 * Delegates to RunnerConfigBuilder for config assembly.
 	 */
-	private buildRunnerConfig(
+	private async buildRunnerConfig(
 		workspacePath: string,
 		workspaceName: string | undefined,
 		systemPrompt: string,
 		sessionId: string,
 		resumeSessionId?: string,
-	): AgentRunnerConfig {
+	): Promise<AgentRunnerConfig> {
 		const sessionLogger = this.logger.withContext({
 			sessionId,
 			platform: this.adapter.platformName,
@@ -575,6 +581,11 @@ export class ChatSessionHandler<TEvent> {
 
 		// Read live values from the provider at session-build time
 		const provider = this.deps.chatRepositoryProvider;
+		const repository = provider.getDefaultRepository();
+		const repositoryPaths = provider.getRepositoryPaths();
+		const skillsConfig = this.deps.resolveSkillsConfig
+			? await this.deps.resolveSkillsConfig({ repository, repositoryPaths })
+			: {};
 
 		return this.deps.runnerConfigBuilder.buildChatConfig({
 			workspacePath,
@@ -585,9 +596,11 @@ export class ChatSessionHandler<TEvent> {
 			cyrusHome: this.deps.cyrusHome,
 			platformName: this.adapter.platformName,
 			linearWorkspaceId: provider.getDefaultLinearWorkspaceId(),
-			repository: provider.getDefaultRepository(),
-			repositoryPaths: provider.getRepositoryPaths(),
+			repository,
+			repositoryPaths,
 			platformMcpConfigOverrides: this.deps.getPlatformMcpConfigOverrides?.(),
+			plugins: skillsConfig.plugins,
+			skills: skillsConfig.skills,
 			logger: sessionLogger,
 			onMessage: (message: SDKMessage) =>
 				this.handleAgentMessage(sessionId, message),

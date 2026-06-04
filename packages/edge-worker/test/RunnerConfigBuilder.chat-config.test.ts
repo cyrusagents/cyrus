@@ -63,4 +63,26 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 			...repositoryPaths,
 		]);
 	});
+
+	it("passes managed skill plugins and scoped skill names to chat runner configs", () => {
+		const builder = makeBuilder();
+		const plugins = [{ type: "local" as const, path: "/cyrus/user-skills" }];
+
+		const config = builder.buildChatConfig({
+			workspacePath: "/tmp/slack-workspace",
+			workspaceName: "slack-thread-x",
+			systemPrompt: "test",
+			sessionId: "sess-1",
+			cyrusHome: "/tmp/cyrus-home-test",
+			platformName: "slack",
+			plugins,
+			skills: ["agent-browser", "test-user-skills"],
+			logger: silentLogger,
+			onMessage: () => {},
+			onError: () => {},
+		});
+
+		expect(config.plugins).toEqual(plugins);
+		expect(config.skills).toEqual(["agent-browser", "test-user-skills"]);
+	});
 });

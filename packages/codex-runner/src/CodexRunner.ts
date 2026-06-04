@@ -1,8 +1,19 @@
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import {
+	appendFileSync,
+	type Dirent,
+	existsSync,
+	lstatSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	symlinkSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { join, relative as pathRelative } from "node:path";
+import { dirname, isAbsolute, join, relative as pathRelative } from "node:path";
 import { cwd } from "node:process";
 import type {
 	CommandExecutionItem,
@@ -64,6 +75,11 @@ interface McpAllowedToolsFilter {
 const DEFAULT_CODEX_MODEL = "gpt-5.5";
 const CODEX_MCP_DOCS_URL = "https://platform.openai.com/docs/docs-mcp";
 const CODEX_MCP_APPROVE_MODE = "approve";
+
+interface CodexSkillSource {
+	name: string;
+	path: string;
+}
 
 function toFiniteNumber(value: number | undefined): number {
 	return typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -600,6 +616,8 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 	private wasStopped = false;
 	private abortController: AbortController | null = null;
 	private emittedToolUseIds: Set<string> = new Set();
+	private stagedSkillPaths: string[] = [];
+	private stagedSkillNames: string[] = [];
 
 	constructor(config: CodexRunnerConfig) {
 		super();
@@ -657,6 +675,7 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 		this.emittedToolUseIds.clear();
 
 		await this.resolveModelWithFallback();
+		this.prepareManagedSkillsForCodex();
 
 		const prompt = (stringPrompt ?? streamingInitialPrompt ?? "").trim();
 		const threadOptions = this.buildThreadOptions();
@@ -802,6 +821,170 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 		}
 
 		return [...uniqueDirectories];
+	}
+
+	private prepareManagedSkillsForCodex(): void {
+		this.cleanupStagedSkills();
+
+		const skillSources = this.discoverCodexSkillSources();
+		if (skillSources.length === 0) {
+			return;
+		}
+
+		const skillsRoot = this.resolveManagedSkillsRoot();
+		if (!skillsRoot) {
+			return;
+		}
+		mkdirSync(skillsRoot, { recursive: true });
+		this.ensureManagedSkillsIgnored();
+
+		for (const source of skillSources) {
+			const target = join(skillsRoot, source.name);
+			if (!this.stageSkillDirectory(source, target)) {
+				continue;
+			}
+			this.stagedSkillPaths.push(target);
+			this.stagedSkillNames.push(source.name);
+		}
+	}
+
+	private discoverCodexSkillSources(): CodexSkillSource[] {
+		const configuredSkills = this.config.skills;
+		const allowedSkillNames =
+			Array.isArray(configuredSkills) && configuredSkills.length > 0
+				? new Set(configuredSkills)
+				: null;
+		if (Array.isArray(configuredSkills) && configuredSkills.length === 0) {
+			return [];
+		}
+
+		const sources: CodexSkillSource[] = [];
+		const seen = new Set<string>();
+		const addFromSkillsDirectory = (skillsDirectory: string): void => {
+			for (const source of this.readSkillSources(skillsDirectory)) {
+				if (allowedSkillNames && !allowedSkillNames.has(source.name)) {
+					continue;
+				}
+				if (seen.has(source.name)) {
+					continue;
+				}
+				seen.add(source.name);
+				sources.push(source);
+			}
+		};
+
+		for (const plugin of this.config.plugins ?? []) {
+			if (plugin.type !== "local" || typeof plugin.path !== "string") {
+				continue;
+			}
+			addFromSkillsDirectory(join(plugin.path, "skills"));
+		}
+
+		for (const directory of this.getCodexRepoLocalSkillRoots()) {
+			addFromSkillsDirectory(join(directory, ".claude", "skills"));
+		}
+
+		return sources;
+	}
+
+	private resolveManagedSkillsRoot(): string | undefined {
+		const workingDirectory = this.config.workingDirectory;
+		if (!workingDirectory) {
+			return undefined;
+		}
+		return join(workingDirectory, ".agents", "skills");
+	}
+
+	private ensureManagedSkillsIgnored(): void {
+		const workingDirectory = this.config.workingDirectory;
+		if (!workingDirectory) {
+			return;
+		}
+
+		try {
+			const rawExcludePath = execFileSync(
+				"git",
+				["rev-parse", "--git-path", "info/exclude"],
+				{
+					cwd: workingDirectory,
+					encoding: "utf-8",
+					stdio: ["ignore", "pipe", "ignore"],
+				},
+			).trim();
+			if (!rawExcludePath) {
+				return;
+			}
+			const excludePath = isAbsolute(rawExcludePath)
+				? rawExcludePath
+				: join(workingDirectory, rawExcludePath);
+
+			mkdirSync(dirname(excludePath), { recursive: true });
+			const existing = existsSync(excludePath)
+				? readFileSync(excludePath, "utf-8")
+				: "";
+			if (existing.split(/\r?\n/).includes(".agents/")) {
+				return;
+			}
+
+			const prefix =
+				existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
+			appendFileSync(excludePath, `${prefix}.agents/\n`);
+		} catch {
+			// Non-git chat workspaces and restricted git metadata are fine; cleanup
+			// still removes staged symlinks, and the exclude is only for git hygiene.
+		}
+	}
+
+	private getCodexRepoLocalSkillRoots(): string[] {
+		const roots = new Set<string>();
+		if (this.config.workingDirectory) {
+			roots.add(this.config.workingDirectory);
+		}
+		for (const directory of this.config.additionalDirectories ?? []) {
+			if (directory) {
+				roots.add(directory);
+			}
+		}
+		return [...roots];
+	}
+
+	private readSkillSources(skillsDirectory: string): CodexSkillSource[] {
+		let entries: Dirent[];
+		try {
+			entries = readdirSync(skillsDirectory, { withFileTypes: true });
+		} catch {
+			return [];
+		}
+
+		return entries
+			.filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
+			.map((entry) => ({
+				name: entry.name,
+				path: join(skillsDirectory, entry.name),
+			}))
+			.filter((source) => existsSync(join(source.path, "SKILL.md")));
+	}
+
+	private stageSkillDirectory(
+		source: CodexSkillSource,
+		target: string,
+	): boolean {
+		if (existsSync(target)) {
+			console.warn(
+				`[CodexRunner] Skipping managed skill '${source.name}' because ${target} already exists`,
+			);
+			return false;
+		}
+
+		try {
+			symlinkSync(source.path, target, "dir");
+			return true;
+		} catch (error) {
+			console.warn(
+				`[CodexRunner] Failed to stage managed skill '${source.name}' for Codex: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			return false;
+		}
 	}
 
 	private resolveCodexHome(): string {
@@ -1296,7 +1479,7 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 			permissionMode: "default",
 			slash_commands: [],
 			output_style: "default",
-			skills: [],
+			skills: [...this.stagedSkillNames],
 			plugins: [],
 			uuid: crypto.randomUUID(),
 			session_id: sessionId,
@@ -1348,14 +1531,38 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 
 	private cleanupRuntimeState(): void {
 		this.abortController = null;
+		this.cleanupStagedSkills();
+	}
+
+	private cleanupStagedSkills(): void {
+		for (const target of this.stagedSkillPaths) {
+			try {
+				if (this.isStagedSkillPath(target)) {
+					rmSync(target, { recursive: true, force: true });
+				}
+			} catch {
+				// Best-effort cleanup: never mask the session result.
+			}
+		}
+		this.stagedSkillPaths = [];
+		this.stagedSkillNames = [];
+	}
+
+	private isStagedSkillPath(path: string): boolean {
+		try {
+			const stat = lstatSync(path);
+			return stat.isDirectory() || stat.isSymbolicLink();
+		} catch {
+			return false;
+		}
 	}
 
 	stop(): void {
-		if (!this.sessionInfo?.isRunning) {
-			return;
+		if (this.sessionInfo?.isRunning) {
+			this.wasStopped = true;
+			this.abortController?.abort();
 		}
-		this.wasStopped = true;
-		this.abortController?.abort();
+		this.cleanupRuntimeState();
 	}
 
 	isRunning(): boolean {
