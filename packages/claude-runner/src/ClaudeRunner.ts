@@ -444,6 +444,28 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	/**
 	 * Internal method to start a Claude session with either string or streaming prompt
 	 */
+	/**
+	 * Heuristic: did this error come from the SDK being unable to resume the
+	 * requested session — e.g. the prior transcript no longer exists on disk?
+	 * Used to fall back to a cold start exactly once instead of hard-failing.
+	 * If the real message doesn't match, the fallback simply doesn't trigger
+	 * and the error propagates as before (no behavior change).
+	 */
+	private isResumeFailure(error: unknown): boolean {
+		const msg = (
+			error instanceof Error ? error.message : String(error)
+		).toLowerCase();
+		return (
+			msg.includes("no conversation found") ||
+			msg.includes("session not found") ||
+			msg.includes("no such session") ||
+			msg.includes("could not resume") ||
+			msg.includes("could not find session") ||
+			(msg.includes("resume") && msg.includes("not found")) ||
+			(msg.includes("session") && msg.includes("does not exist"))
+		);
+	}
+
 	private async startWithPrompt(
 		stringPrompt?: string | null,
 		streamingInitialPrompt?: string,
@@ -755,68 +777,100 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 			// Use pre-warmed session if available (eliminates cold-start subprocess spawn cost).
 			// warmSession.query() accepts both string and AsyncIterable<SDKUserMessage>,
 			// so promptForQuery works correctly for both start() and startStreaming().
-			if (this.config.warmSession) {
-				this.logger.debug("Using pre-warmed session for first turn");
-				this.activeQuery = this.config.warmSession.query(promptForQuery);
-			} else {
-				this.activeQuery = query(queryOptions);
-			}
-			for await (const message of this.activeQuery) {
-				if (!this.sessionInfo?.isRunning) {
-					this.logger.info("Session was stopped, breaking from query loop");
-					break;
-				}
-
-				// Extract session ID from first message if we don't have one yet
-				if (!this.sessionInfo.sessionId && message.session_id) {
-					this.sessionInfo.sessionId = message.session_id;
-					this.logger.event("claude_session_id_assigned", {
-						claudeSessionId: message.session_id,
-					});
-
-					// Update streaming prompt with session ID if it exists
-					if (this.streamingPrompt) {
-						this.streamingPrompt.updateSessionId(message.session_id);
+			// Cross-session/transcript resume can fail when the SDK cannot locate
+			// the prior transcript (e.g. it was cleaned up). If that happens
+			// before any message is produced, fall back once to a cold start so
+			// the run still proceeds instead of hard-failing.
+			let resumeFallbackUsed = false;
+			for (;;) {
+				try {
+					if (this.config.warmSession) {
+						this.logger.debug("Using pre-warmed session for first turn");
+						this.activeQuery = this.config.warmSession.query(promptForQuery);
+					} else {
+						this.activeQuery = query(queryOptions);
 					}
+					for await (const message of this.activeQuery) {
+						if (!this.sessionInfo?.isRunning) {
+							this.logger.info("Session was stopped, breaking from query loop");
+							break;
+						}
 
-					// Re-setup logging now that we have the session ID
-					this.setupLogging();
-				}
+						// Extract session ID from first message if we don't have one yet
+						if (!this.sessionInfo.sessionId && message.session_id) {
+							this.sessionInfo.sessionId = message.session_id;
+							this.logger.event("claude_session_id_assigned", {
+								claudeSessionId: message.session_id,
+							});
 
-				this.messages.push(message);
+							// Update streaming prompt with session ID if it exists
+							if (this.streamingPrompt) {
+								this.streamingPrompt.updateSessionId(message.session_id);
+							}
 
-				// Log to detailed JSON log
-				if (this.logStream) {
-					const logEntry = {
-						type: "sdk-message",
-						message,
-						timestamp: new Date().toISOString(),
-					};
-					this.logStream.write(`${JSON.stringify(logEntry)}\n`);
-				}
+							// Re-setup logging now that we have the session ID
+							this.setupLogging();
+						}
 
-				// Log to human-readable log
-				if (this.readableLogStream) {
-					this.writeReadableLogEntry(message);
-				}
+						this.messages.push(message);
 
-				// Emit all messages (including result) immediately in-loop.
-				// When keepSessionWarm is true, the streamingPrompt stays open for
-				// follow-up messages so the SDK session can be reused. Otherwise we
-				// complete the streaming prompt on result so the for-await loop exits
-				// and the subprocess can shut down (pre-warm-sessions behavior).
-				this.logger.event("message_emitted", {
-					messageType: message.type,
-					claudeSessionId: this.sessionInfo?.sessionId,
-				});
-				this.emit("message", message);
-				this.processMessage(message);
-				if (
-					message.type === "result" &&
-					!this.keepSessionWarm &&
-					this.streamingPrompt
-				) {
-					this.streamingPrompt.complete();
+						// Log to detailed JSON log
+						if (this.logStream) {
+							const logEntry = {
+								type: "sdk-message",
+								message,
+								timestamp: new Date().toISOString(),
+							};
+							this.logStream.write(`${JSON.stringify(logEntry)}\n`);
+						}
+
+						// Log to human-readable log
+						if (this.readableLogStream) {
+							this.writeReadableLogEntry(message);
+						}
+
+						// Emit all messages (including result) immediately in-loop.
+						// When keepSessionWarm is true, the streamingPrompt stays open for
+						// follow-up messages so the SDK session can be reused. Otherwise we
+						// complete the streaming prompt on result so the for-await loop exits
+						// and the subprocess can shut down (pre-warm-sessions behavior).
+						this.logger.event("message_emitted", {
+							messageType: message.type,
+							claudeSessionId: this.sessionInfo?.sessionId,
+						});
+						this.emit("message", message);
+						this.processMessage(message);
+						if (
+							message.type === "result" &&
+							!this.keepSessionWarm &&
+							this.streamingPrompt
+						) {
+							this.streamingPrompt.complete();
+						}
+					}
+					break;
+				} catch (queryError) {
+					const opts = queryOptions.options as { resume?: string } | undefined;
+					if (
+						!resumeFallbackUsed &&
+						!this.config.warmSession &&
+						opts?.resume &&
+						this.sessionInfo?.sessionId == null &&
+						this.messages.length === 0 &&
+						this.isResumeFailure(queryError)
+					) {
+						resumeFallbackUsed = true;
+						this.logger.event("session_resume_failed_fallback", {
+							resumeSessionId: opts.resume,
+							error:
+								queryError instanceof Error
+									? queryError.message
+									: String(queryError),
+						});
+						opts.resume = undefined;
+						continue;
+					}
+					throw queryError;
 				}
 			}
 

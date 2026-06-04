@@ -151,6 +151,13 @@ import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { EgressProxy } from "./EgressProxy.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
+import {
+	containsLinearReauthorizationError,
+	LINEAR_TOKEN_REFRESH_CHECK_INTERVAL_MS,
+	LINEAR_TOKEN_SOFT_REFRESH_TTL_MS,
+	LINEAR_TOKEN_TURN_START_MIN_TTL_MS,
+	shouldRefreshLinearToken,
+} from "./linearTokenRefreshPolicy.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
 import type {
@@ -208,6 +215,7 @@ export class EdgeWorker extends EventEmitter {
 	private lastStopTimeBySession: Map<string, number> = new Map(); // Maps session ID to timestamp of last stop signal (for double-stop detection)
 	private warmInstances: Map<string, WarmQuery> = new Map(); // Pre-warmed Claude sessions keyed by agentSessionId
 	private issueTrackers: Map<string, IIssueTrackerService> = new Map(); // one issue tracker per Linear workspace (keyed by linearWorkspaceId)
+	private linearTokenRefreshTimer: NodeJS.Timeout | null = null; // Proactive OAuth token renewal (CRATE-153)
 	private linearEventTransport: LinearEventTransport | null = null; // Single event transport for webhook delivery
 	private gitHubEventTransport: GitHubEventTransport | null = null; // GitHub event transport for forwarded GitHub webhooks
 	private gitHubAppTokenProvider: GitHubAppTokenProvider | null = null; // Self-hosted GitHub App token minting
@@ -701,6 +709,12 @@ export class EdgeWorker extends EventEmitter {
 				);
 			});
 		}
+
+		// Proactively renew Linear OAuth tokens before they expire (CRATE-153).
+		// Without this, the token only refreshes when a daemon-side call hits a
+		// 401 — leaving long dead-token windows during which agent sessions
+		// snapshot an expired token into their MCP config and status writes fail.
+		this.startLinearTokenRefreshScheduler();
 
 		// Start shared application server (this also starts Cloudflare tunnel if CLOUDFLARE_TOKEN is set)
 		await this.sharedApplicationServer.start();
@@ -2563,6 +2577,12 @@ ${taskSection}`;
 	 * Stop the edge worker
 	 */
 	async stop(): Promise<void> {
+		// Stop proactive Linear token refresh scheduler
+		if (this.linearTokenRefreshTimer) {
+			clearInterval(this.linearTokenRefreshTimer);
+			this.linearTokenRefreshTimer = null;
+		}
+
 		// Stop config file watcher
 		await this.configManager.stop();
 
@@ -2893,7 +2913,10 @@ ${taskSection}`;
 			// Update existing issue tracker in-place
 			const issueTracker = this.issueTrackers.get(workspaceId);
 			if (issueTracker) {
-				(issueTracker as LinearIssueTrackerService).setAccessToken(newToken);
+				(issueTracker as LinearIssueTrackerService).setAccessToken(
+					newToken,
+					newWsConfig.linearTokenExpiresAt,
+				);
 				this.logger.info(
 					`🔑 Updated Linear token for workspace ${workspaceId}`,
 				);
@@ -2917,6 +2940,24 @@ ${taskSection}`;
 		if (anyTokenChanged) {
 			// Push refreshed workspace configs to AttachmentService
 			this.attachmentService.setLinearWorkspaces(newWorkspaces);
+
+			// Pre-warmed sessions snapshotted the OLD token into their MCP
+			// Authorization headers at warmup time — and Linear revokes the old
+			// token on refresh, so those snapshots are now dead. Discard them;
+			// the next message cold-starts with a fresh config (CRATE-153).
+			if (this.warmInstances.size > 0) {
+				this.logger.info(
+					`🔑 Discarding ${this.warmInstances.size} pre-warmed session(s) holding a rotated Linear token`,
+				);
+				for (const warm of this.warmInstances.values()) {
+					try {
+						warm.close();
+					} catch {
+						// Best-effort: the subprocess may already be gone
+					}
+				}
+				this.warmInstances.clear();
+			}
 		}
 	}
 
@@ -4502,6 +4543,40 @@ ${taskSection}`;
 				);
 			}
 
+			// Cross-session resume: when enabled, a brand-new agent session on an
+			// issue with prior Cyrus work resumes the most recent prior runner
+			// conversation instead of cold-starting and re-reading everything.
+			// Seeding the matching runner id onto the session also makes
+			// buildIssueConfig() force the runner type to match the resumed
+			// transcript (see RunnerConfigBuilder.buildIssueConfig).
+			let resumeSessionId: string | undefined;
+			const crossResume = this.resolveCrossSessionResume(
+				fullIssue.id,
+				sessionId,
+				primaryRepo,
+			);
+			if (crossResume) {
+				resumeSessionId = crossResume.resumeSessionId;
+				if (crossResume.runner === "claude")
+					session.claudeSessionId = resumeSessionId;
+				else if (crossResume.runner === "gemini")
+					session.geminiSessionId = resumeSessionId;
+				else if (crossResume.runner === "codex")
+					session.codexSessionId = resumeSessionId;
+				else if (crossResume.runner === "cursor")
+					session.cursorSessionId = resumeSessionId;
+				log.info(
+					`Resuming prior ${crossResume.runner} session ${resumeSessionId} for issue ${fullIssue.identifier} (cross-session resume)`,
+				);
+				await this.activityPoster
+					.postThoughtActivity(
+						sessionId,
+						linearWorkspaceId,
+						"Resuming from a previous session on this issue.",
+					)
+					.catch(() => {});
+			}
+
 			// Create agent runner with system prompt from assembly
 			// buildAgentRunnerConfig now determines runner type from labels internally
 			const { config: runnerConfig, runnerType } =
@@ -4513,7 +4588,7 @@ ${taskSection}`;
 					allowedTools,
 					allowedDirectories,
 					disallowedTools,
-					undefined, // resumeSessionId
+					resumeSessionId,
 					labels, // Pass labels for runner selection and model override
 					fullIssue.description || undefined, // Description tags can override label selectors
 					undefined, // maxTurns
@@ -5177,8 +5252,40 @@ ${taskSection}`;
 	private async handleClaudeMessage(
 		sessionId: string,
 		message: SDKMessage,
-		_repositoryId: string,
+		repositoryId: string,
 	): Promise<void> {
+		// CRATE-153: an agent hitting `MCP server "linear" requires
+		// re-authorization` means its turn snapshotted a token that has since
+		// expired/rotated. The snapshot is unfixable for this turn — but log it
+		// LOUDLY and refresh the token now so the next turn starts healthy.
+		if (containsLinearReauthorizationError(message)) {
+			this.logger.error(
+				`🔑 Session ${sessionId} hit a stale Linear token (MCP "linear" requires re-authorization). ` +
+					"Status writes through the hosted Linear MCP will fail for the rest of this turn — " +
+					"the agent should fall back to mcp__cyrus-tools__linear_update_issue_status. " +
+					"Forcing a token refresh so subsequent turns get a fresh snapshot.",
+			);
+			const wsId = this.repositories.get(repositoryId)?.linearWorkspaceId;
+			const tracker = wsId
+				? (this.issueTrackers.get(wsId) as
+						| Partial<LinearIssueTrackerService>
+						| undefined)
+				: undefined;
+			if (typeof tracker?.ensureFreshToken === "function") {
+				// "Ensure fresh", not "force rotate": if the daemon already
+				// holds a fresh token (only the session's snapshot is stale),
+				// this no-ops instead of needlessly revoking it.
+				tracker
+					.ensureFreshToken(LINEAR_TOKEN_SOFT_REFRESH_TTL_MS)
+					.catch((error: unknown) => {
+						this.logger.error(
+							"Post-reauthorization-error token refresh failed:",
+							error,
+						);
+					});
+			}
+		}
+
 		await this.agentSessionManager.handleClaudeMessage(sessionId, message);
 	}
 
@@ -6407,6 +6514,36 @@ ${input.userComment}
 			issueIdentifier: session.issueContext?.issueIdentifier,
 		});
 
+		// CRATE-153: the runner config below snapshots the Linear token into a
+		// static MCP Authorization header for the whole turn. Make sure that
+		// snapshot has enough runway — if the token is near death (or of
+		// unknown age), refresh it BEFORE building the config. Failure is
+		// non-fatal: the turn proceeds with the existing token, same as before.
+		try {
+			const wsIdForToken =
+				linearWorkspaceId ?? repository.linearWorkspaceId ?? null;
+			const trackerForToken = wsIdForToken
+				? (this.issueTrackers.get(wsIdForToken) as
+						| Partial<LinearIssueTrackerService>
+						| undefined)
+				: undefined;
+			if (typeof trackerForToken?.ensureFreshToken === "function") {
+				const { refreshed } = await trackerForToken.ensureFreshToken(
+					LINEAR_TOKEN_TURN_START_MIN_TTL_MS,
+				);
+				if (refreshed) {
+					log.info(
+						"🔑 Refreshed near-expiry Linear token before building runner config",
+					);
+				}
+			}
+		} catch (error) {
+			log.error(
+				"Turn-start Linear token refresh failed (continuing with current token):",
+				error,
+			);
+		}
+
 		// Resolve plugins once so we can also derive the per-session scoped
 		// skill allow-list from the same filesystem snapshot.
 		const plugins = await this.skillsPluginResolver.resolve();
@@ -6660,6 +6797,83 @@ ${input.userComment}
 	}
 
 	/**
+	 * Whether cross-session resume is enabled.
+	 *
+	 * When on, a newly-created agent session for an issue that Cyrus has worked
+	 * before resumes the most recent prior runner conversation instead of
+	 * cold-starting and re-reading all the issue context. Opt-in (it changes
+	 * behavior — the agent picks up potentially stale context) via
+	 * `CYRUS_RESUME_ACROSS_SESSIONS=1` (or `=true`), or per-repository config
+	 * `resumeAcrossSessions: true`.
+	 */
+	private isCrossSessionResumeEnabled(repository?: RepositoryConfig): boolean {
+		if (repository?.resumeAcrossSessions === true) return true;
+		const raw = process.env.CYRUS_RESUME_ACROSS_SESSIONS;
+		if (!raw) return false;
+		const v = raw.toLowerCase().trim();
+		return v === "1" || v === "true";
+	}
+
+	/**
+	 * Resolve a runner session id to resume when creating a NEW agent session
+	 * on an issue with prior Cyrus work. Returns undefined (→ cold start) when
+	 * the feature is off or no prior session is known.
+	 *
+	 * Resolution order:
+	 *  (a) a still-tracked prior session for the same issue (covers
+	 *      re-delegation while the issue is open and not yet pruned), then
+	 *  (b) the durable per-issue record (covers reopen-after-terminal, where
+	 *      the live session was pruned but the SDK transcript survives on disk).
+	 *
+	 * The worktree path is deterministic per issue identifier, so the recreated
+	 * worktree shares the cwd the prior transcript is keyed by — no workspace
+	 * juggling is needed here.
+	 */
+	private resolveCrossSessionResume(
+		issueId: string,
+		currentSessionId: string,
+		repository?: RepositoryConfig,
+	): { resumeSessionId: string; runner: RunnerType } | undefined {
+		if (!this.isCrossSessionResumeEnabled(repository)) return undefined;
+
+		const prior = this.agentSessionManager
+			.getSessionsByIssueId(issueId)
+			.filter((s) => s.id !== currentSessionId)
+			.filter(
+				(s) =>
+					s.claudeSessionId ||
+					s.geminiSessionId ||
+					s.codexSessionId ||
+					s.cursorSessionId,
+			)
+			.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
+
+		const record: {
+			claudeSessionId?: string;
+			geminiSessionId?: string;
+			codexSessionId?: string;
+			cursorSessionId?: string;
+		} = prior
+			? {
+					claudeSessionId: prior.claudeSessionId,
+					geminiSessionId: prior.geminiSessionId,
+					codexSessionId: prior.codexSessionId,
+					cursorSessionId: prior.cursorSessionId,
+				}
+			: (this.agentSessionManager.getLastSessionForIssue(issueId) ?? {});
+
+		if (record.claudeSessionId)
+			return { resumeSessionId: record.claudeSessionId, runner: "claude" };
+		if (record.geminiSessionId)
+			return { resumeSessionId: record.geminiSessionId, runner: "gemini" };
+		if (record.codexSessionId)
+			return { resumeSessionId: record.codexSessionId, runner: "codex" };
+		if (record.cursorSessionId)
+			return { resumeSessionId: record.cursorSessionId, runner: "cursor" };
+		return undefined;
+	}
+
+	/**
 	 * Whether the remote Claude session store is explicitly disabled.
 	 *
 	 * The remote store mirrors SDK transcripts to the Cyrus hosted control
@@ -6842,6 +7056,7 @@ ${input.userComment}
 			agentSessionEntries: serializedState.entries,
 			childToParentAgentSession,
 			issueRepositoryCache,
+			issueLastSession: serializedState.issueLastSession,
 		};
 	}
 
@@ -6854,6 +7069,7 @@ ${input.userComment}
 			this.agentSessionManager.restoreState(
 				state.agentSessions,
 				state.agentSessionEntries,
+				state.issueLastSession,
 			);
 
 			// Rebuild session-to-repo mapping from issueRepositoryCache
@@ -7321,6 +7537,71 @@ ${input.userComment}
 	// ========================================================================
 
 	/**
+	 * Start the proactive Linear token refresh scheduler (CRATE-153).
+	 *
+	 * Linear access tokens live ~24h and the OLD token is revoked the moment a
+	 * refresh succeeds, so timing matters: the policy refreshes early while the
+	 * worker is idle, and only forces a refresh under active turns when the
+	 * token is about to die anyway. See linearTokenRefreshPolicy.ts.
+	 */
+	private startLinearTokenRefreshScheduler(): void {
+		if (this.linearTokenRefreshTimer) return;
+
+		const check = () => {
+			this.checkLinearTokenFreshness().catch((error) => {
+				this.logger.error("Linear token freshness check failed:", error);
+			});
+		};
+
+		this.linearTokenRefreshTimer = setInterval(
+			check,
+			LINEAR_TOKEN_REFRESH_CHECK_INTERVAL_MS,
+		);
+		this.linearTokenRefreshTimer.unref?.();
+
+		// Also check immediately: after a restart the persisted expiry may be
+		// unknown (pre-CRATE-153 configs) or already in the past.
+		check();
+	}
+
+	/**
+	 * Refresh any workspace token that the policy considers stale.
+	 */
+	private async checkLinearTokenFreshness(): Promise<void> {
+		const busy = this.computeStatus() === "busy";
+
+		for (const [workspaceId, tracker] of this.issueTrackers) {
+			const service = tracker as Partial<LinearIssueTrackerService>;
+			// CLI-platform trackers don't do OAuth
+			if (
+				typeof service.ensureFreshToken !== "function" ||
+				typeof service.getTokenExpiresAt !== "function"
+			) {
+				continue;
+			}
+
+			const expiresAt = service.getTokenExpiresAt();
+			if (!shouldRefreshLinearToken({ expiresAt, now: Date.now(), busy })) {
+				continue;
+			}
+
+			this.logger.info(
+				`🔑 Proactively refreshing Linear token for workspace ${workspaceId} (expiry: ${
+					expiresAt ? new Date(expiresAt).toISOString() : "unknown"
+				}, busy: ${busy})`,
+			);
+			try {
+				await service.ensureFreshToken(LINEAR_TOKEN_SOFT_REFRESH_TTL_MS);
+			} catch (error) {
+				this.logger.error(
+					`Proactive Linear token refresh failed for workspace ${workspaceId}:`,
+					error,
+				);
+			}
+		}
+	}
+
+	/**
 	 * Build OAuth config for LinearIssueTrackerService.
 	 * Uses workspace-level token storage.
 	 * Returns undefined if OAuth credentials are not available.
@@ -7356,6 +7637,7 @@ ${input.userComment}
 			clientSecret,
 			refreshToken: workspaceConfig.linearRefreshToken,
 			workspaceId: linearWorkspaceId,
+			expiresAt: workspaceConfig.linearTokenExpiresAt,
 			onTokenRefresh: async (tokens) => {
 				// Update workspace config in memory
 				if (this.config.linearWorkspaces?.[linearWorkspaceId]) {
@@ -7363,12 +7645,15 @@ ${input.userComment}
 						tokens.accessToken;
 					this.config.linearWorkspaces[linearWorkspaceId].linearRefreshToken =
 						tokens.refreshToken;
+					this.config.linearWorkspaces[linearWorkspaceId].linearTokenExpiresAt =
+						tokens.expiresAt;
 				}
 
 				// Persist tokens to config.json
 				await this.saveOAuthTokens({
 					linearToken: tokens.accessToken,
 					linearRefreshToken: tokens.refreshToken,
+					linearTokenExpiresAt: tokens.expiresAt,
 					linearWorkspaceId: linearWorkspaceId,
 					linearWorkspaceName: workspaceName,
 				});
@@ -7382,6 +7667,8 @@ ${input.userComment}
 	private async saveOAuthTokens(tokens: {
 		linearToken: string;
 		linearRefreshToken?: string;
+		/** Epoch ms when linearToken expires — drives proactive renewal (CRATE-153) */
+		linearTokenExpiresAt?: number;
 		linearWorkspaceId: string;
 		linearWorkspaceName?: string;
 	}): Promise<void> {
@@ -7410,6 +7697,16 @@ ${input.userComment}
 								linearRefreshToken:
 									config.linearWorkspaces[tokens.linearWorkspaceId]
 										.linearRefreshToken,
+							}
+						: {}),
+				...(tokens.linearTokenExpiresAt
+					? { linearTokenExpiresAt: tokens.linearTokenExpiresAt }
+					: config.linearWorkspaces[tokens.linearWorkspaceId]
+								?.linearTokenExpiresAt
+						? {
+								linearTokenExpiresAt:
+									config.linearWorkspaces[tokens.linearWorkspaceId]
+										.linearTokenExpiresAt,
 							}
 						: {}),
 				...(tokens.linearWorkspaceName

@@ -19,10 +19,14 @@ export interface LinearOAuthConfig {
 	refreshToken: string;
 	/** Workspace ID for coalescing concurrent refreshes across instances */
 	workspaceId: string;
+	/** Epoch ms when the current access token expires, if known (persisted from a prior refresh) */
+	expiresAt?: number;
 	/** Called when tokens are refreshed - use to persist new tokens */
 	onTokenRefresh?: (tokens: {
 		accessToken: string;
 		refreshToken: string;
+		/** Epoch ms when the new access token expires (now + expires_in) */
+		expiresAt: number;
 	}) => void | Promise<void>;
 }
 
@@ -93,6 +97,13 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 	private static workspaceRefreshTokens: Map<string, string> = new Map();
 
 	/**
+	 * Static map storing the current access-token expiry (epoch ms) per workspace.
+	 * Linear access tokens live ~24h and the OLD token is revoked the moment a
+	 * refresh happens, so all instances sharing a workspace must agree on expiry.
+	 */
+	private static workspaceTokenExpiresAt: Map<string, number> = new Map();
+
+	/**
 	 * Create a new LinearIssueTrackerService.
 	 *
 	 * @param linearClient - Configured LinearClient instance
@@ -114,6 +125,14 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 			LinearIssueTrackerService.workspaceRefreshTokens.set(
 				oauthConfig.workspaceId,
 				oauthConfig.refreshToken,
+			);
+		}
+
+		// Register known token expiry (persisted from a prior refresh)
+		if (oauthConfig?.expiresAt) {
+			LinearIssueTrackerService.workspaceTokenExpiresAt.set(
+				oauthConfig.workspaceId,
+				oauthConfig.expiresAt,
 			);
 		}
 
@@ -253,10 +272,15 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 			expires_in: number;
 		};
 
-		// Update shared static map for all instances sharing this workspace
+		// Update shared static maps for all instances sharing this workspace
 		LinearIssueTrackerService.workspaceRefreshTokens.set(
 			workspaceId,
 			data.refresh_token,
+		);
+		const expiresAt = Date.now() + data.expires_in * 1000;
+		LinearIssueTrackerService.workspaceTokenExpiresAt.set(
+			workspaceId,
+			expiresAt,
 		);
 
 		// Notify caller so they can persist tokens to disk
@@ -265,6 +289,7 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 				await onTokenRefresh({
 					accessToken: data.access_token,
 					refreshToken: data.refresh_token,
+					expiresAt,
 				});
 			} catch (err) {
 				this.logger.error("onTokenRefresh callback failed:", err);
@@ -286,17 +311,78 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 	}
 
 	/**
+	 * Get the epoch-ms expiry of the current access token, if known.
+	 * Returns null when no refresh has happened yet and no expiry was persisted.
+	 */
+	getTokenExpiresAt(): number | null {
+		if (!this.oauthConfig) return null;
+		return (
+			LinearIssueTrackerService.workspaceTokenExpiresAt.get(
+				this.oauthConfig.workspaceId,
+			) ?? null
+		);
+	}
+
+	/**
+	 * Proactively refresh the access token when it is expired, close to expiry,
+	 * or of unknown age (CRATE-153).
+	 *
+	 * IMPORTANT: Linear revokes the previous access token the moment a refresh
+	 * succeeds, so callers must time invocations to avoid killing tokens that
+	 * in-flight sessions have snapshotted (e.g. static MCP Authorization headers).
+	 *
+	 * Coalesced: concurrent calls (including 401-triggered refreshes) share one
+	 * HTTP refresh via the existing refreshPromise / pendingRefreshes machinery.
+	 *
+	 * @param minTtlMs - Refresh unless the token is known to be valid for at
+	 *                   least this many more milliseconds.
+	 * @returns whether a refresh was performed
+	 */
+	async ensureFreshToken(minTtlMs: number): Promise<{ refreshed: boolean }> {
+		if (!this.oauthConfig) return { refreshed: false };
+
+		const expiresAt = this.getTokenExpiresAt();
+		if (expiresAt !== null && expiresAt - Date.now() > minTtlMs) {
+			return { refreshed: false };
+		}
+
+		if (!this.refreshPromise) {
+			this.refreshPromise = this.doTokenRefresh().catch((refreshError) => {
+				this.refreshPromise = null;
+				this.logger.error("Proactive token refresh failed:", refreshError);
+				throw refreshError;
+			});
+		}
+
+		const newToken = await this.refreshPromise;
+		this.refreshPromise = null;
+		// This instance's client must start using the new token immediately —
+		// the old one is already revoked.
+		if (this.linearClient.client) {
+			this.linearClient.client.setHeader("Authorization", `Bearer ${newToken}`);
+		}
+		return { refreshed: true };
+	}
+
+	/**
 	 * Update the access token using setHeader on the underlying GraphQL client.
 	 * This is more efficient than recreating the entire LinearClient.
 	 * @param token - New access token
+	 * @param expiresAt - Epoch ms when this token expires, when known
 	 */
-	setAccessToken(token: string): void {
+	setAccessToken(token: string, expiresAt?: number): void {
 		// Clear any cached refresh promise so subsequent 401s trigger a fresh refresh
 		// rather than reusing a stale resolved promise with an old token.
 		this.refreshPromise = null;
 		// Guard for test mocks that may not have the .client property
 		if (this.linearClient.client) {
 			this.linearClient.client.setHeader("Authorization", `Bearer ${token}`);
+		}
+		if (expiresAt && this.oauthConfig) {
+			LinearIssueTrackerService.workspaceTokenExpiresAt.set(
+				this.oauthConfig.workspaceId,
+				expiresAt,
+			);
 		}
 	}
 

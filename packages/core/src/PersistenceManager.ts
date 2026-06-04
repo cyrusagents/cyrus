@@ -64,6 +64,27 @@ export interface SerializableEdgeWorkerState {
 	// Issue to repository mapping (for caching user repository selections)
 	// v4.1: string[] (multi-repo). Migration: old Record<string, string> auto-converts.
 	issueRepositoryCache?: Record<string, string[]>;
+	// Last runner session id captured per issue. Survives session pruning
+	// (sessions are removed when an issue goes terminal/unassigned) so a later
+	// re-delegation on the same issue can resume the prior runner conversation
+	// instead of cold-starting. Additive/optional — no version bump required.
+	issueLastSession?: Record<string, IssueLastSession>;
+}
+
+/**
+ * Durable record of the most recent runner session for an issue, kept
+ * independently of the (prunable) live session map. Only one of the runner id
+ * fields is set, matching the runner that produced it.
+ */
+export interface IssueLastSession {
+	claudeSessionId?: string;
+	geminiSessionId?: string;
+	codexSessionId?: string;
+	cursorSessionId?: string;
+	/** Worktree path the runner used, for diagnostics / transcript locating. */
+	workspacePath?: string;
+	/** Epoch ms of the last capture. */
+	updatedAt: number;
 }
 
 /**

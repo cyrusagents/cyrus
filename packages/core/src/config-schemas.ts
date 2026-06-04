@@ -260,6 +260,8 @@ const PromptDefaultsSchema = z.object({
 export const LinearWorkspaceConfigSchema = z.object({
 	linearToken: z.string(),
 	linearRefreshToken: z.string().optional(),
+	/** Epoch ms when linearToken expires (~24h after issue). Written on every refresh; drives proactive renewal (CRATE-153). */
+	linearTokenExpiresAt: z.number().optional(),
 	/** Linear workspace URL slug (e.g., "ceedar" from "https://linear.app/ceedar/...") */
 	linearWorkspaceSlug: z.string().optional(),
 	/** Human-readable workspace name (e.g., "Ceedar") */
@@ -311,6 +313,14 @@ export const RepositoryConfigSchema = z.object({
 
 	// Repository-specific user access control
 	userAccessControl: UserAccessControlConfigSchema.optional(),
+
+	/**
+	 * When true, a newly-created agent session on an issue this repo has worked
+	 * before resumes the most recent prior runner conversation instead of
+	 * cold-starting (re-reading all issue context). Also enableable globally via
+	 * the CYRUS_RESUME_ACROSS_SESSIONS env var. Default false.
+	 */
+	resumeAcrossSessions: z.boolean().optional(),
 });
 
 /**

@@ -475,6 +475,9 @@
 							}
 						},
 						"additionalProperties": false
+					},
+					"resumeAcrossSessions": {
+						"type": "boolean"
 					}
 				},
 				"required": ["id", "name", "repositoryPath", "baseBranch"],
@@ -494,6 +497,9 @@
 					},
 					"linearRefreshToken": {
 						"type": "string"
+					},
+					"linearTokenExpiresAt": {
+						"type": "number"
 					},
 					"linearWorkspaceSlug": {
 						"type": "string"

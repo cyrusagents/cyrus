@@ -475,6 +475,9 @@
 							}
 						},
 						"additionalProperties": false
+					},
+					"resumeAcrossSessions": {
+						"type": "boolean"
 					}
 				},
 				"required": [
@@ -500,6 +503,9 @@
 					},
 					"linearRefreshToken": {
 						"type": "string"
+					},
+					"linearTokenExpiresAt": {
+						"type": "number"
 					},
 					"linearWorkspaceSlug": {
 						"type": "string"
