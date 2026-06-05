@@ -9,6 +9,7 @@ import type {
 	AgentSessionInfo,
 	SDKMessage,
 } from "cyrus-core";
+import type { CyrusSandboxFilesystem } from "./config/sandboxPolicy.js";
 
 export type CodexConfigValue =
 	| string
@@ -49,6 +50,12 @@ export interface CodexRunnerConfig extends AgentRunnerConfig {
 	configOverrides?: CodexConfigOverrides;
 	/** JSON Schema for structured output (passed to turn/start as outputSchema) */
 	outputSchema?: unknown;
+	/**
+	 * Filesystem sandbox intent (allow/deny read, allow write). When present, the
+	 * session runs under a granular per-thread sandbox policy instead of the
+	 * coarse default mode. Paths must be absolute.
+	 */
+	sandboxSettings?: CyrusSandboxFilesystem;
 }
 
 /**

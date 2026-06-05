@@ -54,11 +54,15 @@ class FakeClient extends EventEmitter implements IAppServerClient {
 }
 
 const baseConfig: ResolvedCodexConfig = {
-	sandbox: "read-only",
+	sandbox: {
+		kind: "workspace-mode",
+		mode: "workspace-write",
+		writableRoots: [],
+		networkAccess: true,
+	},
 	approvalPolicy: "never",
 	skipGitRepoCheck: true,
 	workingDirectory: "/tmp/repo",
-	additionalDirectories: [],
 	codexHome: "/tmp/.codex",
 };
 
@@ -93,15 +97,12 @@ describe("AppServerCodexBackend", () => {
 		});
 	});
 
-	it("passes MCP/config overrides through to thread/start config", async () => {
+	it("passes MCP config overrides through to thread/start config", async () => {
 		const { backend, client } = makeBackend();
 		await backend.open({
 			...baseConfig,
 			codexPath: "/bin/true",
-			configOverrides: {
-				mcp_servers: { linear: { command: "linear-mcp" } },
-				sandbox_workspace_write: { network_access: true },
-			},
+			configOverrides: { mcp_servers: { linear: { command: "linear-mcp" } } },
 		});
 		const cfg = (
 			client.lastRequest("thread/start")?.params as {
@@ -109,29 +110,81 @@ describe("AppServerCodexBackend", () => {
 			}
 		).config;
 		expect(cfg?.mcp_servers).toEqual({ linear: { command: "linear-mcp" } });
-		expect(cfg?.sandbox_workspace_write).toMatchObject({
-			network_access: true,
-		});
 	});
 
-	it("maps additionalDirectories to sandbox_workspace_write.writable_roots", async () => {
+	it("serializes a workspace-mode sandbox to thread/start sandbox + config", async () => {
 		const { backend, client } = makeBackend();
 		await backend.open({
 			...baseConfig,
 			codexPath: "/bin/true",
-			additionalDirectories: ["/repo/b", "/repo/c"],
-			configOverrides: { sandbox_workspace_write: { network_access: true } },
+			sandbox: {
+				kind: "workspace-mode",
+				mode: "workspace-write",
+				writableRoots: ["/repo/b", "/repo/c"],
+				networkAccess: false,
+			},
 		});
-		const cfg = (
-			client.lastRequest("thread/start")?.params as {
-				config?: { sandbox_workspace_write?: Record<string, unknown> };
-			}
-		).config;
-		expect(cfg?.sandbox_workspace_write?.network_access).toBe(true);
-		expect(cfg?.sandbox_workspace_write?.writable_roots).toEqual([
-			"/repo/b",
-			"/repo/c",
-		]);
+		const params = client.lastRequest("thread/start")?.params as {
+			sandbox?: string;
+			config?: { sandbox_workspace_write?: Record<string, unknown> };
+		};
+		expect(params.sandbox).toBe("workspace-write");
+		expect(params.config?.sandbox_workspace_write).toEqual({
+			network_access: false,
+			writable_roots: ["/repo/b", "/repo/c"],
+		});
+	});
+
+	it("serializes a policy sandbox to turn/start sandboxPolicy (restricted reads + platform defaults)", async () => {
+		const { backend, client } = makeBackend();
+		await backend.open({
+			...baseConfig,
+			codexPath: "/bin/true",
+			sandbox: {
+				kind: "policy",
+				policy: {
+					type: "workspaceWrite",
+					writableRoots: ["/repo/a"],
+					readableRoots: ["/repo/a", "/usr/lib"],
+					networkAccess: false,
+				},
+			},
+		});
+		// thread/start carries the matching coarse baseline mode...
+		expect(
+			(client.lastRequest("thread/start")?.params as { sandbox?: string })
+				.sandbox,
+		).toBe("workspace-write");
+		// ...and thread/start does NOT inject sandbox_workspace_write (turn governs).
+		expect(
+			(
+				client.lastRequest("thread/start")?.params as {
+					config?: Record<string, unknown>;
+				}
+			).config?.sandbox_workspace_write,
+		).toBeUndefined();
+
+		const turnDone = backend.runTurn([{ type: "text", text: "go" }]);
+		await Promise.resolve();
+		expect(
+			(client.lastRequest("turn/start")?.params as { sandboxPolicy?: unknown })
+				.sandboxPolicy,
+		).toEqual({
+			type: "workspaceWrite",
+			writableRoots: ["/repo/a"],
+			readOnlyAccess: {
+				type: "restricted",
+				includePlatformDefaults: true,
+				readableRoots: ["/repo/a", "/usr/lib"],
+			},
+			networkAccess: false,
+			excludeSlashTmp: false,
+			excludeTmpdirEnvVar: false,
+		});
+		client.push("turn/completed", {
+			turn: { id: "turn-1", status: "completed" },
+		});
+		await turnDone;
 	});
 
 	it("passes outputSchema on turn/start when configured", async () => {

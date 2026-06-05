@@ -83,23 +83,54 @@ export type CodexUserInput =
 	| { type: "local_image"; path: string };
 
 /**
+ * Transport-neutral sandbox policy. Mirrors the subset of the app-server
+ * `SandboxPolicy` Cyrus uses; the backend adds the wire-specific constants
+ * (`includePlatformDefaults`, `excludeSlashTmp`, etc.) when serializing. Reads
+ * are an allow-list (`readableRoots`) — anything outside is denied.
+ */
+export type CodexSandboxPolicy =
+	| { type: "dangerFullAccess" }
+	| { type: "readOnly"; readableRoots: string[]; networkAccess: boolean }
+	| {
+			type: "workspaceWrite";
+			writableRoots: string[];
+			readableRoots: string[];
+			networkAccess: boolean;
+	  };
+
+/**
+ * Resolved per-thread sandbox decision.
+ * - `workspace-mode`: the coarse Codex sandbox mode (broad reads, writes limited
+ *   to cwd + `writableRoots` + tmp). The default when there are no explicit Cyrus
+ *   sandbox settings — sent via `thread/start.sandbox` + config.
+ * - `policy`: a granular structured policy (restricted reads) derived from Cyrus
+ *   sandbox settings — sent via `turn/start.sandboxPolicy` (persists per-thread).
+ */
+export type ResolvedCodexSandbox =
+	| {
+			kind: "workspace-mode";
+			mode: SandboxMode;
+			writableRoots: string[];
+			networkAccess: boolean;
+	  }
+	| { kind: "policy"; policy: CodexSandboxPolicy };
+
+/**
  * Fully-resolved, transport-neutral run configuration produced by
- * {@link CodexConfigBuilder}. Each backend maps this onto its own wire format
- * (SDK `ThreadOptions`/`CodexOptions` for exec, `thread/start`+`turn/start`
- * params for app-server).
+ * {@link CodexConfigBuilder}; the backend maps it onto `thread/start` +
+ * `turn/start` params for the app-server.
  */
 export interface ResolvedCodexConfig {
 	model?: string;
-	sandbox: SandboxMode;
+	sandbox: ResolvedCodexSandbox;
 	workingDirectory?: string;
 	approvalPolicy: ApprovalMode;
 	skipGitRepoCheck: boolean;
 	modelReasoningEffort?: ModelReasoningEffort;
 	webSearchMode?: WebSearchMode;
-	additionalDirectories: string[];
 	/** Maps to Codex `developer_instructions` (appended system prompt). */
 	developerInstructions?: string;
-	/** Global Codex config overrides (e.g. `mcp_servers`, sandbox network). */
+	/** Global Codex config overrides (e.g. `mcp_servers`). */
 	configOverrides?: CodexConfigOverrides;
 	/** Environment override; when set the child does not inherit ambient env. */
 	env?: Record<string, string>;

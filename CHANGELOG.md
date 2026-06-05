@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - Slack/chat follow-up messages sent while the agent is mid-task are no longer dropped. Previously a quick second message got "I'm still working on the previous request… I'll pick up your new message once I'm done" and was then silently ignored; it's now queued and delivered as a new turn once the current one finishes (and, with the Codex app-server backend, woven into the active turn). Codex chat threads also now correctly continue the same session on follow-ups instead of starting fresh each time.
 
 ### Added
+- Codex sessions now honor the configured filesystem sandbox when the egress sandbox is enabled: each session runs under a per-thread Codex sandbox policy that confines writes to the worktree and restricts reads to the worktree plus allowed directories (home and the rest of the filesystem are denied), matching the Claude runner's posture. Without sandbox enabled, behavior is unchanged.
 - Codex now runs on the `codex app-server` backend, so it can respond to comments added while it's mid-task without throwing away its in-progress work: a follow-up comment is woven into Codex's current turn (rather than aborting and restarting it), matching how the Claude runner handles mid-task comments. This applies to Linear issues and Slack/chat threads alike. ([#1293](https://github.com/cyrusagents/cyrus/pull/1293))
 
 ### Changed

@@ -8,6 +8,7 @@ import type {
 	CodexRunnerConfig,
 } from "../types.js";
 import { buildCodexMcpServersConfig } from "./mcpConfigTranslator.js";
+import { resolveCodexSandbox } from "./sandboxPolicy.js";
 
 function getDefaultReasoningEffortForModel(
 	model?: string,
@@ -38,13 +39,18 @@ export class CodexConfigBuilder {
 
 		return {
 			model: this.config.model,
-			sandbox: this.config.sandbox || "workspace-write",
+			sandbox: resolveCodexSandbox({
+				mode: this.config.sandbox || "workspace-write",
+				workingDirectory: this.config.workingDirectory,
+				writableRoots: this.getAdditionalDirectories(),
+				networkAccess: this.resolveNetworkAccess(),
+				sandboxSettings: this.config.sandboxSettings,
+			}),
 			workingDirectory: this.config.workingDirectory,
 			approvalPolicy: this.config.askForApproval || "never",
 			skipGitRepoCheck: this.config.skipGitRepoCheck ?? true,
 			modelReasoningEffort: reasoningEffort,
 			webSearchMode,
-			additionalDirectories: this.getAdditionalDirectories(),
 			developerInstructions:
 				(this.config.appendSystemPrompt ?? "").trim() || undefined,
 			configOverrides: this.buildConfigOverrides(),
@@ -54,6 +60,24 @@ export class CodexConfigBuilder {
 			outputSchema: this.config.outputSchema,
 			resumeSessionId: this.config.resumeSessionId,
 		};
+	}
+
+	/**
+	 * Network intent for the sandbox. Defaults to enabled (so common remote
+	 * workflows — git/gh — work without danger-full-access); honors an explicit
+	 * `sandbox_workspace_write.network_access` in the passed-through overrides.
+	 */
+	private resolveNetworkAccess(): boolean {
+		const sww = this.config.configOverrides?.sandbox_workspace_write;
+		if (
+			sww &&
+			typeof sww === "object" &&
+			!Array.isArray(sww) &&
+			typeof (sww as { network_access?: boolean }).network_access === "boolean"
+		) {
+			return (sww as { network_access: boolean }).network_access;
+		}
+		return true;
 	}
 
 	private getAdditionalDirectories(): string[] {
@@ -94,16 +118,18 @@ export class CodexConfigBuilder {
 	}
 
 	/**
-	 * Global Codex config overrides: MCP servers + a workspace-write sandbox that
-	 * keeps outbound network enabled (so git/gh work without danger-full-access).
-	 * Note: `developer_instructions` is surfaced separately on
-	 * {@link ResolvedCodexConfig.developerInstructions} so each backend can place
-	 * it on its native field.
+	 * Global Codex config overrides — currently just MCP servers. Sandbox
+	 * (writable/readable roots, network) is owned by {@link resolveCodexSandbox}
+	 * and `developer_instructions` is surfaced on
+	 * {@link ResolvedCodexConfig.developerInstructions}, so neither is injected
+	 * here. Any caller-supplied `sandbox_workspace_write` is dropped (its
+	 * `network_access` is folded into the sandbox decision via
+	 * {@link resolveNetworkAccess}) to keep a single source of truth.
 	 */
 	private buildConfigOverrides(): CodexConfigOverrides | undefined {
-		const configOverrides = this.config.configOverrides
-			? { ...this.config.configOverrides }
-			: {};
+		const { sandbox_workspace_write: _dropped, ...rest } =
+			this.config.configOverrides ?? {};
+		const configOverrides: CodexConfigOverrides = { ...rest };
 
 		const mcpServers = buildCodexMcpServersConfig({
 			workingDirectory: this.config.workingDirectory,
@@ -113,34 +139,15 @@ export class CodexConfigBuilder {
 		});
 		if (mcpServers) {
 			const existingMcpServers = configOverrides.mcp_servers;
-			if (
+			configOverrides.mcp_servers =
 				existingMcpServers &&
 				typeof existingMcpServers === "object" &&
 				!Array.isArray(existingMcpServers)
-			) {
-				configOverrides.mcp_servers = {
-					...(existingMcpServers as Record<string, CodexConfigValue>),
-					...mcpServers,
-				};
-			} else {
-				configOverrides.mcp_servers = mcpServers;
-			}
-		}
-
-		const sandboxWorkspaceWrite = configOverrides.sandbox_workspace_write;
-		if (
-			sandboxWorkspaceWrite &&
-			typeof sandboxWorkspaceWrite === "object" &&
-			!Array.isArray(sandboxWorkspaceWrite)
-		) {
-			configOverrides.sandbox_workspace_write = {
-				...sandboxWorkspaceWrite,
-				network_access:
-					(sandboxWorkspaceWrite as { network_access?: boolean })
-						.network_access ?? true,
-			};
-		} else if (!sandboxWorkspaceWrite) {
-			configOverrides.sandbox_workspace_write = { network_access: true };
+					? {
+							...(existingMcpServers as Record<string, CodexConfigValue>),
+							...mcpServers,
+						}
+					: mcpServers;
 		}
 
 		return Object.keys(configOverrides).length > 0
