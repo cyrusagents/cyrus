@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+- Patched Hono dependency advisories reported by Dependabot so `pnpm audit` is clean for the Cyrus CLI workspace. ([CYPACK-1290](https://linear.app/ceedar/issue/CYPACK-1290), [#1295](https://github.com/cyrusagents/cyrus/pull/1295))
+
 ### Changed
 - Codex sessions now default to `gpt-5.5`, and Linear model labels such as `gpt-5.5` are recognized as Codex model overrides alongside the existing `*-codex` labels. ([CYPACK-1282](https://linear.app/ceedar/issue/CYPACK-1282), [#1288](https://github.com/cyrusagents/cyrus/pull/1288))
 
