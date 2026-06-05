@@ -134,6 +134,12 @@ export class ChatSessionHandler<TEvent> {
 	// remembers where to post that turn's reply (all events in a session share
 	// one thread, so any recent event addresses it correctly).
 	private lastReplyEvent: Map<string, TEvent> = new Map();
+	// Follow-up events that arrived while a turn was running and could not be
+	// streamed into it (e.g. the exec Codex backend, which has no mid-turn input
+	// channel). Keyed by threadKey. Drained when the running turn completes and
+	// re-dispatched as a fresh turn, so a follow-up is never silently dropped —
+	// honoring the "I'll pick up your new message once I'm done" promise.
+	private pendingFollowups: Map<string, TEvent[]> = new Map();
 
 	constructor(
 		adapter: ChatPlatformAdapter<TEvent>,
@@ -194,10 +200,13 @@ export class ChatSessionHandler<TEvent> {
 						this.enqueueReply(existingSessionId, event);
 						existingRunner.addStreamMessage(taskInstructions);
 					} else {
-						// Runner doesn't support streaming input or isn't in streaming mode — notify user
+						// Runner can't accept mid-turn input (e.g. exec Codex). Queue the
+						// follow-up so it's delivered as a fresh turn once this one ends,
+						// rather than dropped — then tell the user we'll pick it up.
 						this.logger.info(
-							`Session ${existingSessionId} is still running, notifying user (thread ${threadKey})`,
+							`Session ${existingSessionId} is still running; queuing follow-up for after the turn (thread ${threadKey})`,
 						);
+						this.queuePendingFollowup(threadKey, event);
 						await this.adapter.notifyBusy(event, threadKey);
 					}
 					return;
@@ -506,7 +515,55 @@ export class ChatSessionHandler<TEvent> {
 					`Received result for session ${sessionId} with no pending reply event — nothing to post`,
 				);
 			}
+
+			// The turn is done — deliver any follow-ups that arrived while busy.
+			this.drainPendingFollowups(sessionId);
 		}
+	}
+
+	private queuePendingFollowup(threadKey: string, event: TEvent): void {
+		const queue = this.pendingFollowups.get(threadKey) ?? [];
+		queue.push(event);
+		this.pendingFollowups.set(threadKey, queue);
+	}
+
+	private threadKeyForSession(sessionId: string): string | undefined {
+		for (const [threadKey, id] of this.threadSessions) {
+			if (id === sessionId) {
+				return threadKey;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Re-dispatch any follow-ups queued for a thread while it was busy. Runs
+	 * after the current turn settles (the runner has finalized), so each
+	 * re-dispatched event takes the normal resume path. Any that still find the
+	 * runner running re-queue themselves and are drained on the next completion.
+	 */
+	private drainPendingFollowups(sessionId: string): void {
+		const threadKey = this.threadKeyForSession(sessionId);
+		if (!threadKey) {
+			return;
+		}
+		const queue = this.pendingFollowups.get(threadKey);
+		if (!queue || queue.length === 0) {
+			return;
+		}
+		this.pendingFollowups.delete(threadKey);
+		// Defer so the just-finished runner has fully transitioned to not-running
+		// before the follow-up is re-evaluated (otherwise it would re-queue).
+		setImmediate(() => {
+			for (const event of queue) {
+				this.handleEvent(event).catch((error: unknown) => {
+					this.logger.error(
+						`Failed to re-dispatch queued ${this.adapter.platformName} follow-up (thread ${threadKey})`,
+						error instanceof Error ? error : new Error(String(error)),
+					);
+				});
+			}
+		});
 	}
 
 	private enqueueReply(sessionId: string, event: TEvent): void {

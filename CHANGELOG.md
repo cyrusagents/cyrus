@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Slack/chat follow-up messages sent while the agent is mid-task are no longer dropped. Previously a quick second message got "I'm still working on the previous request… I'll pick up your new message once I'm done" and was then silently ignored; it's now queued and delivered as a new turn once the current one finishes (and, with the Codex app-server backend, woven into the active turn). Codex chat threads also now correctly continue the same session on follow-ups instead of starting fresh each time.
+
 ### Added
 - Codex sessions can now respond to comments added while Codex is mid-task without throwing away its in-progress work. When the experimental Codex app-server backend is enabled (set `"codexUseAppServer": true` in `config.json`, or `CODEX_USE_APP_SERVER=1`), a follow-up comment is woven into Codex's current turn instead of aborting and restarting it — matching how the Claude runner handles mid-task comments. ([#1293](https://github.com/cyrusagents/cyrus/pull/1293))
 

@@ -406,6 +406,75 @@ describe("ChatSessionHandler processed acknowledgement", () => {
 	});
 });
 
+describe("ChatSessionHandler busy follow-up queueing", () => {
+	it("queues a follow-up that can't be streamed and delivers it after the turn", async () => {
+		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+			"busy-thread",
+		);
+		const notifyBusy = vi
+			.spyOn(adapter, "notifyBusy")
+			.mockResolvedValue(undefined);
+		vi.spyOn(adapter, "postReply").mockResolvedValue(undefined);
+
+		let running = false;
+		let capturedConfig: any;
+		const createRunner = vi.fn((config: any) => {
+			capturedConfig = config;
+			running = true; // a freshly created runner is running
+			return {
+				supportsStreamingInput: false,
+				start: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
+				startStreaming: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
+				stop: vi.fn(),
+				// Running, but NOT streamable (exec-style backend) — follow-ups
+				// can't be injected mid-turn.
+				isRunning: vi.fn(() => running),
+				isStreaming: vi.fn().mockReturnValue(false),
+				addStreamMessage: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+			} as any;
+		});
+		const handler = new ChatSessionHandler(adapter, {
+			cyrusHome: TEST_CYRUS_CHAT,
+			chatRepositoryProvider: createStaticProvider([]),
+			runnerConfigBuilder: createMockRunnerConfigBuilder(),
+			createRunner,
+			onWebhookStart: vi.fn(),
+			onWebhookEnd: vi.fn(),
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+		});
+
+		// First message starts the session (running).
+		await handler.handleEvent({
+			eventId: "msg-a",
+			threadKey: "busy-thread",
+		} as any);
+		expect(createRunner).toHaveBeenCalledTimes(1);
+
+		// Second message arrives mid-turn → queued (not dropped) + user notified.
+		await handler.handleEvent({
+			eventId: "msg-b",
+			threadKey: "busy-thread",
+		} as any);
+		expect(notifyBusy).toHaveBeenCalledTimes(1);
+		expect(createRunner).toHaveBeenCalledTimes(1); // not yet delivered
+
+		// Turn completes → the queued follow-up is re-dispatched as a new turn.
+		running = false;
+		await capturedConfig.onMessage({
+			type: "result",
+			subtype: "success",
+			is_error: false,
+			result: "done",
+			session_id: "session-1",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		expect(createRunner).toHaveBeenCalledTimes(2);
+	});
+});
+
 describe("SlackChatAdapter session initiation", () => {
 	it("treats app_mention as session-initiating", () => {
 		const adapter = new SlackChatAdapter(createStaticProvider([]));
