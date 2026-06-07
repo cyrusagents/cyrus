@@ -19,8 +19,6 @@ export const availableTools = [
 	"Read(**)",
 	"Edit(**)",
 	"Write(**)",
-	"Glob",
-	"Grep",
 
 	// Execution tools
 	"Bash",
@@ -72,6 +70,9 @@ export const availableTools = [
 	// Tool discovery
 	"ToolSearch",
 
+	// Remote triggering
+	"RemoteTrigger",
+
 	// Workflow orchestration
 	"Workflow",
 ] as const;
@@ -85,8 +86,6 @@ export type ToolName = (typeof availableTools)[number];
  */
 export const readOnlyTools: ToolName[] = [
 	"Read(**)",
-	"Glob",
-	"Grep",
 	"WebFetch",
 	"WebSearch",
 	"TaskCreate",

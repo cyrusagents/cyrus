@@ -33,8 +33,6 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"Read",
 	"Edit",
 	"Write",
-	"Glob",
-	"Grep",
 	"NotebookEdit",
 
 	// Execution
@@ -80,6 +78,9 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"TeamCreate",
 	"TeamDelete",
 
+	// Remote triggering
+	"RemoteTrigger",
+
 	// Workflow orchestration
 	"Workflow",
 
@@ -105,8 +106,6 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 export const SLACK_DEFAULT_ALLOWED_TOOLS = [
 	// Read access to configured repository paths
 	"Read",
-	"Glob",
-	"Grep",
 	"Bash(git -C * pull)",
 
 	// Web
@@ -158,8 +157,6 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	"Read",
 	"Edit",
 	"Write",
-	"Glob",
-	"Grep",
 	"NotebookEdit",
 
 	// Execution
@@ -204,6 +201,9 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	// Team lifecycle
 	"TeamCreate",
 	"TeamDelete",
+
+	// Remote triggering
+	"RemoteTrigger",
 
 	// Workflow orchestration
 	"Workflow",

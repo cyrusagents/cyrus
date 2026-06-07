@@ -17,8 +17,6 @@ describe("config", () => {
 				"Read(**)",
 				"Edit(**)",
 				"Write(**)",
-				"Glob",
-				"Grep",
 				"Bash",
 				"Task",
 				"WebFetch",
@@ -46,16 +44,15 @@ describe("config", () => {
 				"TeamCreate",
 				"TeamDelete",
 				"ToolSearch",
+				"RemoteTrigger",
 				"Workflow",
 			]);
-			expect(availableTools).toHaveLength(33);
+			expect(availableTools).toHaveLength(32);
 		});
 
 		it("should define read-only tools", () => {
 			expect(readOnlyTools).toEqual([
 				"Read(**)",
-				"Glob",
-				"Grep",
 				"WebFetch",
 				"WebSearch",
 				"TaskCreate",
@@ -70,7 +67,7 @@ describe("config", () => {
 				"ExitPlanMode",
 				"ToolSearch",
 			]);
-			expect(readOnlyTools).toHaveLength(16);
+			expect(readOnlyTools).toHaveLength(14);
 		});
 
 		it("should define write tools", () => {
@@ -131,8 +128,6 @@ describe("config", () => {
 			expect(tools).toContain("Read(**)");
 			expect(tools).toContain("Edit(**)");
 			expect(tools).toContain("Write(**)");
-			expect(tools).toContain("Glob");
-			expect(tools).toContain("Grep");
 			expect(tools).toContain("Task");
 			expect(tools).toContain("WebFetch");
 			expect(tools).toContain("WebSearch");
@@ -151,8 +146,6 @@ describe("config", () => {
 
 			// Should include read and execution tools
 			expect(tools).toContain("Read(**)");
-			expect(tools).toContain("Glob");
-			expect(tools).toContain("Grep");
 			expect(tools).toContain("Bash"); // For running tests/builds
 			expect(tools).toContain("Task");
 			expect(tools).toContain("WebFetch");
@@ -174,8 +167,6 @@ describe("config", () => {
 
 			// Can read files
 			expect(coordinatorTools).toContain("Read(**)");
-			expect(coordinatorTools).toContain("Glob");
-			expect(coordinatorTools).toContain("Grep");
 
 			// Cannot edit files
 			expect(coordinatorTools).not.toContain("Edit(**)");
@@ -250,16 +241,6 @@ describe("config", () => {
 		it("WebSearch should be read-only", () => {
 			expect(readOnlyTools).toContain("WebSearch");
 			expect(writeTools).not.toContain("WebSearch");
-		});
-
-		it("Glob should be read-only", () => {
-			expect(readOnlyTools).toContain("Glob");
-			expect(writeTools).not.toContain("Glob");
-		});
-
-		it("Grep should be read-only", () => {
-			expect(readOnlyTools).toContain("Grep");
-			expect(writeTools).not.toContain("Grep");
 		});
 
 		it("Notebook tools should be categorized correctly", () => {
