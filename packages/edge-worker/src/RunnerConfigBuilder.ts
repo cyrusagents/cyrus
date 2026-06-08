@@ -1,14 +1,15 @@
 import { execSync } from "node:child_process";
 import { join } from "node:path";
-import type {
-	HookCallbackMatcher,
-	HookEvent,
-	McpServerConfig,
-	PostToolUseHookInput,
-	SandboxSettings,
-	SDKMessage,
-	SdkPluginConfig,
-	StopHookInput,
+import {
+	getProjectAutoMemoryDirectory,
+	type HookCallbackMatcher,
+	type HookEvent,
+	type McpServerConfig,
+	type PostToolUseHookInput,
+	type SandboxSettings,
+	type SDKMessage,
+	type SdkPluginConfig,
+	type StopHookInput,
 } from "cyrus-claude-runner";
 import type {
 	AgentRunnerConfig,
@@ -114,6 +115,15 @@ export interface IssueRunnerConfigInput {
 	labels?: string[];
 	issueDescription?: string;
 	maxTurns?: number;
+	/**
+	 * Repository paths the session can operate on. Used to derive an
+	 * encoded Claude Code auto-memory directory (`~/.claude/projects/<encoded>/memory`)
+	 * for each one and add it to `allowedDirectories`, so multi-repo sessions can
+	 * Read memory files from any of their repos. When omitted/empty, only the
+	 * primary session cwd (`session.workspace.path`) gets a memory dir
+	 * allowlisted. See CYPACK-1253.
+	 */
+	repositoryPaths?: string[];
 	/**
 	 * Filesystem paths to custom-integration `.mcp.json` files for this
 	 * issue session: `EdgeWorkerConfig.linearMcpConfigs` for Linear, or
@@ -358,21 +368,52 @@ export class RunnerConfigBuilder {
 					: [...input.platformMcpConfigOverrides]
 				: undefined;
 
+		const cwd = input.session.workspace.path;
+
+		// Add Claude Code's auto-memory directory to allowedDirectories so the
+		// agent can Read memory files it (or a prior session) wrote without
+		// hitting the `<tool_use_error>File is in a directory that is denied
+		// by your permission settings.` error. The SDK's default
+		// `autoMemoryDirectory` is derived from cwd as
+		// `~/.claude/projects/<encoded-cwd>/memory/`; we compute the same path
+		// here and forward it explicitly so it gets covered by Read grants and
+		// sandbox filesystem read allowlists.
+		// For multi-repo sessions we also allowlist the encoded memory dir for
+		// every repo the session can switch into (CYPACK-1253).
+		const primaryAutoMemoryDirectory = getProjectAutoMemoryDirectory(cwd);
+		const sessionRepositoryPaths = Object.values(
+			input.session.workspace.repoPaths ?? {},
+		).filter((p): p is string => typeof p === "string" && p.length > 0);
+		const memoryDirectorySourcePaths =
+			input.repositoryPaths && input.repositoryPaths.length > 0
+				? input.repositoryPaths
+				: sessionRepositoryPaths;
+		const extraMemoryDirectories = memoryDirectorySourcePaths.map(
+			getProjectAutoMemoryDirectory,
+		);
+		const resolvedAllowedDirectories = Array.from(
+			new Set([
+				...input.allowedDirectories,
+				primaryAutoMemoryDirectory,
+				...extraMemoryDirectories,
+			]),
+		);
+
 		// Multi-repo sessions place each repo in a sibling sub-worktree of the
 		// cwd (the workspace container). Register those sub-worktrees as
 		// `--add-dir` roots so the runner auto-loads each one's `.claude/skills/`
 		// — the cwd-rooted project-skill scan alone would miss them. Single-repo
 		// sessions have cwd === the worktree, so there is nothing extra to add.
-		const cwd = input.session.workspace.path;
-		const additionalDirectories = Object.values(
-			input.session.workspace.repoPaths ?? {},
-		).filter((p): p is string => typeof p === "string" && p !== cwd);
+		const additionalDirectories = sessionRepositoryPaths.filter(
+			(p) => p !== cwd,
+		);
 
 		const config: AgentRunnerConfig & Record<string, unknown> = {
 			workingDirectory: cwd,
 			allowedTools: input.allowedTools,
 			disallowedTools: input.disallowedTools,
-			allowedDirectories: input.allowedDirectories,
+			allowedDirectories: resolvedAllowedDirectories,
+			autoMemoryDirectory: primaryAutoMemoryDirectory,
 			...(additionalDirectories.length > 0 && { additionalDirectories }),
 			workspaceName: input.session.issue?.identifier || input.session.issueId,
 			cyrusHome: input.cyrusHome,
@@ -402,7 +443,7 @@ export class RunnerConfigBuilder {
 			// - Pass CA cert path via env for MITM TLS termination
 			...(runnerType === "claude" &&
 				input.sandboxSettings &&
-				this.buildSandboxConfig(input)),
+				this.buildSandboxConfig(input, resolvedAllowedDirectories)),
 			// AskUserQuestion callback - only for Claude runner
 			...(runnerType === "claude" &&
 				input.createAskUserQuestionCallback && {
@@ -463,6 +504,7 @@ export class RunnerConfigBuilder {
 	 */
 	private buildSandboxConfig(
 		input: IssueRunnerConfigInput,
+		resolvedAllowedDirectories: string[],
 	): Record<string, unknown> {
 		const result: Record<string, unknown> = {};
 
@@ -482,7 +524,7 @@ export class RunnerConfigBuilder {
 					// See: https://code.claude.com/docs/en/settings#sandbox-path-prefixes
 					// allowedDirectories contains the attachments dir, repo paths, and git
 					// metadata dirs — all of which need OS-level read access alongside the worktree.
-					allowRead: [".", ...input.allowedDirectories],
+					allowRead: [".", ...resolvedAllowedDirectories],
 					denyRead: ["~/"],
 					// Restrict subprocess writes to the session worktree only
 					allowWrite: [input.session.workspace.path],

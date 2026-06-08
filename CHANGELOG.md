@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Codex sessions now default to `gpt-5.5`, and Linear model labels such as `gpt-5.5` are recognized as Codex model overrides alongside the existing `*-codex` labels. ([CYPACK-1282](https://linear.app/ceedar/issue/CYPACK-1282), [#1288](https://github.com/cyrusagents/cyrus/pull/1288))
 
 ### Fixed
+- **Sessions can now Read auto-memory files they wrote.** Claude Code's auto-memory directory (`~/.claude/projects/<encoded-cwd>/memory/`) is now added to the session's allowed directories on spawn, so the agent can `Read` a `MEMORY.md` it just wrote without hitting `<tool_use_error>File is in a directory that is denied by your permission settings.`. For multi-repo sessions, each repo's encoded memory dir is allowlisted too. ([CYPACK-1253](https://linear.app/ceedar/issue/CYPACK-1253), [#1260](https://github.com/cyrusagents/cyrus/pull/1260))
 - Git commands (`add`, `commit`, `merge`, etc.) no longer fail with "Operation not permitted" in multi-repo workspaces when running under a sandboxed agent (e.g. the Codex runner). Each repository's git metadata directory is now granted write access, not just the workspace container.
 
 
