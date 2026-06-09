@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Changed
+- Replaced the Slack-specific `ChatSessionHandler` lifecycle class with `AgentSessionLifecycleService`, so Slack and generic surface sessions now share one create/resume/inject/reply path backed by the primary `AgentSessionManager`. ([CYPACK-1300](https://linear.app/ceedar/issue/CYPACK-1300/add-generic-agent-session-webhook-trigger-copy))
+
 ### Security
 - Bumped `vitest` (and `@vitest/ui`, `@vitest/coverage-v8`) from `3.x` to `^4.1.0` across all packages to patch the critical advisory [GHSA-5xrq-8626-4rwp](https://github.com/advisories/GHSA-5xrq-8626-4rwp) (arbitrary file read/exec via the Vitest UI server; vulnerable `<4.1.0`). Migrated test mocks to satisfy Vitest 4's `new`-based mock construction (constructor mocks must use `function`/`class`, not arrows) and disabled biome's `useArrowFunction` rule for test files so the autofix can't revert them. Supersedes Dependabot PR #1279. ([CYPACK-1278](https://linear.app/ceedar/issue/CYPACK-1278), [#1285](https://github.com/cyrusagents/cyrus/pull/1285))
 

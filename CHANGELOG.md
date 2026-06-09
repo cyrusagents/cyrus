@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Generic agent-session webhooks can now start and resume standalone Cyrus sessions from trusted surfaces such as cyrus-hosted using stable session bindings. ([CYPACK-1300](https://linear.app/ceedar/issue/CYPACK-1300/add-generic-agent-session-webhook-trigger-copy))
+
 ### Security
 - Patched Hono dependency advisories reported by Dependabot so `pnpm audit` is clean for the Cyrus CLI workspace. ([CYPACK-1290](https://linear.app/ceedar/issue/CYPACK-1290), [#1295](https://github.com/cyrusagents/cyrus/pull/1295))
 

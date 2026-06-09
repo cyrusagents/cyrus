@@ -141,14 +141,17 @@ import {
 } from "cyrus-slack-event-transport";
 import { Sessions, streamableHttp } from "fastify-mcp";
 import { ActivityPoster } from "./ActivityPoster.js";
+import { AgentSessionLifecycleService } from "./AgentSessionLifecycleService.js";
 import { AgentSessionManager } from "./AgentSessionManager.js";
 import { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
 import { AttachmentService } from "./AttachmentService.js";
 import { LiveChatRepositoryProvider } from "./ChatRepositoryProvider.js";
-import { ChatSessionHandler } from "./ChatSessionHandler.js";
 import { ConfigManager, type RepositoryChanges } from "./ConfigManager.js";
 import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { EgressProxy } from "./EgressProxy.js";
+import { GenericAgentSessionAdapter } from "./GenericAgentSessionAdapter.js";
+import { GenericAgentSessionTransport } from "./GenericAgentSessionTransport.js";
+import type { GenericAgentSessionWebhook } from "./GenericAgentSessionTypes.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { McpConfigService } from "./McpConfigService.js";
@@ -213,7 +216,11 @@ export class EdgeWorker extends EventEmitter {
 	private gitHubAppTokenProvider: GitHubAppTokenProvider | null = null; // Self-hosted GitHub App token minting
 	private gitLabEventTransport: GitLabEventTransport | null = null; // GitLab event transport for forwarded GitLab webhooks
 	private slackEventTransport: SlackEventTransport | null = null;
-	private chatSessionHandler: ChatSessionHandler<SlackWebhookEvent> | null =
+	private slackSessionLifecycle: AgentSessionLifecycleService<SlackWebhookEvent> | null =
+		null;
+	private genericAgentSessionTransport: GenericAgentSessionTransport | null =
+		null;
+	private genericSessionLifecycle: AgentSessionLifecycleService<GenericAgentSessionWebhook> | null =
 		null;
 	private gitHubCommentService: GitHubCommentService; // Service for posting comments back to GitHub PRs
 	private gitLabCommentService: GitLabCommentService; // Service for posting comments back to GitLab MRs
@@ -309,6 +316,7 @@ export class EdgeWorker extends EventEmitter {
 		return {
 			...config,
 			slackMcpConfigs: resolveList(config.slackMcpConfigs),
+			genericMcpConfigs: resolveList(config.genericMcpConfigs),
 			linearMcpConfigs: resolveList(config.linearMcpConfigs),
 			githubMcpConfigs: resolveList(config.githubMcpConfigs),
 		};
@@ -823,12 +831,13 @@ export class EdgeWorker extends EventEmitter {
 			);
 		}
 
-		// 2. Register GitHub and Slack event transports unconditionally
+		// 2. Register non-Linear event transports unconditionally
 		// These don't require repositories and must be available during onboarding
 		// for webhook URL verification to succeed.
 		this.registerGitHubEventTransport();
 		this.registerGitLabEventTransport();
 		this.registerSlackEventTransport();
+		this.registerGenericAgentSessionTransport();
 
 		// 3. Create and register ConfigUpdater (both platforms)
 		this.configUpdater = new ConfigUpdater(
@@ -1084,11 +1093,12 @@ export class EdgeWorker extends EventEmitter {
 			);
 		}
 
-		this.chatSessionHandler = new ChatSessionHandler(
+		this.slackSessionLifecycle = new AgentSessionLifecycleService(
 			slackAdapter,
 			{
 				cyrusHome: this.cyrusHome,
-				chatRepositoryProvider,
+				sessionManager: this.agentSessionManager,
+				repositoryProvider: chatRepositoryProvider,
 				runnerConfigBuilder: this.runnerConfigBuilder,
 				createRunner: (config) => {
 					const runnerType = this.runnerSelectionService.getDefaultRunner();
@@ -1140,7 +1150,7 @@ export class EdgeWorker extends EventEmitter {
 		});
 
 		this.slackEventTransport.on("event", (event: SlackWebhookEvent) => {
-			this.chatSessionHandler!.handleEvent(event).catch((error) => {
+			this.slackSessionLifecycle!.handleEvent(event).catch((error) => {
 				this.logger.error(
 					"Failed to handle Slack webhook",
 					error instanceof Error ? error : new Error(String(error)),
@@ -1159,6 +1169,83 @@ export class EdgeWorker extends EventEmitter {
 		this.logger.info(
 			`Slack event transport registered (${slackVerificationMode} mode)`,
 		);
+	}
+
+	/**
+	 * Register the generic agent-session webhook transport for trusted surfaces
+	 * such as cyrus-hosted.
+	 */
+	private registerGenericAgentSessionTransport(): void {
+		const repositoryProvider = new LiveChatRepositoryProvider(
+			this.repositories,
+			() => this.config.linearWorkspaces || {},
+		);
+		const routingContext =
+			this.promptBuilder.generateRoutingContextForAllWorkspaces();
+		const genericAdapter = new GenericAgentSessionAdapter(
+			repositoryProvider,
+			this.logger,
+			{ repositoryRoutingContext: routingContext },
+		);
+
+		this.genericSessionLifecycle = new AgentSessionLifecycleService(
+			genericAdapter,
+			{
+				cyrusHome: this.cyrusHome,
+				sessionManager: this.agentSessionManager,
+				repositoryProvider,
+				runnerConfigBuilder: this.runnerConfigBuilder,
+				createRunner: (config) => {
+					const runnerType = this.runnerSelectionService.getDefaultRunner();
+					return this.createRunnerForType(runnerType, {
+						...config,
+						model: this.getDefaultModelForRunner(runnerType),
+						fallbackModel: this.getDefaultFallbackModelForRunner(runnerType),
+					});
+				},
+				getPlatformMcpConfigOverrides: () => this.config.genericMcpConfigs,
+				onWebhookStart: () => {
+					this.activeWebhookCount++;
+				},
+				onWebhookEnd: () => {
+					this.activeWebhookCount--;
+				},
+				onStateChange: () => this.savePersistedState(),
+				onClaudeError: (error) => this.handleClaudeError(error),
+			},
+			this.logger,
+		);
+
+		this.genericAgentSessionTransport = new GenericAgentSessionTransport(
+			{
+				fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
+				secret: process.env.CYRUS_API_KEY || "",
+			},
+			this.logger,
+		);
+
+		this.genericAgentSessionTransport.on(
+			"event",
+			(event: GenericAgentSessionWebhook) => {
+				this.genericSessionLifecycle!.handleEvent(event).catch((error) => {
+					this.logger.error(
+						"Failed to handle generic agent-session webhook",
+						error instanceof Error ? error : new Error(String(error)),
+					);
+				});
+			},
+		);
+		this.genericAgentSessionTransport.on("error", (error: Error) => {
+			this.handleError(error);
+		});
+
+		this.genericAgentSessionTransport.register();
+
+		if (!process.env.CYRUS_API_KEY) {
+			this.logger.warn(
+				"Generic agent-session webhook registered but CYRUS_API_KEY is not set; requests will be rejected",
+			);
+		}
 	}
 
 	/**
@@ -2485,8 +2572,8 @@ ${taskSection}`;
 			}
 		}
 
-		// Busy if any chat platform runner is actively running
-		if (this.chatSessionHandler?.isAnyRunnerBusy()) {
+		// Busy if any surface-session runner is actively running
+		if (this.slackSessionLifecycle?.isAnyRunnerBusy()) {
 			return "busy";
 		}
 
@@ -2499,10 +2586,10 @@ ${taskSection}`;
 	 * ClaudeRunner code path end-to-end without a real Slack signature.
 	 */
 	async dispatchChatTestEvent(event: SlackWebhookEvent): Promise<void> {
-		if (!this.chatSessionHandler) {
-			throw new Error("chatSessionHandler not initialized");
+		if (!this.slackSessionLifecycle) {
+			throw new Error("slackSessionLifecycle not initialized");
 		}
-		await this.chatSessionHandler.handleEvent(event);
+		await this.slackSessionLifecycle.handleEvent(event);
 	}
 
 	/**
@@ -2517,8 +2604,8 @@ ${taskSection}`;
 	 * Test-only: list active chat threads (threadKey → sessionId).
 	 */
 	listChatThreads(): Array<{ threadKey: string; sessionId: string }> {
-		if (!this.chatSessionHandler) return [];
-		return this.chatSessionHandler.listThreads();
+		if (!this.slackSessionLifecycle) return [];
+		return this.slackSessionLifecycle.listThreads();
 	}
 
 	/**
@@ -2531,8 +2618,8 @@ ${taskSection}`;
 		isRunning: boolean;
 		messageCount: number;
 	} | null {
-		if (!this.chatSessionHandler) return null;
-		const runner = this.chatSessionHandler.getRunnerForThread(threadKey);
+		if (!this.slackSessionLifecycle) return null;
+		const runner = this.slackSessionLifecycle.getRunnerForThread(threadKey);
 		if (!runner) return null;
 		const messages = runner.getMessages();
 		const lastAssistant = [...messages]
@@ -2576,13 +2663,10 @@ ${taskSection}`;
 			);
 		}
 
-		// get all agent runners (including chat platform sessions)
+		// get all agent runners (including surface sessions)
 		const agentRunners: IAgentRunner[] = [
 			...this.agentSessionManager.getAllAgentRunners(),
 		];
-		if (this.chatSessionHandler) {
-			agentRunners.push(...this.chatSessionHandler.getAllRunners());
-		}
 
 		// Kill all agent processes with null checking
 		for (const runner of agentRunners) {
@@ -2597,6 +2681,12 @@ ${taskSection}`;
 
 		// Clear event transport (no explicit cleanup needed, routes are removed when server stops)
 		this.linearEventTransport = null;
+		this.gitHubEventTransport = null;
+		this.gitLabEventTransport = null;
+		this.slackEventTransport = null;
+		this.genericAgentSessionTransport = null;
+		this.slackSessionLifecycle = null;
+		this.genericSessionLifecycle = null;
 		this.configUpdater = null;
 		this.mcpConfigService.clearAllContexts();
 		this.cyrusToolsMcpSessions.removeAllListeners();
@@ -5756,19 +5846,12 @@ ${taskSection}`;
 	 */
 	/**
 	 * Aggregator over every place active sessions live in this process.
-	 * Today: the primary AgentSessionManager (issue sessions) and the
-	 * ChatSessionHandler's private one (Slack / GitHub-PR-chat / future
-	 * chat platforms). New session origins should be added here so
-	 * downstream consumers (currently just resolveSessionFromCwd) keep
-	 * working without modification — single open extension point (OCP),
-	 * single responsibility (SRP: this method's only job is "where do
-	 * sessions live?", separate from "how do we match one by cwd?").
+	 * Today every issue and surface session is tracked by the primary
+	 * AgentSessionManager. Keep this helper as the single place that defines
+	 * where active sessions live, separate from the cwd matching logic below.
 	 */
 	private getAllKnownSessions(): CyrusAgentSession[] {
-		return [
-			...this.agentSessionManager.getAllSessions(),
-			...(this.chatSessionHandler?.getAllChatSessions() ?? []),
-		];
+		return this.agentSessionManager.getAllSessions();
 	}
 
 	private resolveSessionFromCwd(cwd: string): ResolvedSession | null {

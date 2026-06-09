@@ -570,6 +570,12 @@
 				"type": "string"
 			}
 		},
+		"genericAllowedTools": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
 		"githubAllowedTools": {
 			"type": "array",
 			"items": {
@@ -577,6 +583,12 @@
 			}
 		},
 		"slackMcpConfigs": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"genericMcpConfigs": {
 			"type": "array",
 			"items": {
 				"type": "string"

@@ -39,7 +39,7 @@ export interface McpConfigServiceDeps {
  * - Merging file-based MCP config paths from repositories
  * - Cyrus-tools MCP context lifecycle management
  *
- * Both EdgeWorker (issue sessions) and ChatSessionHandler (chat sessions)
+ * Both EdgeWorker (issue sessions) and AgentSessionLifecycleService (surface sessions)
  * consume this service instead of duplicating MCP config logic.
  */
 export class McpConfigService {

@@ -294,7 +294,7 @@ async function startServer(): Promise<void> {
 
 		// Register F1 test-only HTTP route for dispatching synthetic Slack chat events
 		// BEFORE starting EdgeWorker — Fastify rejects new routes after listen().
-		// Exercises the Slack → ChatSessionHandler → ClaudeRunner code path without
+		// Exercises the Slack → AgentSessionLifecycleService → ClaudeRunner code path without
 		// going through Slack signature verification.
 		const fastify = edgeWorker
 			.getSharedApplicationServer()

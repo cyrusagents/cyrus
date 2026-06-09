@@ -6,10 +6,11 @@ import {
 	SlackReactionService,
 } from "cyrus-slack-event-transport";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { AgentSessionSurfaceAdapter } from "../src/AgentSessionLifecycleService.js";
+import { AgentSessionLifecycleService } from "../src/AgentSessionLifecycleService.js";
+import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import type { ChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
 import { LiveChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
-import type { ChatPlatformAdapter } from "../src/ChatSessionHandler.js";
-import { ChatSessionHandler } from "../src/ChatSessionHandler.js";
 import type { RunnerConfigBuilder } from "../src/RunnerConfigBuilder.js";
 import {
 	BEHAVIOURS_PAGE_ROUTE,
@@ -67,7 +68,7 @@ interface TestEvent {
 	threadKey: string;
 }
 
-class TestChatAdapter implements ChatPlatformAdapter<TestEvent> {
+class TestChatAdapter implements AgentSessionSurfaceAdapter<TestEvent> {
 	public platformName = "slack" as const;
 
 	constructor(private readonly threadKey: string) {}
@@ -105,7 +106,7 @@ class TestChatAdapter implements ChatPlatformAdapter<TestEvent> {
 	}
 }
 
-describe("ChatSessionHandler chat session permissions", () => {
+describe("AgentSessionLifecycleService chat session permissions", () => {
 	it("grants read-only tools, explicit git pull, and repository read access", async () => {
 		const event: TestEvent = {
 			eventId: "test-event",
@@ -133,9 +134,10 @@ describe("ChatSessionHandler chat session permissions", () => {
 		const onStateChange = vi.fn().mockResolvedValue(undefined);
 		const onClaudeError = vi.fn();
 
-		const handler = new ChatSessionHandler(adapter, {
+		const handler = new AgentSessionLifecycleService(adapter, {
 			cyrusHome,
-			chatRepositoryProvider: createStaticProvider(chatRepositoryPaths),
+			sessionManager: new AgentSessionManager(),
+			repositoryProvider: createStaticProvider(chatRepositoryPaths),
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner: createRunner,
 			onWebhookStart,
@@ -160,8 +162,8 @@ describe("ChatSessionHandler chat session permissions", () => {
 	});
 });
 
-describe("ChatSessionHandler session-initiation gate", () => {
-	function buildHandler(adapter: ChatPlatformAdapter<TestEvent>) {
+describe("AgentSessionLifecycleService session-initiation gate", () => {
+	function buildHandler(adapter: AgentSessionSurfaceAdapter<TestEvent>) {
 		const createRunner = vi.fn(
 			() =>
 				({
@@ -174,9 +176,10 @@ describe("ChatSessionHandler session-initiation gate", () => {
 					getMessages: vi.fn().mockReturnValue([]),
 				}) as any,
 		);
-		const handler = new ChatSessionHandler(adapter, {
+		const handler = new AgentSessionLifecycleService(adapter, {
 			cyrusHome: TEST_CYRUS_CHAT,
-			chatRepositoryProvider: createStaticProvider([]),
+			sessionManager: new AgentSessionManager(),
+			repositoryProvider: createStaticProvider([]),
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
 			onWebhookStart: vi.fn(),
@@ -188,7 +191,7 @@ describe("ChatSessionHandler session-initiation gate", () => {
 	}
 
 	it("ignores a non-initiating event when no session exists for the thread", async () => {
-		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+		const adapter: AgentSessionSurfaceAdapter<TestEvent> = new TestChatAdapter(
 			"unbound-thread",
 		);
 		// Mark this event as a follow-up that must not start a session.
@@ -205,7 +208,7 @@ describe("ChatSessionHandler session-initiation gate", () => {
 	});
 
 	it("starts a session for an initiating event", async () => {
-		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+		const adapter: AgentSessionSurfaceAdapter<TestEvent> = new TestChatAdapter(
 			"bound-thread",
 		);
 		adapter.isSessionInitiatingEvent = () => true;
@@ -221,9 +224,9 @@ describe("ChatSessionHandler session-initiation gate", () => {
 	});
 });
 
-describe("ChatSessionHandler processed acknowledgement", () => {
+describe("AgentSessionLifecycleService processed acknowledgement", () => {
 	it("calls acknowledgeProcessed when the runner emits a result", async () => {
-		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+		const adapter: AgentSessionSurfaceAdapter<TestEvent> = new TestChatAdapter(
 			"ack-thread",
 		);
 		const acknowledgeProcessed = vi.fn().mockResolvedValue(undefined);
@@ -242,9 +245,10 @@ describe("ChatSessionHandler processed acknowledgement", () => {
 				getMessages: vi.fn().mockReturnValue([]),
 			} as any;
 		});
-		const handler = new ChatSessionHandler(adapter, {
+		const handler = new AgentSessionLifecycleService(adapter, {
 			cyrusHome: TEST_CYRUS_CHAT,
-			chatRepositoryProvider: createStaticProvider([]),
+			sessionManager: new AgentSessionManager(),
+			repositoryProvider: createStaticProvider([]),
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
 			onWebhookStart: vi.fn(),
@@ -272,7 +276,7 @@ describe("ChatSessionHandler processed acknowledgement", () => {
 	});
 
 	it("acknowledges every queued message even when the agent merges them into fewer turns", async () => {
-		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+		const adapter: AgentSessionSurfaceAdapter<TestEvent> = new TestChatAdapter(
 			"burst-thread",
 		);
 		const acknowledgeProcessed = vi.fn().mockResolvedValue(undefined);
@@ -296,9 +300,10 @@ describe("ChatSessionHandler processed acknowledgement", () => {
 				getMessages: vi.fn().mockReturnValue([]),
 			} as any;
 		});
-		const handler = new ChatSessionHandler(adapter, {
+		const handler = new AgentSessionLifecycleService(adapter, {
 			cyrusHome: TEST_CYRUS_CHAT,
-			chatRepositoryProvider: createStaticProvider([]),
+			sessionManager: new AgentSessionManager(),
+			repositoryProvider: createStaticProvider([]),
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
 			onWebhookStart: vi.fn(),
@@ -623,7 +628,7 @@ describe("ChatRepositoryProvider runtime updates", () => {
 		expect(prompt).toContain("- /repo/B");
 	});
 
-	it("ChatSessionHandler reads live repository paths from provider at session build time", async () => {
+	it("AgentSessionLifecycleService reads live repository paths from provider at session build time", async () => {
 		const cyrusHome = TEST_CYRUS_CHAT;
 		const paths = ["/repo/A"];
 		const provider: ChatRepositoryProvider = {
@@ -647,9 +652,10 @@ describe("ChatRepositoryProvider runtime updates", () => {
 		});
 
 		const adapter = new TestChatAdapter("runtime-thread");
-		const handler = new ChatSessionHandler(adapter, {
+		const handler = new AgentSessionLifecycleService(adapter, {
 			cyrusHome,
-			chatRepositoryProvider: provider,
+			sessionManager: new AgentSessionManager(),
+			repositoryProvider: provider,
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
 			onWebhookStart: vi.fn(),
@@ -670,7 +676,7 @@ describe("ChatRepositoryProvider runtime updates", () => {
 		expect(capturedConfig.allowedDirectories).toContain("/repo/B");
 	});
 
-	it("ChatSessionHandler excludes removed repos from allowedDirectories", async () => {
+	it("AgentSessionLifecycleService excludes removed repos from allowedDirectories", async () => {
 		const cyrusHome = TEST_CYRUS_CHAT;
 		const paths = ["/repo/A", "/repo/B"];
 		const provider: ChatRepositoryProvider = {
@@ -694,9 +700,10 @@ describe("ChatRepositoryProvider runtime updates", () => {
 		});
 
 		const adapter = new TestChatAdapter("remove-thread");
-		const handler = new ChatSessionHandler(adapter, {
+		const handler = new AgentSessionLifecycleService(adapter, {
 			cyrusHome,
-			chatRepositoryProvider: provider,
+			sessionManager: new AgentSessionManager(),
+			repositoryProvider: provider,
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
 			onWebhookStart: vi.fn(),

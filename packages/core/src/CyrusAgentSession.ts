@@ -103,6 +103,9 @@ export interface CyrusAgentSession {
 		totalCostUsd?: number;
 		usage?: any;
 		commentId?: string;
+		surface?: string;
+		bindingKey?: string;
+		eventId?: string;
 	};
 }
 

@@ -54,6 +54,7 @@ export type {
 // and self-host configurations alike.
 export type { AllowedToolsPlatform } from "./allowed-tools-defaults.js";
 export {
+	GENERIC_DEFAULT_ALLOWED_TOOLS,
 	GITHUB_DEFAULT_ALLOWED_TOOLS,
 	getDefaultAllowedTools,
 	LINEAR_DEFAULT_ALLOWED_TOOLS,

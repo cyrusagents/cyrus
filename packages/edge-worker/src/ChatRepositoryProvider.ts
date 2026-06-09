@@ -3,7 +3,7 @@ import type { RepositoryConfig } from "cyrus-core";
 /**
  * Abstraction for accessing the current set of chat-accessible repositories.
  *
- * SlackChatAdapter and ChatSessionHandler depend on this interface rather than
+ * SlackChatAdapter and AgentSessionLifecycleService depend on this interface rather than
  * a frozen array, so they always read the live repository state at the moment
  * a session is built — no refresh/notification wiring needed.
  */

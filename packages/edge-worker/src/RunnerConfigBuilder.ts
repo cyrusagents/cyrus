@@ -43,6 +43,7 @@ export interface IMcpConfigProvider {
  */
 export interface IChatToolResolver {
 	buildChatAllowedTools(
+		platformName: string,
 		mcpConfigKeys?: string[],
 		userMcpTools?: string[],
 	): string[];
@@ -155,7 +156,7 @@ export interface IssueRunnerConfigInput {
  * Shared runner config assembly for both issue and chat sessions.
  *
  * Eliminates duplication between EdgeWorker.buildAgentRunnerConfig() and
- * ChatSessionHandler.buildRunnerConfig() by providing focused factory methods
+ * AgentSessionLifecycleService.buildRunnerConfig() by providing focused factory methods
  * that produce AgentRunnerConfig objects using injected services.
  */
 export class RunnerConfigBuilder {
@@ -213,6 +214,7 @@ export class RunnerConfigBuilder {
 
 		const mcpConfigKeys = mcpConfig ? Object.keys(mcpConfig) : undefined;
 		const allowedTools = this.chatToolResolver.buildChatAllowedTools(
+			input.platformName,
 			mcpConfigKeys,
 			userMcpTools,
 		);

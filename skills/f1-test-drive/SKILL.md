@@ -70,7 +70,7 @@ Execute test drives that verify:
 
 ### Phase 3.5: Slack Chat Session Verification (optional)
 
-Use when validating the Slack → ChatSessionHandler → ClaudeRunner path. F1 exposes a test-only endpoint `/cli/dispatch-chat` that injects a synthetic `app_mention` event without going through Slack signature verification (`SlackChatAdapter` no-ops Slack API calls when `slackBotToken` is undefined).
+Use when validating the Slack → AgentSessionLifecycleService → ClaudeRunner path. F1 exposes a test-only endpoint `/cli/dispatch-chat` that injects a synthetic `app_mention` event without going through Slack signature verification (`SlackChatAdapter` no-ops Slack API calls when `slackBotToken` is undefined).
 
 1. Dispatch a synthetic chat event:
    ```bash

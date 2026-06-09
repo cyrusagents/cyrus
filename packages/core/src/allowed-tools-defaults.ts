@@ -15,7 +15,7 @@
  * existing teams whose column equals the previous verbatim default will be
  * migrated forward; teams who have customized their list are left alone.
  *
- * The three lists are intentionally maintained independently — sharing tools
+ * The lists are intentionally maintained independently — sharing tools
  * between platforms is fine and expected, but the lists do not derive from
  * each other.
  */
@@ -142,6 +142,51 @@ export const SLACK_DEFAULT_ALLOWED_TOOLS = [
 ] as const;
 
 /**
+ * Default allowed tools for generic agent-session webhooks.
+ *
+ * Generic sessions are explicitly triggered by another Cyrus-owned or
+ * customer-owned surface, but they are still repo-agnostic chat sessions by
+ * default. Keep the baseline read-only like Slack, and include the platform
+ * MCP servers that are surface-neutral. Slack MCP is intentionally excluded.
+ */
+export const GENERIC_DEFAULT_ALLOWED_TOOLS = [
+	// Read access to configured repository paths
+	"Read",
+	"Glob",
+	"Grep",
+	"Bash(git -C * pull)",
+
+	// Web
+	"WebFetch",
+	"WebSearch",
+
+	// User interaction and scheduling
+	"SendMessage",
+	"ScheduleWakeup",
+
+	// Planning + task lifecycle
+	"Task",
+	"TaskCreate",
+	"TaskUpdate",
+	"TaskGet",
+	"TaskList",
+	"TaskOutput",
+	"TaskStop",
+	"EnterPlanMode",
+	"ExitPlanMode",
+
+	// Discovery
+	"Monitor",
+	"Skill",
+	"ToolSearch",
+
+	// Surface-neutral workspace MCP servers
+	"mcp__linear",
+	"mcp__cyrus-tools",
+	"mcp__cyrus-docs",
+] as const;
+
+/**
  * Default allowed tools for GitHub-triggered agent sessions.
  *
  * GitHub sessions are full engineering sessions like Linear (Cyrus opens
@@ -218,7 +263,7 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
  * Platform identifier used by callers that want to resolve a default list
  * dynamically. Keeps platform-string typos out of the call sites.
  */
-export type AllowedToolsPlatform = "linear" | "slack" | "github";
+export type AllowedToolsPlatform = "linear" | "slack" | "github" | "generic";
 
 /**
  * Resolve the default allowed-tool list for a platform.
@@ -233,5 +278,7 @@ export function getDefaultAllowedTools(
 			return SLACK_DEFAULT_ALLOWED_TOOLS;
 		case "github":
 			return GITHUB_DEFAULT_ALLOWED_TOOLS;
+		case "generic":
+			return GENERIC_DEFAULT_ALLOWED_TOOLS;
 	}
 }

@@ -9,21 +9,20 @@ import type {
 	ILogger,
 } from "cyrus-core";
 import { createLogger } from "cyrus-core";
-import { AgentSessionManager } from "./AgentSessionManager.js";
+import type { AgentSessionManager } from "./AgentSessionManager.js";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import type { RunnerConfigBuilder } from "./RunnerConfigBuilder.js";
 
 /**
- * Defines what each chat platform must provide for the generic session lifecycle.
+ * Defines what each event surface must provide for the shared agent-session lifecycle.
  *
- * Implementations are stateless data mappers — they translate platform-specific
- * events into the common operations the ChatSessionHandler needs.
+ * Implementations are stateless data mappers — they translate surface-specific
+ * events into the common operations the lifecycle service needs.
  */
-/** Platform identifiers supported by the session manager */
-export type ChatPlatformName = "slack" | "linear" | "github";
+export type AgentSessionSurfaceName = "slack" | "linear" | "github" | "generic";
 
-export interface ChatPlatformAdapter<TEvent> {
-	readonly platformName: ChatPlatformName;
+export interface AgentSessionSurfaceAdapter<TEvent> {
+	readonly platformName: AgentSessionSurfaceName;
 
 	/** Extract the user's task text from the raw event */
 	extractTaskInstructions(event: TEvent): string;
@@ -31,7 +30,7 @@ export interface ChatPlatformAdapter<TEvent> {
 	/**
 	 * Whether this event is allowed to *start* a brand-new session for its
 	 * thread. Events that may only continue an already-bound thread (e.g. a
-	 * plain Slack message that isn't an @mention) return false, so the handler
+	 * plain Slack message that isn't an @mention) return false, so the lifecycle
 	 * ignores them when no session exists yet.
 	 *
 	 * Optional — when omitted, every event is treated as session-initiating
@@ -44,6 +43,16 @@ export interface ChatPlatformAdapter<TEvent> {
 
 	/** Get the unique event ID */
 	getEventId(event: TEvent): string;
+
+	/**
+	 * Optionally derive a stable internal session id from the event. Surfaces with
+	 * durable bindings should return the same id for every follow-up prompt so
+	 * sessions can be restored after process restarts.
+	 */
+	getSessionId?(event: TEvent, threadKey: string): string;
+
+	/** Whether this event requests that the bound session stop. */
+	isStopEvent?(event: TEvent): boolean;
 
 	/** Build a platform-specific system prompt */
 	buildSystemPrompt(event: TEvent): string;
@@ -69,23 +78,28 @@ export interface ChatPlatformAdapter<TEvent> {
 
 	/** Notify the user that a previous request is still processing */
 	notifyBusy(event: TEvent, threadKey: string): Promise<void>;
+
+	/** Notify the user that a stop request was accepted. */
+	notifyStopped?(event: TEvent, threadKey: string): Promise<void>;
 }
 
 /**
  * Callbacks for EdgeWorker integration (same pattern as RepositoryRouterDeps).
  */
-export interface ChatSessionHandlerDeps {
+export interface AgentSessionLifecycleServiceDeps {
 	cyrusHome: string;
+	/** Shared session manager used for persistence, status, and shutdown */
+	sessionManager: AgentSessionManager;
 	/** Provider for live repository paths, default repo, and workspace ID */
-	chatRepositoryProvider: ChatRepositoryProvider;
+	repositoryProvider: ChatRepositoryProvider;
 	/** Shared RunnerConfigBuilder for constructing runner configs */
 	runnerConfigBuilder: RunnerConfigBuilder;
 	/** Factory function that creates the appropriate runner based on config.defaultRunner */
 	createRunner: (config: AgentRunnerConfig) => IAgentRunner;
 	/**
 	 * Live read of the workspace-level custom-integration MCP config paths
-	 * for the chat platform this handler is bound to (e.g.
-	 * `config.slackMcpConfigs` for Slack). Chat sessions are repo-agnostic,
+	 * for the event surface this service is bound to (e.g.
+	 * `config.slackMcpConfigs` for Slack). Surface sessions are repo-agnostic,
 	 * so `repository.mcpConfigPath` is not consulted; only this list
 	 * determines which custom `.mcp.json` files load. When empty/omitted,
 	 * no custom files load (native MCP servers still run as usual).
@@ -98,17 +112,18 @@ export interface ChatSessionHandlerDeps {
 }
 
 /**
- * Generic session lifecycle engine for chat platform integrations.
+ * Generic session lifecycle engine for event-surface integrations.
  *
  * Manages the create/resume/inject/reply session lifecycle independent of any
- * specific chat platform. Platform-specific behavior is provided via a
- * ChatPlatformAdapter.
+ * specific event surface. Surface-specific behavior is provided via a
+ * AgentSessionSurfaceAdapter.
  */
-export class ChatSessionHandler<TEvent> {
-	private adapter: ChatPlatformAdapter<TEvent>;
+export class AgentSessionLifecycleService<TEvent> {
+	private adapter: AgentSessionSurfaceAdapter<TEvent>;
 	private sessionManager: AgentSessionManager;
 	private threadSessions: Map<string, string> = new Map();
-	private deps: ChatSessionHandlerDeps;
+	private managedSessionIds: Set<string> = new Set();
+	private deps: AgentSessionLifecycleServiceDeps;
 	private logger: ILogger;
 	// Queue of events awaiting a reply, keyed by sessionId. Each entry is
 	// enqueued when a new prompt (initial/resume/follow-up-inject) is sent to
@@ -130,32 +145,27 @@ export class ChatSessionHandler<TEvent> {
 	private lastReplyEvent: Map<string, TEvent> = new Map();
 
 	constructor(
-		adapter: ChatPlatformAdapter<TEvent>,
-		deps: ChatSessionHandlerDeps,
+		adapter: AgentSessionSurfaceAdapter<TEvent>,
+		deps: AgentSessionLifecycleServiceDeps,
 		logger?: ILogger,
 	) {
 		this.adapter = adapter;
 		this.deps = deps;
-		this.logger = logger ?? createLogger({ component: "ChatSessionHandler" });
-
-		// Initialize a dedicated AgentSessionManager (not tied to any repository)
-		this.sessionManager = new AgentSessionManager(
-			undefined, // No parent session lookup
-			undefined, // No resume parent session
-		);
+		this.logger =
+			logger ?? createLogger({ component: "AgentSessionLifecycleService" });
+		this.sessionManager = deps.sessionManager;
 	}
 
 	/**
-	 * Main entry point — handles a single chat platform event.
-	 *
-	 * Replaces the per-platform handleXxxWebhook method in EdgeWorker.
+	 * Main entry point for a single event-surface webhook.
 	 */
 	async handleEvent(event: TEvent): Promise<void> {
 		this.deps.onWebhookStart();
 
 		try {
+			const eventId = this.adapter.getEventId(event);
 			this.logger.info(
-				`Processing ${this.adapter.platformName} webhook: ${this.adapter.getEventId(event)}`,
+				`Processing ${this.adapter.platformName} webhook: ${eventId}`,
 			);
 
 			// Fire-and-forget acknowledgement (e.g., emoji reaction)
@@ -167,9 +177,13 @@ export class ChatSessionHandler<TEvent> {
 
 			const taskInstructions = this.adapter.extractTaskInstructions(event);
 			const threadKey = this.adapter.getThreadKey(event);
+			const existingSessionId = this.resolveExistingSessionId(event, threadKey);
 
-			// Check if there's already an active session for this thread
-			const existingSessionId = this.threadSessions.get(threadKey);
+			if (this.adapter.isStopEvent?.(event)) {
+				await this.stopSession(event, threadKey, existingSessionId);
+				return;
+			}
+
 			if (existingSessionId) {
 				const existingSession =
 					this.sessionManager.getSession(existingSessionId);
@@ -177,7 +191,6 @@ export class ChatSessionHandler<TEvent> {
 					this.sessionManager.getAgentRunner(existingSessionId);
 
 				if (existingSession && existingRunner?.isRunning()) {
-					// Session is actively running — inject the follow-up via streaming input
 					if (
 						existingRunner.addStreamMessage &&
 						existingRunner.isStreaming?.()
@@ -188,7 +201,6 @@ export class ChatSessionHandler<TEvent> {
 						this.enqueueReply(existingSessionId, event);
 						existingRunner.addStreamMessage(taskInstructions);
 					} else {
-						// Runner doesn't support streaming input or isn't in streaming mode — notify user
 						this.logger.info(
 							`Session ${existingSessionId} is still running, notifying user (thread ${threadKey})`,
 						);
@@ -197,37 +209,31 @@ export class ChatSessionHandler<TEvent> {
 					return;
 				}
 
-				if (existingSession && existingRunner) {
-					// Session exists but is not running — resume with --continue
+				if (existingSession) {
+					const resumeSessionId = this.getRunnerSessionId(existingSession);
 					this.logger.info(
-						`Resuming completed ${this.adapter.platformName} session ${existingSessionId} (thread ${threadKey})`,
+						resumeSessionId
+							? `Resuming completed ${this.adapter.platformName} session ${existingSessionId} (thread ${threadKey})`
+							: `Starting new runner for existing ${this.adapter.platformName} session ${existingSessionId} (thread ${threadKey})`,
 					);
 
-					const resumeSessionId =
-						existingSession.claudeSessionId || existingSession.geminiSessionId;
-
-					if (resumeSessionId) {
-						try {
-							await this.resumeSession(
-								event,
-								existingSession,
-								existingSessionId,
-								resumeSessionId,
-								taskInstructions,
-							);
-						} catch (error) {
-							this.logger.error(
-								`Failed to resume ${this.adapter.platformName} session ${existingSessionId}`,
-								error instanceof Error ? error : new Error(String(error)),
-							);
-						}
-						return;
+					try {
+						await this.startSession(event, existingSession, existingSessionId, {
+							taskInstructions,
+							resumeSessionId,
+							includeThreadContext: false,
+						});
+					} catch (error) {
+						this.logger.error(
+							`Failed to resume ${this.adapter.platformName} session ${existingSessionId}`,
+							error instanceof Error ? error : new Error(String(error)),
+						);
 					}
+					return;
 				}
 
-				// Session exists but runner was lost — fall through to create a new session
 				this.logger.info(
-					`Previous session ${existingSessionId} for thread ${threadKey} has no runner, creating new session`,
+					`Previous session ${existingSessionId} for thread ${threadKey} is missing, creating new session`,
 				);
 			}
 
@@ -245,7 +251,6 @@ export class ChatSessionHandler<TEvent> {
 				return;
 			}
 
-			// Create an empty workspace directory for this thread
 			const workspace = await this.createWorkspace(threadKey);
 			if (!workspace) {
 				this.logger.error(
@@ -258,9 +263,7 @@ export class ChatSessionHandler<TEvent> {
 				`${this.adapter.platformName} workspace created at: ${workspace.path}`,
 			);
 
-			// Create a chat session (not tied to any issue or repository)
-			const eventId = this.adapter.getEventId(event);
-			const sessionId = `${this.adapter.platformName}-${eventId}`;
+			const sessionId = this.buildSessionId(event, threadKey);
 			this.sessionManager.createChatSession(
 				sessionId,
 				workspace,
@@ -275,80 +278,18 @@ export class ChatSessionHandler<TEvent> {
 				return;
 			}
 
-			// Track this thread → session mapping for follow-up messages
-			this.threadSessions.set(threadKey, sessionId);
+			this.bindThreadToSession(threadKey, sessionId);
+			session.metadata = {
+				...session.metadata,
+				surface: this.adapter.platformName,
+				bindingKey: threadKey,
+				eventId,
+			};
 
-			// Initialize session metadata
-			if (!session.metadata) {
-				session.metadata = {};
-			}
-
-			// Build the system prompt
-			const systemPrompt = this.adapter.buildSystemPrompt(event);
-
-			// Build runner config
-			const runnerConfig = this.buildRunnerConfig(
-				session.workspace.path,
-				sessionId,
-				systemPrompt,
-				sessionId,
-			);
-
-			const runner = this.deps.createRunner(runnerConfig);
-
-			// Store the runner in the session manager
-			this.sessionManager.addAgentRunner(sessionId, runner);
-
-			// Save persisted state
-			await this.deps.onStateChange();
-
-			// Fetch thread context for threaded mentions
-			const threadContext = await this.adapter.fetchThreadContext(event);
-			const userPrompt = threadContext
-				? `${threadContext}\n\n${taskInstructions}`
-				: taskInstructions;
-
-			this.logger.info(
-				`Starting runner for ${this.adapter.platformName} event ${eventId}`,
-			);
-
-			// Start in streaming mode if supported (allows follow-up message injection),
-			// otherwise fall back to non-streaming start.
-			//
-			// Reply posting happens from handleAgentMessage() when a `result`
-			// message arrives on the runner's stream — we do NOT await turn
-			// completion here, because with warm sessions the streaming prompt
-			// stays open and the start() promise doesn't resolve until the
-			// whole session ends.
-			this.enqueueReply(sessionId, event);
-			const startPromise =
-				runner.supportsStreamingInput && runner.startStreaming
-					? runner.startStreaming(userPrompt)
-					: runner.start(userPrompt);
-			startPromise
-				.then((sessionInfo: AgentSessionInfo) => {
-					this.logger.info(
-						`${this.adapter.platformName} session started: ${sessionInfo.sessionId}`,
-					);
-				})
-				.catch((error: unknown) => {
-					this.logger.error(
-						`${this.adapter.platformName} session error for event ${eventId}`,
-						error instanceof Error ? error : new Error(String(error)),
-					);
-					// Runner died before emitting a final `result`. Drop any
-					// still-queued reply events for this session so a later
-					// resumeSession() doesn't pair them with a future turn.
-					this.clearPendingReplies(sessionId);
-				})
-				.finally(() => {
-					this.deps.onStateChange().catch((error: unknown) => {
-						this.logger.error(
-							`onStateChange failed after ${this.adapter.platformName} session ${sessionId}`,
-							error instanceof Error ? error : new Error(String(error)),
-						);
-					});
-				});
+			await this.startSession(event, session, sessionId, {
+				taskInstructions,
+				includeThreadContext: true,
+			});
 		} catch (error) {
 			this.logger.error(
 				`Failed to process ${this.adapter.platformName} webhook`,
@@ -359,9 +300,151 @@ export class ChatSessionHandler<TEvent> {
 		}
 	}
 
-	/** Returns true if any runner managed by this handler is currently busy */
+	private resolveExistingSessionId(
+		event: TEvent,
+		threadKey: string,
+	): string | undefined {
+		const boundSessionId = this.threadSessions.get(threadKey);
+		if (boundSessionId) {
+			this.managedSessionIds.add(boundSessionId);
+			return boundSessionId;
+		}
+
+		const stableSessionId = this.adapter.getSessionId?.(event, threadKey);
+		if (!stableSessionId) {
+			return undefined;
+		}
+
+		if (!this.sessionManager.getSession(stableSessionId)) {
+			return undefined;
+		}
+
+		this.bindThreadToSession(threadKey, stableSessionId);
+		return stableSessionId;
+	}
+
+	private bindThreadToSession(threadKey: string, sessionId: string): void {
+		this.threadSessions.set(threadKey, sessionId);
+		this.managedSessionIds.add(sessionId);
+	}
+
+	private buildSessionId(event: TEvent, threadKey: string): string {
+		return (
+			this.adapter.getSessionId?.(event, threadKey) ??
+			`${this.adapter.platformName}-${this.adapter.getEventId(event)}`
+		);
+	}
+
+	private getRunnerSessionId(session: CyrusAgentSession): string | undefined {
+		return (
+			session.claudeSessionId ??
+			session.geminiSessionId ??
+			session.codexSessionId ??
+			session.cursorSessionId
+		);
+	}
+
+	private async stopSession(
+		event: TEvent,
+		threadKey: string,
+		sessionId: string | undefined,
+	): Promise<void> {
+		if (!sessionId) {
+			this.logger.info(
+				`Ignoring stop request for unbound ${this.adapter.platformName} thread ${threadKey}`,
+			);
+			return;
+		}
+
+		const runner = this.sessionManager.getAgentRunner(sessionId);
+		this.sessionManager.requestSessionStop(sessionId);
+		this.clearPendingReplies(sessionId);
+
+		if (runner?.isRunning()) {
+			runner.stop();
+		}
+
+		await this.adapter.notifyStopped?.(event, threadKey);
+		this.adapter.acknowledgeProcessed?.(event).catch((err: unknown) => {
+			this.logger.warn(
+				`Failed to acknowledge processed ${this.adapter.platformName} stop event: ${err instanceof Error ? err.message : err}`,
+			);
+		});
+		await this.deps.onStateChange();
+	}
+
+	private async startSession(
+		event: TEvent,
+		session: CyrusAgentSession,
+		sessionId: string,
+		options: {
+			taskInstructions: string;
+			resumeSessionId?: string;
+			includeThreadContext: boolean;
+		},
+	): Promise<void> {
+		const systemPrompt = this.adapter.buildSystemPrompt(event);
+		const runnerConfig = this.buildRunnerConfig(
+			session.workspace.path,
+			sessionId,
+			systemPrompt,
+			sessionId,
+			options.resumeSessionId,
+		);
+		const runner = this.deps.createRunner(runnerConfig);
+
+		this.sessionManager.addAgentRunner(sessionId, runner);
+		await this.deps.onStateChange();
+
+		const threadContext = options.includeThreadContext
+			? await this.adapter.fetchThreadContext(event)
+			: "";
+		const userPrompt = threadContext
+			? `${threadContext}\n\n${options.taskInstructions}`
+			: options.taskInstructions;
+
+		const eventId = this.adapter.getEventId(event);
+		this.logger.info(
+			options.resumeSessionId
+				? `Resuming runner for ${this.adapter.platformName} event ${eventId}`
+				: `Starting runner for ${this.adapter.platformName} event ${eventId}`,
+		);
+
+		this.enqueueReply(sessionId, event);
+		const startPromise =
+			runner.supportsStreamingInput && runner.startStreaming
+				? runner.startStreaming(userPrompt)
+				: runner.start(userPrompt);
+		startPromise
+			.then((sessionInfo: AgentSessionInfo) => {
+				this.logger.info(
+					options.resumeSessionId
+						? `${this.adapter.platformName} session resumed: ${sessionInfo.sessionId} (was ${options.resumeSessionId})`
+						: `${this.adapter.platformName} session started: ${sessionInfo.sessionId}`,
+				);
+			})
+			.catch((error: unknown) => {
+				this.logger.error(
+					options.resumeSessionId
+						? `${this.adapter.platformName} resume session error for ${sessionId}`
+						: `${this.adapter.platformName} session error for event ${eventId}`,
+					error instanceof Error ? error : new Error(String(error)),
+				);
+				this.clearPendingReplies(sessionId);
+			})
+			.finally(() => {
+				this.deps.onStateChange().catch((error: unknown) => {
+					this.logger.error(
+						`onStateChange failed after ${this.adapter.platformName} session ${sessionId}`,
+						error instanceof Error ? error : new Error(String(error)),
+					);
+				});
+			});
+	}
+
+	/** Returns true if any runner managed by this service is currently busy */
 	isAnyRunnerBusy(): boolean {
-		for (const runner of this.sessionManager.getAllAgentRunners()) {
+		for (const runner of this.getAllRunners()) {
 			if (runner.isRunning()) {
 				return true;
 			}
@@ -369,21 +452,11 @@ export class ChatSessionHandler<TEvent> {
 		return false;
 	}
 
-	/** Returns all runners managed by this handler (for shutdown) */
+	/** Returns all runners managed by this service (for shutdown) */
 	getAllRunners(): IAgentRunner[] {
-		return this.sessionManager.getAllAgentRunners();
-	}
-
-	/**
-	 * Expose every active chat session this handler owns, so EdgeWorker
-	 * can resolve a cwd → session bundle from outside (e.g. the
-	 * `log_failure_mode` MCP tool needs to find a Slack/GitHub chat
-	 * session's runner session id). Chat sessions live in this handler's
-	 * dedicated AgentSessionManager — they aren't reachable from
-	 * EdgeWorker's primary AgentSessionManager.
-	 */
-	getAllChatSessions(): CyrusAgentSession[] {
-		return this.sessionManager.getAllSessions();
+		return Array.from(this.managedSessionIds)
+			.map((sessionId) => this.sessionManager.getAgentRunner(sessionId))
+			.filter((runner): runner is IAgentRunner => runner !== undefined);
 	}
 
 	/**
@@ -407,55 +480,8 @@ export class ChatSessionHandler<TEvent> {
 	}
 
 	/**
-	 * Resume an existing session with a new prompt (--continue behavior).
-	 */
-	private async resumeSession(
-		event: TEvent,
-		existingSession: CyrusAgentSession,
-		sessionId: string,
-		resumeSessionId: string,
-		taskInstructions: string,
-	): Promise<void> {
-		const systemPrompt = this.adapter.buildSystemPrompt(event);
-
-		const runnerConfig = this.buildRunnerConfig(
-			existingSession.workspace.path,
-			sessionId,
-			systemPrompt,
-			sessionId,
-			resumeSessionId,
-		);
-
-		const runner = this.deps.createRunner(runnerConfig);
-		this.sessionManager.addAgentRunner(sessionId, runner);
-
-		// Reply posting is driven by `result` messages on the runner's stream
-		// (see handleAgentMessage). We must not await turn completion here —
-		// warm sessions hold the streaming prompt open across turns so the
-		// start() promise only resolves when the whole session ends.
-		this.enqueueReply(sessionId, event);
-		const startPromise =
-			runner.supportsStreamingInput && runner.startStreaming
-				? runner.startStreaming(taskInstructions)
-				: runner.start(taskInstructions);
-		startPromise
-			.then((sessionInfo: AgentSessionInfo) => {
-				this.logger.info(
-					`${this.adapter.platformName} session resumed: ${sessionInfo.sessionId} (was ${resumeSessionId})`,
-				);
-			})
-			.catch((error: unknown) => {
-				this.logger.error(
-					`${this.adapter.platformName} resume session error for ${sessionId}`,
-					error instanceof Error ? error : new Error(String(error)),
-				);
-				this.clearPendingReplies(sessionId);
-			});
-	}
-
-	/**
-	 * Handle agent messages for chat sessions.
-	 * Routes to the dedicated AgentSessionManager, and posts a reply when the
+	 * Handle agent messages for surface sessions.
+	 * Routes through the shared AgentSessionManager, and posts a reply when the
 	 * SDK emits a `result` message (signalling turn completion).
 	 */
 	private async handleAgentMessage(
@@ -517,7 +543,7 @@ export class ChatSessionHandler<TEvent> {
 	/**
 	 * Discard all queued reply events for a session. Called when the runner
 	 * rejects before emitting a final `result` — without this, a later
-	 * resumeSession() on the same sessionId would pair the stale events with
+	 * startSession() on the same sessionId would pair the stale events with
 	 * the first `result` of the new runner.
 	 */
 	private clearPendingReplies(sessionId: string): void {
@@ -531,8 +557,8 @@ export class ChatSessionHandler<TEvent> {
 	}
 
 	/**
-	 * Create an empty workspace directory for a chat thread.
-	 * Unlike repository-associated sessions, chat sessions use plain directories (not git worktrees).
+	 * Create an empty workspace directory for a surface thread.
+	 * Unlike repository-associated sessions, surface sessions use plain directories (not git worktrees).
 	 */
 	private async createWorkspace(
 		threadKey: string,
@@ -558,7 +584,7 @@ export class ChatSessionHandler<TEvent> {
 	}
 
 	/**
-	 * Build a runner config for a chat session.
+	 * Build a runner config for a surface session.
 	 * Delegates to RunnerConfigBuilder for config assembly.
 	 */
 	private buildRunnerConfig(
@@ -574,7 +600,7 @@ export class ChatSessionHandler<TEvent> {
 		});
 
 		// Read live values from the provider at session-build time
-		const provider = this.deps.chatRepositoryProvider;
+		const provider = this.deps.repositoryProvider;
 
 		return this.deps.runnerConfigBuilder.buildChatConfig({
 			workspacePath,

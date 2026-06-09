@@ -7,8 +7,8 @@ import {
 	type SlackWebhookEvent,
 	stripMention as stripSlackMention,
 } from "cyrus-slack-event-transport";
+import type { AgentSessionSurfaceAdapter } from "./AgentSessionLifecycleService.js";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
-import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
 
 /**
  * Sentinel the agent emits when it has decided a Slack message does not warrant
@@ -35,14 +35,14 @@ export const RECEIPT_REACTION = "eyes";
 export const PROCESSED_REACTION = "white_check_mark";
 
 /**
- * Slack implementation of ChatPlatformAdapter.
+ * Slack implementation of AgentSessionSurfaceAdapter.
  *
  * Contains all Slack-specific logic extracted from EdgeWorker:
  * text extraction, thread keys, system prompts, thread context,
  * reply posting, and acknowledgement reactions.
  */
 export class SlackChatAdapter
-	implements ChatPlatformAdapter<SlackWebhookEvent>
+	implements AgentSessionSurfaceAdapter<SlackWebhookEvent>
 {
 	readonly platformName = "slack" as const;
 	private repositoryProvider: ChatRepositoryProvider;

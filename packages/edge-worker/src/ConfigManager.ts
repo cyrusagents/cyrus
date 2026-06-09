@@ -235,10 +235,14 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.linearAllowedTools || this.config.linearAllowedTools,
 				slackAllowedTools:
 					parsedConfig.slackAllowedTools || this.config.slackAllowedTools,
+				genericAllowedTools:
+					parsedConfig.genericAllowedTools || this.config.genericAllowedTools,
 				githubAllowedTools:
 					parsedConfig.githubAllowedTools || this.config.githubAllowedTools,
 				slackMcpConfigs:
 					parsedConfig.slackMcpConfigs || this.config.slackMcpConfigs,
+				genericMcpConfigs:
+					parsedConfig.genericMcpConfigs || this.config.genericMcpConfigs,
 				linearMcpConfigs:
 					parsedConfig.linearMcpConfigs || this.config.linearMcpConfigs,
 				githubMcpConfigs:
@@ -348,8 +352,10 @@ export class ConfigManager extends EventEmitter {
 			"defaultFallbackModel",
 			"linearAllowedTools",
 			"slackAllowedTools",
+			"genericAllowedTools",
 			"githubAllowedTools",
 			"slackMcpConfigs",
+			"genericMcpConfigs",
 			"linearMcpConfigs",
 			"githubMcpConfigs",
 			"defaultDisallowedTools",

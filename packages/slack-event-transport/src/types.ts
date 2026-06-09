@@ -77,7 +77,7 @@ export interface SlackWebhookEvent {
  *   a session for the thread.
  * - `message`: a plain message in a channel/thread the bot can see. Only acted
  *   on as a follow-up prompt for a thread the bot is already bound to; never
- *   starts a new session (see ChatSessionHandler.isSessionInitiatingEvent).
+ *   starts a new session (see the surface lifecycle's initiation gate).
  */
 export type SlackEventType = "app_mention" | "message";
 
@@ -145,7 +145,7 @@ export interface SlackAppMentionEvent {
  * `message.*` bot event subscriptions and matching `*:history` scopes). Cyrus
  * only acts on threaded replies (`thread_ts` present) in threads it is already
  * bound to; the gating lives in SlackEventTransport (cheap structural filters)
- * and ChatSessionHandler (binding check).
+ * and the runtime surface lifecycle (binding check).
  * @see https://api.slack.com/events/message
  */
 export interface SlackMessageEvent {
