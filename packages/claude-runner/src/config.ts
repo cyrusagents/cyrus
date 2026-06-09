@@ -19,8 +19,6 @@ export const availableTools = [
 	"Read(**)",
 	"Edit(**)",
 	"Write(**)",
-	"Glob",
-	"Grep",
 
 	// Execution tools
 	"Bash",
@@ -62,6 +60,8 @@ export const availableTools = [
 
 	// Monitoring and task lifecycle
 	"Monitor",
+	"LSP",
+	"RemoteTrigger",
 	"TaskOutput",
 	"TaskStop",
 
@@ -85,8 +85,6 @@ export type ToolName = (typeof availableTools)[number];
  */
 export const readOnlyTools: ToolName[] = [
 	"Read(**)",
-	"Glob",
-	"Grep",
 	"WebFetch",
 	"WebSearch",
 	"TaskCreate",
@@ -96,6 +94,7 @@ export const readOnlyTools: ToolName[] = [
 	"Task",
 	"Skill",
 	"Monitor",
+	"LSP",
 	"TaskOutput",
 	"EnterPlanMode",
 	"ExitPlanMode",
