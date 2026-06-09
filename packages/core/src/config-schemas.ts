@@ -407,6 +407,13 @@ export const EdgeConfigSchema = z.object({
 	slackAllowedTools: z.array(z.string()).optional(),
 
 	/**
+	 * Allowed tools for generic agent-session webhook sessions. When set,
+	 * overrides the built-in read-only generic tool set used by
+	 * ToolPermissionResolver.
+	 */
+	genericAllowedTools: z.array(z.string()).optional(),
+
+	/**
 	 * Allowed tools for GitHub-triggered agent sessions. When set, overrides
 	 * `linearAllowedTools` specifically for sessions originating from GitHub
 	 * (PR comments, automated fix-on-failure flows, etc.).
@@ -429,6 +436,14 @@ export const EdgeConfigSchema = z.object({
 	 * `--mcp-config` mechanism.
 	 */
 	slackMcpConfigs: z.array(z.string()).optional(),
+
+	/**
+	 * Filesystem paths to custom-integration MCP config JSON files for generic
+	 * agent-session webhook sessions. Generic sessions are repo-agnostic, so
+	 * `repository.mcpConfigPath` is not consulted here — only this list
+	 * determines which custom `.mcp.json` files load for generic webhooks.
+	 */
+	genericMcpConfigs: z.array(z.string()).optional(),
 
 	/**
 	 * Filesystem paths to custom-integration MCP config JSON files for
