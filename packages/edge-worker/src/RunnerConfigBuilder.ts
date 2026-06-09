@@ -149,6 +149,13 @@ export interface IssueRunnerConfigInput {
 	sandboxSettings?: SandboxSettings;
 	/** CA cert path for MITM TLS termination — passed via child process env */
 	egressCaCertPath?: string;
+	/**
+	 * GitHub App installation token matched to the session repository's org
+	 * (from the cyrus-hosted-pushed token store). When set, it's exposed to
+	 * the session as `GH_TOKEN` and `CYRUS_GH_TOKEN` so the `gh` CLI and
+	 * other tooling authenticate against the right GitHub org.
+	 */
+	githubToken?: string;
 }
 
 /**
@@ -414,6 +421,18 @@ export class RunnerConfigBuilder {
 			onMessage: input.onMessage,
 			onError: input.onError,
 		};
+
+		// Expose the org-matched GitHub App installation token to the session
+		// env. Merged on top of any sandbox additionalEnv (CA cert vars) so
+		// both survive. Only set when a token store entry matched the repo's
+		// org — sessions without a match see zero env change.
+		if (input.githubToken) {
+			config.additionalEnv = {
+				...config.additionalEnv,
+				GH_TOKEN: input.githubToken,
+				CYRUS_GH_TOKEN: input.githubToken,
+			};
+		}
 
 		// Cursor runner uses @cursor/sdk. Pass through API key, the same
 		// sandboxSettings shape Claude consumes (the runner translates it to

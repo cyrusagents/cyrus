@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Cyrus now supports multiple GitHub organizations per team: git and `gh` operations automatically use the right credentials for each repository's org. Tokens are pushed by the Cyrus control plane and a git credential helper picks the matching one per repository, so concurrent sessions across different GitHub orgs no longer share a single login. ([CYHOST-913](https://linear.app/ceedar/issue/CYHOST-913), [#1307](https://github.com/cyrusagents/cyrus/pull/1307))
+
 ## [0.2.63] - 2026-06-09
 
 ### Added
