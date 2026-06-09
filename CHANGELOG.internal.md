@@ -4,14 +4,17 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.63] - 2026-06-09
+
 ### Fixed
 - Fixed two CI failures introduced by CYPACK-1298: (1) `DEBUG_CLAUDE_AGENT_SDK=1` leaked from `process.env` into non-debug sessions — `ClaudeRunner` now explicitly clears the key when not in debug mode; (2) `packages/edge-worker` chat-session test asserted `Glob` in `allowedTools` after `Glob` was removed from the SDK tool registry. ([CYPACK-1301](https://linear.app/ceedar/issue/CYPACK-1301), [#1304](https://github.com/cyrusagents/cyrus/pull/1304))
 
 ### Changed
-- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.159` to `0.3.170` and `@anthropic-ai/sdk` from `^0.100.1` to `^0.102.0`. Refreshed the tool allowance lists in `packages/claude-runner/src/config.ts` and `packages/core/src/allowed-tools-defaults.ts` to match Claude Code SDK v2.1.170: removed `Glob`, `Grep`, and `LSP` (no longer in the SDK tool registry), added `RemoteTrigger` to `config.ts` and `RemoteTrigger`/`Workflow` to the default allowed-tool lists. Added `fable` (`claude-fable-5`) as a recognized Claude model alias in `RunnerSelectionService.ts` with fallback chain `fable → opus → sonnet`. See [SDK changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1298](https://linear.app/ceedar/issue/CYPACK-1298), [#1302](https://github.com/ceedaragents/cyrus/pull/1302))
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.159` to `0.3.170` and `@anthropic-ai/sdk` from `^0.100.1` to `^0.102.0`. Refreshed the tool allowance lists in `packages/claude-runner/src/config.ts` and `packages/core/src/allowed-tools-defaults.ts` to match Claude Code SDK v2.1.170: removed `Glob`, `Grep`, and `LSP` (no longer in the SDK tool registry), added `RemoteTrigger` to `config.ts` and `RemoteTrigger`/`Workflow` to the default allowed-tool lists. Added `fable` (`claude-fable-5`) as a recognized Claude model alias in `RunnerSelectionService.ts` with fallback chain `fable → opus → sonnet`. See [SDK changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1298](https://linear.app/ceedar/issue/CYPACK-1298), [#1302](https://github.com/cyrusagents/cyrus/pull/1302))
 
 ### Security
 - Bumped `vitest` (and `@vitest/ui`, `@vitest/coverage-v8`) from `3.x` to `^4.1.0` across all packages to patch the critical advisory [GHSA-5xrq-8626-4rwp](https://github.com/advisories/GHSA-5xrq-8626-4rwp) (arbitrary file read/exec via the Vitest UI server; vulnerable `<4.1.0`). Migrated test mocks to satisfy Vitest 4's `new`-based mock construction (constructor mocks must use `function`/`class`, not arrows) and disabled biome's `useArrowFunction` rule for test files so the autofix can't revert them. Supersedes Dependabot PR #1279. ([CYPACK-1278](https://linear.app/ceedar/issue/CYPACK-1278), [#1285](https://github.com/cyrusagents/cyrus/pull/1285))
+- Bumped `@google/gemini-cli-core` from `0.17.0` to `0.45.3` in the Gemini runner test/dev dependency graph and added a narrow `shell-quote >=1.8.4` override because the owning package's latest release still resolved the vulnerable transitive. This patches [GHSA-w7jw-789q-3m8p](https://github.com/advisories/GHSA-w7jw-789q-3m8p) so `pnpm audit` stays clean. ([CYPACK-1302](https://linear.app/ceedar/issue/CYPACK-1302))
 
 ## [0.2.62] - 2026-06-02
 

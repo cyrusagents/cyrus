@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.63] - 2026-06-09
+
+### Added
+- Cyrus now recognizes Anthropic's new Fable model class: apply the `fable` model label or selector to run Claude sessions on `claude-fable-5`, with automatic fallback to Opus and then Sonnet when needed. ([CYPACK-1298](https://linear.app/ceedar/issue/CYPACK-1298), [#1302](https://github.com/cyrusagents/cyrus/pull/1302))
+
 ### Security
 - Patched Hono dependency advisories reported by Dependabot so `pnpm audit` is clean for the Cyrus CLI workspace. ([CYPACK-1290](https://linear.app/ceedar/issue/CYPACK-1290), [#1295](https://github.com/cyrusagents/cyrus/pull/1295))
 
@@ -11,7 +16,54 @@ All notable changes to this project will be documented in this file.
 - Codex sessions now default to `gpt-5.5`, and Linear model labels such as `gpt-5.5` are recognized as Codex model overrides alongside the existing `*-codex` labels. ([CYPACK-1282](https://linear.app/ceedar/issue/CYPACK-1282), [#1288](https://github.com/cyrusagents/cyrus/pull/1288))
 
 ### Fixed
-- Git commands (`add`, `commit`, `merge`, etc.) no longer fail with "Operation not permitted" in multi-repo workspaces when running under a sandboxed agent (e.g. the Codex runner). Each repository's git metadata directory is now granted write access, not just the workspace container.
+- Git commands (`add`, `commit`, `merge`, etc.) no longer fail with "Operation not permitted" in multi-repo workspaces when running under a sandboxed agent (e.g. the Codex runner). Each repository's git metadata directory is now granted write access, not just the workspace container. ([#1287](https://github.com/cyrusagents/cyrus/pull/1287))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.63
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.63
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.63
+
+#### cyrus-core
+- cyrus-core@0.2.63
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.63
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.63
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.63
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.63
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.63
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.63
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.63
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.63
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.63
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.63
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.63
 
 
 ## [0.2.62] - 2026-06-02
