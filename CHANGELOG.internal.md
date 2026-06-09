@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Fixed
+- Fixed two CI failures introduced by CYPACK-1298: (1) `DEBUG_CLAUDE_AGENT_SDK=1` leaked from `process.env` into non-debug sessions — `ClaudeRunner` now explicitly clears the key when not in debug mode; (2) `packages/edge-worker` chat-session test asserted `Glob` in `allowedTools` after `Glob` was removed from the SDK tool registry. ([CYPACK-1301](https://linear.app/ceedar/issue/CYPACK-1301), [#PR](https://github.com/ceedaragents/cyrus/pull/1303))
+
 ### Changed
 - Updated `@anthropic-ai/claude-agent-sdk` from `0.3.159` to `0.3.170` and `@anthropic-ai/sdk` from `^0.100.1` to `^0.102.0`. Refreshed the tool allowance lists in `packages/claude-runner/src/config.ts` and `packages/core/src/allowed-tools-defaults.ts` to match Claude Code SDK v2.1.170: removed `Glob`, `Grep`, and `LSP` (no longer in the SDK tool registry), added `RemoteTrigger` to `config.ts` and `RemoteTrigger`/`Workflow` to the default allowed-tool lists. Added `fable` (`claude-fable-5`) as a recognized Claude model alias in `RunnerSelectionService.ts` with fallback chain `fable → opus → sonnet`. See [SDK changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md). ([CYPACK-1298](https://linear.app/ceedar/issue/CYPACK-1298), [#1302](https://github.com/ceedaragents/cyrus/pull/1302))
 

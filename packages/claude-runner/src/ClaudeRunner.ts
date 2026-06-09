@@ -667,7 +667,8 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 						...this.config.additionalEnv,
 						// When logging at DEBUG level, enable the SDK's own debug output so
 						// --debug-to-stderr and DEBUG=1 propagate to the Claude subprocess.
-						...(isDebugLogging && { DEBUG_CLAUDE_AGENT_SDK: "1" }),
+						// Explicitly set or unset to override any leaked value from process.env.
+						DEBUG_CLAUDE_AGENT_SDK: isDebugLogging ? "1" : undefined,
 					},
 					...(this.config.workingDirectory && {
 						cwd: this.config.workingDirectory,
