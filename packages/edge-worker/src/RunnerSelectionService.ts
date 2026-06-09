@@ -162,6 +162,7 @@ export class RunnerSelectionService {
 			const normalizedModel = model.toLowerCase();
 			if (normalizedModel.startsWith("gemini")) return "gemini";
 			if (
+				normalizedModel === "fable" ||
 				normalizedModel === "opus" ||
 				normalizedModel === "sonnet" ||
 				normalizedModel === "haiku" ||
@@ -179,6 +180,7 @@ export class RunnerSelectionService {
 		): string | undefined => {
 			const normalizedModel = model.toLowerCase();
 			if (runnerType === "claude") {
+				if (normalizedModel === "fable") return "opus";
 				if (normalizedModel === "opus") return "sonnet";
 				if (normalizedModel === "sonnet") return "haiku";
 				// Keep haiku fallback on sonnet for retry behavior
@@ -264,6 +266,7 @@ export class RunnerSelectionService {
 				return "gemini-3-pro-preview";
 			}
 
+			if (lowercaseLabels.includes("fable")) return "fable";
 			if (lowercaseLabels.includes("opus")) return "opus";
 			if (lowercaseLabels.includes("sonnet")) return "sonnet";
 			if (lowercaseLabels.includes("haiku")) return "haiku";
