@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync } from "node:fs";
+import {
+	chmodSync,
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GitHubTokenStore } from "cyrus-core";
@@ -62,6 +70,42 @@ export function ensureGitHubCredentialHelper(cyrusHome: string): string {
 	]);
 
 	return scriptDest;
+}
+
+/**
+ * Self-heal the droplet's `~/.local/bin/gh` wrapper to honor
+ * `CYRUS_GH_TOKEN`.
+ *
+ * Droplet images bake a gh wrapper that strips injected GH_TOKEN /
+ * GITHUB_TOKEN env vars. Newer images map a Cyrus-provided
+ * `CYRUS_GH_TOKEN` to `GH_TOKEN` inside the gh process so sessions use the
+ * token for their repository's org; droplets provisioned from older images
+ * keep the strip-everything wrapper until rebuilt. Since the wrapper lives
+ * in the cyrus user's home, rewrite it here on token pushes — making
+ * per-org gh independent of the image rollout. No-op when no wrapper
+ * exists (self-host) or it already handles CYRUS_GH_TOKEN.
+ */
+export function ensureGhWrapperSupportsCyrusToken(
+	homeDir: string = homedir(),
+): boolean {
+	const wrapperPath = join(homeDir, ".local", "bin", "gh");
+	if (!existsSync(wrapperPath)) return false;
+
+	const current = readFileSync(wrapperPath, "utf8");
+	// Only rewrite the known droplet wrapper shape, and only when it
+	// predates CYRUS_GH_TOKEN support.
+	if (current.includes("CYRUS_GH_TOKEN") || !current.includes("/usr/bin/gh")) {
+		return false;
+	}
+
+	const updated = `#!/usr/bin/env bash
+if [ -n "\${CYRUS_GH_TOKEN:-}" ]; then
+  exec env -u GITHUB_TOKEN GH_TOKEN="$CYRUS_GH_TOKEN" /usr/bin/gh "$@"
+fi
+exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
+`;
+	writeFileSync(wrapperPath, updated, { mode: 0o755 });
+	return true;
 }
 
 /**
@@ -133,6 +177,20 @@ export async function handleGitHubTokens(
 			error: "Failed to configure git credential helper",
 			details: error instanceof Error ? error.message : String(error),
 		};
+	}
+
+	try {
+		// cyrusHome is <home>/.cyrus on droplets, so the wrapper lives at
+		// <parent of cyrusHome>/.local/bin/gh. Using the parent (rather than
+		// os.homedir()) keeps this no-op for custom cyrus-home layouts and
+		// hermetic in tests.
+		ensureGhWrapperSupportsCyrusToken(dirname(cyrusHome));
+	} catch (error) {
+		// Non-fatal: the wrapper rewrite is a droplet-only nicety.
+		console.warn(
+			"[githubTokens] gh wrapper self-heal failed:",
+			error instanceof Error ? error.message : String(error),
+		);
 	}
 
 	let ghAuthConfigured = false;

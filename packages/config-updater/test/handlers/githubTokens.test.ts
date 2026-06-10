@@ -1,15 +1,18 @@
 import { execFileSync } from "node:child_process";
 import {
 	existsSync,
+	mkdirSync,
 	mkdtempSync,
 	readFileSync,
 	rmSync,
 	statSync,
+	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	ensureGhWrapperSupportsCyrusToken,
 	ensureGitHubCredentialHelper,
 	handleGitHubTokens,
 } from "../../src/handlers/githubTokens.js";
@@ -206,5 +209,86 @@ describe("ensureGitHubCredentialHelper", () => {
 			join(cyrusHome, "scripts", "git-credential-cyrus.cjs"),
 		);
 		expect(existsSync(scriptPath)).toBe(true);
+	});
+});
+
+describe("ensureGhWrapperSupportsCyrusToken", () => {
+	const OLD_WRAPPER = `#!/usr/bin/env bash
+exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
+`;
+	let home: string;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		home = mkdtempSync(join(tmpdir(), "cyrus-gh-wrapper-"));
+	});
+
+	afterEach(() => {
+		rmSync(home, { recursive: true, force: true });
+	});
+
+	function writeWrapper(content: string): string {
+		const binDir = join(home, ".local", "bin");
+		mkdirSync(binDir, { recursive: true });
+		const wrapperPath = join(binDir, "gh");
+		writeFileSync(wrapperPath, content, { mode: 0o755 });
+		return wrapperPath;
+	}
+
+	it("rewrites an old strip-everything wrapper to honor CYRUS_GH_TOKEN", () => {
+		const wrapperPath = writeWrapper(OLD_WRAPPER);
+
+		expect(ensureGhWrapperSupportsCyrusToken(home)).toBe(true);
+
+		const updated = readFileSync(wrapperPath, "utf8");
+		expect(updated).toContain("CYRUS_GH_TOKEN");
+		expect(updated).toContain('GH_TOKEN="$CYRUS_GH_TOKEN"');
+		expect(updated).toContain("-u GITHUB_TOKEN");
+		expect(statSync(wrapperPath).mode & 0o111).not.toBe(0);
+	});
+
+	it("leaves an already-updated wrapper untouched", () => {
+		const wrapperPath = writeWrapper(OLD_WRAPPER);
+		expect(ensureGhWrapperSupportsCyrusToken(home)).toBe(true);
+		const afterFirst = readFileSync(wrapperPath, "utf8");
+
+		expect(ensureGhWrapperSupportsCyrusToken(home)).toBe(false);
+		expect(readFileSync(wrapperPath, "utf8")).toBe(afterFirst);
+	});
+
+	it("does not touch a wrapper with an unrecognized shape", () => {
+		const custom = '#!/bin/sh\nexec /opt/custom/gh "$@"\n';
+		const wrapperPath = writeWrapper(custom);
+
+		expect(ensureGhWrapperSupportsCyrusToken(home)).toBe(false);
+		expect(readFileSync(wrapperPath, "utf8")).toBe(custom);
+	});
+
+	it("is a no-op when no wrapper exists (self-host)", () => {
+		expect(ensureGhWrapperSupportsCyrusToken(home)).toBe(false);
+	});
+
+	it("runs during a token push when cyrusHome sits inside the home dir", async () => {
+		const wrapperPath = writeWrapper(OLD_WRAPPER);
+		const nestedCyrusHome = join(home, ".cyrus");
+		mkdirSync(nestedCyrusHome, { recursive: true });
+
+		const response = await handleGitHubTokens(
+			{
+				tokens: [
+					{
+						installationId: "111",
+						organization: "OrgOne",
+						accountType: "Organization",
+						token: "ghs_one",
+						expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+					},
+				],
+			},
+			nestedCyrusHome,
+		);
+
+		expect(response.success).toBe(true);
+		expect(readFileSync(wrapperPath, "utf8")).toContain("CYRUS_GH_TOKEN");
 	});
 });

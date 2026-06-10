@@ -2,7 +2,7 @@ import { exec } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
-import { getDefaultReposDir } from "cyrus-core";
+import { GitHubTokenStore, getDefaultReposDir } from "cyrus-core";
 import type {
 	ApiResponse,
 	DeleteRepositoryPayload,
@@ -99,9 +99,22 @@ export async function handleRepository(
 			};
 		}
 
-		// Clone the repository using gh
+		// Clone the repository. When cyrus-hosted has pushed per-installation
+		// GitHub tokens (cloud runtime), use plain `git clone` so auth flows
+		// through the Cyrus git credential helper, which resolves the token
+		// for the repo's OWN org — `gh repo clone` would authenticate with
+		// gh's stored login (the first org's token) and fail for repos added
+		// from a different org. Without pushed tokens (self-host), fall back
+		// to `gh repo clone` using the user's own gh authentication.
+		const tokenStore = new GitHubTokenStore(cyrusHome);
+		const usePushedTokens = Boolean(
+			tokenStore.getTokenForRepoUrl(payload.repository_url) ??
+				tokenStore.getFallbackToken(),
+		);
 		try {
-			const cloneCmd = `gh repo clone "${payload.repository_url}" "${repoPath}"`;
+			const cloneCmd = usePushedTokens
+				? `git clone "${payload.repository_url}" "${repoPath}"`
+				: `gh repo clone "${payload.repository_url}" "${repoPath}"`;
 			await execAsync(cloneCmd);
 
 			// Verify the clone was successful
@@ -109,7 +122,7 @@ export async function handleRepository(
 				return {
 					success: false,
 					error: "Repository clone verification failed",
-					details: `GitHub CLI clone command completed, but the cloned directory at ${repoPath} does not appear to be a valid Git repository.`,
+					details: `Clone command completed, but the cloned directory at ${repoPath} does not appear to be a valid Git repository.`,
 				};
 			}
 
@@ -126,10 +139,13 @@ export async function handleRepository(
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
+			const authHint = usePushedTokens
+				? "The pushed GitHub credentials may not include this repository's org — check the team's GitHub installations."
+				: "Please verify the URL is correct, you have access to the repository, and gh is authenticated.";
 			return {
 				success: false,
 				error: "Failed to clone repository",
-				details: `Could not clone repository from ${payload.repository_url} using GitHub CLI: ${errorMessage}. Please verify the URL is correct, you have access to the repository, and gh is authenticated.`,
+				details: `Could not clone repository from ${payload.repository_url}: ${errorMessage}. ${authHint}`,
 			};
 		}
 	} catch (error) {
