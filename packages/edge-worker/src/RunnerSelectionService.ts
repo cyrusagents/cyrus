@@ -124,11 +124,15 @@ export class RunnerSelectionService {
 	 * - [agent=claude|gemini|codex|cursor|opencode]
 	 * - [model=<model-name>]
 	 *
+	 * Supported Linear label selectors:
+	 * - <provider>/<model>, where provider is claude, gemini, codex, cursor, opencode, or openai
+	 *
 	 * Precedence:
 	 * 1. Description tags override labels
-	 * 2. Agent labels override model labels
-	 * 3. Model labels can infer agent type
-	 * 4. Defaults to claude runner
+	 * 2. Provider/model labels override separate agent or model labels
+	 * 3. Agent labels override model labels
+	 * 4. Model labels can infer agent type
+	 * 5. Defaults to configured/default runner
 	 */
 	public determineRunnerSelection(
 		labels: string[],
@@ -228,13 +232,23 @@ export class RunnerSelectionService {
 				}
 				return "gemini-2.5-flash";
 			}
-			if (isCodexModel(normalizedModel)) {
-				return "gpt-5.2-codex";
-			}
 			if (runnerType === "opencode") {
 				return defaultFallbackByRunner.opencode;
 			}
+			if (isCodexModel(normalizedModel)) {
+				return "gpt-5.2-codex";
+			}
 			return "gpt-5";
+		};
+
+		const resolveRunnerFromName = (name?: string): RunnerType | undefined => {
+			if (!name) return undefined;
+			if (name === "opencode") return "opencode";
+			if (name === "cursor") return "cursor";
+			if (name === "codex" || name === "openai") return "codex";
+			if (name === "gemini") return "gemini";
+			if (name === "claude") return "claude";
+			return undefined;
 		};
 
 		const resolveAgentFromLabel = (
@@ -257,6 +271,21 @@ export class RunnerSelectionService {
 			}
 			if (lowercaseLabels.includes("claude")) {
 				return "claude";
+			}
+			return undefined;
+		};
+
+		const resolveProviderModelFromLabel = (
+			lowercaseLabels: string[],
+		): { runnerType: RunnerType; model: string } | undefined => {
+			for (const label of lowercaseLabels) {
+				const match = label.match(/^([a-z0-9_.-]+)\/([a-z0-9_.:/-]+)$/i);
+				if (!match?.[1] || !match[2]) continue;
+
+				const runnerType = resolveRunnerFromName(match[1]);
+				if (runnerType) {
+					return { runnerType, model: match[2] };
+				}
 			}
 			return undefined;
 		};
@@ -301,26 +330,19 @@ export class RunnerSelectionService {
 
 		const agentFromDescription = descriptionAgentTagRaw?.toLowerCase();
 		const resolvedAgentFromDescription =
-			agentFromDescription === "opencode"
-				? "opencode"
-				: agentFromDescription === "cursor"
-					? "cursor"
-					: agentFromDescription === "codex" ||
-							agentFromDescription === "openai"
-						? "codex"
-						: agentFromDescription === "gemini"
-							? "gemini"
-							: agentFromDescription === "claude"
-								? "claude"
-								: undefined;
+			resolveRunnerFromName(agentFromDescription);
+		const providerModelFromLabels =
+			resolveProviderModelFromLabel(normalizedLabels);
 		const resolvedAgentFromLabels = resolveAgentFromLabel(normalizedLabels);
 
 		const modelFromDescription = descriptionModelTagRaw;
-		const modelFromLabels = resolveModelFromLabel(normalizedLabels);
+		const modelFromLabels =
+			providerModelFromLabels?.model || resolveModelFromLabel(normalizedLabels);
 		const explicitModel = modelFromDescription || modelFromLabels;
 
 		const runnerType: RunnerType =
 			resolvedAgentFromDescription ||
+			providerModelFromLabels?.runnerType ||
 			resolvedAgentFromLabels ||
 			inferRunnerFromModel(explicitModel) ||
 			this.getDefaultRunner();

@@ -154,6 +154,7 @@ function createAssistantToolUseMessage(
 			cache_read_input_tokens: 0,
 			cache_creation: null,
 		} as SDKAssistantMessage["message"]["usage"],
+		diagnostics: null,
 		container: null,
 		context_management: null,
 	};
@@ -181,6 +182,7 @@ function createAssistantTextMessage(
 			cache_read_input_tokens: 0,
 			cache_creation: null,
 		} as SDKAssistantMessage["message"]["usage"],
+		diagnostics: null,
 		container: null,
 		context_management: null,
 	};

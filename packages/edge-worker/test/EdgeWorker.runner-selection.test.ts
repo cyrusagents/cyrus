@@ -605,6 +605,35 @@ Issue: {{issue_identifier}}`;
 			expect(capturedRunnerConfig.model).toBeUndefined();
 		});
 
+		it("should select OpenCode runner and model from 'opencode/model' label", async () => {
+			const mockIssue = createMockIssueWithLabels(["opencode/codex-5.5"]);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus work on this" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("opencode");
+			expect(OpenCodeRunner).toHaveBeenCalled();
+			expect(capturedRunnerConfig.model).toBe("codex-5.5");
+			expect(capturedRunnerConfig.fallbackModel).toBeUndefined();
+		});
+
 		it("should pass OpenCode default model config to the runner", async () => {
 			const opencodeConfig: EdgeWorkerConfig = {
 				...mockConfig,
