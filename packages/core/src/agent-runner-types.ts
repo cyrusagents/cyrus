@@ -9,6 +9,7 @@ import type {
 // Import the AskUserQuestionInput type from the SDK's tool input types
 // This ensures we use the SDK's official type definitions
 import type { AskUserQuestionInput as SDKAskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
+import type { OpenCodeStateScope, RunnerType } from "./config-schemas.js";
 import type { ILogger } from "./logging/ILogger.js";
 
 // ============================================================================
@@ -386,6 +387,15 @@ export interface IAgentRunner {
 	getFormatter(): IMessageFormatter;
 }
 
+export type JsonValue =
+	| string
+	| number
+	| boolean
+	| null
+	| JsonValue[]
+	| JsonObject;
+export type JsonObject = { [key: string]: JsonValue };
+
 /**
  * Configuration for agent runner
  *
@@ -425,6 +435,8 @@ export interface AgentRunnerConfig {
 	additionalDirectories?: string[];
 	/** Session ID to resume from a previous session */
 	resumeSessionId?: string;
+	/** Runner implementation that owns resumeSessionId, used to avoid cross-runner resumes */
+	runnerType?: RunnerType;
 	/** Workspace name for logging and organization */
 	workspaceName?: string;
 	/** Additional text to append to default system prompt */
@@ -433,6 +445,14 @@ export interface AgentRunnerConfig {
 	mcpConfigPath?: string | string[];
 	/** MCP server configurations (inline) */
 	mcpConfig?: Record<string, McpServerConfig>;
+	/** Global OpenCode runtime config overrides from Cyrus config */
+	opencodeGlobalConfig?: JsonObject;
+	/** Repository OpenCode runtime config overrides from Cyrus config */
+	opencodeRepositoryConfig?: JsonObject;
+	/** OpenCode CLI config/state/cache scope. Defaults to inheriting parent env. */
+	opencodeStateScope?: OpenCodeStateScope;
+	/** Stable key used when opencodeStateScope is repository. */
+	opencodeStateKey?: string;
 	/** AI model to use (e.g., "opus", "sonnet", "haiku") */
 	model?: string;
 	/** Fallback model if primary is unavailable */

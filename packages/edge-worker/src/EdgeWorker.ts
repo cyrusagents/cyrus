@@ -135,6 +135,7 @@ import {
 	type FailureModesHttpClient,
 	type ResolvedSession,
 } from "cyrus-mcp-tools";
+import { OpenCodeRunner } from "cyrus-opencode-runner";
 import {
 	SlackEventTransport,
 	type SlackWebhookEvent,
@@ -1090,8 +1091,9 @@ export class EdgeWorker extends EventEmitter {
 				cyrusHome: this.cyrusHome,
 				chatRepositoryProvider,
 				runnerConfigBuilder: this.runnerConfigBuilder,
-				createRunner: (config) => {
-					const runnerType = this.runnerSelectionService.getDefaultRunner();
+				createRunner: (config, chatRunnerType) => {
+					const runnerType =
+						chatRunnerType ?? this.runnerSelectionService.getDefaultRunner();
 					return this.createRunnerForType(runnerType, {
 						...config,
 						model: this.getDefaultModelForRunner(runnerType),
@@ -1101,6 +1103,8 @@ export class EdgeWorker extends EventEmitter {
 				// Live read so hot-reloaded config (`setConfig`) picks up new
 				// per-platform MCP paths without rebuilding the handler.
 				getPlatformMcpConfigOverrides: () => this.config.slackMcpConfigs,
+				getOpenCodeGlobalConfig: () => this.config.opencode?.config,
+				getOpenCodeGlobalStateScope: () => this.config.opencode?.stateScope,
 				onWebhookStart: () => {
 					this.activeWebhookCount++;
 				},
@@ -4192,6 +4196,17 @@ ${taskSection}`;
 		webhook: AgentSessionCreatedWebhook,
 		repos: RepositoryConfig[],
 	): Promise<void> {
+		const agentSessionId = webhook.agentSession?.id;
+		const parentSessionId = agentSessionId
+			? this.globalSessionRegistry.getParentSessionId(agentSessionId)
+			: undefined;
+
+		if (agentSessionId && parentSessionId) {
+			this.logger.info(
+				`Handling child agent session created webhook for ${agentSessionId}; parent session is ${parentSessionId}`,
+			);
+		}
+
 		const issueId = webhook.agentSession?.issue?.id;
 
 		// Check the cache first, as the agentSessionCreated webhook may have been triggered by an @mention
@@ -5273,7 +5288,7 @@ ${taskSection}`;
 	 * Resolve default model for a given runner from config with sensible built-in defaults.
 	 * Supports legacy config keys for backwards compatibility.
 	 */
-	private getDefaultModelForRunner(runnerType: RunnerType): string {
+	private getDefaultModelForRunner(runnerType: RunnerType): string | undefined {
 		return this.runnerSelectionService.getDefaultModelForRunner(runnerType);
 	}
 
@@ -5281,7 +5296,9 @@ ${taskSection}`;
 	 * Resolve default fallback model for a given runner from config with sensible built-in defaults.
 	 * Supports legacy Claude fallback key for backwards compatibility.
 	 */
-	private getDefaultFallbackModelForRunner(runnerType: RunnerType): string {
+	private getDefaultFallbackModelForRunner(
+		runnerType: RunnerType,
+	): string | undefined {
 		return this.runnerSelectionService.getDefaultFallbackModelForRunner(
 			runnerType,
 		);
@@ -5291,7 +5308,7 @@ ${taskSection}`;
 	 * Instantiate the appropriate runner for the given type.
 	 */
 	private createRunnerForType(
-		runnerType: "claude" | "gemini" | "codex" | "cursor",
+		runnerType: RunnerType,
 		config: AgentRunnerConfig,
 	): IAgentRunner {
 		switch (runnerType) {
@@ -5309,6 +5326,8 @@ ${taskSection}`;
 				return new CodexRunner(config);
 			case "cursor":
 				return new CursorRunner(config);
+			case "opencode":
+				return new OpenCodeRunner(config);
 			default:
 				throw new Error(`Unknown runner type: ${runnerType satisfies never}`);
 		}
@@ -5807,12 +5826,15 @@ ${taskSection}`;
 					? "codex"
 					: session.cursorSessionId
 						? "cursor"
-						: null;
+						: session.opencodeSessionId
+							? "opencode"
+							: null;
 		const runnerSessionId =
 			session.claudeSessionId ??
 			session.geminiSessionId ??
 			session.codexSessionId ??
 			session.cursorSessionId ??
+			session.opencodeSessionId ??
 			null;
 
 		const sessionSource = session.id.startsWith("github-")
@@ -6447,6 +6469,8 @@ ${input.userComment}
 			cyrusHome: this.cyrusHome,
 			logger: log,
 			plugins,
+			opencodeGlobalConfig: this.config.opencode?.config,
+			opencodeGlobalStateScope: this.config.opencode?.stateScope,
 			skills: allowedSkillNames,
 			sandboxSettings: this.sdkSandboxSettings ?? undefined,
 			egressCaCertPath: this.egressCaCertPath ?? undefined,
@@ -7143,12 +7167,15 @@ ${input.userComment}
 		const hasGeminiSession = !isNewSession && Boolean(session.geminiSessionId);
 		const hasCodexSession = !isNewSession && Boolean(session.codexSessionId);
 		const hasCursorSession = !isNewSession && Boolean(session.cursorSessionId);
+		const hasOpenCodeSession =
+			!isNewSession && Boolean(session.opencodeSessionId);
 		const needsNewSession =
 			isNewSession ||
 			(!hasClaudeSession &&
 				!hasGeminiSession &&
 				!hasCodexSession &&
-				!hasCursorSession);
+				!hasCursorSession &&
+				!hasOpenCodeSession);
 
 		// Fetch system prompt based on labels
 
@@ -7191,7 +7218,9 @@ ${input.userComment}
 					? session.geminiSessionId
 					: session.codexSessionId
 						? session.codexSessionId
-						: session.cursorSessionId;
+						: session.cursorSessionId
+							? session.cursorSessionId
+							: session.opencodeSessionId;
 
 		console.log(
 			`[resumeAgentSession] needsNewSession=${needsNewSession}, resumeSessionId=${resumeSessionId ?? "none"}`,

@@ -21,12 +21,14 @@ import {
 import { TEST_CYRUS_CHAT } from "./test-dirs.js";
 
 function createMockRunnerConfigBuilder(): RunnerConfigBuilder {
+	let defaultRunner: "claude" | "opencode" = "claude";
 	return {
 		buildChatConfig: (input: any) => {
 			const repositoryPaths = Array.from(
 				new Set((input.repositoryPaths ?? []).filter(Boolean)),
 			);
 			return {
+				runnerType: input.runnerType ?? defaultRunner,
 				workingDirectory: input.workspacePath,
 				allowedTools: [
 					...new Set([...getReadOnlyTools(), "Bash(git -C * pull)"]),
@@ -44,6 +46,9 @@ function createMockRunnerConfigBuilder(): RunnerConfigBuilder {
 				onMessage: input.onMessage,
 				onError: input.onError,
 			};
+		},
+		setDefaultRunner: (runnerType: "claude" | "opencode") => {
+			defaultRunner = runnerType;
 		},
 		buildIssueConfig: vi.fn(),
 	} as unknown as RunnerConfigBuilder;
@@ -531,6 +536,7 @@ describe("SlackChatAdapter system prompt", () => {
 		expect(systemPrompt).toContain("mcp__linear__get_user");
 		expect(systemPrompt).toContain('query: "me"');
 		expect(systemPrompt).toContain("linear_get_agent_sessions");
+		expect(systemPrompt).toContain("[agent=opencode]");
 	});
 
 	const appMentionEvent = {
@@ -714,6 +720,65 @@ describe("ChatRepositoryProvider runtime updates", () => {
 
 		expect(capturedConfig.allowedDirectories).not.toContain("/repo/A");
 		expect(capturedConfig.allowedDirectories).toContain("/repo/B");
+	});
+});
+
+describe("ChatSessionHandler session resume", () => {
+	it("resumes with the stored OpenCode session id even if the default runner changes", async () => {
+		const cyrusHome = TEST_CYRUS_CHAT;
+		const builder = createMockRunnerConfigBuilder() as RunnerConfigBuilder & {
+			setDefaultRunner: (runnerType: "claude" | "opencode") => void;
+		};
+		builder.setDefaultRunner("opencode");
+
+		const runnerStates = [false, false];
+		const capturedConfigs: any[] = [];
+		const createRunner = vi.fn((config: any) => {
+			capturedConfigs.push(config);
+			return {
+				supportsStreamingInput: false,
+				start: vi.fn().mockResolvedValue({
+					sessionId:
+						config.runnerType === "opencode"
+							? "opencode-chat-session"
+							: "claude-chat-session",
+				}),
+				stop: vi.fn(),
+				isRunning: vi.fn(() => runnerStates.shift() ?? false),
+				isStreaming: vi.fn().mockReturnValue(false),
+				addStreamMessage: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+			} as any;
+		});
+
+		const adapter = new TestChatAdapter("resume-thread");
+		const handler = new ChatSessionHandler(adapter, {
+			cyrusHome,
+			chatRepositoryProvider: createStaticProvider([]),
+			runnerConfigBuilder: builder,
+			createRunner,
+			onWebhookStart: vi.fn(),
+			onWebhookEnd: vi.fn(),
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+		});
+
+		await handler.handleEvent({
+			eventId: "initial-event",
+			threadKey: "resume-thread",
+		} as any);
+		const sessionId = handler.listThreads()[0]!.sessionId;
+		(handler as any).sessionManager.getSession(sessionId).opencodeSessionId =
+			"opencode-chat-session";
+
+		builder.setDefaultRunner("claude");
+		await handler.handleEvent({
+			eventId: "followup-event",
+			threadKey: "resume-thread",
+		} as any);
+
+		expect(capturedConfigs[1].runnerType).toBe("opencode");
+		expect(capturedConfigs[1].resumeSessionId).toBe("opencode-chat-session");
 	});
 });
 

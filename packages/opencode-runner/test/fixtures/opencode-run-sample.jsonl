@@ -1,0 +1,6 @@
+{"type":"step_start","sessionID":"oc_session_123"}
+{"type":"tool_use","part":{"tool":"bash","callID":"call_1","state":{"status":"pending","input":{"command":"rg -n \"OpenCode\" packages"}}}}
+{"type":"tool_use","part":{"tool":"bash","callID":"call_1","state":{"status":"completed","input":{"command":"rg -n \"OpenCode\" packages"},"output":"packages/opencode-runner/src/OpenCodeRunner.ts:1:export class OpenCodeRunner"}}}
+{"type":"tool_use","part":{"tool":"edit","callID":"call_2","state":{"status":"completed","input":{"filePath":"packages/opencode-runner/src/OpenCodeRunner.ts"},"output":{"diff":"added OpenCodeRunner"}}}}
+{"type":"text","part":{"text":"Implemented the OpenCode runner package."}}
+{"type":"step_finish","reason":"stop","usage":{"inputTokens":111,"outputTokens":22,"cacheReadTokens":3},"cost":0.0042}

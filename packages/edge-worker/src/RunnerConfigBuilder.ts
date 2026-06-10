@@ -15,6 +15,7 @@ import type {
 	CyrusAgentSession,
 	ILogger,
 	OnAskUserQuestion,
+	OpenCodeConfigOverrides,
 	RepositoryConfig,
 	RunnerType,
 } from "cyrus-core";
@@ -52,6 +53,7 @@ export interface IChatToolResolver {
  * Subset of RunnerSelectionService consumed by RunnerConfigBuilder.
  */
 export interface IRunnerSelector {
+	getDefaultRunner(): RunnerType;
 	determineRunnerSelection(
 		labels: string[],
 		issueDescription?: string,
@@ -60,8 +62,8 @@ export interface IRunnerSelector {
 		modelOverride?: string;
 		fallbackModelOverride?: string;
 	};
-	getDefaultModelForRunner(runnerType: RunnerType): string;
-	getDefaultFallbackModelForRunner(runnerType: RunnerType): string;
+	getDefaultModelForRunner(runnerType: RunnerType): string | undefined;
+	getDefaultFallbackModelForRunner(runnerType: RunnerType): string | undefined;
 }
 
 /**
@@ -94,6 +96,12 @@ export interface ChatRunnerConfigInput {
 	 * run as usual).
 	 */
 	platformMcpConfigOverrides?: readonly string[];
+	/** Global OpenCode runtime config overrides from Cyrus config */
+	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
+	/** Global OpenCode CLI state scope from Cyrus config */
+	opencodeGlobalStateScope?: OpenCodeConfigOverrides["stateScope"];
+	/** Existing runner type to preserve when resuming a completed chat session */
+	runnerType?: RunnerType;
 	logger: ILogger;
 	onMessage: (message: SDKMessage) => void | Promise<void>;
 	onError: (error: Error) => void;
@@ -139,10 +147,14 @@ export interface IssueRunnerConfigInput {
 	requireLinearWorkspaceId: (repo: RepositoryConfig) => string;
 	/** Plugins to load for the session (provides skills, hooks, etc.) */
 	plugins?: SdkPluginConfig[];
+	/** Global OpenCode runtime config overrides from Cyrus config */
+	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
+	/** Global OpenCode CLI state scope from Cyrus config */
+	opencodeGlobalStateScope?: OpenCodeConfigOverrides["stateScope"];
 	/**
 	 * Allow-list of skill names enabled for the session (after scope filtering),
 	 * or `"all"` to enable every discovered skill, or `undefined` to defer to
-	 * provider defaults. Only the Claude runner respects this today.
+	 * provider defaults. Claude and OpenCode runners consume this today.
 	 */
 	skills?: string[] | "all";
 	/** SDK sandbox settings (enabled, network proxy ports) for Claude runner */
@@ -222,6 +234,8 @@ export class RunnerConfigBuilder {
 		);
 
 		input.logger.debug("Chat session allowed tools:", allowedTools);
+		const runnerType =
+			input.runnerType ?? this.runnerSelector.getDefaultRunner();
 
 		// Shared auto-memory across all chat threads on this platform. Lives
 		// under cyrusHome (not the per-thread workspace) so memory built up in
@@ -232,6 +246,7 @@ export class RunnerConfigBuilder {
 		);
 
 		return {
+			runnerType,
 			workingDirectory: input.workspacePath,
 			allowedTools,
 			disallowedTools: [] as string[],
@@ -251,6 +266,14 @@ export class RunnerConfigBuilder {
 			...(input.resumeSessionId
 				? { resumeSessionId: input.resumeSessionId }
 				: {}),
+			...(runnerType === "opencode" && {
+				opencodeGlobalConfig: input.opencodeGlobalConfig,
+				opencodeRepositoryConfig: input.repository?.opencode?.config,
+				opencodeStateScope:
+					input.repository?.opencode?.stateScope ??
+					input.opencodeGlobalStateScope,
+				opencodeStateKey: input.repository?.id,
+			}),
 			logger: input.logger,
 			maxTurns: 200,
 			onMessage: input.onMessage,
@@ -315,6 +338,11 @@ export class RunnerConfigBuilder {
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("cursor");
 			fallbackModelOverride =
 				this.runnerSelector.getDefaultFallbackModelForRunner("cursor");
+		} else if (input.session.opencodeSessionId && runnerType !== "opencode") {
+			runnerType = "opencode";
+			modelOverride = this.runnerSelector.getDefaultModelForRunner("opencode");
+			fallbackModelOverride =
+				this.runnerSelector.getDefaultFallbackModelForRunner("opencode");
 		}
 
 		// Log model override if found
@@ -389,12 +417,11 @@ export class RunnerConfigBuilder {
 				this.runnerSelector.getDefaultFallbackModelForRunner(runnerType),
 			logger: log,
 			hooks,
-			// Plugins providing skills (Claude runner only)
+			// Plugins providing Claude SDK skills, agents, hooks, etc.
+			// Other CLI adapters use their own native environment/configuration.
 			...(runnerType === "claude" &&
 				input.plugins?.length && { plugins: input.plugins }),
-			// Skill scope allow-list (Claude runner only). Passed through to the
-			// SDK's `query()` `skills` option so unlisted skills are hidden from
-			// the model.
+			// Skill scope allow-list for Claude SDK sessions.
 			...(runnerType === "claude" &&
 				input.skills !== undefined && { skills: input.skills }),
 			// SDK sandbox settings (Claude runner only):
@@ -411,6 +438,14 @@ export class RunnerConfigBuilder {
 						resolvedWorkspaceId,
 					),
 				}),
+			...(runnerType === "opencode" && {
+				opencodeGlobalConfig: input.opencodeGlobalConfig,
+				opencodeRepositoryConfig: input.repository.opencode?.config,
+				opencodeStateScope:
+					input.repository.opencode?.stateScope ??
+					input.opencodeGlobalStateScope,
+				opencodeStateKey: input.repository.id,
+			}),
 			onMessage: input.onMessage,
 			onError: input.onError,
 		};

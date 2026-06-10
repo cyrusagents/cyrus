@@ -8,6 +8,21 @@ import type { Workspace } from "../config/types.js";
 import type { ConfigService } from "./ConfigService.js";
 import type { Logger } from "./Logger.js";
 
+function parseToolEnv(value: string | undefined): string[] | undefined {
+	const tools = value
+		?.split(",")
+		.map((tool) => tool.trim())
+		.filter(Boolean);
+	return tools && tools.length > 0 ? tools : undefined;
+}
+
+function parseBooleanEnv(value: string | undefined): boolean | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	return value.toLowerCase().trim() === "true";
+}
+
 /**
  * Service responsible for EdgeWorker and Cloudflare tunnel management
  */
@@ -195,18 +210,16 @@ export class WorkerService {
 			repositories,
 			cyrusHome: this.cyrusHome,
 			linearAllowedTools:
-				process.env.LINEAR_ALLOWED_TOOLS?.split(",").map((t) => t.trim()) ||
-				edgeConfig.linearAllowedTools ||
-				[],
+				parseToolEnv(process.env.LINEAR_ALLOWED_TOOLS) ??
+				edgeConfig.linearAllowedTools,
 			slackAllowedTools: edgeConfig.slackAllowedTools,
 			githubAllowedTools: edgeConfig.githubAllowedTools,
 			slackMcpConfigs: edgeConfig.slackMcpConfigs,
 			linearMcpConfigs: edgeConfig.linearMcpConfigs,
 			githubMcpConfigs: edgeConfig.githubMcpConfigs,
 			defaultDisallowedTools:
-				process.env.DISALLOWED_TOOLS?.split(",").map((t) => t.trim()) ||
-				edgeConfig.defaultDisallowedTools ||
-				undefined,
+				parseToolEnv(process.env.DISALLOWED_TOOLS) ??
+				edgeConfig.defaultDisallowedTools,
 			// Model configuration: environment variables take precedence over config file.
 			// Legacy env vars/keys are still accepted for backwards compatibility.
 			claudeDefaultModel:
@@ -223,12 +236,24 @@ export class WorkerService {
 				process.env.CYRUS_GEMINI_DEFAULT_MODEL || edgeConfig.geminiDefaultModel,
 			codexDefaultModel:
 				process.env.CYRUS_CODEX_DEFAULT_MODEL || edgeConfig.codexDefaultModel,
+			opencodeDefaultModel:
+				process.env.CYRUS_OPENCODE_DEFAULT_MODEL ||
+				edgeConfig.opencodeDefaultModel,
+			opencodeDefaultFallbackModel:
+				process.env.CYRUS_OPENCODE_DEFAULT_FALLBACK_MODEL ||
+				edgeConfig.opencodeDefaultFallbackModel,
+			inferOpenCodeRunnerFromProviderModel:
+				parseBooleanEnv(
+					process.env.CYRUS_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL,
+				) ?? edgeConfig.inferOpenCodeRunnerFromProviderModel,
+			opencode: edgeConfig.opencode,
 			defaultRunner:
 				(process.env.CYRUS_DEFAULT_RUNNER as
 					| "claude"
 					| "gemini"
 					| "codex"
 					| "cursor"
+					| "opencode"
 					| undefined) || edgeConfig.defaultRunner,
 			issueUpdateTrigger: edgeConfig.issueUpdateTrigger,
 			prReviewTrigger: edgeConfig.prReviewTrigger,
