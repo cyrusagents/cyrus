@@ -89,4 +89,35 @@ describe("RunnerSelectionService", () => {
 		expect(selection.runnerType).toBe("opencode");
 		expect(selection.modelOverride).toBe("openai/gpt-5");
 	});
+
+	it("selects runner and model from a single provider/model label", () => {
+		const service = new RunnerSelectionService({} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection(["opencode/codex-5.5"]);
+
+		expect(selection.runnerType).toBe("opencode");
+		expect(selection.modelOverride).toBe("codex-5.5");
+		expect(selection.fallbackModelOverride).toBeUndefined();
+	});
+
+	it("maps openai provider labels to the Codex runner", () => {
+		const service = new RunnerSelectionService({} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection(["openai/gpt-5.5"]);
+
+		expect(selection.runnerType).toBe("codex");
+		expect(selection.modelOverride).toBe("gpt-5.5");
+	});
+
+	it("lets description selectors override provider/model labels", () => {
+		const service = new RunnerSelectionService({} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection(
+			["opencode/codex-5.5"],
+			"[agent=claude]\n[model=sonnet]",
+		);
+
+		expect(selection.runnerType).toBe("claude");
+		expect(selection.modelOverride).toBe("sonnet");
+	});
 });
