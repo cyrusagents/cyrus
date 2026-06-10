@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Updated `@anthropic-ai/sdk` to `0.104.1` (latest), keeping Claude sessions on current Anthropic API capabilities. ([CYPACK-1303](https://linear.app/ceedar/issue/CYPACK-1303))
+
 ## [0.2.63] - 2026-06-09
 
 ### Added

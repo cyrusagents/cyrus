@@ -14,7 +14,7 @@ overrides:
   hono: '>=4.12.21'
   fast-uri: '>=3.1.2'
   ip-address: '>=10.1.1'
-  '@anthropic-ai/sdk': '>=0.102.0'
+  '@anthropic-ai/sdk': '>=0.104.1'
   '@opentelemetry/sdk-node': '>=0.217.0'
   '@opentelemetry/exporter-prometheus': '>=0.217.0'
   '@hono/node-server': '>=1.19.10'
@@ -160,10 +160,10 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.170
-        version: 0.3.170(@anthropic-ai/sdk@0.102.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
+        version: 0.3.170(@anthropic-ai/sdk@0.104.1(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       '@anthropic-ai/sdk':
-        specifier: '>=0.102.0'
-        version: 0.102.0(zod@4.3.6)
+        specifier: '>=0.104.1'
+        version: 0.104.1(zod@4.3.6)
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
@@ -263,7 +263,7 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.170
-        version: 0.3.170(@anthropic-ai/sdk@0.102.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
+        version: 0.3.170(@anthropic-ai/sdk@0.104.1(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
@@ -313,7 +313,7 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.170
-        version: 0.3.170(@anthropic-ai/sdk@0.102.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
+        version: 0.3.170(@anthropic-ai/sdk@0.104.1(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
@@ -538,7 +538,7 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.170
-        version: 0.3.170(@anthropic-ai/sdk@0.102.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
+        version: 0.3.170(@anthropic-ai/sdk@0.104.1(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       cyrus-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
@@ -640,12 +640,12 @@ packages:
     resolution: {integrity: sha512-pAvhfk+iTodXZ6RF18Kz7BEUWFjL7EcR3tKuhUNdPpE1NAYCR3mSHGbafi72JsrNwKEDIs7FU31z3fqhwy8QzA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      '@anthropic-ai/sdk': '>=0.102.0'
+      '@anthropic-ai/sdk': '>=0.104.1'
       '@modelcontextprotocol/sdk': '>=1.26.0'
       zod: 4.3.6
 
-  '@anthropic-ai/sdk@0.102.0':
-    resolution: {integrity: sha512-cThh3KcPW3lzkFyTz1cjyhJvOVw45NkLMoowO2ZJ/76CBz44ADUon+NsjEc/PypAkARs72Xu8qxTnx6PAOTQUQ==}
+  '@anthropic-ai/sdk@0.104.1':
+    resolution: {integrity: sha512-gGACa/+IaiXzRRmF96aOhamoBgapKRBiFWbmmTFP8aMkpaEcuStF+Q61bjo4vPxBM7gqWJNZqsngslRdnLHv0Q==}
     hasBin: true
     peerDependencies:
       zod: 4.3.6
@@ -4452,9 +4452,9 @@ snapshots:
   '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.170':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.170(@anthropic-ai/sdk@0.102.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)':
+  '@anthropic-ai/claude-agent-sdk@0.3.170(@anthropic-ai/sdk@0.104.1(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)':
     dependencies:
-      '@anthropic-ai/sdk': 0.102.0(zod@4.3.6)
+      '@anthropic-ai/sdk': 0.104.1(zod@4.3.6)
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
       zod: 4.3.6
     optionalDependencies:
@@ -4467,7 +4467,7 @@ snapshots:
       '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.170
       '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.170
 
-  '@anthropic-ai/sdk@0.102.0(zod@4.3.6)':
+  '@anthropic-ai/sdk@0.104.1(zod@4.3.6)':
     dependencies:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.0.0
