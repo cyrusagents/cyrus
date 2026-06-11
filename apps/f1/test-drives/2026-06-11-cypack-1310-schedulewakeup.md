@@ -114,6 +114,85 @@ timeline, and a second `result` completes cleanly.
 - [x] Activity format correct (timestamps, types, content)
 - [x] Tool call visible as `action` activity with parameters
 
+## Addendum: SDK learning tests — what signals "safe to shut down"?
+
+Follow-up question (Connor): is there anything other than `result` messages
+that tells us it's safe to terminate the subprocess, and what does the
+subprocess exit actually come down to?
+
+Method: a standalone harness (`/tmp/sdk-wakeup-lab/lab.mjs`) driving
+`@anthropic-ai/claude-agent-sdk@0.3.173` directly with a controllable
+streaming input, logging every SDK message verbatim, every Stop-hook input,
+and the CLI child PID (300ms polling). Three scenarios, varying one factor
+at a time.
+
+### Scenario A — wakeup pending, input stream completed after `result`
+
+```
+t=4.97   tool_use:ScheduleWakeup (delaySeconds=60)
+t=12.24  STOP_HOOK  session_crons: [{id, schedule:"27 12 * * *", recurring:false,
+                     prompt:"WAKEUP: reply with exactly WOKE..."}]   ← THE SIGNAL
+t=12.25  result (success) → session_state_changed: idle
+t=13.28  input stream completed (simulates ClaudeRunner cold mode)
+t=13.89  CLI child process GONE — 0.6s after stdin close,
+         ~47s BEFORE the scheduled wakeup
+```
+
+**The CLI makes no attempt to survive stdin EOF when a wakeup is pending.**
+
+### Scenario B — control (no wakeup), input stream completed after `result`
+
+Identical message shape: `result` → `session_state_changed: idle`, Stop hook
+fired with `session_crons: []`. A field-level diff of the full `result`
+messages from A and B (excluding volatile timing/usage fields) found **zero
+differences** — the `result` message carries no pending-work information.
+Neither does any other stream message: post-`result` emissions are
+byte-equivalent in shape between the two scenarios.
+
+### Scenario C — wakeup pending, input stream held open
+
+```
+t=6.75   STOP_HOOK  session_crons: [ {…one-shot wakeup…} ]
+t=6.75   result #1 → idle          (subprocess stays alive: stream open)
+t=68.29  idle → running            ← wakeup timer fired in-process
+t=71.23  STOP_HOOK  session_crons: []   ← now empty: safe to close
+t=71.23  result #2 ("WOKE") → idle
+t=72.23  input completed → t=72.59 child exited cleanly
+```
+
+### Answers
+
+1. **What the exit really comes down to:** completing the streaming-input
+   AsyncIterable. The SDK then closes the CLI's stdin and SIGTERMs it after a
+   ~2s grace window (`GRACEFUL_EXIT_TIMEOUT_MS`; visible in the bundle as
+   `stdin.end() … else e.kill("SIGTERM")`). `result` emission alone does NOT
+   exit the process — in scenario C it lived 65+ seconds past `result`.
+   Conversely, stdin EOF kills it regardless of pending wakeups.
+2. **There is no in-band message signal.** Nothing in the message stream
+   (`result` fields, `session_state_changed`, or any other emission)
+   distinguishes "done" from "paused awaiting wakeup". The
+   `session_state_changed: idle` docs call it the "authoritative turn-over
+   signal" — turn over, not session over.
+3. **The signal exists, in the Stop hook.** `StopHookInput.session_crons`
+   (one entry per pending `CronCreate`/`ScheduleWakeup`/`/loop` task, with
+   `recurring: false` for one-shot wakeups) and
+   `StopHookInput.background_tasks` (in-flight backgrounded work). The SDK
+   docs say these exist precisely to "distinguish 'session is done' from
+   'session is paused waiting for background work to wake it'". The hook
+   fires immediately before `result`, so the decision input is available by
+   the time `ClaudeRunner` decides whether to complete the prompt.
+
+### Implication for the cold-mode fix
+
+`ClaudeRunner` can register a Stop hook (it already configures hooks),
+record the latest `session_crons`/`background_tasks`, and on `result` only
+complete the streaming prompt when both are empty — otherwise hold the
+prompt open until a later turn's Stop hook reports them empty. Policy
+decisions remain for `recurring: true` crons (never empty — needs a cap or
+warm-mode-only support) and for Cyrus restarts (in-process timers die with
+the daemon either way, which still argues for EdgeWorker-level scheduling as
+the robust long-term design).
+
 ## Final Retrospective
 
 **Answer to CYPACK-1310: the intuition is correct.** ScheduleWakeup is NOT
