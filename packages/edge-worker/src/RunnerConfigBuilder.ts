@@ -160,6 +160,12 @@ export interface IssueRunnerConfigInput {
 	 * `gh auth login` the github-tokens push handler performs.
 	 */
 	githubToken?: string;
+	/**
+	 * GitLab token matched to the session repository. Exposed only as
+	 * CYRUS_GITLAB_TOKEN so customer-owned GITLAB_TOKEN/glab state is not
+	 * overwritten.
+	 */
+	gitlabToken?: string;
 }
 
 /**
@@ -437,6 +443,12 @@ export class RunnerConfigBuilder {
 			config.additionalEnv = {
 				...config.additionalEnv,
 				CYRUS_GH_TOKEN: input.githubToken,
+			};
+		}
+		if (input.gitlabToken) {
+			config.additionalEnv = {
+				...config.additionalEnv,
+				CYRUS_GITLAB_TOKEN: input.gitlabToken,
 			};
 		}
 

@@ -497,6 +497,8 @@ export class PromptBuilder {
 					routingContext,
 				);
 
+			prompt = this.appendGitLabSourceControlContext(prompt, repositories);
+
 			// Append agent guidance if present
 			prompt += this.formatAgentGuidance(guidance);
 
@@ -942,6 +944,8 @@ IMPORTANT: Focus specifically on addressing the new comment above. This is a new
 				prompt = prompt.replace(/\n*{{#if new_comment}}[\s\S]*?{{\/if}}/g, "");
 			}
 
+			prompt = this.appendGitLabSourceControlContext(prompt, repositories);
+
 			// Append agent guidance if present
 			prompt += this.formatAgentGuidance(guidance);
 
@@ -1000,6 +1004,25 @@ ${newComment ? `New comment to address:\n${newComment.body}\n\n` : ""}Please ana
 
 			return { prompt: fallbackPrompt, version: undefined };
 		}
+	}
+
+	private appendGitLabSourceControlContext(
+		prompt: string,
+		repositories: RepositoryConfig[],
+	): string {
+		const gitLabRepositories = repositories.filter((repo) => repo.gitlabUrl);
+		if (gitLabRepositories.length === 0) {
+			return prompt;
+		}
+
+		const repositoryLines = gitLabRepositories
+			.map(
+				(repo) =>
+					`  <repository name="${repo.name}">\n    <gitlab_url>${repo.gitlabUrl}</gitlab_url>\n    <cli>glab</cli>\n  </repository>`,
+			)
+			.join("\n");
+
+		return `${prompt}\n\n<source_control_context>\n${repositoryLines}\n<instructions>\n- Use \`glab\` for GitLab-specific operations such as merge requests, comments, reviews, and project API lookups.\n- Do not use \`gh\` for GitLab repositories.\n- Plain \`git\` fetch, clone, pull, commit, and push operations are already authenticated by the Cyrus git credential helper.\n</instructions>\n</source_control_context>`;
 	}
 
 	/**

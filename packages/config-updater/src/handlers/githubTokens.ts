@@ -58,7 +58,7 @@ export function ensureGhTokenResolver(cyrusHome: string): string {
  *
  * Returns the absolute path of the installed helper script.
  */
-export function ensureGitHubCredentialHelper(cyrusHome: string): string {
+export function ensureGitCredentialHelper(cyrusHome: string): string {
 	const scriptDir = join(cyrusHome, "scripts");
 	const scriptDest = join(scriptDir, "git-credential-cyrus.cjs");
 
@@ -66,28 +66,32 @@ export function ensureGitHubCredentialHelper(cyrusHome: string): string {
 	copyFileSync(bundledScriptPath("git-credential-cyrus.cjs"), scriptDest);
 	chmodSync(scriptDest, 0o755);
 
-	const credentialKey = "credential.https://github.com";
 	const git = (args: string[]): void => {
 		execFileSync("git", args, { stdio: "ignore" });
 	};
 
-	// Pass the repo path to the helper so it can resolve the org.
-	git(["config", "--global", `${credentialKey}.useHttpPath`, "true"]);
-	// Clear inherited helpers (an empty value resets git's helper list for
-	// this key). --replace-all also makes repeated runs idempotent: every
-	// call ends with exactly ["", "!node <script>"].
-	git(["config", "--global", "--replace-all", `${credentialKey}.helper`, ""]);
-	// Quote the script path — helper commands are run through the shell.
-	git([
-		"config",
-		"--global",
-		"--add",
-		`${credentialKey}.helper`,
-		`!node "${scriptDest}"`,
-	]);
+	for (const host of ["github.com", "gitlab.com"]) {
+		const credentialKey = `credential.https://${host}`;
+		// Pass the repo path to the helper so it can resolve org/group namespaces.
+		git(["config", "--global", `${credentialKey}.useHttpPath`, "true"]);
+		// Clear inherited helpers (an empty value resets git's helper list for
+		// this key). --replace-all also makes repeated runs idempotent: every
+		// call ends with exactly ["", "!node <script>"].
+		git(["config", "--global", "--replace-all", `${credentialKey}.helper`, ""]);
+		// Quote the script path — helper commands are run through the shell.
+		git([
+			"config",
+			"--global",
+			"--add",
+			`${credentialKey}.helper`,
+			`!node "${scriptDest}"`,
+		]);
+	}
 
 	return scriptDest;
 }
+
+export const ensureGitHubCredentialHelper = ensureGitCredentialHelper;
 
 /**
  * Self-heal the droplet's `~/.local/bin/gh` wrapper to exec the Cyrus gh
@@ -132,6 +136,30 @@ fi
 exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
 `;
 	writeFileSync(wrapperPath, updated, { mode: 0o755 });
+	return true;
+}
+
+export function ensureGlabWrapperSupportsCyrusToken(
+	homeDir: string = homedir(),
+): boolean {
+	if (!existsSync("/usr/bin/glab")) return false;
+
+	const binDir = join(homeDir, ".local", "bin");
+	const wrapperPath = join(binDir, "glab");
+	const desired = `#!/usr/bin/env bash
+if [ -n "\${CYRUS_GITLAB_TOKEN:-}" ]; then
+  exec env GITLAB_TOKEN="$CYRUS_GITLAB_TOKEN" /usr/bin/glab "$@"
+fi
+exec env -u GITLAB_TOKEN /usr/bin/glab "$@"
+`;
+
+	if (existsSync(wrapperPath)) {
+		const current = readFileSync(wrapperPath, "utf8");
+		if (current === desired) return false;
+	}
+
+	mkdirSync(binDir, { recursive: true });
+	writeFileSync(wrapperPath, desired, { mode: 0o755 });
 	return true;
 }
 
@@ -197,7 +225,7 @@ export async function handleGitHubTokens(
 	}
 
 	try {
-		ensureGitHubCredentialHelper(cyrusHome);
+		ensureGitCredentialHelper(cyrusHome);
 	} catch (error) {
 		return {
 			success: false,

@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- GitLab credentials can now be pushed to the runtime through a provider-neutral token store. The git credential helper resolves GitHub and GitLab HTTPS credentials by host/namespace, and sessions receive GitLab tokens as `CYRUS_GITLAB_TOKEN` without clobbering user-managed `GITLAB_TOKEN`. ([CYHOST-1082](https://linear.app/ceedar/issue/CYHOST-1082), [#1311](https://github.com/cyrusagents/cyrus/pull/1311))
 - Cyrus now supports multiple GitHub organizations per team: git and `gh` operations automatically use the right credentials for each repository's org. Tokens are pushed by the Cyrus control plane and a git credential helper picks the matching one per repository, so concurrent sessions across different GitHub orgs no longer share a single login. ([CYHOST-913](https://linear.app/ceedar/issue/CYHOST-913), [#1307](https://github.com/cyrusagents/cyrus/pull/1307))
 
 ## [0.2.63] - 2026-06-09

@@ -61,6 +61,7 @@ import {
 	createLogger,
 	DEFAULT_PROXY_URL,
 	GitHubTokenStore,
+	GitProviderTokenStore,
 	isAgentSessionCreatedWebhook,
 	isAgentSessionPromptedWebhook,
 	isContentUpdateMessage,
@@ -229,6 +230,8 @@ export class EdgeWorker extends EventEmitter {
 	private cyrusHome: string;
 	/** Per-org GitHub App installation tokens pushed by cyrus-hosted (lazy file-backed reads) */
 	private githubTokenStore: GitHubTokenStore;
+	/** Provider-neutral GitHub/GitLab tokens pushed by cyrus-hosted */
+	private gitProviderTokenStore: GitProviderTokenStore;
 	private globalSessionRegistry: GlobalSessionRegistry; // Centralized session storage across all repositories
 	private configPath?: string; // Path to config.json file
 	/** @internal - Exposed for testing only */
@@ -326,6 +329,7 @@ export class EdgeWorker extends EventEmitter {
 		this.config = EdgeWorker.normalizeConfigPaths(config);
 		this.cyrusHome = config.cyrusHome;
 		this.githubTokenStore = new GitHubTokenStore(this.cyrusHome);
+		this.gitProviderTokenStore = new GitProviderTokenStore(this.cyrusHome);
 		this.logger = createLogger({ component: "EdgeWorker" });
 		this.persistenceManager = new PersistenceManager(
 			join(this.cyrusHome, "state"),
@@ -623,16 +627,19 @@ export class EdgeWorker extends EventEmitter {
 	 * Start the edge worker
 	 */
 	async start(): Promise<void> {
-		// If cyrus-hosted has pushed per-org GitHub App tokens previously, make
-		// sure the git credential helper and the per-invocation gh token
-		// resolver are wired up (idempotent). Covers the case where the
-		// process restarted after the helper config was wiped.
-		if (existsSync(this.githubTokenStore.filePath)) {
+		// If cyrus-hosted has pushed GitHub/GitLab provider tokens previously,
+		// make sure the git credential helper and per-invocation gh token
+		// resolver are wired up (idempotent). Covers the case where the process
+		// restarted after the helper config was wiped.
+		if (
+			existsSync(this.githubTokenStore.filePath) ||
+			existsSync(this.gitProviderTokenStore.filePath)
+		) {
 			try {
 				ensureGitHubCredentialHelper(this.cyrusHome);
 				ensureGhTokenResolver(this.cyrusHome);
 				this.logger.info(
-					"✅ GitHub auth scripts configured from existing token store",
+					"✅ Git provider auth scripts configured from existing token store",
 				);
 			} catch (error) {
 				this.logger.warn(
@@ -6491,6 +6498,12 @@ ${input.userComment}
 			// users without the token file.
 			githubToken: repository.githubUrl
 				? this.githubTokenStore.getTokenForRepoUrl(repository.githubUrl)
+				: undefined,
+			gitlabToken: repository.gitlabUrl
+				? this.gitProviderTokenStore.getTokenForRepoUrl(
+						repository.gitlabUrl,
+						"gitlab",
+					)?.token
 				: undefined,
 			logger: log,
 			plugins,

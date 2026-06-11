@@ -110,6 +110,16 @@ export {
 	getDefaultReposDir,
 	getDefaultWorktreesDir,
 } from "./constants.js";
+export type {
+	GitProvider,
+	GitProviderToken,
+	GitProviderTokensFile,
+} from "./git-provider-token-store.js";
+export {
+	extractGitProviderRepoParts,
+	GIT_PROVIDER_TOKENS_FILENAME,
+	GitProviderTokenStore,
+} from "./git-provider-token-store.js";
 // GitHub App installation token store (multi-org GitHub support)
 export type {
 	GitHubInstallationToken,
