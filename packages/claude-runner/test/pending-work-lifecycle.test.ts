@@ -84,9 +84,14 @@ function installMockQuery(mockQuery: ReturnType<typeof vi.mocked<any>>) {
 			crons: (typeof SESSION_CRON)[],
 			resultText: string,
 		) => Promise<void>;
+		endTurnWithWork: (
+			work: { sessionCrons?: any[]; backgroundTasks?: any[] },
+			resultText: string,
+		) => Promise<void>;
 	} = {
 		queryOptions: null,
 		endTurn: async () => {},
+		endTurnWithWork: async () => {},
 	};
 
 	mockQuery.mockImplementation(({ options, prompt }: any) => {
@@ -105,7 +110,7 @@ function installMockQuery(mockQuery: ReturnType<typeof vi.mocked<any>>) {
 			notify?.();
 		})();
 
-		state.endTurn = async (crons, resultText) => {
+		state.endTurnWithWork = async (work, resultText) => {
 			const stopMatchers = options.hooks?.Stop ?? [];
 			for (const matcher of stopMatchers) {
 				for (const hook of matcher.hooks) {
@@ -113,8 +118,8 @@ function installMockQuery(mockQuery: ReturnType<typeof vi.mocked<any>>) {
 						{
 							hook_event_name: "Stop",
 							stop_hook_active: false,
-							session_crons: crons,
-							background_tasks: [],
+							session_crons: work.sessionCrons ?? [],
+							background_tasks: work.backgroundTasks ?? [],
 							cwd: "/tmp/test",
 						} as unknown as StopHookInput,
 						undefined,
@@ -125,6 +130,8 @@ function installMockQuery(mockQuery: ReturnType<typeof vi.mocked<any>>) {
 			emitted.push(makeResultMessage(resultText));
 			notify?.();
 		};
+		state.endTurn = (crons, resultText) =>
+			state.endTurnWithWork({ sessionCrons: crons }, resultText);
 
 		return {
 			async *[Symbol.asyncIterator]() {
@@ -250,6 +257,50 @@ describe("ClaudeRunner pending-work lifecycle (CYPACK-1310)", () => {
 		// Turn 2 (the wakeup turn) ends with nothing pending → prompt
 		// completes → iterator ends → session finishes.
 		await state.endTurn([], "WOKE");
+		await completed;
+		expect(runner.hasPendingWork()).toBe(false);
+		expect(runner.isRunning()).toBe(false);
+		await sessionPromise;
+	});
+
+	it("holds the prompt open for an in-flight background task, then completes when it settles", async () => {
+		// A `Bash(run_in_background: true)` task is registered by the SDK and
+		// reported in the Stop hook's background_tasks. Verified against the
+		// real SDK (CYPACK-1310 bgbash probe): closing stdin while such a task
+		// is running KILLS it, so the prompt must stay open until it settles.
+		// (A bare `sleep 120 &` is NOT registered — the Bash tool call returns
+		// instantly — so background_tasks is empty and there is nothing to
+		// hold open; that is an SDK-tracking limitation, not a Cyrus bug.)
+		const BG_TASK = {
+			id: "task-1",
+			type: "shell",
+			status: "running",
+			description: "Sleep for 120 seconds in background",
+			command: "sleep 120",
+		};
+		const state = installMockQuery(mockQuery);
+		const runner = new ClaudeRunner(defaultConfig, false);
+
+		const firstResult = waitForMessageCount(runner, 2);
+		const completed = new Promise<void>((resolve) => {
+			runner.on("complete", () => resolve());
+		});
+		const sessionPromise = runner.startStreaming("run a background command");
+		await vi.waitFor(() => {
+			expect(state.queryOptions).not.toBeNull();
+		});
+
+		// Turn 1 ends with the background task still running.
+		await state.endTurnWithWork({ backgroundTasks: [BG_TASK] }, "STARTED");
+		await firstResult;
+
+		expect(runner.hasPendingWork()).toBe(true);
+		expect(runner.getPendingWork().backgroundTasks).toEqual([BG_TASK]);
+		expect(runner.isRunning()).toBe(true);
+
+		// The task settles → its notification wakes a turn that ends with no
+		// pending work → prompt completes → session finishes.
+		await state.endTurnWithWork({ backgroundTasks: [] }, "done");
 		await completed;
 		expect(runner.hasPendingWork()).toBe(false);
 		expect(runner.isRunning()).toBe(false);

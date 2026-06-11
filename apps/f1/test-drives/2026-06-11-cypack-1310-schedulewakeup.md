@@ -221,6 +221,41 @@ hook-before-result ordering and stdin-EOF exit) and
 `packages/edge-worker/test/AgentSessionManager.pending-work.test.ts`
 (response formatting + standing-by thought ordering).
 
+## Addendum 3: Background-bash coverage (does the detector catch long-running commands?)
+
+Follow-up (Connor): a long-running bash command "didn't get caught by the
+detector." Probed directly with `assets/2026-06-11-cypack-1310-bgbash-lab.mjs`
+(real SDK). The detector keys off the SDK's own background-task registry
+(`background_tasks` on the Stop hook), so coverage depends on *how* the
+command is launched:
+
+| Launch method | SDK `background_tasks` at Stop hook | Caught? |
+|---|---|---|
+| `Bash(run_in_background: true)` | `[{type:"shell", status:"running", command:"sleep 120"}]` | ✅ yes |
+| Trailing `sleep 120 &` | `[]` — the Bash tool call returns instantly (`task_updated → completed`, exit 0); the `sleep` is an orphan the SDK never tracks | ❌ no (nothing to detect) |
+
+Two decisive observations from the probe:
+
+1. **`run_in_background` is tracked and now held open.** The probe also showed
+   that closing stdin while such a task is running *kills* it
+   (`status:"killed"`, `task_notification: stopped`) — which is exactly the
+   regression the fix prevents. Cold-mode F1 validation (port 3615): the agent
+   ran `sleep 70 …` via `run_in_background`, the session was held open
+   (`backgroundTaskCount: 1`, CLI child alive at T+25s, "⏳ Standing by — 🛠️
+   Background command" thought posted), the task finished at ~70s, and the
+   session woke into a new turn (`BG_OK`) before completing cleanly.
+2. **Bare `&` is invisible by design.** The Bash *tool call* `sleep 120 &`
+   completes the instant the shell forks, so the SDK reports the tool done and
+   `background_tasks` is empty. The orphaned process keeps running but neither
+   the CLI nor Cyrus has any handle on it — there is no signal to detect, and
+   scanning the host process tree for unattributed orphans is not a robust or
+   safe basis for keeping a session alive.
+
+**Guidance:** to keep a session alive for long-running work, use
+`Bash(run_in_background: true)` (the harness-tracked mechanism the Bash tool
+already recommends over `&`). Detached `&` processes are intentionally outside
+the detector's scope.
+
 ## Final Retrospective
 
 **Answer to CYPACK-1310: the intuition is correct.** ScheduleWakeup is NOT
