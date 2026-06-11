@@ -5,7 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Added
-- F1 test drive verifying `ScheduleWakeup` delivery: confirmed the tool is non-operational when `CYRUS_ENABLE_WARM_SESSIONS` is unset (the default) because `ClaudeRunner` completes the streaming prompt on the SDK `result` message, the Claude Code subprocess exits at turn end, and the in-process wakeup timer dies with it; the identical scenario works end-to-end with `CYRUS_ENABLE_WARM_SESSIONS=1`. See `apps/f1/test-drives/2026-06-11-cypack-1310-schedulewakeup.md` for evidence and fix considerations. ([CYPACK-1310](https://linear.app/ceedar/issue/CYPACK-1310), [#PR_NUMBER](https://github.com/ceedaragents/cyrus/pull/PR_NUMBER))
+- F1 test drive verifying `ScheduleWakeup` delivery: confirmed the tool is non-operational when `CYRUS_ENABLE_WARM_SESSIONS` is unset (the default) because `ClaudeRunner` completes the streaming prompt on the SDK `result` message, the Claude Code subprocess exits at turn end, and the in-process wakeup timer dies with it; the identical scenario works end-to-end with `CYRUS_ENABLE_WARM_SESSIONS=1`. See `apps/f1/test-drives/2026-06-11-cypack-1310-schedulewakeup.md` for evidence and fix considerations. ([CYPACK-1310](https://linear.app/ceedar/issue/CYPACK-1310), [#1313](https://github.com/cyrusagents/cyrus/pull/1313))
 
 ### Changed
 - Removed stale Slack setup skill guidance that pointed agents back to the retired hosted preview initialization workflow. ([CYHOST-1078](https://linear.app/ceedar/issue/CYHOST-1078/remove-legacy-agent-led-deploy-preview-skills-and-references), [#1310](https://github.com/cyrusagents/cyrus/pull/1310))
