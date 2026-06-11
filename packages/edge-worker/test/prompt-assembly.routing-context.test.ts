@@ -89,6 +89,96 @@ Orchestrate this task
 			.verify();
 	});
 
+	it("should include GitLab source-control context for single-repository label-based prompts", async () => {
+		const repository = {
+			id: "repo-gitlab-single-123",
+			name: "GitLab Single Repo",
+			repositoryPath: "/test/gitlab-single-repo",
+			workspaceBaseDir: "/test/workspace",
+			linearWorkspaceId: "test-gitlab-workspace-1",
+
+			baseBranch: "main",
+			gitlabUrl: "https://gitlab.com/acme/gitlab-single-repo",
+			routingLabels: ["backend"],
+			teamKeys: ["BACK"],
+			labelPrompts: {
+				orchestrator: { labels: ["Orchestrator"] },
+			},
+		};
+
+		const worker = createTestWorker([repository]);
+
+		const session = {
+			issueId: "issue-gitlab-123",
+			workspace: { path: "/test" },
+			metadata: {},
+		};
+
+		const issue = {
+			id: "issue-gitlab-123",
+			identifier: "GL-100",
+			title: "Single GitLab orchestration",
+			description: "Test GitLab issue",
+		};
+
+		await scenario(worker)
+			.newSession()
+			.assignmentBased()
+			.withSession(session)
+			.withIssue(issue)
+			.withRepository(repository)
+			.withUserComment("Orchestrate this GitLab task")
+			.withLabels("Orchestrator")
+			.expectUserPrompt(`<git_context>
+<repository>GitLab Single Repo</repository>
+<base_branch>main</base_branch>
+</git_context>
+
+<linear_issue>
+<id>issue-gitlab-123</id>
+<identifier>GL-100</identifier>
+<title>Single GitLab orchestration</title>
+<description>Test GitLab issue</description>
+<url></url>
+<assignee>
+<linear_id></linear_id>
+<linear_display_name></linear_display_name>
+<linear_profile_url></linear_profile_url>
+<github_username></github_username>
+<github_user_id></github_user_id>
+<github_noreply_email></github_noreply_email>
+</assignee>
+</linear_issue>
+
+<workspace_context>
+<teams>
+
+</teams>
+<labels>
+
+</labels>
+</workspace_context>
+
+<source_control_context>
+  <repository name="GitLab Single Repo">
+    <gitlab_url>https://gitlab.com/acme/gitlab-single-repo</gitlab_url>
+    <cli>glab</cli>
+  </repository>
+<instructions>
+- Use \`glab\` for GitLab-specific operations such as merge requests, comments, reviews, and project API lookups.
+- Do not use \`gh\` for GitLab repositories.
+- Plain \`git\` fetch, clone, pull, commit, and push operations are already authenticated by the Cyrus git credential helper.
+</instructions>
+</source_control_context>
+
+<user_comment>
+Orchestrate this GitLab task
+</user_comment>`)
+			.expectPromptType("label-based")
+			.expectComponents("issue-context", "user-comment")
+			.verify();
+	});
+
 	it("should include routing context for multi-repository setup", async () => {
 		const frontendRepo = {
 			id: "repo-frontend-123",
