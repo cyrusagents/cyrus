@@ -56,6 +56,16 @@ export interface CodexRunnerConfig extends AgentRunnerConfig {
 	 * coarse default mode. Paths must be absolute.
 	 */
 	sandboxSettings?: CyrusSandboxFilesystem;
+	/**
+	 * Policy for mutating ChatGPT-connector tools (the host-owned `codex_apps`
+	 * MCP server). "disabled" emits `apps._default.destructive_enabled = false`
+	 * / `open_world_enabled = false` config overrides, so Codex blocks
+	 * connector write-tools before any approval flow ("blocked by app
+	 * configuration"); read-only connector tools and regular `mcp_servers`
+	 * entries are unaffected. Defaults to "enabled" (connector confirmations
+	 * are auto-accepted under approvalPolicy "never").
+	 */
+	connectorWrites?: "enabled" | "disabled";
 }
 
 /**

@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Codex sessions can use mutating MCP tools again (e.g. creating a comment or updating an issue through a connector). Since the move to the Codex app-server backend, any MCP tool that asks for confirmation before running — which Codex requires for all write/mutating tools — was silently answered with an empty response, so Codex treated it as declined and every such call failed with "user rejected MCP tool call" while read-only tools kept working. Cyrus now auto-accepts these confirmation prompts (and answers tool user-input questions with their "Allow" option), matching the configured `never` approval policy. Requests to escalate sandbox permissions are still refused so the filesystem sandbox keeps its guarantees. ([#1321](https://github.com/cyrusagents/cyrus/pull/1321))
 
+### Added
+- New `codexConnectorWrites` setting ("enabled" | "disabled", default "enabled") controlling whether Codex sessions may use mutating tools from ChatGPT-account connectors (the `codex_apps` MCP integration, e.g. the Linear connector). When disabled, connector write-tools are blocked before execution with "blocked by app configuration" while read-only connector tools and regular MCP servers keep working. Settable globally or per-repository in `config.json`, or via the `CYRUS_CODEX_CONNECTOR_WRITES` environment variable (a per-repository value wins over the environment variable). ([#1322](https://github.com/cyrusagents/cyrus/pull/1322))
+
 ### Changed
 - The bundled Codex CLI and SDK are now pinned to an exact version (0.137.0) instead of a caret range, so Codex protocol behavior can't change underneath a Cyrus release. ([#1321](https://github.com/cyrusagents/cyrus/pull/1321))
 

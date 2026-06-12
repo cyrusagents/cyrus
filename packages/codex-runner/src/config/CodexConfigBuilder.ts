@@ -18,6 +18,38 @@ function getDefaultReasoningEffortForModel(
 }
 
 /**
+ * Block mutating ChatGPT-connector tools by forcing the `[apps._default]`
+ * gates off. Codex skips destructive/open-world `codex_apps` tools before any
+ * approval flow ("blocked by app configuration"); tools annotated read-only
+ * and regular `mcp_servers` entries are unaffected. The `_default` key and
+ * snake_case field names match codex's `AppsConfigToml` (which rejects unknown
+ * fields). Caller-supplied per-connector overrides are preserved.
+ */
+function withConnectorWritesDisabled(
+	existingApps: CodexConfigValue | undefined,
+): CodexConfigValue {
+	const apps =
+		existingApps &&
+		typeof existingApps === "object" &&
+		!Array.isArray(existingApps)
+			? { ...existingApps }
+			: {};
+	const existingDefault = apps._default;
+	const defaults =
+		existingDefault &&
+		typeof existingDefault === "object" &&
+		!Array.isArray(existingDefault)
+			? { ...existingDefault }
+			: {};
+	apps._default = {
+		...defaults,
+		destructive_enabled: false,
+		open_world_enabled: false,
+	};
+	return apps;
+}
+
+/**
  * Assembles a transport-neutral {@link ResolvedCodexConfig} from a
  * {@link CodexRunnerConfig}. Single responsibility: configuration resolution
  * (model fallback, sandbox, reasoning effort, MCP translation, env, home dir).
@@ -148,6 +180,10 @@ export class CodexConfigBuilder {
 							...mcpServers,
 						}
 					: mcpServers;
+		}
+
+		if (this.config.connectorWrites === "disabled") {
+			configOverrides.apps = withConnectorWritesDisabled(configOverrides.apps);
 		}
 
 		return Object.keys(configOverrides).length > 0

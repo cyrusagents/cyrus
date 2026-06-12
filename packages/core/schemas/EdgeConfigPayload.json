@@ -99,6 +99,10 @@
 					"fallbackModel": {
 						"type": "string"
 					},
+					"codexConnectorWrites": {
+						"type": "string",
+						"enum": ["enabled", "disabled"]
+					},
 					"labelPrompts": {
 						"type": "object",
 						"properties": {
@@ -526,6 +530,10 @@
 		},
 		"codexDefaultModel": {
 			"type": "string"
+		},
+		"codexConnectorWrites": {
+			"type": "string",
+			"enum": ["enabled", "disabled"]
 		},
 		"cursorDefaultModel": {
 			"type": "string"

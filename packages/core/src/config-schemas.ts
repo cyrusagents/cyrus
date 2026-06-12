@@ -306,6 +306,13 @@ export const RepositoryConfigSchema = z.object({
 	model: z.string().optional(),
 	fallbackModel: z.string().optional(),
 
+	/**
+	 * Whether Codex sessions for this repository may use mutating (destructive
+	 * or open-world) tools from ChatGPT-account connectors (the host-owned
+	 * `codex_apps` MCP server). Overrides the top-level `codexConnectorWrites`.
+	 */
+	codexConnectorWrites: z.enum(["enabled", "disabled"]).optional(),
+
 	// Label-based system prompt configuration
 	labelPrompts: LabelPromptsSchema.optional(),
 
@@ -352,6 +359,17 @@ export const EdgeConfigSchema = z.object({
 
 	/** Default Codex model to use across all repositories (e.g., "gpt-5.5", "gpt-5.4", "gpt-5.3-codex") */
 	codexDefaultModel: z.string().optional(),
+
+	/**
+	 * Whether Codex sessions may use mutating (destructive or open-world) tools
+	 * from ChatGPT-account connectors (the host-owned `codex_apps` MCP server).
+	 * When "disabled", connector write-tools fail with "blocked by app
+	 * configuration" while read-only connector tools and regular MCP servers
+	 * keep working. Defaults to "enabled". Also settable via the
+	 * CYRUS_CODEX_CONNECTOR_WRITES environment variable (an explicit
+	 * per-repository `codexConnectorWrites` still wins).
+	 */
+	codexConnectorWrites: z.enum(["enabled", "disabled"]).optional(),
 
 	/** Default Cursor model to use across all repositories (e.g., "composer-2", "gpt-5.4") */
 	cursorDefaultModel: z.string().optional(),
