@@ -157,6 +157,104 @@ describe("AppServerProcessManager pool", () => {
 	});
 });
 
+describe("auto-answering server→client requests (headless)", () => {
+	async function serverRequestHandler(): Promise<ServerRequestHandler> {
+		const { clients, factory } = recordingFactory();
+		const manager = new AppServerProcessManager(factory, { idleCloseMs: 0 });
+		await manager.acquire(configWithEnv());
+		const handler = clients[0]?.serverRequestHandler;
+		if (!handler) {
+			throw new Error("server request handler was not registered");
+		}
+		return handler;
+	}
+
+	it("accepts MCP elicitations so mutating MCP tool calls are not rejected", async () => {
+		const handler = await serverRequestHandler();
+		expect(
+			await handler("mcpServer/elicitation/request", {
+				threadId: "t1",
+				serverName: "linear",
+				mode: "form",
+				message: 'Allow connector "Linear" to run tool "save_comment"?',
+				requestedSchema: { type: "object", properties: {} },
+			}),
+		).toEqual({ action: "accept", content: {} });
+	});
+
+	it("answers requestUserInput questions with their Allow option", async () => {
+		const handler = await serverRequestHandler();
+		expect(
+			await handler("item/tool/requestUserInput", {
+				threadId: "t1",
+				turnId: "turn-1",
+				itemId: "item-1",
+				questions: [
+					{
+						id: "mcp_tool_approval_call-1",
+						header: "Approve app tool call?",
+						question: 'Allow "linear" to run tool "save_comment"?',
+						options: [
+							{ label: "Allow", description: "Run the tool and continue." },
+							{ label: "Cancel", description: "Cancel this tool call." },
+						],
+					},
+				],
+			}),
+		).toEqual({
+			answers: { "mcp_tool_approval_call-1": { answers: ["Allow"] } },
+		});
+	});
+
+	it("falls back to the first option, and to no answer without options", async () => {
+		const handler = await serverRequestHandler();
+		expect(
+			await handler("item/tool/requestUserInput", {
+				questions: [
+					{ id: "q1", options: [{ label: "Yes" }, { label: "No" }] },
+					{ id: "q2" },
+				],
+			}),
+		).toEqual({
+			answers: { q1: { answers: ["Yes"] }, q2: { answers: [] } },
+		});
+		expect(await handler("item/tool/requestUserInput", {})).toEqual({
+			answers: {},
+		});
+	});
+
+	it("declines sandbox permission escalation with an empty grant (not a decision)", async () => {
+		const handler = await serverRequestHandler();
+		expect(
+			await handler("item/permissions/requestApproval", {
+				threadId: "t1",
+				permissions: { fileSystem: { write: ["/etc"] } },
+			}),
+		).toEqual({ permissions: {} });
+	});
+
+	it("accepts command execution and file change approvals", async () => {
+		const handler = await serverRequestHandler();
+		expect(await handler("item/commandExecution/requestApproval", {})).toEqual({
+			decision: "accept",
+		});
+		expect(await handler("item/fileChange/requestApproval", {})).toEqual({
+			decision: "accept",
+		});
+		expect(await handler("execCommandApproval", {})).toEqual({
+			decision: "accept",
+		});
+	});
+
+	it("answers auth token refreshes with no token and unknown methods with {}", async () => {
+		const handler = await serverRequestHandler();
+		expect(await handler("account/chatgptAuthTokens/refresh", {})).toEqual({
+			chatgptAuthToken: null,
+		});
+		expect(await handler("attestation/generate", {})).toEqual({});
+	});
+});
+
 function handlerSpy() {
 	const notifications: { method: string; params: unknown }[] = [];
 	const handler: AppServerThreadHandler = {

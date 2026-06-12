@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.2.65] - 2026-06-11
+### Fixed
+- Codex sessions can use mutating MCP tools again (e.g. creating a comment or updating an issue through a connector). Since the move to the Codex app-server backend, any MCP tool that asks for confirmation before running — which Codex requires for all write/mutating tools — was silently answered with an empty response, so Codex treated it as declined and every such call failed with "user rejected MCP tool call" while read-only tools kept working. Cyrus now auto-accepts these confirmation prompts (and answers tool user-input questions with their "Allow" option), matching the configured `never` approval policy. Requests to escalate sandbox permissions are still refused so the filesystem sandbox keeps its guarantees. ([#1321](https://github.com/cyrusagents/cyrus/pull/1321))
+
+### Changed
+- The bundled Codex CLI and SDK are now pinned to an exact version (0.137.0) instead of a caret range, so Codex protocol behavior can't change underneath a Cyrus release. ([#1321](https://github.com/cyrusagents/cyrus/pull/1321))
 
 ### Fixed
 - Sessions that schedule a wakeup or background task no longer falsely report "Finished" with raw tool JSON, and the scheduled work actually runs. Previously, ending a turn on a `ScheduleWakeup` (or background `Bash`) call shut the Claude subprocess down — silently dropping the timer so the session never resumed — and posted a "Finished" Linear activity whose body was the raw tool-input JSON. Now Cyrus keeps the session alive while a wakeup, session cron, or background task is in flight (so it fires), posts a readable "⏰ Wakeup scheduled" response instead of JSON, and adds a "⏳ Standing by" thought listing what the session is waiting on — returning the Linear agent panel to its working state. Sessions with nothing pending still shut down at turn end to free memory. ([CYPACK-1310](https://linear.app/ceedar/issue/CYPACK-1310), [CYPACK-1177](https://linear.app/ceedar/issue/CYPACK-1177), [CYHOST-905](https://linear.app/ceedar/issue/CYHOST-905), [#1313](https://github.com/cyrusagents/cyrus/pull/1313))
