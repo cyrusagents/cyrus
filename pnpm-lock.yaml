@@ -215,10 +215,10 @@ importers:
   packages/codex-runner:
     dependencies:
       '@openai/codex':
-        specifier: ^0.137.0
+        specifier: 0.137.0
         version: 0.137.0
       '@openai/codex-sdk':
-        specifier: ^0.137.0
+        specifier: 0.137.0
         version: 0.137.0
       cyrus-core:
         specifier: workspace:*

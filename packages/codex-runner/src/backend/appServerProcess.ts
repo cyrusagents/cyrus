@@ -144,7 +144,9 @@ class PooledAppServerProcess {
 		client.setNotificationHandler((method, params) =>
 			this.routeNotification(method, params),
 		);
-		client.setServerRequestHandler((method) => this.onServerRequest(method));
+		client.setServerRequestHandler((method, params) =>
+			this.onServerRequest(method, params),
+		);
 		client.on("exit", () => this.onProcessGone());
 		client.on("error", (error) => this.onProcessError(error));
 		client.start();
@@ -189,12 +191,44 @@ class PooledAppServerProcess {
 		}
 	}
 
-	private onServerRequest(method: string): unknown {
-		// With approvalPolicy="never" the server should not ask for approvals;
-		// respond defensively so a stray request can never wedge a turn.
+	private onServerRequest(method: string, params: unknown): unknown {
+		// Cyrus runs headless: there is no user to put these questions to, so
+		// every server→client request must be auto-answered with the response
+		// shape that request expects. A wrong or empty shape is not a no-op —
+		// the app-server fails to deserialize it and substitutes a decline
+		// (surfacing to the agent as e.g. "user rejected MCP tool call").
+		//
+		// approvalPolicy="never" does NOT make these requests go away: MCP
+		// tool-call confirmations are only auto-approved upstream when the
+		// permission profile has full disk write access, which Cyrus's
+		// workspace-write / restricted profiles never do.
+
+		// "mcpServer/elicitation/request" — MCP elicitations, including the
+		// confirmation form Codex emits before every mutating MCP tool call.
+		// Accept with empty content (accept + no answers resolves as a plain
+		// approval upstream).
+		if (/elicitation/i.test(method)) {
+			return { action: "accept", content: {} };
+		}
+		// "item/tool/requestUserInput" — the non-elicitation variant of the
+		// same MCP tool-call confirmation (and other tool questions). Answer
+		// each question with its "Allow" option when present.
+		if (/requestuserinput/i.test(method)) {
+			return buildRequestUserInputResponse(params);
+		}
+		// "item/permissions/requestApproval" — a request to ESCALATE sandbox
+		// permissions; its response carries a granted-permission profile, not
+		// a decision. Grant nothing: auto-granting whatever was asked for
+		// would defeat the per-thread filesystem sandbox.
+		if (/permission/i.test(method)) {
+			return { permissions: {} };
+		}
 		if (/auth/i.test(method)) {
 			return { chatgptAuthToken: null };
 		}
+		// "item/commandExecution/requestApproval",
+		// "item/fileChange/requestApproval" and the legacy
+		// applyPatchApproval / execCommandApproval all take a decision.
 		if (/approval/i.test(method)) {
 			return { decision: "accept" };
 		}
@@ -338,6 +372,45 @@ function extractThreadId(params: unknown): string | undefined {
 		return p.threadId;
 	}
 	return typeof p.thread?.id === "string" ? p.thread.id : undefined;
+}
+
+/** The label Codex's MCP tool-call confirmation uses for plain approval. */
+const REQUEST_USER_INPUT_ACCEPT_LABEL = "Allow";
+
+/**
+ * Answer an `item/tool/requestUserInput` request. Each question is answered
+ * with its "Allow" option when one exists, falling back to the first option.
+ * Questions without options get an empty answer rather than being omitted, so
+ * the server sees every question as addressed.
+ */
+function buildRequestUserInputResponse(params: unknown): unknown {
+	const questions = (
+		params as {
+			questions?: Array<{
+				id?: unknown;
+				options?: Array<{ label?: unknown } | null>;
+			} | null>;
+		} | null
+	)?.questions;
+	if (!Array.isArray(questions)) {
+		return { answers: {} };
+	}
+	const answers: Record<string, { answers: string[] }> = {};
+	for (const question of questions) {
+		if (!question || typeof question.id !== "string") {
+			continue;
+		}
+		const labels = Array.isArray(question.options)
+			? question.options
+					.map((option) => option?.label)
+					.filter((label): label is string => typeof label === "string")
+			: [];
+		const choice =
+			labels.find((label) => label === REQUEST_USER_INPUT_ACCEPT_LABEL) ??
+			labels[0];
+		answers[question.id] = { answers: choice === undefined ? [] : [choice] };
+	}
+	return { answers };
 }
 
 function buildLaunchKey(options: LaunchOptions): string {
