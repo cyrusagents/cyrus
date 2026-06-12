@@ -5,6 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Added
+- Added a bundled `cyrus-ecosystem-context` skill that gives Cyrus sessions concise, source-defensible repo/service/integration definitions and adjacent-investigation cues before planning multi-repo ecosystem work. ([CYPACK-1315](https://linear.app/ceedar/issue/CYPACK-1315), [#1316](https://github.com/cyrusagents/cyrus/pull/1316))
 - F1 test drive verifying `ScheduleWakeup` delivery: confirmed the tool is non-operational when `CYRUS_ENABLE_WARM_SESSIONS` is unset (the default) because `ClaudeRunner` completes the streaming prompt on the SDK `result` message, the Claude Code subprocess exits at turn end, and the in-process wakeup timer dies with it; the identical scenario works end-to-end with `CYRUS_ENABLE_WARM_SESSIONS=1`. See `apps/f1/test-drives/2026-06-11-cypack-1310-schedulewakeup.md` for evidence and fix considerations. ([CYPACK-1310](https://linear.app/ceedar/issue/CYPACK-1310), [#1313](https://github.com/cyrusagents/cyrus/pull/1313))
 
 ## [0.2.64] - 2026-06-11
