@@ -24,7 +24,7 @@ This is the latest comment:
 {{latest_comment}}
 
 ## If you are in Situation 1 (clear problem and solution):
-ONE OF THE THE VERY FIRST THINGS YOU SHOULD DO IS CHECK HOW THE CURRENT BRANCH COMPARES TO THE `main` branch, in order to understand the prior work that has been done on this branch. You should also use `gh` command line to check whether a pull request is already open for this branch, and fetch any comments or code review in order to see if there are unresolved things there.
+ONE OF THE VERY FIRST THINGS YOU SHOULD DO IS CHECK HOW THE CURRENT BRANCH COMPARES TO THE `main` branch, in order to understand the prior work that has been done on this branch. You should also use `gh` command line to check whether a pull request is already open for this branch, and fetch any comments or code review in order to see if there are unresolved things there.
 
 YOUR WHOLE JOB IS TO EXECUTE THE SOLUTION - explore the codebase, implement the changes, run tests, and create a pull request.
 
