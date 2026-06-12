@@ -7,6 +7,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [0.2.65] - 2026-06-11
 
 ### Added
+- F1 release smoke validating the v0.2.65 release branch can start the F1 server, create an issue, start a session, and render/paginate activities before publishing. ([CYPACK-1314](https://linear.app/ceedar/issue/CYPACK-1314), [#1315](https://github.com/cyrusagents/cyrus/pull/1315))
 - F1 test drive verifying `ScheduleWakeup` delivery: confirmed the tool is non-operational when `CYRUS_ENABLE_WARM_SESSIONS` is unset (the default) because `ClaudeRunner` completes the streaming prompt on the SDK `result` message, the Claude Code subprocess exits at turn end, and the in-process wakeup timer dies with it; the identical scenario works end-to-end with `CYRUS_ENABLE_WARM_SESSIONS=1`. See `apps/f1/test-drives/2026-06-11-cypack-1310-schedulewakeup.md` for evidence and fix considerations. ([CYPACK-1310](https://linear.app/ceedar/issue/CYPACK-1310), [#1313](https://github.com/cyrusagents/cyrus/pull/1313))
 
 ## [0.2.64] - 2026-06-11
