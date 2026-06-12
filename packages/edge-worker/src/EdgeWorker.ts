@@ -1655,7 +1655,8 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 			if (
 				isRunning &&
 				existingRunner?.supportsStreamingInput &&
-				existingRunner.addStreamMessage
+				existingRunner.addStreamMessage &&
+				existingRunner.isStreaming?.()
 			) {
 				// Best-effort notification; a steer-only backend may reject it if no
 				// turn is active. Don't let that throw out of the update handler.
@@ -3689,7 +3690,8 @@ ${taskSection}`;
 			if (
 				isRunning &&
 				existingRunner?.supportsStreamingInput &&
-				existingRunner.addStreamMessage
+				existingRunner.addStreamMessage &&
+				existingRunner.isStreaming?.()
 			) {
 				// Best-effort; a steer-only backend may reject when no turn is active.
 				try {
@@ -7040,7 +7042,8 @@ ${input.userComment}
 		if (
 			existingRunner?.isRunning() &&
 			existingRunner.supportsStreamingInput &&
-			existingRunner.addStreamMessage
+			existingRunner.addStreamMessage &&
+			existingRunner.isStreaming?.()
 		) {
 			log.debug(
 				`Adding prompt to existing stream for ${sessionId} (${logContext})`,
@@ -7139,7 +7142,8 @@ ${input.userComment}
 		if (
 			existingRunner?.isRunning() &&
 			existingRunner.supportsStreamingInput &&
-			existingRunner.addStreamMessage
+			existingRunner.addStreamMessage &&
+			existingRunner.isStreaming?.()
 		) {
 			let fullPrompt = promptBody;
 			if (attachmentManifest) {
