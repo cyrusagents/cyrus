@@ -26,6 +26,7 @@ describe("config", () => {
 				"TaskGet",
 				"TaskList",
 				"NotebookEdit",
+				"DesignSync",
 				"Skill",
 				"AskUserQuestion",
 				"SendMessage",
@@ -48,7 +49,7 @@ describe("config", () => {
 				"ToolSearch",
 				"Workflow",
 			]);
-			expect(availableTools).toHaveLength(33);
+			expect(availableTools).toHaveLength(34);
 		});
 
 		it("should define read-only tools", () => {

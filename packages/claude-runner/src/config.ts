@@ -37,6 +37,9 @@ export const availableTools = [
 	// Notebook tools
 	"NotebookEdit",
 
+	// Design sync
+	"DesignSync",
+
 	// Skills - enables Claude to use packaged capabilities (SKILL.md files)
 	// See: https://platform.claude.com/docs/en/agent-sdk/skills
 	"Skill",
