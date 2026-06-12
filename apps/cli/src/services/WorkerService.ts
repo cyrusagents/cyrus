@@ -9,6 +9,27 @@ import type { ConfigService } from "./ConfigService.js";
 import type { Logger } from "./Logger.js";
 
 /**
+ * Parse the CYRUS_CODEX_CONNECTOR_WRITES env var. Only the exact values
+ * "enabled" / "disabled" (case-insensitive) are honored; anything else warns
+ * and defers to the config file / default.
+ */
+function parseCodexConnectorWritesEnv(
+	value: string | undefined,
+): "enabled" | "disabled" | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const normalized = value.toLowerCase().trim();
+	if (normalized === "enabled" || normalized === "disabled") {
+		return normalized;
+	}
+	console.warn(
+		`Ignoring invalid CYRUS_CODEX_CONNECTOR_WRITES value "${value}" (expected "enabled" or "disabled")`,
+	);
+	return undefined;
+}
+
+/**
  * Service responsible for EdgeWorker and Cloudflare tunnel management
  */
 export class WorkerService {
@@ -223,6 +244,10 @@ export class WorkerService {
 				process.env.CYRUS_GEMINI_DEFAULT_MODEL || edgeConfig.geminiDefaultModel,
 			codexDefaultModel:
 				process.env.CYRUS_CODEX_DEFAULT_MODEL || edgeConfig.codexDefaultModel,
+			codexConnectorWrites:
+				parseCodexConnectorWritesEnv(
+					process.env.CYRUS_CODEX_CONNECTOR_WRITES,
+				) || edgeConfig.codexConnectorWrites,
 			defaultRunner:
 				(process.env.CYRUS_DEFAULT_RUNNER as
 					| "claude"

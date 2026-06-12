@@ -158,6 +158,12 @@ export interface IssueRunnerConfigInput {
 	sandboxSettings?: SandboxSettings;
 	/** CA cert path for MITM TLS termination — passed via child process env */
 	egressCaCertPath?: string;
+	/**
+	 * Resolved policy for mutating ChatGPT-connector tools in Codex sessions
+	 * (per-repo `codexConnectorWrites` falling back to the global value).
+	 * Ignored by non-Codex runners.
+	 */
+	codexConnectorWrites?: "enabled" | "disabled";
 }
 
 export function resolveIssueMcpConfigPath(
@@ -473,6 +479,13 @@ export class RunnerConfigBuilder {
 				allowWrite: [input.session.workspace.path],
 				allowRead: [input.session.workspace.path, ...input.allowedDirectories],
 			};
+		}
+
+		// Policy for mutating ChatGPT-connector tools (the `codex_apps` MCP
+		// server). The Codex runner turns "disabled" into `apps._default`
+		// config overrides that block destructive/open-world connector tools.
+		if (runnerType === "codex" && input.codexConnectorWrites) {
+			config.connectorWrites = input.codexConnectorWrites;
 		}
 
 		if (input.resumeSessionId) {

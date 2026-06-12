@@ -1099,6 +1099,11 @@ export class EdgeWorker extends EventEmitter {
 						...config,
 						model: this.getDefaultModelForRunner(runnerType),
 						fallbackModel: this.getDefaultFallbackModelForRunner(runnerType),
+						// Chat sessions are repo-agnostic, so the global connector
+						// write policy applies (read live for hot-reload).
+						...(runnerType === "codex" && this.config.codexConnectorWrites
+							? { connectorWrites: this.config.codexConnectorWrites }
+							: {}),
 					});
 				},
 				// Live read so hot-reloaded config (`setConfig`) picks up new
@@ -6481,6 +6486,8 @@ ${input.userComment}
 			skills: allowedSkillNames,
 			sandboxSettings: this.sdkSandboxSettings ?? undefined,
 			egressCaCertPath: this.egressCaCertPath ?? undefined,
+			codexConnectorWrites:
+				repository.codexConnectorWrites ?? this.config.codexConnectorWrites,
 			onMessage: (message: SDKMessage) => {
 				this.handleClaudeMessage(sessionId, message, repository.id);
 			},

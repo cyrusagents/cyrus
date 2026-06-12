@@ -94,6 +94,10 @@
 		"fallbackModel": {
 			"type": "string"
 		},
+		"codexConnectorWrites": {
+			"type": "string",
+			"enum": ["enabled", "disabled"]
+		},
 		"labelPrompts": {
 			"type": "object",
 			"properties": {

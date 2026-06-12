@@ -219,6 +219,8 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.geminiDefaultModel || this.config.geminiDefaultModel,
 				codexDefaultModel:
 					parsedConfig.codexDefaultModel || this.config.codexDefaultModel,
+				codexConnectorWrites:
+					parsedConfig.codexConnectorWrites || this.config.codexConnectorWrites,
 				cursorDefaultModel:
 					parsedConfig.cursorDefaultModel || this.config.cursorDefaultModel,
 				cursorDefaultFallbackModel:
@@ -342,6 +344,7 @@ export class ConfigManager extends EventEmitter {
 			"claudeDefaultFallbackModel",
 			"geminiDefaultModel",
 			"codexDefaultModel",
+			"codexConnectorWrites",
 			"cursorDefaultModel",
 			"cursorDefaultFallbackModel",
 			"defaultModel",
