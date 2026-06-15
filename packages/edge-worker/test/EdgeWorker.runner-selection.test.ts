@@ -207,7 +207,7 @@ describe("EdgeWorker - Runner Selection Based on Labels", () => {
 			addStreamMessage: vi.fn(),
 			updatePromptVersions: vi.fn(),
 		};
-		vi.mocked(OpenCodeRunner).mockImplementation((config: any) => {
+		vi.mocked(OpenCodeRunner).mockImplementation(function (config: any) {
 			capturedRunnerType = "opencode" as RunnerType;
 			capturedRunnerConfig = config;
 			return mockOpenCodeRunner;
