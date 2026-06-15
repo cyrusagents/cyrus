@@ -117,6 +117,76 @@ export interface SlackChannel {
 	name?: string;
 }
 
+/** An element inside a Slack rich_text / layout block. */
+export interface SlackRichTextElement {
+	/** Element kind (e.g. "text", "link", "user", "rich_text_section"). */
+	type: string;
+	/** Literal text content, present on "text" elements. */
+	text?: string;
+	/** Destination URL, present on "link" elements. */
+	url?: string;
+	/** Mentioned user's ID, present on "user" elements. */
+	user_id?: string;
+	/** Nested child elements for container nodes. */
+	elements?: SlackRichTextElement[];
+}
+
+/** A Slack block (rich_text or layout). */
+export interface SlackBlock {
+	/** Block kind (e.g. "rich_text", "section"). */
+	type: string;
+	/** Child elements that make up the block's content. */
+	elements?: SlackRichTextElement[];
+}
+
+/** Original-message snapshot some share/forward formats carry. */
+export interface SlackMessageBlock {
+	/** Team/workspace ID the original message belongs to. */
+	team?: string;
+	/** Channel ID the original message was posted in. */
+	channel?: string;
+	/** Timestamp (unique ID) of the original message. */
+	ts?: string;
+	/** The original message, whose `blocks` hold its rich content. */
+	message?: { blocks?: SlackBlock[] };
+}
+
+/**
+ * A Slack message attachment. The body that matters lives here, NOT in the
+ * event's `text` — `text` (mrkdwn) is the primary body; some formats omit it
+ * and carry the body in `blocks` or `message_blocks`.
+ *
+ * Example: a forwarded/shared message (carrying `is_share`/`is_msg_unfurl`)
+ * puts the original message's content entirely in the attachment. Note that
+ * forwarded shares expose `channel_id`/`footer`, not `channel_name`.
+ */
+export interface SlackMessageAttachment {
+	/** Primary attachment body as mrkdwn; the main source of content. */
+	text?: string;
+	/** Plain-text fallback Slack renders where rich formatting is unsupported. */
+	fallback?: string;
+	/** ID of the original message's author. */
+	author_id?: string;
+	/** Display name of the original message's author (e.g. "Sentry"). */
+	author_name?: string;
+	/** Secondary author label, shown beside `author_name`. */
+	author_subname?: string;
+	/** ID of the channel the original message came from. */
+	channel_id?: string;
+	/** Name of the source channel; absent on forwarded shares. */
+	channel_name?: string;
+	/** Footer line (e.g. the source app/integration name). */
+	footer?: string;
+	/** True when this attachment is a forwarded/shared message. */
+	is_share?: boolean;
+	/** True when this attachment is an unfurled message link. */
+	is_msg_unfurl?: boolean;
+	/** Rich-content blocks; the body when `text` is empty. */
+	blocks?: SlackBlock[];
+	/** Older share shape carrying the original message's blocks. */
+	message_blocks?: SlackMessageBlock[];
+}
+
 /**
  * Slack app_mention event payload
  * @see https://api.slack.com/events/app_mention
@@ -136,6 +206,8 @@ export interface SlackAppMentionEvent {
 	thread_ts?: string;
 	/** Event timestamp */
 	event_ts: string;
+	/** Message attachments (see {@link SlackMessageAttachment}). */
+	attachments?: SlackMessageAttachment[];
 }
 
 /**
@@ -170,6 +242,8 @@ export interface SlackMessageEvent {
 	thread_ts?: string;
 	/** Event timestamp */
 	event_ts: string;
+	/** Message attachments (see {@link SlackMessageAttachment}). */
+	attachments?: SlackMessageAttachment[];
 }
 
 /**
