@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
-- Forwarded or shared Slack messages are now included in the prompt. When you forward a message (e.g. a Sentry alert) into a channel Cyrus watches and @mention it, Cyrus previously only saw your typed comment — the forwarded message's body was dropped, leaving an empty prompt if you added no comment. The attachment's content is now folded into the prompt as labeled blocks, with no extra Slack API call.
+- Forwarded or shared Slack messages are now included in the prompt. When you forward a message (e.g. a Sentry alert) into a channel Cyrus watches and @mention it, Cyrus previously only saw your typed comment — the forwarded message's body was dropped, leaving an empty prompt if you added no comment. The attachment's content is now folded into the prompt as labeled blocks, with no extra Slack API call. ([#1326](https://github.com/cyrusagents/cyrus/pull/1326))
 
 ## [0.2.65] - 2026-06-11
 
