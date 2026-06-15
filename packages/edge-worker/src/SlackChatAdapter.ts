@@ -1,11 +1,11 @@
 import type { IAgentRunner, ILogger } from "cyrus-core";
 import { createLogger } from "cyrus-core";
 import {
+	buildPromptText,
 	SlackMessageService,
 	SlackReactionService,
 	type SlackThreadMessage,
 	type SlackWebhookEvent,
-	stripMention as stripSlackMention,
 } from "cyrus-slack-event-transport";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
@@ -106,9 +106,7 @@ export class SlackChatAdapter
 	}
 
 	extractTaskInstructions(event: SlackWebhookEvent): string {
-		return (
-			stripSlackMention(event.payload.text) || "Ask the user for more context"
-		);
+		return buildPromptText(event.payload) || "Ask the user for more context";
 	}
 
 	/**
