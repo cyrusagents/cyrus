@@ -116,8 +116,16 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 		const todoThought = calls.find(
 			(call: any[]) =>
 				call[1]?.type === "thought" &&
-				call[1]?.body ===
-					"- [x] Inspect formatter path\n- [ ] Format OpenCode TodoWrite (in progress)\n- [ ] Verify regression coverage (pending)",
+				typeof call[1]?.body === "string" &&
+				call[1]?.body.includes(
+					"- [x] Explore cyrus-hosted /settings/tools page and current platform selector",
+				) &&
+				call[1]?.body.includes(
+					"- [ ] Add toolsets to cyrus-core EdgeConfig schema + regenerate JSON schemas (in progress)",
+				) &&
+				call[1]?.body.includes(
+					"- [ ] Wire toolsets through cyrus ConfigManager and ToolPermissionResolver (pending)",
+				),
 		);
 		expect(todoThought).toBeDefined();
 		expect(
