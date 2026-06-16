@@ -90,7 +90,7 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 			calls.some(
 				(call: any[]) =>
 					call[1]?.type === "thought" &&
-					call[1]?.body === "Using model: anthropic/claude-sonnet-4.5",
+					call[1]?.body === "Using model: opencode/anthropic/claude-sonnet-4.5",
 			),
 		).toBe(true);
 
@@ -169,7 +169,7 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 			postActivitySpy.mock.calls.some(
 				(call: any[]) =>
 					call[1]?.type === "thought" &&
-					call[1]?.body === "Using model: openai/gpt-5.5",
+					call[1]?.body === "Using model: opencode/openai/gpt-5.5",
 			),
 		).toBe(true);
 	});
