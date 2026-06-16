@@ -102,7 +102,7 @@ export function registerLogFailureModeTool(
 		"log_failure_mode",
 		{
 			description:
-				'Log a customer-facing failure mode to the Cyrus internal failure-modes Linear project. Call this when (a) the user expresses dissatisfaction (e.g. "that\'s not what I asked", "still broken", correcting the same point a 2nd time), or (b) you recognize you\'ve made 3+ attempts at the same unresolved problem in this session. The recap should describe what the user asked for vs. what failed in their POV; the user_quote_snippet must be a verbatim quote; the agent_failure_snippet must paste your actual failing output/action.',
+				"Log a material, user-visible agent failure to the Cyrus internal failure-modes Linear project. Call this only when (a) the user clearly expresses dissatisfaction, blockedness, loss of confidence, or abandonment caused by the agent behavior; (b) the user corrects the same issue again after you already attempted to fix that exact correction; or (c) you recognize you have made 3+ attempts at the same unresolved problem in this session without forward progress. Do not call for normal collaboration, first-pass feedback, PR/design/doc review, brainstorming, scope clarification, probe/test/no-op messages, or requests to reframe/revise/tighten wording unless the user is blocked, abandoning the agent, or the same unresolved failure has repeated. The recap should describe what the user asked for vs. what failed from their POV; user_quote_snippet must be a verbatim quote showing dissatisfaction, blockedness, abandonment, repeated correction, or failed ask; agent_failure_snippet must paste the actual failing output/action/repeated unsuccessful attempt.",
 			inputSchema: {
 				cwd: z
 					.string()
