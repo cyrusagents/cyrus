@@ -285,6 +285,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 	private wasStopped = false;
 	private hasFinalized = false;
 	private stderr = "";
+	private nonJsonStartupOutput: string[] = [];
 
 	constructor(config: OpenCodeRunnerConfig) {
 		super();
@@ -307,6 +308,12 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 			startedAt: new Date(),
 			isRunning: true,
 		};
+
+		const selectorError = this.validateModelSelector();
+		if (selectorError) {
+			this.finalizeSession(selectorError);
+			return this.sessionInfo;
+		}
 
 		return new Promise<OpenCodeSessionInfo>((resolve) => {
 			let stdoutBuffer = "";
@@ -352,7 +359,9 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 				if (this.wasStopped) {
 					error = new Error("OpenCode session stopped");
 				} else if (typeof code === "number" && code !== 0) {
-					const suffix = this.stderr.trim() ? `: ${this.stderr.trim()}` : "";
+					const output =
+						this.stderr.trim() || this.nonJsonStartupOutput.join("\n").trim();
+					const suffix = output ? `: ${output}` : "";
 					error = new Error(`OpenCode exited with code ${code}${suffix}`);
 				} else if (signal) {
 					error = new Error(`OpenCode exited with signal ${signal}`);
@@ -416,6 +425,18 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		this.wasStopped = false;
 		this.hasFinalized = false;
 		this.stderr = "";
+		this.nonJsonStartupOutput = [];
+	}
+
+	private validateModelSelector(): Error | undefined {
+		const model = this.config.model?.trim();
+		if (!model?.toLowerCase().startsWith("opencode/")) {
+			return undefined;
+		}
+
+		return new Error(
+			`Invalid OpenCode model selector "${model}". Use a provider-qualified OpenCode model such as "openai/gpt-5.5" in runner config or select it with the Cyrus label "opencode/openai/gpt-5.5".`,
+		);
 	}
 
 	private buildRuntimeEnv(): Record<string, string> {
@@ -467,6 +488,11 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		try {
 			this.handleEvent(JSON.parse(trimmed) as OpenCodeJsonEvent);
 		} catch (error) {
+			if (!this.hasInitMessage) {
+				this.nonJsonStartupOutput.push(trimmed);
+				return;
+			}
+
 			this.emitError(
 				new Error(
 					`Failed to parse OpenCode JSON event: ${normalizeError(error)} (${trimmed})`,

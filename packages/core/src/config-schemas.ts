@@ -406,13 +406,13 @@ export const EdgeConfigSchema = z.object({
 	/** Default Cursor fallback model if primary Cursor model is unavailable */
 	cursorDefaultFallbackModel: z.string().optional(),
 
-	/** Default OpenCode model to use across all repositories (e.g., "opencode", "anthropic/claude-sonnet-4.5") */
+	/** Default OpenCode model to use across all repositories (e.g., "openai/gpt-5.5", "anthropic/claude-sonnet-4.5") */
 	opencodeDefaultModel: z.string().optional(),
 
 	/** Default OpenCode fallback model if primary OpenCode model is unavailable */
 	opencodeDefaultFallbackModel: z.string().optional(),
 
-	/** Infer OpenCode runner when a model selector uses OpenCode provider/model syntax (e.g., "anthropic/claude-sonnet-4.5") */
+	/** Infer OpenCode runner when a model selector uses OpenCode provider/model syntax (e.g., "openai/gpt-5.5", "anthropic/claude-sonnet-4.5") */
 	inferOpenCodeRunnerFromProviderModel: z.boolean().optional(),
 
 	/** Global OpenCode runtime config overrides */

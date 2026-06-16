@@ -125,7 +125,8 @@ export class RunnerSelectionService {
 	 * - [model=<model-name>]
 	 *
 	 * Supported Linear label selectors:
-	 * - <provider>/<model>, where provider is claude, gemini, codex, cursor, opencode, or openai
+	 * - <provider>/<model>, where provider is claude, gemini, codex, cursor, or openai
+	 * - opencode/<provider>/<model> for OpenCode provider-qualified models
 	 *
 	 * Precedence:
 	 * 1. Description tags override labels
@@ -279,10 +280,20 @@ export class RunnerSelectionService {
 			lowercaseLabels: string[],
 		): { runnerType: RunnerType; model: string } | undefined => {
 			for (const label of lowercaseLabels) {
+				const opencodeMatch = label.match(
+					/^opencode\/([a-z0-9_.-]+\/[a-z0-9_.:/-]+)$/i,
+				);
+				if (opencodeMatch?.[1]) {
+					return { runnerType: "opencode", model: opencodeMatch[1] };
+				}
+
 				const match = label.match(/^([a-z0-9_.-]+)\/([a-z0-9_.:/-]+)$/i);
 				if (!match?.[1] || !match[2]) continue;
 
 				const runnerType = resolveRunnerFromName(match[1]);
+				if (runnerType === "opencode") {
+					return { runnerType, model: label };
+				}
 				if (runnerType) {
 					return { runnerType, model: match[2] };
 				}

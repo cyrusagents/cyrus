@@ -605,8 +605,8 @@ Issue: {{issue_identifier}}`;
 			expect(capturedRunnerConfig.model).toBeUndefined();
 		});
 
-		it("should select OpenCode runner and model from 'opencode/model' label", async () => {
-			const mockIssue = createMockIssueWithLabels(["opencode/codex-5.5"]);
+		it("should select OpenCode runner and provider-qualified model from 'opencode/provider/model' label", async () => {
+			const mockIssue = createMockIssueWithLabels(["opencode/openai/gpt-5.5"]);
 			mockLinearClient.issue.mockResolvedValue(mockIssue);
 
 			const webhook: LinearAgentSessionCreatedWebhook = {
@@ -630,7 +630,7 @@ Issue: {{issue_identifier}}`;
 
 			expect(capturedRunnerType).toBe("opencode");
 			expect(OpenCodeRunner).toHaveBeenCalled();
-			expect(capturedRunnerConfig.model).toBe("codex-5.5");
+			expect(capturedRunnerConfig.model).toBe("openai/gpt-5.5");
 			expect(capturedRunnerConfig.fallbackModel).toBeUndefined();
 		});
 
