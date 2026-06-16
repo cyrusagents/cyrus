@@ -55,7 +55,12 @@ export class OpenCodeMessageFormatter implements IMessageFormatter {
 								? todo.description
 								: "";
 					const marker = status === "completed" ? "[x]" : "[ ]";
-					const suffix = status === "in_progress" ? " (in progress)" : "";
+					const suffix =
+						status === "in_progress"
+							? " (in progress)"
+							: status === "pending"
+								? " (pending)"
+								: "";
 					return `- ${marker} ${content}${suffix}`.trim();
 				})
 				.join("\n");
@@ -97,14 +102,21 @@ export class OpenCodeMessageFormatter implements IMessageFormatter {
 		return safeStringify(toolInput);
 	}
 
-	formatToolParameter(_toolName: string, toolInput: unknown): string {
+	formatToolParameter(toolName: string, toolInput: unknown): string {
 		if (typeof toolInput === "string") {
+			if (toolName.toLowerCase() === "todowrite") {
+				return this.formatTodoWriteParameter(toolInput);
+			}
 			return toolInput;
 		}
 
 		const input = asObject(toolInput);
 		if (!input) {
 			return safeStringify(toolInput);
+		}
+
+		if (toolName.toLowerCase() === "todowrite") {
+			return this.formatTodoWriteParameter(safeStringify(toolInput));
 		}
 
 		const command = getString(input, ["command", "cmd"]);

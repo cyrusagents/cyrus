@@ -113,6 +113,31 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 			"export const value = 2",
 		);
 
+		const todoThought = calls.find(
+			(call: any[]) =>
+				call[1]?.type === "thought" &&
+				typeof call[1]?.body === "string" &&
+				call[1]?.body.includes(
+					"- [x] Explore cyrus-hosted /settings/tools page and current platform selector",
+				) &&
+				call[1]?.body.includes(
+					"- [ ] Add toolsets to cyrus-core EdgeConfig schema + regenerate JSON schemas (in progress)",
+				) &&
+				call[1]?.body.includes(
+					"- [ ] Wire toolsets through cyrus ConfigManager and ToolPermissionResolver (pending)",
+				),
+		);
+		expect(todoThought).toBeDefined();
+		expect(
+			calls.some(
+				(call: any[]) =>
+					call[1]?.type === "action" &&
+					call[1]?.action === "todowrite" &&
+					typeof call[1]?.parameter === "string" &&
+					call[1]?.parameter.includes('"todos"'),
+			),
+		).toBe(false);
+
 		const finalResponse = calls.find(
 			(call: any[]) =>
 				call[1]?.type === "response" &&

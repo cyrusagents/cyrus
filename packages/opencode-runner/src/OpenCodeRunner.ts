@@ -99,6 +99,9 @@ function normalizeToolName(toolName: string): string {
 		case "websearch":
 		case "search":
 			return "WebSearch";
+		case "todowrite":
+		case "todolist":
+			return "TodoWrite";
 		default:
 			return toolName || "tool";
 	}
