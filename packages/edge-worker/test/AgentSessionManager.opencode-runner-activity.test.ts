@@ -72,6 +72,9 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 			openCodePath: writeFakeOpenCode(dir),
 			workingDirectory: dir,
 			cyrusHome: dir,
+			opencodeGlobalConfig: {
+				model: "anthropic/claude-sonnet-4.5",
+			},
 		});
 		manager.addAgentRunner(sessionId, runner);
 
@@ -87,7 +90,7 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 			calls.some(
 				(call: any[]) =>
 					call[1]?.type === "thought" &&
-					call[1]?.body === "Using model: opencode",
+					call[1]?.body === "Using model: opencode/anthropic/claude-sonnet-4.5",
 			),
 		).toBe(true);
 
@@ -145,5 +148,29 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 				call[1]?.body.includes("Updated src/index.ts"),
 		);
 		expect(finalResponse).toBeDefined();
+	});
+
+	it("uses explicit OpenCode provider/model selection in the model notification", async () => {
+		const dir = makeTempDir();
+		const runner = new OpenCodeRunner({
+			openCodePath: writeFakeOpenCode(dir),
+			workingDirectory: dir,
+			cyrusHome: dir,
+			model: "openai/gpt-5.5",
+		});
+		manager.addAgentRunner(sessionId, runner);
+
+		await runner.start("Inspect and update src/index.ts");
+		for (const message of runner.getMessages()) {
+			await manager.handleClaudeMessage(sessionId, message);
+		}
+
+		expect(
+			postActivitySpy.mock.calls.some(
+				(call: any[]) =>
+					call[1]?.type === "thought" &&
+					call[1]?.body === "Using model: opencode/openai/gpt-5.5",
+			),
+		).toBe(true);
 	});
 });

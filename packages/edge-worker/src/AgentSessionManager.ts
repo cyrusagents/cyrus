@@ -21,6 +21,7 @@ import {
 	type ILogger,
 	type IssueMinimal,
 	type RepositoryContext,
+	type RunnerType,
 	type SerializedCyrusAgentSession,
 	type SerializedCyrusAgentSessionEntry,
 	type Workspace,
@@ -1745,11 +1746,33 @@ export class AgentSessionManager extends EventEmitter {
 		sessionId: string,
 		model: string,
 	): Promise<void> {
+		const displayModel = this.formatModelNotification(sessionId, model);
 		await this.postActivity(
 			sessionId,
-			{ content: { type: "thought", body: `Using model: ${model}` } },
+			{ content: { type: "thought", body: `Using model: ${displayModel}` } },
 			"model notification",
 		);
+	}
+
+	private formatModelNotification(sessionId: string, model: string): string {
+		const runnerType = this.getSessionRunnerType(sessionId);
+		if (model.startsWith(`${runnerType}/`)) {
+			return model;
+		}
+		return `${runnerType}/${model}`;
+	}
+
+	private getSessionRunnerType(sessionId: string): RunnerType {
+		const runner = this.sessions.get(sessionId)?.agentRunner;
+		return runner?.constructor.name === "GeminiRunner"
+			? "gemini"
+			: runner?.constructor.name === "CodexRunner"
+				? "codex"
+				: runner?.constructor.name === "CursorRunner"
+					? "cursor"
+					: runner?.constructor.name === "OpenCodeRunner"
+						? "opencode"
+						: "claude";
 	}
 
 	/**
