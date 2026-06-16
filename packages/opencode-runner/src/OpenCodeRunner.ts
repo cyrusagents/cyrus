@@ -49,6 +49,7 @@ interface ToolProjection {
 }
 
 const DEFAULT_OPENCODE_MODEL = "opencode";
+const DEFAULT_OPENCODE_MODEL_DISPLAY = "OpenCode default model";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
 	if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -105,6 +106,28 @@ function normalizeToolName(toolName: string): string {
 		default:
 			return toolName || "tool";
 	}
+}
+
+function resolveModelDisplay(config: OpenCodeRunnerConfig): string {
+	if (config.model) {
+		return config.model;
+	}
+
+	const runtimeConfig = buildOpenCodeConfig(config).config;
+	const model = runtimeConfig.model;
+	const provider = runtimeConfig.provider;
+	if (typeof model === "string" && model.trim()) {
+		if (
+			typeof provider === "string" &&
+			provider.trim() &&
+			!model.includes("/")
+		) {
+			return `${provider}/${model}`;
+		}
+		return model;
+	}
+
+	return DEFAULT_OPENCODE_MODEL_DISPLAY;
 }
 
 function normalizeToolInput(input: unknown): ToolInput {
@@ -644,7 +667,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 			mcp_servers: Object.keys(
 				buildOpenCodeConfig(this.config).config.mcp ?? {},
 			).map((name) => ({ name, status: "connected" })),
-			model: this.config.model || DEFAULT_OPENCODE_MODEL,
+			model: resolveModelDisplay(this.config),
 			permissionMode: "default",
 			slash_commands: [],
 			output_style: "default",
