@@ -318,6 +318,100 @@ describe("OpenCodeRunner", () => {
 		expect(result.usage.cache_creation_input_tokens).toBe(2);
 	});
 
+	it("maps aborted OpenCode tool calls to meaningful tool activity", async () => {
+		const dir = makeTempDir();
+		const replay = [
+			{ type: "step_start", sessionID: "oc_aborted_789" },
+			{
+				type: "tool_use",
+				part: {
+					tool: "unknown",
+					callID: "aborted_read",
+					state: {
+						status: "aborted",
+						input: { filePath: "src/index.ts" },
+						error: "tool call aborted",
+					},
+				},
+			},
+			{
+				type: "tool_use",
+				part: {
+					callID: "aborted_command",
+					state: {
+						status: "aborted",
+						input: { command: "pnpm test" },
+						error: "tool call aborted",
+					},
+				},
+			},
+			{ type: "step_finish", reason: "stop", result: "Stopped." },
+		]
+			.map((event) => JSON.stringify(event))
+			.join("\n");
+		const opencodePath = writeFakeOpenCode(
+			dir,
+			`process.stdout.write(${JSON.stringify(`${replay}\n`)});`,
+		);
+		const runner = new OpenCodeRunner({
+			openCodePath: opencodePath,
+			workingDirectory: dir,
+			cyrusHome: dir,
+		});
+
+		await runner.start("Replay aborted tool calls");
+
+		const toolUses = runner
+			.getMessages()
+			.filter((message): message is SDKAssistantMessage => {
+				return (
+					message.type === "assistant" &&
+					message.message.content.some(
+						(block: any) => block.type === "tool_use",
+					)
+				);
+			})
+			.map((message) => message.message.content[0] as any);
+
+		expect(toolUses).toEqual([
+			expect.objectContaining({
+				id: "aborted_read",
+				name: "Read",
+				input: expect.objectContaining({ filePath: "src/index.ts" }),
+			}),
+			expect.objectContaining({
+				id: "aborted_command",
+				name: "OpenCode tool call",
+				input: expect.objectContaining({ command: "pnpm test" }),
+			}),
+		]);
+
+		const toolResults = runner
+			.getMessages()
+			.filter((message): message is SDKUserMessage => {
+				return (
+					message.type === "user" &&
+					message.message.content.some(
+						(block: any) => block.type === "tool_result",
+					)
+				);
+			})
+			.map((message) => message.message.content[0] as any);
+
+		expect(toolResults).toEqual([
+			expect.objectContaining({
+				tool_use_id: "aborted_read",
+				is_error: true,
+				content: expect.stringContaining("tool call aborted"),
+			}),
+			expect.objectContaining({
+				tool_use_id: "aborted_command",
+				is_error: true,
+				content: expect.stringContaining("tool call aborted"),
+			}),
+		]);
+	});
+
 	it("passes resume session id through --session", async () => {
 		const dir = makeTempDir();
 		const captureFile = join(dir, "capture.json");

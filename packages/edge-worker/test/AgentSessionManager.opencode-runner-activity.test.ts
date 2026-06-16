@@ -134,10 +134,36 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 		expect(
 			calls.some(
 				(call: any[]) =>
-					call[1]?.type === "action" &&
-					call[1]?.action === "todowrite" &&
-					typeof call[1]?.parameter === "string" &&
-					call[1]?.parameter.includes('"todos"'),
+				call[1]?.type === "action" &&
+				call[1]?.action === "todowrite" &&
+				typeof call[1]?.parameter === "string" &&
+				call[1]?.parameter.includes('"todos"'),
+			),
+		).toBe(false);
+
+		const abortedReadAction = calls.find(
+			(call: any[]) =>
+				call[1]?.type === "action" &&
+				call[1]?.action === "Read" &&
+				call[1]?.parameter === "src/missing.ts" &&
+				typeof call[1]?.result === "string",
+		);
+		expect(abortedReadAction).toBeDefined();
+		expect(abortedReadAction![1]?.result).toContain("tool call aborted");
+
+		const abortedGenericAction = calls.find(
+			(call: any[]) =>
+				call[1]?.type === "action" &&
+				call[1]?.action === "OpenCode tool call" &&
+				call[1]?.parameter === "pnpm test" &&
+				typeof call[1]?.result === "string",
+		);
+		expect(abortedGenericAction).toBeDefined();
+		expect(abortedGenericAction![1]?.result).toContain("tool call aborted");
+		expect(
+			calls.some(
+				(call: any[]) =>
+					call[1]?.type === "action" && call[1]?.action === "unknown",
 			),
 		).toBe(false);
 
