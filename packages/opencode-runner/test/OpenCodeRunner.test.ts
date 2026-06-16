@@ -182,6 +182,67 @@ describe("OpenCodeRunner", () => {
 		});
 	});
 
+	it("rejects Cyrus-style OpenCode model selectors before spawning OpenCode", async () => {
+		const dir = makeTempDir();
+		const captureFile = join(dir, "capture.json");
+		const opencodePath = writeFakeOpenCode(
+			dir,
+			`process.stdout.write(${JSON.stringify(fixtureLines())});`,
+			captureFile,
+		);
+		const errors: Error[] = [];
+		const runner = new OpenCodeRunner({
+			openCodePath: opencodePath,
+			workingDirectory: dir,
+			cyrusHome: dir,
+			model: "opencode/kimi-k2.7-code",
+			onError: (error) => errors.push(error),
+		});
+
+		await runner.start("Run with invalid OpenCode selector");
+
+		expect(existsSync(captureFile)).toBe(false);
+		expect(errors).toHaveLength(1);
+		expect(errors[0]?.message).toBe(
+			'Invalid OpenCode model selector "opencode/kimi-k2.7-code". Use a provider-qualified OpenCode model such as "openai/gpt-5.5" in runner config or select it with the Cyrus label "opencode/openai/gpt-5.5".',
+		);
+		const result = runner.getMessages().at(-1) as SDKResultMessage;
+		expect(result).toMatchObject({
+			type: "result",
+			subtype: "error_during_execution",
+			is_error: true,
+			errors: [errors[0]?.message],
+		});
+	});
+
+	it("reports non-JSON OpenCode startup failures without JSON parse errors", async () => {
+		const dir = makeTempDir();
+		const errors: Error[] = [];
+		const opencodePath = writeFakeOpenCode(
+			dir,
+			`process.stdout.write("ProviderModelNotFoundError: Model not found\\n"); process.exit(1);`,
+		);
+		const runner = new OpenCodeRunner({
+			openCodePath: opencodePath,
+			workingDirectory: dir,
+			cyrusHome: dir,
+			model: "openai/unknown-model",
+			onError: (error) => errors.push(error),
+		});
+
+		await runner.start("Run with missing provider model");
+
+		expect(errors).toHaveLength(1);
+		expect(errors[0]?.message).toBe(
+			"OpenCode exited with code 1: ProviderModelNotFoundError: Model not found",
+		);
+		expect(errors[0]?.message).not.toContain(
+			"Failed to parse OpenCode JSON event",
+		);
+		const result = runner.getMessages().at(-1) as SDKResultMessage;
+		expect(result.errors).toEqual([errors[0]?.message]);
+	});
+
 	it("coerces realistic OpenCode JSON events into Cyrus messages and final result", async () => {
 		const dir = makeTempDir();
 		const opencodePath = writeFakeOpenCode(

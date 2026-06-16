@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- Linear labels can now select both execution harness and model with a single `<provider>/<model>` label, such as `opencode/codex-5.5`. ([#1263](https://github.com/cyrusagents/cyrus/pull/1263))
+- Linear labels can now select both execution harness and model with a single selector label; OpenCode labels use `opencode/<provider>/<model>`, such as `opencode/openai/gpt-5.5`. ([#1263](https://github.com/cyrusagents/cyrus/pull/1263))
 - **Configurable OpenCode CLI state scope** — OpenCode sessions now default to inheriting the same CLI auth storage as the Cyrus process, with optional `shared` or per-`repository` Cyrus-managed state roots for users who want dedicated agent storage.
 - **OpenCode runtime config overrides** — Self-hosted users can define global and per-repository OpenCode runtime config; validation currently covers Cyrus passing merged config to launched OpenCode runner processes while real OpenCode CLI extension loading still needs upstream runtime validation.
 - **Safer OpenCode runner configuration** — OpenCode sessions now receive Cyrus MCP servers and conservative tool permissions through runtime config while preserving normal CLI-managed model access by default.
