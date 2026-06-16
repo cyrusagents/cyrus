@@ -318,17 +318,33 @@ describe("OpenCodeRunner", () => {
 		expect(result.usage.cache_creation_input_tokens).toBe(2);
 	});
 
-	it("maps aborted OpenCode tool calls to meaningful tool activity", async () => {
+	it("maps aborted OpenCode tool-call errors to meaningful tool activity", async () => {
 		const dir = makeTempDir();
 		const replay = [
-			{ type: "step_start", sessionID: "oc_aborted_789" },
+			{
+				type: "step_start",
+				timestamp: 1781596690956,
+				sessionID: "oc_aborted_789",
+				part: {
+					id: "prt_aborted_start",
+					messageID: "msg_aborted",
+					sessionID: "oc_aborted_789",
+					type: "step-start",
+				},
+			},
 			{
 				type: "tool_use",
+				timestamp: 1781596696662,
+				sessionID: "oc_aborted_789",
 				part: {
+					type: "tool",
 					tool: "unknown",
 					callID: "aborted_read",
+					id: "prt_aborted_read",
+					messageID: "msg_aborted",
+					sessionID: "oc_aborted_789",
 					state: {
-						status: "aborted",
+						status: "error",
 						input: { filePath: "src/index.ts" },
 						error: "tool call aborted",
 					},
@@ -336,16 +352,33 @@ describe("OpenCodeRunner", () => {
 			},
 			{
 				type: "tool_use",
+				timestamp: 1781596696663,
+				sessionID: "oc_aborted_789",
 				part: {
+					type: "tool",
 					callID: "aborted_command",
+					id: "prt_aborted_command",
+					messageID: "msg_aborted",
+					sessionID: "oc_aborted_789",
 					state: {
-						status: "aborted",
+						status: "error",
 						input: { command: "pnpm test" },
 						error: "tool call aborted",
 					},
 				},
 			},
-			{ type: "step_finish", reason: "stop", result: "Stopped." },
+			{
+				type: "step_finish",
+				timestamp: 1781596696729,
+				sessionID: "oc_aborted_789",
+				part: {
+					id: "prt_aborted_finish",
+					reason: "stop",
+					messageID: "msg_aborted",
+					sessionID: "oc_aborted_789",
+					type: "step-finish",
+				},
+			},
 		]
 			.map((event) => JSON.stringify(event))
 			.join("\n");
