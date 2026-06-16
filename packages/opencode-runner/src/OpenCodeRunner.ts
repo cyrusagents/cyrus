@@ -76,8 +76,43 @@ function toFiniteNumber(value: unknown): number {
 	return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function normalizeToolName(toolName: string): string {
-	const normalized = toolName.toLowerCase().replace(/[\s_-]+/g, "");
+function inferToolNameFromInput(input: unknown): string | null {
+	const record = asRecord(input);
+	if (!record) {
+		return null;
+	}
+	if (typeof (record.command ?? record.cmd) === "string") {
+		return "Bash";
+	}
+	if (
+		typeof (record.filePath ?? record.file_path ?? record.path) === "string"
+	) {
+		return "Read";
+	}
+	if (typeof record.url === "string") {
+		return "WebFetch";
+	}
+	if (typeof (record.pattern ?? record.query) === "string") {
+		return "Grep";
+	}
+	return null;
+}
+
+function normalizeToolName(
+	toolName: string | undefined,
+	input: unknown,
+): string {
+	const trimmed = toolName?.trim() || "";
+	if (!trimmed) {
+		return "OpenCode tool call";
+	}
+
+	const inferredName = inferToolNameFromInput(input);
+	if (trimmed.toLowerCase() === "unknown") {
+		return inferredName || "OpenCode tool call";
+	}
+
+	const normalized = trimmed.toLowerCase().replace(/[\s_-]+/g, "");
 	switch (normalized) {
 		case "bash":
 		case "shell":
@@ -104,7 +139,7 @@ function normalizeToolName(toolName: string): string {
 		case "todolist":
 			return "TodoWrite";
 		default:
-			return toolName || "tool";
+			return trimmed;
 	}
 }
 
@@ -573,6 +608,8 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		const isError =
 			status === "error" ||
 			status === "failed" ||
+			status === "aborted" ||
+			status === "canceled" ||
 			status === "cancelled" ||
 			state.error !== undefined;
 		const hasResult =
@@ -584,7 +621,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 
 		return {
 			toolUseId: callId,
-			toolName: normalizeToolName(part.tool || "tool"),
+			toolName: normalizeToolName(part.tool, state.input),
 			toolInput: normalizeToolInput(state.input),
 			result: outputToString(state.output ?? state.error, state.metadata),
 			isError,
