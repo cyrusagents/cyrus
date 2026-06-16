@@ -25,6 +25,22 @@ function loadFixture(): ReplayEvent[] {
 }
 
 describe("OpenCodeMessageFormatter replay", () => {
+	it("formats todowrite parameters as a readable checklist", () => {
+		const formatter = new OpenCodeMessageFormatter();
+
+		expect(
+			formatter.formatToolParameter("todowrite", {
+				todos: [
+					{ content: "Inspect formatter path", status: "completed" },
+					{ content: "Format OpenCode TodoWrite", status: "in_progress" },
+					{ content: "Verify regression coverage", status: "pending" },
+				],
+			}),
+		).toBe(
+			"- [x] Inspect formatter path\n- [ ] Format OpenCode TodoWrite (in progress)\n- [ ] Verify regression coverage (pending)",
+		);
+	});
+
 	it("formats tool interactions from replayed OpenCode events", () => {
 		const formatter = new OpenCodeMessageFormatter();
 		const interactions = loadFixture().filter(

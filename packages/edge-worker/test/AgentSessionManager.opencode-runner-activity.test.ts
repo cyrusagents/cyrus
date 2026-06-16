@@ -113,6 +113,23 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 			"export const value = 2",
 		);
 
+		const todoThought = calls.find(
+			(call: any[]) =>
+				call[1]?.type === "thought" &&
+				call[1]?.body ===
+					"- [x] Inspect formatter path\n- [ ] Format OpenCode TodoWrite (in progress)\n- [ ] Verify regression coverage (pending)",
+		);
+		expect(todoThought).toBeDefined();
+		expect(
+			calls.some(
+				(call: any[]) =>
+					call[1]?.type === "action" &&
+					call[1]?.action === "todowrite" &&
+					typeof call[1]?.parameter === "string" &&
+					call[1]?.parameter.includes('"todos"'),
+			),
+		).toBe(false);
+
 		const finalResponse = calls.find(
 			(call: any[]) =>
 				call[1]?.type === "response" &&

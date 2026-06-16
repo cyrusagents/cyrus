@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - **OpenCode runner selection** — Cyrus can now route sessions to OpenCode with an `opencode` label or `[agent=opencode]` issue description selector, supports OpenCode default/fallback model config, and can optionally infer OpenCode from `provider/model` selectors with `inferOpenCodeRunnerFromProviderModel` or `CYRUS_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL=true`.
 
 ### Fixed
+- OpenCode `todowrite` activity now appears as a readable checklist in Linear instead of raw JSON.
 - **OpenCode sessions can use configured MCP servers** — MCP servers defined in OpenCode runtime config are now granted matching tool permissions under Cyrus's deny-by-default policy, so configured servers are actually available to OpenCode agents.
 - **OpenCode MCP OAuth config is preserved** — Remote MCP servers defined through `mcpConfigPath` or inline Cyrus MCP config now keep their `oauth` metadata when Cyrus translates them for OpenCode sessions.
 - **OpenCode runner sessions now report unsupported settings and finish reliably** — Cyrus now warns when OpenCode cannot apply shared runner settings, extracts simple responses from result-only sessions, grants file-reading tools correctly for simple OpenCode checks, and avoids duplicate completion events when OpenCode exits with both error and close signals.
