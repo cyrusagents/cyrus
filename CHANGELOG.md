@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Tightened the self-reported failure-mode instructions so agents keep reporting true user-visible failures and repeated stuck loops, but avoid filing failure-mode tickets for normal review iteration, brainstorming, first-pass clarification, or probe/no-op messages. ([PRO-116](https://linear.app/ceedar/issue/PRO-116), [#1329](https://github.com/cyrusagents/cyrus/pull/1329))
 
+### Fixed
+- Repository setup and teardown hooks are now discovered from the issue worktree, so Cyrus runs the hook version that matches the code checked out for the task instead of a stale persistent checkout. ([CYPACK-1337](https://linear.app/ceedar/issue/CYPACK-1337), [#1332](https://github.com/cyrusagents/cyrus/pull/1332))
+
 ## [0.2.65] - 2026-06-11
 
 ### Fixed
