@@ -5281,8 +5281,19 @@ ${taskSection}`;
 	 * Resolve the repo working-tree path(s) whose `.claude/skills/` directories
 	 * should contribute to the skill whitelist for a session.
 	 *
+	 * The whitelist must reflect the skills the SDK actually loads, and the SDK
+	 * loads project skills from the session's worktree (its cwd), NOT from the
+	 * base clone. The base clone is only ever `git fetch`ed and used as the
+	 * source for `git worktree add origin/<base>` — its own checked-out working
+	 * tree is never advanced, so `repository.repositoryPath/.claude/skills/`
+	 * goes stale and produces a whitelist that rejects repo-committed skills
+	 * added after the repo was registered ("not in this session's skills
+	 * allowlist"). Always prefer the worktree path.
+	 *
 	 * - Multi-repo sessions: every sub-worktree in `workspace.repoPaths`.
-	 * - Single-repo / GitHub-mention sessions: the active repository's path.
+	 * - Single-repo / GitHub-mention sessions: the worktree at `workspace.path`.
+	 * - No session workspace (e.g. resolution before a worktree exists): fall
+	 *   back to the registered repository path.
 	 */
 	private resolveSkillRepoPaths(
 		repository: RepositoryConfig,
@@ -5296,6 +5307,10 @@ ${taskSection}`;
 			if (paths.length > 0) {
 				return [...new Set(paths)];
 			}
+		}
+		const worktreePath = session?.workspace?.path;
+		if (typeof worktreePath === "string" && worktreePath.length > 0) {
+			return [worktreePath];
 		}
 		return [repository.repositoryPath];
 	}
