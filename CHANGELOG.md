@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 - Patched the Cyrus CLI dependency graph so `pnpm audit` reports no known vulnerabilities, including updated Sentry, Cursor SDK, Axios, Vite/esbuild, Hono, form-data, ws, protobufjs, and OpenTelemetry resolutions. ([CYPACK-1334](https://linear.app/ceedar/issue/CYPACK-1334), [#1330](https://github.com/cyrusagents/cyrus/pull/1330))
+- Patched newly reported Cyrus CLI dependency advisories so `pnpm audit` continues to report no known vulnerabilities. ([CYPACK-1340](https://linear.app/ceedar/issue/CYPACK-1340), [#1335](https://github.com/cyrusagents/cyrus/pull/1335))
 
 ### Changed
 - Tightened the self-reported failure-mode instructions so agents keep reporting true user-visible failures and repeated stuck loops, but avoid filing failure-mode tickets for normal review iteration, brainstorming, first-pass clarification, or probe/no-op messages. ([PRO-116](https://linear.app/ceedar/issue/PRO-116), [#1329](https://github.com/cyrusagents/cyrus/pull/1329))
