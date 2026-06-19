@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Repository setup and teardown hooks are now discovered from the issue worktree instead of the persistent checkout Cyrus uses to create worktrees. If a branch adds or updates `cyrus-setup.sh`, Cyrus now runs that exact version for the task, so dependency installs, environment bootstrap, generated config, and other repo-specific preparation no longer get skipped or run from an older checkout. Teardown cleanup likewise uses the `cyrus-teardown.sh` committed with the worktree being removed. ([CYPACK-1337](https://linear.app/ceedar/issue/CYPACK-1337), [#1332](https://github.com/cyrusagents/cyrus/pull/1332))
+- Linear agent sessions now show when a repository `cyrus-setup.sh` starts, succeeds, or fails before Cyrus begins working. Failures include duration, exit status, and a short redacted stdout/stderr tail so users can diagnose setup issues without exposing local paths, environment values, or secrets. ([CYPACK-1338](https://linear.app/ceedar/issue/CYPACK-1338), [#1333](https://github.com/cyrusagents/cyrus/pull/1333))
 
 ## [0.2.65] - 2026-06-11
 
