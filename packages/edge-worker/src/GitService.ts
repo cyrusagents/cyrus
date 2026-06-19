@@ -1366,8 +1366,13 @@ export class GitService {
 		const runsThroughInterpreter =
 			expandedPath.endsWith(".sh") || expandedPath.endsWith(".ps1");
 
-		// Check if script is executable when it will be invoked directly.
-		if (process.platform !== "win32" && !runsThroughInterpreter) {
+		// Preserve legacy permission checks outside the Linear-visible repo setup
+		// path. For visible repo setup hooks, interpreter-run scripts do not need
+		// the executable bit because we invoke them as `bash script`.
+		if (
+			process.platform !== "win32" &&
+			(!shouldPostRepoSetupActivity || !runsThroughInterpreter)
+		) {
 			try {
 				const stats = statSync(expandedPath);
 				if (!(stats.mode & 0o100)) {
@@ -1412,6 +1417,19 @@ export class GitService {
 		}
 
 		try {
+			if (!shouldPostRepoSetupActivity) {
+				this.runHookScriptInherited({
+					scriptPath,
+					expandedPath,
+					cwd,
+					env,
+					timeoutMs,
+				});
+
+				this.logger.info(`✅ ${labelTitle} script completed successfully`);
+				return;
+			}
+
 			let command: string;
 			let args: string[];
 			let shell = false;
@@ -1537,6 +1555,37 @@ export class GitService {
 				});
 			}
 		}
+	}
+
+	private runHookScriptInherited(opts: {
+		scriptPath: string;
+		expandedPath: string;
+		cwd: string;
+		env: Record<string, string>;
+		timeoutMs: number;
+	}): void {
+		const { scriptPath, expandedPath, cwd, env, timeoutMs } = opts;
+		let command: string;
+		const isWindows = process.platform === "win32";
+		if (scriptPath.endsWith(".ps1")) {
+			command = `powershell -ExecutionPolicy Bypass -File "${expandedPath}"`;
+		} else if (scriptPath.endsWith(".cmd") || scriptPath.endsWith(".bat")) {
+			command = `"${expandedPath}"`;
+		} else if (isWindows) {
+			command = `bash "${expandedPath}"`;
+		} else {
+			command = `bash "${expandedPath}"`;
+		}
+
+		execSync(command, {
+			cwd,
+			stdio: "inherit",
+			env: {
+				...process.env,
+				...env,
+			},
+			timeout: timeoutMs,
+		});
 	}
 
 	/**

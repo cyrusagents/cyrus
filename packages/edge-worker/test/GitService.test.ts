@@ -569,25 +569,22 @@ describe("GitService", () => {
 			const result = await gitService.createGitWorktree(issue, [repository]);
 
 			expect(result.isGitWorktree).toBe(true);
-			expect(mockSpawn).toHaveBeenCalledWith(
-				"bash",
-				["/home/user/.cyrus/worktrees/ENG-97/cyrus-setup.sh"],
+			expect(mockExecSync).toHaveBeenCalledWith(
+				'bash "/home/user/.cyrus/worktrees/ENG-97/cyrus-setup.sh"',
 				expect.objectContaining({
 					cwd: "/home/user/.cyrus/worktrees/ENG-97",
+					stdio: "inherit",
 					env: expect.objectContaining({
 						LINEAR_ISSUE_ID: "issue-1",
 						LINEAR_ISSUE_IDENTIFIER: "ENG-97",
 						LINEAR_ISSUE_TITLE: "Fix the shader",
 					}),
-					shell: false,
 				}),
 			);
 			expect(
-				mockSpawn.mock.calls.some(
-					([command, args]) =>
-						command === "bash" &&
-						Array.isArray(args) &&
-						args.includes("/home/user/repo/cyrus-setup.sh"),
+				mockExecSync.mock.calls.some(
+					([command]) =>
+						String(command) === 'bash "/home/user/repo/cyrus-setup.sh"',
 				),
 			).toBe(false);
 		});
@@ -614,18 +611,11 @@ describe("GitService", () => {
 
 			await gitService.createGitWorktree(issue, [repository]);
 
-			const setupCommands = mockSpawn.mock.calls
-				.map(([command, args]) => ({ command, args }))
-				.filter(
-					({ args }) =>
-						Array.isArray(args) &&
-						args.some((arg) => String(arg).includes("cyrus-setup.sh")),
-				);
+			const setupCommands = mockExecSync.mock.calls
+				.map(([command]) => String(command))
+				.filter((command) => command.includes("cyrus-setup.sh"));
 			expect(setupCommands).toEqual([
-				{
-					command: "bash",
-					args: ["/home/user/.cyrus/worktrees/ENG-97/cyrus-setup.sh"],
-				},
+				'bash "/home/user/.cyrus/worktrees/ENG-97/cyrus-setup.sh"',
 			]);
 		});
 
@@ -1170,20 +1160,24 @@ describe("GitService", () => {
 			});
 
 			// Should run teardown with cwd set to workspace root (single-repo)
-			expect(mockSpawn).toHaveBeenCalledWith(
-				"bash",
-				["/home/user/.cyrus/worktrees/DEF-123/cyrus-teardown.sh"],
+			expect(mockExecSync).toHaveBeenCalledWith(
+				'bash "/home/user/.cyrus/worktrees/DEF-123/cyrus-teardown.sh"',
 				expect.objectContaining({
 					cwd: "/home/user/.cyrus/worktrees/DEF-123",
+					stdio: "inherit",
 					env: expect.objectContaining({
 						LINEAR_ISSUE_IDENTIFIER: "DEF-123",
 					}),
-					shell: false,
 				}),
 			);
 
 			// Teardown must run before worktree removal (assert order)
-			const teardownOrder = mockSpawn.mock.invocationCallOrder[0];
+			const teardownOrder = mockExecSync.mock.invocationCallOrder.find(
+				(_, index) =>
+					String(mockExecSync.mock.calls[index]?.[0]).includes(
+						"cyrus-teardown.sh",
+					),
+			);
 			const removeOrder = mockExecSync.mock.invocationCallOrder.find(
 				(_, index) =>
 					String(mockExecSync.mock.calls[index]?.[0]).includes(
@@ -1238,8 +1232,13 @@ describe("GitService", () => {
 				return "";
 			});
 
-			mockExecSync.mockReturnValue(Buffer.from(""));
-			mockFailedSpawn({ stderr: "script blew up\n" });
+			mockExecSync.mockImplementation((cmd: any) => {
+				const cmdStr = String(cmd);
+				if (cmdStr.includes("cyrus-teardown.sh")) {
+					throw new Error("script blew up");
+				}
+				return Buffer.from("");
+			});
 
 			await gitService.deleteWorktree("DEF-123", {
 				repositories: [makeRepo("a", "repo-a", "/home/user/repos/repo-a")],
@@ -1251,7 +1250,7 @@ describe("GitService", () => {
 			expect(mockRmSync).toHaveBeenCalled();
 		});
 
-		it("runs teardown shell hooks when they are not executable", async () => {
+		it("warns and skips when teardown script is not executable", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
 				if (p === "/home/user/.cyrus/worktrees/DEF-123") return true;
@@ -1279,18 +1278,14 @@ describe("GitService", () => {
 				return "";
 			});
 			mockExecSync.mockReturnValue(Buffer.from(""));
-			mockSuccessfulSpawn("teardown complete\n");
 
 			await gitService.deleteWorktree("DEF-123", {
 				repositories: [makeRepo("a", "repo-a", "/home/user/repos/repo-a")],
 			});
 
-			expect(mockSpawn).toHaveBeenCalledWith(
-				"bash",
-				["/home/user/.cyrus/worktrees/DEF-123/cyrus-teardown.sh"],
-				expect.anything(),
-			);
-			expect(mockLogger.warn).not.toHaveBeenCalledWith(
+			const execCmds = mockExecSync.mock.calls.map((c) => String(c[0]));
+			expect(execCmds.some((c) => c.includes("cyrus-teardown.sh"))).toBe(false);
+			expect(mockLogger.warn).toHaveBeenCalledWith(
 				expect.stringContaining("not executable"),
 			);
 		});
@@ -1363,16 +1358,14 @@ describe("GitService", () => {
 				],
 			});
 
-			expect(mockSpawn).toHaveBeenCalledWith(
-				"bash",
-				["/home/user/.cyrus/worktrees/DEF-123/repo-a/cyrus-teardown.sh"],
+			expect(mockExecSync).toHaveBeenCalledWith(
+				'bash "/home/user/.cyrus/worktrees/DEF-123/repo-a/cyrus-teardown.sh"',
 				expect.objectContaining({
 					cwd: "/home/user/.cyrus/worktrees/DEF-123/repo-a",
 				}),
 			);
-			expect(mockSpawn).toHaveBeenCalledWith(
-				"bash",
-				["/home/user/.cyrus/worktrees/DEF-123/repo-b/cyrus-teardown.sh"],
+			expect(mockExecSync).toHaveBeenCalledWith(
+				'bash "/home/user/.cyrus/worktrees/DEF-123/repo-b/cyrus-teardown.sh"',
 				expect.objectContaining({
 					cwd: "/home/user/.cyrus/worktrees/DEF-123/repo-b",
 				}),
@@ -1435,12 +1428,8 @@ describe("GitService", () => {
 				],
 			});
 
-			const teardownCalls = mockSpawn.mock.calls
-				.flatMap(([command, args]) => [
-					command,
-					...(Array.isArray(args) ? args : []),
-				])
-				.map(String)
+			const teardownCalls = mockExecSync.mock.calls
+				.map(([command]) => String(command))
 				.filter((c) => c.includes("cyrus-teardown.sh"));
 			expect(teardownCalls).toHaveLength(1);
 			expect(teardownCalls[0]).toContain(
@@ -1497,18 +1486,12 @@ describe("GitService", () => {
 				{ name: "repo-b", isDirectory: () => true },
 			] as any);
 
-			mockExecSync.mockReturnValue(Buffer.from(""));
-			let spawnCount = 0;
-			mockSpawn.mockImplementation(() => {
-				spawnCount++;
-				const child = new EventEmitter() as any;
-				child.stdout = new EventEmitter();
-				child.stderr = new EventEmitter();
-				child.kill = vi.fn();
-				setImmediate(() => {
-					child.emit("close", spawnCount === 1 ? 1 : 0, null);
-				});
-				return child;
+			mockExecSync.mockImplementation((cmd: any) => {
+				const cmdStr = String(cmd);
+				if (cmdStr.includes("repo-a/cyrus-teardown.sh")) {
+					throw new Error("script blew up");
+				}
+				return Buffer.from("");
 			});
 
 			await gitService.deleteWorktree("DEF-123", {
@@ -1519,10 +1502,11 @@ describe("GitService", () => {
 			});
 
 			// repo-b's teardown was still attempted
-			expect(mockSpawn).toHaveBeenCalledWith(
-				"bash",
-				["/home/user/.cyrus/worktrees/DEF-123/repo-b/cyrus-teardown.sh"],
-				expect.anything(),
+			expect(mockExecSync).toHaveBeenCalledWith(
+				'bash "/home/user/.cyrus/worktrees/DEF-123/repo-b/cyrus-teardown.sh"',
+				expect.objectContaining({
+					cwd: "/home/user/.cyrus/worktrees/DEF-123/repo-b",
+				}),
 			);
 			// rmSync still ran
 			expect(mockRmSync).toHaveBeenCalledWith(
@@ -1580,8 +1564,17 @@ describe("GitService", () => {
 				}
 				return "";
 			});
-			mockExecSync.mockReturnValue(Buffer.from(""));
-			mockFailedSpawn({ code: null, signal: "SIGTERM" });
+			mockExecSync.mockImplementation((cmd: any) => {
+				const cmdStr = String(cmd);
+				if (cmdStr.includes("cyrus-teardown.sh")) {
+					const error = new Error("Script execution timed out") as Error & {
+						signal?: string;
+					};
+					error.signal = "SIGTERM";
+					throw error;
+				}
+				return Buffer.from("");
+			});
 
 			await gitService.deleteWorktree("DEF-123", {
 				repositories: [makeRepo("a", "repo-a", "/home/user/repos/repo-a")],
