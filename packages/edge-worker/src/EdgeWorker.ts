@@ -4082,9 +4082,21 @@ ${taskSection}`;
 		const workspace = this.config.handlers?.createWorkspace
 			? await this.config.handlers.createWorkspace(fullIssue, repositories, {
 					baseBranchOverrides,
+					onRepoSetupHookEvent: (activity) =>
+						this.activityPoster.postRepoSetupHookActivity(
+							sessionId,
+							linearWorkspaceId,
+							activity,
+						),
 				})
 			: await this.gitService.createGitWorktree(fullIssue, repositories, {
 					baseBranchOverrides,
+					onRepoSetupHookEvent: (activity) =>
+						this.activityPoster.postRepoSetupHookActivity(
+							sessionId,
+							linearWorkspaceId,
+							activity,
+						),
 				});
 
 		this.logger.debug(`Workspace created at: ${workspace.path}`);

@@ -2,6 +2,7 @@ import type {
 	AgentActivityCreateInput,
 	IIssueTrackerService,
 	ILogger,
+	RepoSetupHookEvent,
 	RepositoryConfig,
 } from "cyrus-core";
 
@@ -151,6 +152,81 @@ export class ActivityPoster {
 			},
 			"routing",
 		);
+	}
+
+	async postRepoSetupHookActivity(
+		sessionId: string,
+		workspaceId: string,
+		event: RepoSetupHookEvent,
+	): Promise<void> {
+		const issueTracker = this.issueTrackers.get(workspaceId);
+		if (!issueTracker) {
+			this.logger.warn(`No issue tracker found for workspace ${workspaceId}`);
+			return;
+		}
+
+		const parameter = event.repositoryName
+			? `Repository setup hook for ${event.repositoryName}`
+			: "Repository setup hook";
+
+		await this.postActivityDirect(
+			issueTracker,
+			{
+				agentSessionId: sessionId,
+				content: {
+					type: "action",
+					action: event.scriptName,
+					parameter,
+					result: this.formatRepoSetupHookResult(event),
+				},
+			},
+			"repository setup hook",
+		);
+	}
+
+	private formatRepoSetupHookResult(event: RepoSetupHookEvent): string {
+		if (event.status === "started") {
+			return "Started.";
+		}
+
+		const duration = this.formatDuration(event.durationMs);
+		if (event.status === "succeeded") {
+			return `Succeeded${duration ? ` in ${duration}` : ""}.`;
+		}
+
+		const lines = [
+			`Failed${duration ? ` after ${duration}` : ""}: ${event.errorMessage ?? "setup hook exited unsuccessfully"}`,
+		];
+		if (typeof event.exitCode === "number") {
+			lines.push(`Exit code: ${event.exitCode}`);
+		}
+		if (event.signal) {
+			lines.push(`Signal: ${event.signal}`);
+		}
+
+		const stdoutTail = this.escapeCodeFence(event.stdoutTail?.trim());
+		const stderrTail = this.escapeCodeFence(event.stderrTail?.trim());
+		if (stdoutTail) {
+			lines.push("", "Stdout tail:", "```", stdoutTail, "```");
+		}
+		if (stderrTail) {
+			lines.push("", "Stderr tail:", "```", stderrTail, "```");
+		}
+		if (event.truncated) {
+			lines.push("", "Output was truncated to a safe tail.");
+		}
+
+		return lines.join("\n");
+	}
+
+	private formatDuration(durationMs?: number): string | null {
+		if (typeof durationMs !== "number") return null;
+		if (durationMs < 1_000) return `${durationMs}ms`;
+		return `${(durationMs / 1_000).toFixed(1)}s`;
+	}
+
+	private escapeCodeFence(value?: string): string {
+		return value?.replace(/```/g, "'''") ?? "";
 	}
 
 	async postSystemPromptSelectionThought(

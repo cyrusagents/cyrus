@@ -1,5 +1,10 @@
 import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
-import type { EdgeWorkerConfig, Issue, RepositoryConfig } from "cyrus-core";
+import type {
+	EdgeWorkerConfig,
+	Issue,
+	RepoSetupHookEventHandler,
+	RepositoryConfig,
+} from "cyrus-core";
 import type { GitService, SharedApplicationServer } from "cyrus-edge-worker";
 import { EdgeWorker } from "cyrus-edge-worker";
 import { SlackEventTransport } from "cyrus-slack-event-transport";
@@ -245,11 +250,15 @@ export class WorkerService {
 				createWorkspace: async (
 					issue: Issue,
 					repositories: RepositoryConfig[],
-					options?: { baseBranchOverrides?: Map<string, string> },
+					options?: {
+						baseBranchOverrides?: Map<string, string>;
+						onRepoSetupHookEvent?: RepoSetupHookEventHandler;
+					},
 				): Promise<Workspace> => {
 					return this.gitService.createGitWorktree(issue, repositories, {
 						globalSetupScript: edgeConfig.global_setup_script,
 						baseBranchOverrides: options?.baseBranchOverrides,
+						onRepoSetupHookEvent: options?.onRepoSetupHookEvent,
 					});
 				},
 				onOAuthCallback,
