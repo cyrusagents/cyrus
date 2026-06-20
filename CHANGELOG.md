@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.173` to [`0.3.183`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md) and `@anthropic-ai/sdk` from `^0.104.1` to `^0.105.0`. Tool allowance lists refreshed: `DesignSync` added, `TeamCreate`/`TeamDelete` removed (no longer emitted by Claude Code in SDK 0.3.183). ([CYPACK-1343](https://linear.app/ceedar/issue/CYPACK-1343))
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.173` to [`0.3.183`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md) and `@anthropic-ai/sdk` from `^0.104.1` to `^0.105.0`. Tool allowance lists refreshed: `DesignSync` added, `TeamCreate`/`TeamDelete` removed (no longer emitted by Claude Code in SDK 0.3.183). ([CYPACK-1343](https://linear.app/ceedar/issue/CYPACK-1343), [#1339](https://github.com/cyrusagents/cyrus/pull/1339))
 
 ## [0.2.66] - 2026-06-19
 
