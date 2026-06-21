@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Updated Claude agent runtime to `@anthropic-ai/claude-agent-sdk` [v0.3.185](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md) and `@anthropic-ai/sdk` v0.105.0. Tool list refreshed: `DesignSync` added, `TeamCreate`/`TeamDelete` removed. ([CYPACK-1344](https://linear.app/ceedar/issue/CYPACK-1344))
+
 ## [0.2.66] - 2026-06-19
 
 ### Security
