@@ -128,9 +128,11 @@ export class ToolPermissionResolver {
 			: [repositories];
 
 		if (repoArray.length === 0) {
-			const baseTools = this.config.linearAllowedTools ?? [
-				...LINEAR_DEFAULT_ALLOWED_TOOLS,
-			];
+			const baseTools =
+				this.config.linearAllowedTools &&
+				this.config.linearAllowedTools.length > 0
+					? this.config.linearAllowedTools
+					: [...LINEAR_DEFAULT_ALLOWED_TOOLS];
 			return [...new Set(baseTools)];
 		}
 
@@ -211,13 +213,16 @@ export class ToolPermissionResolver {
 		// 3. Repository-level allowed tools (verbatim — no platform-default
 		//    merging; if the operator narrows the list, they get the narrow
 		//    list).
-		if (repository.allowedTools) {
+		if (repository.allowedTools && repository.allowedTools.length > 0) {
 			return repository.allowedTools;
 		}
 		// 4. Workspace default allowed tools (the platform default the
 		//    surrounding `buildAllowedTools` / `buildGithubAllowedTools`
 		//    swapped in, if any).
-		if (this.config.linearAllowedTools) {
+		if (
+			this.config.linearAllowedTools &&
+			this.config.linearAllowedTools.length > 0
+		) {
 			return this.config.linearAllowedTools;
 		}
 		// 5. Final fallback — Linear platform default.

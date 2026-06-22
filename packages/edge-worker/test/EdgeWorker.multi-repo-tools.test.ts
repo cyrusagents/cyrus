@@ -355,6 +355,23 @@ describe("EdgeWorker - Multi-Repo Tool Authorization", () => {
 			expect(tools).toEqual([...LINEAR_DEFAULT_ALLOWED_TOOLS]);
 		});
 
+		it("should treat empty global defaults as unset for repository sessions", () => {
+			const configEmptyDefaults: EdgeWorkerConfig = {
+				...mockConfig,
+				linearAllowedTools: [],
+			};
+			const ew = new EdgeWorker(configEmptyDefaults);
+			const buildAllowedTools = getBuildAllowedTools(ew);
+			const repository: RepositoryConfig = {
+				...mockConfig.repositories[0],
+				allowedTools: undefined,
+			};
+
+			const tools = buildAllowedTools(repository);
+
+			expect(tools).toEqual([...LINEAR_DEFAULT_ALLOWED_TOOLS]);
+		});
+
 		it("should still work with a single repository (backwards compatible)", () => {
 			const repository: RepositoryConfig = {
 				...mockConfig.repositories[0],

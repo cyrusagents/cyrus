@@ -191,7 +191,7 @@ describe("AgentSessionManager - GitHub Session", () => {
 		expect(modelNotificationCall![0]).toBe(sessionId);
 		expect(modelNotificationCall![1]).toEqual({
 			type: "thought",
-			body: "Using model: claude-sonnet-4-5-20250514",
+			body: "Using model: claude/claude-sonnet-4-5-20250514",
 		});
 	});
 });

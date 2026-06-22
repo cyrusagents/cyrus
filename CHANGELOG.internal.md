@@ -4,7 +4,10 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
-_No internal-only changes._
+### Added
+- Documented the OpenCode config validation boundary: explicit `opencode.config` inheritance is implemented and covered by runner-level fake-process validation, while real OpenCode CLI extension loading still needs an F1 config-injection path for automated validation.
+- Added OpenCode runner validation coverage with richer replay fixtures, activity timeline mapping tests, guarded live probe documentation, runner-selection assertions, empty-default tool permission regression coverage, and F1 test-drive reports.
+- Added `cyrus-opencode-runner`, an OpenCode CLI runner adapter package with NDJSON event parsing, Cyrus SDK-shaped message projection, tool activity mapping, resume support, formatter coverage, and replay-fixture tests.
 
 ## [0.2.66] - 2026-06-19
 

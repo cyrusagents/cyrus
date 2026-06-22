@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Linear labels can now select both execution harness and model with a single selector label; OpenCode labels use `opencode/<provider>/<model>`, such as `opencode/openai/gpt-5.5`. ([#1263](https://github.com/cyrusagents/cyrus/pull/1263))
+- **Configurable OpenCode CLI state scope** — OpenCode sessions now default to inheriting the same CLI auth storage as the Cyrus process, with optional `shared` or per-`repository` Cyrus-managed state roots for users who want dedicated agent storage.
+- **OpenCode runtime config overrides** — Self-hosted users can define global and per-repository OpenCode runtime config; validation currently covers Cyrus passing merged config to launched OpenCode runner processes while real OpenCode CLI extension loading still needs upstream runtime validation.
+- **Safer OpenCode runner configuration** — OpenCode sessions now receive Cyrus MCP servers and conservative tool permissions through runtime config while preserving normal CLI-managed model access by default.
+- **OpenCode runner selection** — Cyrus can now route sessions to OpenCode with an `opencode` label or `[agent=opencode]` issue description selector, supports OpenCode default/fallback model config, and can optionally infer OpenCode from `provider/model` selectors with `inferOpenCodeRunnerFromProviderModel` or `CYRUS_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL=true`.
+
+### Fixed
+- OpenCode `todowrite` activity now appears as a readable checklist in Linear instead of raw JSON. ([NG-156](https://linear.app/digimondo/issue/NG-156/format-opencode-todowrite-activity-like-claude-runner), [#16](https://github.com/jappyjan/cyrus/pull/16))
+- **OpenCode Linear transcripts show useful model names** — OpenCode sessions now report runner-prefixed provider/model names from Cyrus or OpenCode runtime config instead of the internal `opencode` placeholder in Linear activity timelines. ([NG-157](https://linear.app/digimondo/issue/NG-157/show-useful-opencode-providermodel-names-in-linear-transcripts), [#15](https://github.com/jappyjan/cyrus/pull/15))
+- OpenCode aborted tool calls now show useful Linear activity labels and context instead of `unknown` when OpenCode omits or reports an unknown tool name. ([NG-158](https://linear.app/digimondo/issue/NG-158/map-opencode-aborted-tool-calls-to-meaningful-linear-activity), [#13](https://github.com/jappyjan/cyrus/pull/13))
+- **OpenCode sessions can use configured MCP servers** — MCP servers defined in OpenCode runtime config are now granted matching tool permissions under Cyrus's deny-by-default policy, so configured servers are actually available to OpenCode agents.
+- **OpenCode MCP OAuth config is preserved** — Remote MCP servers defined through `mcpConfigPath` or inline Cyrus MCP config now keep their `oauth` metadata when Cyrus translates them for OpenCode sessions.
+- **OpenCode runner sessions now report unsupported settings and finish reliably** — Cyrus now warns when OpenCode cannot apply shared runner settings, extracts simple responses from result-only sessions, grants file-reading tools correctly for simple OpenCode checks, and avoids duplicate completion events when OpenCode exits with both error and close signals.
+- **Child agent sessions start reliably after delegation** — Cyrus now keeps parent-child session mappings without suppressing the child session's own startup webhook.
+- **Chat follow-ups resume with the original runner** — Completed chat sessions now preserve the runner that owns the stored session ID, avoiding cross-runner resume attempts when the default runner changes.
+- **OpenCode sessions keep default repository tools when `ALLOWED_TOOLS` is unset** — Cyrus no longer treats an empty global tool default as an explicit MCP-only policy, so OpenCode-selected issues can still read files, edit files, and use Bash in normal CLI setups.
+- **OpenCode sessions keep CLI-managed model access** — Cyrus no longer redirects OpenCode's data home, preserving CLI-managed authentication and provider metadata so default OpenCode sessions can start with configured OpenAI models.
+
+### Security
+- **Patched current dependency audit advisories** — Updated the existing `qs` dependency override so `pnpm audit` reports no known vulnerabilities.
+
 ## [0.2.66] - 2026-06-19
 
 ### Security

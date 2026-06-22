@@ -38,6 +38,7 @@
 		"cyrus-gitlab-event-transport": "workspace:*",
 		"cyrus-linear-event-transport": "workspace:*",
 		"cyrus-mcp-tools": "workspace:*",
+		"cyrus-opencode-runner": "workspace:*",
 		"cyrus-simple-agent-runner": "workspace:*",
 		"cyrus-slack-event-transport": "workspace:*",
 		"fastify": "^5.8.5",
