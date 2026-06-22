@@ -9,6 +9,11 @@ This changelog documents internal development changes, refactors, tooling update
 - Added OpenCode runner validation coverage with richer replay fixtures, activity timeline mapping tests, guarded live probe documentation, runner-selection assertions, empty-default tool permission regression coverage, and F1 test-drive reports.
 - Added `cyrus-opencode-runner`, an OpenCode CLI runner adapter package with NDJSON event parsing, Cyrus SDK-shaped message projection, tool activity mapping, resume support, formatter coverage, and replay-fixture tests.
 
+## [0.2.66] - 2026-06-19
+
+### Security
+- Patched open CLI security advisories and documented the F1 dependency smoke validation. Direct bumps were used where available, with root overrides retained only for vulnerable transitives whose owning packages are already at their current npm latest. ([CYPACK-1334](https://linear.app/ceedar/issue/CYPACK-1334), [#1330](https://github.com/cyrusagents/cyrus/pull/1330))
+
 ## [0.2.65] - 2026-06-11
 
 ### Added

@@ -12,7 +12,8 @@ Place a `cyrus-setup.sh` script in your repository root to run repository-specif
 
 1. Place a `cyrus-setup.sh` script in your repository root
 2. When Cyrus processes an issue, it creates a new git worktree
-3. If the setup script exists, Cyrus runs it in the new worktree with these environment variables:
+3. Cyrus discovers the setup script from the newly-created issue worktree, so the script version matches the checked-out code for that task
+4. If the setup script exists, Cyrus runs it in the new worktree with these environment variables:
    - `LINEAR_ISSUE_ID` - The Linear issue ID
    - `LINEAR_ISSUE_IDENTIFIER` - The issue identifier (e.g., "CEA-123")
    - `LINEAR_ISSUE_TITLE` - The issue title
@@ -59,7 +60,7 @@ When creating a new worktree:
 1. **Global script** runs first (if configured)
 2. **Repository script** (`cyrus-setup.sh`) runs second (if exists)
 
-Both scripts receive the same environment variables and run in the worktree directory.
+Both scripts receive the same environment variables and run in the worktree directory. The global script path comes from Cyrus configuration; repository scripts are discovered from the issue worktree after checkout.
 
 ### Use Cases
 
@@ -79,7 +80,7 @@ Make sure the script is executable: `chmod +x /opt/cyrus/bin/global-setup.sh`
 
 ## Repository Teardown Script
 
-Place a `cyrus-teardown.sh` script in your repository root to run repository-specific cleanup when an issue reaches a terminal state (completed, canceled, or deleted). Auto-detected the same way as `cyrus-setup.sh` — no configuration needed.
+Place a `cyrus-teardown.sh` script in your repository root to run repository-specific cleanup when an issue reaches a terminal state (completed, canceled, or deleted). Auto-detected from the issue worktree the same way as `cyrus-setup.sh` — no configuration needed.
 
 ### How it works
 

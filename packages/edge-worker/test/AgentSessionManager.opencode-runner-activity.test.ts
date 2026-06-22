@@ -134,10 +134,10 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 		expect(
 			calls.some(
 				(call: any[]) =>
-				call[1]?.type === "action" &&
-				call[1]?.action === "todowrite" &&
-				typeof call[1]?.parameter === "string" &&
-				call[1]?.parameter.includes('"todos"'),
+					call[1]?.type === "action" &&
+					call[1]?.action === "todowrite" &&
+					typeof call[1]?.parameter === "string" &&
+					call[1]?.parameter.includes('"todos"'),
 			),
 		).toBe(false);
 

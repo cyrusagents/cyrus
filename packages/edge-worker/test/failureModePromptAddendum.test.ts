@@ -10,7 +10,15 @@ describe("failure-mode prompt addendum", () => {
 			"mcp__cyrus-tools__log_failure_mode",
 		);
 		expect(FAILURE_MODE_PROMPT_ADDENDUM).toMatch(/dissatisfaction/i);
+		expect(FAILURE_MODE_PROMPT_ADDENDUM).toMatch(/same issue again/i);
 		expect(FAILURE_MODE_PROMPT_ADDENDUM).toMatch(/3\+/);
+	});
+
+	it("excludes ordinary iteration and no-op probes from reportable failures", () => {
+		expect(FAILURE_MODE_PROMPT_ADDENDUM).toMatch(/normal collaboration/i);
+		expect(FAILURE_MODE_PROMPT_ADDENDUM).toMatch(/ordinary iteration/i);
+		expect(FAILURE_MODE_PROMPT_ADDENDUM).toMatch(/changing direction/i);
+		expect(FAILURE_MODE_PROMPT_ADDENDUM).toMatch(/probe\/test\/no-op/i);
 	});
 
 	it("appends the addendum to an existing system prompt with a blank-line separator", () => {

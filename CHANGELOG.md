@@ -26,6 +26,66 @@ All notable changes to this project will be documented in this file.
 ### Security
 - **Patched current dependency audit advisories** — Updated the existing `qs` dependency override so `pnpm audit` reports no known vulnerabilities.
 
+## [0.2.66] - 2026-06-19
+
+### Security
+- Patched the Cyrus CLI dependency graph so `pnpm audit` reports no known vulnerabilities, including updated Sentry, Cursor SDK, Axios, Vite/esbuild, Hono, form-data, ws, protobufjs, and OpenTelemetry resolutions. ([CYPACK-1334](https://linear.app/ceedar/issue/CYPACK-1334), [#1330](https://github.com/cyrusagents/cyrus/pull/1330))
+- Patched newly reported Cyrus CLI dependency advisories so `pnpm audit` continues to report no known vulnerabilities. ([CYPACK-1340](https://linear.app/ceedar/issue/CYPACK-1340), [#1335](https://github.com/cyrusagents/cyrus/pull/1335))
+
+### Changed
+- Tightened the self-reported failure-mode instructions so agents keep reporting true user-visible failures and repeated stuck loops, but avoid filing failure-mode tickets for normal review iteration, brainstorming, first-pass clarification, or probe/no-op messages. ([PRO-116](https://linear.app/ceedar/issue/PRO-116), [#1329](https://github.com/cyrusagents/cyrus/pull/1329))
+
+### Fixed
+- Repository setup and teardown hooks are now discovered from the issue worktree instead of the persistent checkout Cyrus uses to create worktrees. If a branch adds or updates `cyrus-setup.sh`, Cyrus now runs that exact version for the task, so dependency installs, environment bootstrap, generated config, and other repo-specific preparation no longer get skipped or run from an older checkout. Teardown cleanup likewise uses the `cyrus-teardown.sh` committed with the worktree being removed. ([CYPACK-1337](https://linear.app/ceedar/issue/CYPACK-1337), [#1332](https://github.com/cyrusagents/cyrus/pull/1332))
+- Linear agent sessions now show when a repository `cyrus-setup.sh` starts, succeeds, or fails before Cyrus begins working. Failures include duration, exit status, and a short redacted stdout/stderr tail so users can diagnose setup issues without exposing local paths, environment values, or secrets. ([CYPACK-1338](https://linear.app/ceedar/issue/CYPACK-1338), [#1333](https://github.com/cyrusagents/cyrus/pull/1333))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.66
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.66
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.66
+
+#### cyrus-core
+- cyrus-core@0.2.66
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.66
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.66
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.66
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.66
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.66
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.66
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.66
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.66
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.66
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.66
+
+#### cyrus-ai (CLI)
+- cyrus-ai@0.2.66
+
 ## [0.2.65] - 2026-06-11
 
 ### Fixed
