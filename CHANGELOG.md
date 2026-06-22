@@ -5,8 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.173` to `0.3.185` and `@anthropic-ai/sdk` from `^0.104.1` to `^0.105.0`, bringing in the latest Claude Code capabilities and bug fixes. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#PR_NUMBER](https://github.com/cyrusagents/cyrus/pull/PR_NUMBER))
-- Refreshed Claude Code tool list: added `DesignSync`, removed deprecated `TeamCreate` and `TeamDelete` tools. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#PR_NUMBER](https://github.com/cyrusagents/cyrus/pull/PR_NUMBER))
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.173` to `0.3.185` and `@anthropic-ai/sdk` from `^0.104.1` to `^0.105.0`, bringing in the latest Claude Code capabilities and bug fixes. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#1342](https://github.com/cyrusagents/cyrus/pull/1342))
+- Refreshed Claude Code tool list: added `DesignSync`, removed deprecated `TeamCreate` and `TeamDelete` tools. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#1342](https://github.com/cyrusagents/cyrus/pull/1342))
 
 ## [0.2.66] - 2026-06-19
 
