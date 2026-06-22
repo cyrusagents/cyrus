@@ -75,9 +75,8 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"ToolSearch",
 	"Skill",
 
-	// Team lifecycle
-	"TeamCreate",
-	"TeamDelete",
+	// Design sync
+	"DesignSync",
 
 	// Workflow orchestration
 	"Workflow",
@@ -197,9 +196,8 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	"ToolSearch",
 	"Skill",
 
-	// Team lifecycle
-	"TeamCreate",
-	"TeamDelete",
+	// Design sync
+	"DesignSync",
 
 	// Workflow orchestration
 	"Workflow",

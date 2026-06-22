@@ -65,12 +65,11 @@ export const availableTools = [
 	"TaskOutput",
 	"TaskStop",
 
-	// Team management
-	"TeamCreate",
-	"TeamDelete",
-
 	// Tool discovery
 	"ToolSearch",
+
+	// Design sync
+	"DesignSync",
 
 	// Workflow orchestration
 	"Workflow",
