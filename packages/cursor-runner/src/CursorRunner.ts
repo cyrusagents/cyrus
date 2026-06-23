@@ -132,6 +132,8 @@ function createAssistantToolUseMessage(
 		} as SDKAssistantMessage["message"]["usage"],
 		container: null,
 		context_management: null,
+		diagnostics: null,
+		stop_details: null,
 	};
 }
 
@@ -180,6 +182,8 @@ function createAssistantBetaMessage(
 		} as SDKAssistantMessage["message"]["usage"],
 		container: null,
 		context_management: null,
+		diagnostics: null,
+		stop_details: null,
 	};
 }
 

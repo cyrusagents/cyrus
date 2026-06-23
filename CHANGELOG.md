@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+- **Dependabot alert remediation (2026-06-23 batch)** — Upgraded 20+ transitive and direct npm dependencies to address 87 open security alerts (C3 H33 M47 L4). Covered packages include `@anthropic-ai/sdk`, `fastify`, `hono`, `@hono/node-server`, `axios`, `undici`, `ws`, `shell-quote`, `simple-git`, `uuid`, `ip-address`, `follow-redirects`, `form-data`, `fast-uri`, `protobufjs`, `@grpc/grpc-js`, `qs`, `brace-expansion`, `vitest`, and `vite`. Upgrades are applied via `pnpm.overrides` for transitive dependencies and direct `package.json` bumps for direct ones. ([BRI-2548](https://linear.app/brilliantio/issue/BRI-2548), [#38](https://github.com/Brilliantio/cyrus-agent/pull/38))
+
 ### Fixed
 - **Changelog updates no longer create duplicate entries** — The PR/MR and changelog-update skills now diff entries against the base branch instead of only the last commit, correctly detecting entries already added by the current branch and updating them in-place. ([CYPACK-1063](https://linear.app/ceedar/issue/CYPACK-1063), [#1091](https://github.com/ceedaragents/cyrus/pull/1091))
 - **Codex runner hang mitigation artifacts are now versioned for reproducible VPS recovery** — Added a reproducible idle-timeout watchdog patch for `cyrus-codex-runner`, install/rollback scripts, per-MCP timeout config install script, and a runbook documenting apply/verify/rollback steps for Tier 2 contingency restoration. ([BRI-1439](https://linear.app/brilliantio/issue/BRI-1439/fix-codex-runner-hang-idle-timeout-watchdog-per-mcp-tool-timeout-sec), [#33](https://github.com/Brilliantio/cyrus-agent/pull/33))

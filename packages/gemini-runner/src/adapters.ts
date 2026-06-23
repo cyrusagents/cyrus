@@ -41,6 +41,7 @@ function createBetaMessage(
 		usage: {
 			input_tokens: 0,
 			output_tokens: 0,
+			output_tokens_details: null,
 			cache_creation_input_tokens: 0,
 			cache_read_input_tokens: 0,
 			cache_creation: null,
@@ -52,6 +53,8 @@ function createBetaMessage(
 		},
 		container: null,
 		context_management: null,
+		diagnostics: null,
+		stop_details: null,
 	};
 }
 
@@ -224,6 +227,7 @@ export function geminiEventToSDKMessage(
 						output_tokens: stats.output_tokens || 0,
 						cache_creation_input_tokens: 0,
 						cache_read_input_tokens: 0,
+						output_tokens_details: { thinking_tokens: 0 },
 						cache_creation: {
 							ephemeral_1h_input_tokens: 0,
 							ephemeral_5m_input_tokens: 0,
@@ -260,6 +264,7 @@ export function geminiEventToSDKMessage(
 						output_tokens: stats.output_tokens || 0,
 						cache_creation_input_tokens: 0,
 						cache_read_input_tokens: 0,
+						output_tokens_details: { thinking_tokens: 0 },
 						cache_creation: {
 							ephemeral_1h_input_tokens: 0,
 							ephemeral_5m_input_tokens: 0,
@@ -297,6 +302,7 @@ export function geminiEventToSDKMessage(
 				usage: {
 					input_tokens: 0,
 					output_tokens: 0,
+					output_tokens_details: { thinking_tokens: 0 },
 					cache_creation_input_tokens: 0,
 					cache_read_input_tokens: 0,
 					cache_creation: {

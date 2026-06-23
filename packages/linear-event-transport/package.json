@@ -18,7 +18,7 @@
 	"dependencies": {
 		"@linear/sdk": "^64.0.0",
 		"cyrus-core": "workspace:*",
-		"fastify": "^5.8.3"
+		"fastify": "^5.8.5"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",

@@ -50,7 +50,7 @@
 		"cyrus-slack-event-transport": "workspace:*",
 		"dotenv": "^16.5.0",
 		"express": "^5.2.0",
-		"fastify": "^5.8.3",
+		"fastify": "^5.8.5",
 		"file-type": "^21.0.0",
 		"fs-extra": "^11.3.0",
 		"node-fetch": "^2.7.0",
@@ -59,7 +59,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
-		"@vitest/ui": "^3.1.4",
+		"@vitest/ui": "^3.2.6",
 		"nodemon": "^2.0.22",
 		"typescript": "^5.3.3",
 		"vitest": "^3.1.4"
