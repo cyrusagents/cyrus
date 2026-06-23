@@ -1,14 +1,15 @@
 import { execSync } from "node:child_process";
 import { join } from "node:path";
-import type {
-	HookCallbackMatcher,
-	HookEvent,
-	McpServerConfig,
-	PostToolUseHookInput,
-	SandboxSettings,
-	SDKMessage,
-	SdkPluginConfig,
-	StopHookInput,
+import {
+	type HookCallbackMatcher,
+	type HookEvent,
+	type McpServerConfig,
+	type PostToolUseHookInput,
+	resolveStartEffort,
+	type SandboxSettings,
+	type SDKMessage,
+	type SdkPluginConfig,
+	type StopHookInput,
 } from "cyrus-claude-runner";
 import type {
 	AgentRunnerConfig,
@@ -18,6 +19,7 @@ import type {
 	RepositoryConfig,
 	RunnerType,
 } from "cyrus-core";
+import { parseEffortDirective } from "./EffortDirective.js";
 import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
@@ -358,6 +360,24 @@ export class RunnerConfigBuilder {
 			log.debug(`Model override via selector: ${modelOverride}`);
 		}
 
+		// Resolve a session-start reasoning effort from an `Effort: <level>`
+		// directive in the issue description. Claude runner only — the SDK
+		// `effort`/`ultracode` controls are Claude-specific.
+		const effortDirective =
+			runnerType === "claude"
+				? parseEffortDirective(input.issueDescription)
+				: null;
+		const startEffort = effortDirective
+			? resolveStartEffort(effortDirective)
+			: null;
+		if (startEffort) {
+			log.debug(
+				`Reasoning effort via directive: ${effortDirective} -> effort=${startEffort.effort}${
+					startEffort.ultracode ? " + ultracode" : ""
+				}`,
+			);
+		}
+
 		// Determine final model from selectors, repository override, then runner-specific defaults
 		const finalModel =
 			modelOverride ||
@@ -443,6 +463,11 @@ export class RunnerConfigBuilder {
 						resolvedWorkspaceId,
 					),
 				}),
+			// Session-start reasoning effort (Claude runner only).
+			...(startEffort && {
+				effort: startEffort.effort,
+				...(startEffort.ultracode && { ultracode: true }),
+			}),
 			onMessage: input.onMessage,
 			onError: input.onError,
 		};

@@ -30,6 +30,11 @@ import {
 	StreamingPrompt,
 } from "cyrus-core";
 import dotenv from "dotenv";
+import {
+	type EffortDirective,
+	type LiveEffort,
+	resolveLiveEffort,
+} from "./effort.js";
 import { ClaudeMessageFormatter, type IMessageFormatter } from "./formatter.js";
 import { buildHomeDirectoryDisallowedTools } from "./home-directory-restrictions.js";
 import {
@@ -440,6 +445,40 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	}
 
 	/**
+	 * Change the reasoning effort of the LIVE session via the SDK flag layer
+	 * (`Query.applyFlagSettings`). Used when a mid-session comment carries a new
+	 * `Effort:` directive ("latest wins").
+	 *
+	 * Because the live flag layer cannot reach `max`, a `max` directive is
+	 * clamped to `xhigh`; the returned {@link LiveEffort} reports `clampedFromMax`
+	 * so the caller can surface a note. Returns `null` when there is no active
+	 * query to apply settings to (e.g. the session already ended).
+	 */
+	setEffort(directive: EffortDirective): LiveEffort | null {
+		if (!this.activeQuery) {
+			this.logger.warn(
+				`Cannot set effort to "${directive}": no active Claude query`,
+			);
+			return null;
+		}
+		const resolved = resolveLiveEffort(directive);
+		// applyFlagSettings is async and fire-and-forget here; failures are logged
+		// but must not crash the streaming turn. Pass a fresh object literal so it
+		// satisfies the SDK Settings index-signature requirement.
+		this.activeQuery
+			.applyFlagSettings({
+				effortLevel: resolved.flagSettings.effortLevel,
+				ultracode: resolved.flagSettings.ultracode,
+				enableWorkflows: resolved.flagSettings.enableWorkflows,
+			})
+			.catch((err: unknown) => {
+				this.logger.error("Failed to apply effort flag settings:", err);
+			});
+		this.logger.info(`Reasoning effort updated mid-session: ${resolved.label}`);
+		return resolved;
+	}
+
+	/**
 	 * Complete the streaming prompt (no more messages will be added)
 	 */
 	completeStream(): void {
@@ -707,11 +746,23 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					...(this.config.sessionStore && {
 						sessionStore: this.config.sessionStore,
 					}),
-					...(this.config.autoMemoryDirectory && {
+					...((this.config.autoMemoryDirectory || this.config.ultracode) && {
 						settings: {
-							autoMemoryDirectory: this.config.autoMemoryDirectory,
+							...(this.config.autoMemoryDirectory && {
+								autoMemoryDirectory: this.config.autoMemoryDirectory,
+							}),
+							// ultracode (xhigh effort + dynamic-workflow orchestration)
+							// only engages when workflows are also enabled for the
+							// session — the SDK gates the Workflow tool behind
+							// `enableWorkflows`. Setting ultracode alone would apply
+							// xhigh effort but never spawn workflows, so enable both.
+							...(this.config.ultracode && {
+								ultracode: true,
+								enableWorkflows: true,
+							}),
 						},
 					}),
+					...(this.config.effort && { effort: this.config.effort }),
 					...(Object.keys(mcpServers).length > 0 && { mcpServers }),
 					// Only use MCP servers we explicitly pass via `mcpConfig` /
 					// `mcpServers`. The flag is undertyped in the SDK's TS

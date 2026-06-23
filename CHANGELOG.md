@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- You can now control Claude's reasoning effort per issue by adding an `Effort:` line to a Linear issue or comment — `Effort: low`, `medium`, `high`, `xhigh`, `max`, or `ultra`. It applies to Claude sessions and can be changed mid-session by commenting a new `Effort:` line (the latest one wins). Cyrus posts a note in the session timeline when the effort changes; a mid-session `Effort: max` runs at `xhigh` and notes that `max` takes effect from a new session. `Effort: ultra` enables ultracode — `xhigh` effort plus dynamic workflow orchestration (the agent can fan work out across parallel sub-agents), which uses more tokens.
+
 ### Changed
 - Updated `@anthropic-ai/claude-agent-sdk` from `0.3.173` to `0.3.185` and `@anthropic-ai/sdk` from `^0.104.1` to `^0.105.0`, bringing in the latest Claude Code capabilities and bug fixes. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#1342](https://github.com/cyrusagents/cyrus/pull/1342))
 - Refreshed Claude Code tool list: added `DesignSync`, removed deprecated `TeamCreate` and `TeamDelete` tools. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#1342](https://github.com/cyrusagents/cyrus/pull/1342))

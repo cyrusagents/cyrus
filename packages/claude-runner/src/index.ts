@@ -21,6 +21,16 @@ export {
 	writeTools,
 } from "./config.js";
 export {
+	EFFORT_DIRECTIVE_VALUES,
+	type EffortDirective,
+	type FlagEffortLevel,
+	type LiveEffort,
+	type LiveEffortFlagSettings,
+	resolveLiveEffort,
+	resolveStartEffort,
+	type StartEffort,
+} from "./effort.js";
+export {
 	ClaudeMessageFormatter,
 	type IMessageFormatter,
 } from "./formatter.js";

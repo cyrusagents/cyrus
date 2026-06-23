@@ -40,6 +40,8 @@ export type {
 	AskUserQuestionOption,
 	AskUserQuestionResult,
 	BackgroundTaskSummary,
+	EffortApplicationResult,
+	EffortDirective,
 	HookCallbackMatcher,
 	HookEvent,
 	IAgentRunner,

@@ -1,4 +1,5 @@
 import type {
+	EffortLevel,
 	HookCallbackMatcher,
 	HookEvent,
 	JsonSchemaOutputFormat,
@@ -44,6 +45,18 @@ export interface ClaudeRunnerConfig {
 	mcpConfig?: Record<string, McpServerConfig>; // Additional/override MCP servers
 	model?: string; // Claude model to use (e.g., "opus", "sonnet", "haiku")
 	fallbackModel?: string; // Fallback model if primary model is unavailable
+	/**
+	 * Reasoning effort to apply at session start, forwarded to the SDK's
+	 * `query()` `Options.effort`. Supports the full range including "max".
+	 * When unset, the model's own default effort applies.
+	 */
+	effort?: EffortLevel;
+	/**
+	 * Enable ultracode at session start (xhigh effort + standing
+	 * dynamic-workflow orchestration). Set alongside `effort: "xhigh"` when the
+	 * user requests the "ultra" directive.
+	 */
+	ultracode?: boolean;
 	maxTurns?: number; // Maximum number of turns before completing the session
 	tools?: string[]; // Built-in tools available in model context (empty array disables all tools)
 	cyrusHome: string; // Cyrus home directory
