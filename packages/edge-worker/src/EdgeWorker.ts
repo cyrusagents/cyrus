@@ -148,6 +148,7 @@ import { LiveChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import { ChatSessionHandler } from "./ChatSessionHandler.js";
 import { ConfigManager, type RepositoryChanges } from "./ConfigManager.js";
 import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
+import { parseEffortDirective } from "./EffortDirective.js";
 import { EgressProxy } from "./EgressProxy.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
@@ -7064,6 +7065,16 @@ ${input.userComment}
 				fullPrompt = `${promptBody}\n\n${attachmentManifest}`;
 			}
 
+			// Apply a mid-session reasoning-effort change if the comment carries
+			// an `Effort:` directive (before the message so the next turn uses it).
+			this.applyLiveEffortDirective(
+				existingRunner,
+				promptBody,
+				sessionId,
+				linearWorkspaceId,
+				log,
+			);
+
 			// `addStreamMessage` can reject the message if the turn ended in the
 			// race window between "still running" and "turn finished" (e.g. the
 			// Codex app-server backend, which only steers an active turn). Fall
@@ -7099,6 +7110,50 @@ ${input.userComment}
 		);
 
 		return false; // Session was resumed
+	}
+
+	/**
+	 * Apply a mid-session reasoning-effort change when a user comment carries an
+	 * `Effort: <level>` directive ("latest wins"). Claude runner only — a no-op
+	 * for runners without effort control or when there is no active session.
+	 * Posts a Linear thought activity noting the applied effort (and any
+	 * max→xhigh clamp).
+	 */
+	private applyLiveEffortDirective(
+		runner: IAgentRunner | undefined,
+		commentText: string,
+		sessionId: string,
+		linearWorkspaceId: string | undefined,
+		log: ILogger,
+	): void {
+		const directive = parseEffortDirective(commentText);
+		if (!directive) {
+			return;
+		}
+		if (!runner?.setEffort) {
+			log.debug(
+				`Ignoring "Effort: ${directive}" — runner has no effort control`,
+			);
+			return;
+		}
+		const result = runner.setEffort(directive);
+		if (!result) {
+			return;
+		}
+		log.debug(`Applied mid-session effort "${directive}": ${result.label}`);
+		if (linearWorkspaceId) {
+			this.activityPoster
+				.postThoughtActivity(
+					sessionId,
+					linearWorkspaceId,
+					`Reasoning effort set to **${result.label}**.`,
+				)
+				.catch((err: unknown) => {
+					log.warn("Failed to post effort change activity", {
+						error: err instanceof Error ? err.message : String(err),
+					});
+				});
+		}
 	}
 
 	/**
@@ -7157,6 +7212,16 @@ ${input.userComment}
 			if (attachmentManifest) {
 				fullPrompt = `${promptBody}\n\n${attachmentManifest}`;
 			}
+			// Apply a mid-session reasoning-effort change if the comment carries
+			// an `Effort:` directive (before the message so the next turn uses it).
+			this.applyLiveEffortDirective(
+				existingRunner,
+				promptBody,
+				sessionId,
+				linearWorkspaceId,
+				log,
+			);
+
 			// See handlePromptWithStreamingCheck: a steer-only backend can reject
 			// the message if the turn just ended. Fall through to a fresh resume
 			// turn rather than dropping the comment. No-op for Claude.

@@ -1,5 +1,6 @@
 import type {
 	BackgroundTaskSummary,
+	EffortLevel,
 	HookCallbackMatcher,
 	HookEvent,
 	McpServerConfig,
@@ -220,6 +221,33 @@ export interface IMessageFormatter {
  * @see {@link AgentRunnerConfig} for configuration options
  * @see {@link AgentSessionInfo} for session information structure
  */
+
+/**
+ * Reasoning-effort directive tokens a user can write via a natural
+ * `Effort: <level>` line in a Linear issue or comment.
+ *
+ * `low`/`medium`/`high`/`xhigh`/`max` map to the Claude SDK's effort levels;
+ * `ultra` is shorthand for ultracode (xhigh effort + workflow orchestration).
+ */
+export type EffortDirective =
+	| "low"
+	| "medium"
+	| "high"
+	| "xhigh"
+	| "max"
+	| "ultra";
+
+/**
+ * Outcome of applying an effort directive to a live session, returned by
+ * {@link IAgentRunner.setEffort}.
+ */
+export interface EffortApplicationResult {
+	/** True when a `max` directive was clamped to `xhigh` (live flag limitation). */
+	clampedFromMax: boolean;
+	/** Human-facing description of the effort actually applied. */
+	label: string;
+}
+
 export interface IAgentRunner {
 	/**
 	 * Indicates whether this runner supports streaming input
@@ -323,6 +351,17 @@ export interface IAgentRunner {
 	 * Only available when `supportsStreamingInput` is true.
 	 */
 	isStreaming?(): boolean;
+
+	/**
+	 * Change the reasoning effort of a LIVE session ("latest wins").
+	 *
+	 * Only meaningful for runners whose underlying SDK exposes a reasoning-effort
+	 * control (Claude). Other runners leave this undefined and the caller treats
+	 * the directive as a no-op. Returns the applied result (so callers can surface
+	 * a note, e.g. when `max` is clamped mid-session), or `null` when there is no
+	 * active session to apply it to.
+	 */
+	setEffort?(directive: EffortDirective): EffortApplicationResult | null;
 
 	/**
 	 * Stop the current agent session
@@ -473,6 +512,16 @@ export interface AgentRunnerConfig {
 	model?: string;
 	/** Fallback model if primary is unavailable */
 	fallbackModel?: string;
+	/**
+	 * Reasoning effort applied at session start (Claude runner only). Maps to
+	 * the SDK `query()` `Options.effort`. Other runners ignore it.
+	 */
+	effort?: EffortLevel;
+	/**
+	 * Enable ultracode at session start (Claude runner only): xhigh effort plus
+	 * standing dynamic-workflow orchestration. Set alongside `effort: "xhigh"`.
+	 */
+	ultracode?: boolean;
 	/** Maximum number of turns before completing session */
 	maxTurns?: number;
 	/** Built-in tools available in model context (empty array disables all tools) */

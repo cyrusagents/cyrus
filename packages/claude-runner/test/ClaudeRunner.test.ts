@@ -142,6 +142,37 @@ describe("ClaudeRunner", () => {
 			});
 		});
 
+		it("applies effort and enables workflows alongside ultracode", async () => {
+			const ultraRunner = new ClaudeRunner({
+				...defaultConfig,
+				effort: "xhigh",
+				ultracode: true,
+			});
+
+			mockQuery.mockImplementation(async function* () {
+				yield {
+					type: "assistant",
+					message: { content: [{ type: "text", text: "hi" }] },
+					parent_tool_use_id: null,
+					session_id: "s",
+				} as any;
+			});
+
+			await ultraRunner.start("go");
+
+			expect(mockQuery).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.objectContaining({
+						effort: "xhigh",
+						settings: expect.objectContaining({
+							ultracode: true,
+							enableWorkflows: true,
+						}),
+					}),
+				}),
+			);
+		});
+
 		it("should handle workspace configuration properly", async () => {
 			const runnerWithWorkspace = new ClaudeRunner({
 				...defaultConfig,
@@ -386,6 +417,64 @@ describe("ClaudeRunner", () => {
 
 			expect(interruptSpy).toHaveBeenCalledTimes(1);
 			expect(warm.isRunning()).toBe(true);
+		});
+	});
+
+	describe("setEffort()", () => {
+		it("returns null and does not throw when there is no active query", () => {
+			expect(runner.setEffort("high")).toBeNull();
+		});
+
+		it("applies a plain effort level via applyFlagSettings", () => {
+			const applyFlagSettings = vi.fn().mockResolvedValue(undefined);
+			(runner as any).activeQuery = { applyFlagSettings };
+
+			const result = runner.setEffort("xhigh");
+
+			expect(applyFlagSettings).toHaveBeenCalledWith({
+				effortLevel: "xhigh",
+				ultracode: false,
+				enableWorkflows: false,
+			});
+			expect(result).toEqual({
+				flagSettings: {
+					effortLevel: "xhigh",
+					ultracode: false,
+					enableWorkflows: false,
+				},
+				clampedFromMax: false,
+				label: "xhigh",
+			});
+		});
+
+		it("clamps max to xhigh mid-session and flags it", () => {
+			const applyFlagSettings = vi.fn().mockResolvedValue(undefined);
+			(runner as any).activeQuery = { applyFlagSettings };
+
+			const result = runner.setEffort("max");
+
+			expect(applyFlagSettings).toHaveBeenCalledWith({
+				effortLevel: "xhigh",
+				ultracode: false,
+				enableWorkflows: false,
+			});
+			expect(result?.clampedFromMax).toBe(true);
+			expect(result?.label).toContain("clamped from max");
+		});
+
+		it("enables ultracode for the ultra directive", () => {
+			const applyFlagSettings = vi.fn().mockResolvedValue(undefined);
+			(runner as any).activeQuery = { applyFlagSettings };
+
+			const result = runner.setEffort("ultra");
+
+			expect(applyFlagSettings).toHaveBeenCalledWith({
+				effortLevel: "xhigh",
+				ultracode: true,
+				enableWorkflows: true,
+			});
+			expect(result?.clampedFromMax).toBe(false);
+			expect(result?.label).toContain("ultracode");
 		});
 	});
 
