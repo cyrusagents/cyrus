@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.185` to `0.3.187`, bringing in the latest Claude Code capabilities including sandbox credential configuration and improved permission control. The Claude Code tool list now has 29 tools; `AskUserQuestion`, `EnterPlanMode`, and `ExitPlanMode` were removed from the available tool set in this SDK version. ([CYPACK-1350](https://linear.app/ceedar/issue/CYPACK-1350))
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.185` to `0.3.187`, bringing in the latest Claude Code capabilities including sandbox credential configuration and improved permission control. The Claude Code tool list now has 29 tools; `AskUserQuestion`, `EnterPlanMode`, and `ExitPlanMode` were removed from the available tool set in this SDK version. ([CYPACK-1350](https://linear.app/ceedar/issue/CYPACK-1350), [#1345](https://github.com/ceedaragents/cyrus/pull/1345))
 - Updated `@anthropic-ai/claude-agent-sdk` from `0.3.173` to `0.3.185` and `@anthropic-ai/sdk` from `^0.104.1` to `^0.105.0`, bringing in the latest Claude Code capabilities and bug fixes. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#1342](https://github.com/cyrusagents/cyrus/pull/1342))
 - Refreshed Claude Code tool list: added `DesignSync`, removed deprecated `TeamCreate` and `TeamDelete` tools. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#1342](https://github.com/cyrusagents/cyrus/pull/1342))
 

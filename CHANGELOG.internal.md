@@ -5,8 +5,8 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Changed
-- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.185` to `0.3.187` across `cyrus-core`, `cyrus-claude-runner`, `cyrus-edge-worker`, and `cyrus-simple-agent-runner`. SDK 0.3.186 added `agent_id` to `can_use_tool` requests and a `rewind_conversation` control; 0.3.187 added `sandbox.credentials` to SDK settings types. ([CYPACK-1350](https://linear.app/ceedar/issue/CYPACK-1350), [#PR](https://github.com/ceedaragents/cyrus/pull/PRNUM))
-- Removed `AskUserQuestion`, `EnterPlanMode`, and `ExitPlanMode` from `availableTools`, `readOnlyTools`, and the per-platform default allowed-tool lists — these three tools are no longer emitted in the Claude Code init block as of SDK 0.3.187. The `AskUserQuestionHandler` and `onAskUserQuestion` callback remain compiled (the types are still in the SDK) but will no longer be triggered. ([CYPACK-1350](https://linear.app/ceedar/issue/CYPACK-1350), [#PR](https://github.com/ceedaragents/cyrus/pull/PRNUM))
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.185` to `0.3.187` across `cyrus-core`, `cyrus-claude-runner`, `cyrus-edge-worker`, and `cyrus-simple-agent-runner`. SDK 0.3.186 added `agent_id` to `can_use_tool` requests and a `rewind_conversation` control; 0.3.187 added `sandbox.credentials` to SDK settings types. ([CYPACK-1350](https://linear.app/ceedar/issue/CYPACK-1350), [#1345](https://github.com/ceedaragents/cyrus/pull/1345))
+- Removed `AskUserQuestion`, `EnterPlanMode`, and `ExitPlanMode` from `availableTools`, `readOnlyTools`, and the per-platform default allowed-tool lists — these three tools are no longer emitted in the Claude Code init block as of SDK 0.3.187. The `AskUserQuestionHandler` and `onAskUserQuestion` callback remain compiled (the types are still in the SDK) but will no longer be triggered. ([CYPACK-1350](https://linear.app/ceedar/issue/CYPACK-1350), [#1345](https://github.com/ceedaragents/cyrus/pull/1345))
 
 ## [0.2.66] - 2026-06-19
 
