@@ -333,6 +333,67 @@ export class GitService {
 		return [...resolvedDirectories];
 	}
 
+	/** Current branch checked out in a worktree (best-effort). */
+	getCurrentBranch(worktreePath: string): string {
+		try {
+			return execSync("git rev-parse --abbrev-ref HEAD", {
+				cwd: worktreePath,
+				encoding: "utf-8",
+			}).trim();
+		} catch {
+			return "";
+		}
+	}
+
+	/** Porcelain working-tree status (best-effort). */
+	getStatus(worktreePath: string): string {
+		try {
+			return execSync("git status --porcelain", {
+				cwd: worktreePath,
+				encoding: "utf-8",
+			}).trim();
+		} catch {
+			return "";
+		}
+	}
+
+	/** Last `limit` commits as `git log --oneline` (best-effort). */
+	getRecentCommits(worktreePath: string, limit: number): string {
+		try {
+			return execSync(`git log --oneline -n ${limit}`, {
+				cwd: worktreePath,
+				encoding: "utf-8",
+			}).trim();
+		} catch {
+			return "";
+		}
+	}
+
+	/** `git diff --stat` against HEAD (best-effort). */
+	getDiffSummary(worktreePath: string): string {
+		try {
+			return execSync("git diff --stat HEAD", {
+				cwd: worktreePath,
+				encoding: "utf-8",
+			}).trim();
+		} catch {
+			return "";
+		}
+	}
+
+	/** URL of the open PR for the current branch via gh, or undefined (best-effort). */
+	getOpenPrUrl(worktreePath: string): string | undefined {
+		try {
+			const url = execSync("gh pr view --json url -q .url", {
+				cwd: worktreePath,
+				encoding: "utf-8",
+			}).trim();
+			return url || undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
 	/**
 	 * Find an existing worktree by its checked-out branch name.
 	 * Parses `git worktree list --porcelain` output and returns the worktree path
