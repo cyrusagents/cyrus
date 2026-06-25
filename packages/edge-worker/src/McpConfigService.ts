@@ -31,6 +31,15 @@ export interface McpConfigServiceDeps {
 	createCyrusToolsOptions: (parentSessionId?: string) => CyrusToolsOptions;
 }
 
+export interface BuildMcpConfigOptions {
+	/**
+	 * Use the dedicated Codex Linear actor for the public Linear MCP server.
+	 * Cyrus-tools still uses the workspace token so control-plane operations
+	 * remain owned by Cyrus.
+	 */
+	preferCodexLinearToken?: boolean;
+}
+
 /**
  * Single source of truth for MCP server configuration assembly.
  *
@@ -68,6 +77,7 @@ export class McpConfigService {
 		repoId: string,
 		linearWorkspaceId: string,
 		parentSessionId?: string,
+		options?: BuildMcpConfigOptions,
 	): Record<string, McpServerConfig> {
 		const contextId = this.buildContextId(repoId, parentSessionId);
 
@@ -101,6 +111,10 @@ export class McpConfigService {
 		this.pruneContexts();
 
 		const cyrusToolsAuthorizationHeader = this.getAuthorizationHeaderValue();
+		const linearMcpToken = this.resolveLinearMcpToken(
+			linearToken,
+			options?.preferCodexLinearToken,
+		);
 
 		// Workspace-level MCP servers — configured once regardless of repo count
 		// https://linear.app/docs/mcp
@@ -109,7 +123,7 @@ export class McpConfigService {
 				type: "http",
 				url: "https://mcp.linear.app/mcp",
 				headers: {
-					Authorization: `Bearer ${linearToken}`,
+					Authorization: `Bearer ${linearMcpToken}`,
 				},
 			},
 			"cyrus-tools": {
@@ -145,6 +159,18 @@ export class McpConfigService {
 		}
 
 		return mcpConfig;
+	}
+
+	private resolveLinearMcpToken(
+		workspaceLinearToken: string,
+		preferCodexLinearToken: boolean | undefined,
+	): string {
+		if (!preferCodexLinearToken) {
+			return workspaceLinearToken;
+		}
+
+		const codexLinearToken = process.env.CYRUS_CODEX_LINEAR_OAUTH_TOKEN?.trim();
+		return codexLinearToken || workspaceLinearToken;
 	}
 
 	/**

@@ -32,6 +32,7 @@ export interface IMcpConfigProvider {
 		repoId: string,
 		linearWorkspaceId: string,
 		parentSessionId?: string,
+		options?: { preferCodexLinearToken?: boolean },
 	): Record<string, McpServerConfig>;
 	buildMergedMcpConfigPath(
 		repositories: RepositoryConfig | RepositoryConfig[],
@@ -371,6 +372,7 @@ export class RunnerConfigBuilder {
 			input.repository.id,
 			resolvedWorkspaceId,
 			input.sessionId,
+			{ preferCodexLinearToken: runnerType === "codex" },
 		);
 		// Repo-override vs platform-default resolution for MCP config paths:
 		//   - If the routed repo has its own `allowedTools` override, it
