@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- Cross-runner handoff: write `@Cyrus /handoff codex` or `@Cyrus /handoff claude` on a Linear issue — either in the opening mention or as a follow-up comment — to run/continue the work with the other runner. The target runner reuses the same worktree, branch, and PR, so it picks up the existing files, commits, and PR state. When handing off from a still-active runner, Cyrus stops it first and never runs both at once; if the active runner can't be stopped, it posts a comment explaining the handoff is blocked.
+- Cross-runner handoff: write `@Cyrus /handoff codex` or `@Cyrus /handoff claude` on a Linear issue — either in the opening mention or as a follow-up comment — to run/continue the work with the other runner. The target runner reuses the same worktree, branch, and PR, so it picks up the existing files, commits, and PR state. When handing off from a still-active runner, Cyrus stops it first and never runs both at once; if the active runner can't be stopped, it posts a comment explaining the handoff is blocked. ([#1348](https://github.com/cyrusagents/cyrus/pull/1348))
 
 ### Fixed
 - Forwarded and shared Slack messages are now included when you @mention Cyrus. Previously, forwarding a message (for example a Sentry alert) into a channel and @mentioning Cyrus passed along only your typed comment — the forwarded message's contents were dropped, so a forward with no comment gave Cyrus nothing to work with. The forwarded content is now part of the prompt. ([#1326](https://github.com/cyrusagents/cyrus/pull/1326))
