@@ -20,6 +20,23 @@ export interface HandoffCommand {
 	remainder: string;
 }
 
+export interface HandoffSnapshotArgs {
+	sourceRunner: RunnerType | "unknown";
+	targetRunner: HandoffTarget;
+	issueId: string;
+	sessionId: string;
+	worktreePath: string;
+	latestSummary?: string;
+}
+
+export interface HandoffSnapshot extends HandoffSnapshotArgs {
+	branch: string;
+	gitStatus: string;
+	recentCommits: string;
+	diffSummary: string;
+	prLink?: string;
+}
+
 /** Read-only git facts about a worktree. Implemented by GitService. */
 export interface GitSnapshotReader {
 	getCurrentBranch(worktreePath: string): string;
@@ -64,7 +81,50 @@ export function getActiveRunnerType(
 }
 
 export class HandoffService {
-	constructor(readonly _gitReader: GitSnapshotReader) {}
+	constructor(private readonly gitReader: GitSnapshotReader) {}
+
+	buildSnapshot(args: HandoffSnapshotArgs): HandoffSnapshot {
+		return {
+			...args,
+			branch: this.gitReader.getCurrentBranch(args.worktreePath),
+			gitStatus: this.gitReader.getStatus(args.worktreePath),
+			recentCommits: this.gitReader.getRecentCommits(args.worktreePath, 5),
+			diffSummary: this.gitReader.getDiffSummary(args.worktreePath),
+			prLink: this.gitReader.getOpenPrUrl(args.worktreePath),
+		};
+	}
+
+	buildHandoffPrompt(snapshot: HandoffSnapshot, userText?: string): string {
+		const lines = [
+			"<handoff_context>",
+			"  You are taking over an in-progress Linear issue from another agent.",
+			"  The worktree, branch, files, and PR state below are already in place.",
+			`  <source_runner>${snapshot.sourceRunner}</source_runner>`,
+			`  <target_runner>${snapshot.targetRunner}</target_runner>`,
+			`  <issue_id>${snapshot.issueId}</issue_id>`,
+			`  <session_id>${snapshot.sessionId}</session_id>`,
+			`  <worktree_path>${snapshot.worktreePath}</worktree_path>`,
+			`  <branch>${snapshot.branch || "(unknown)"}</branch>`,
+			`  <git_status>\n${snapshot.gitStatus || "(clean)"}\n  </git_status>`,
+			`  <recent_commits>\n${snapshot.recentCommits || "(none)"}\n  </recent_commits>`,
+			`  <diff_summary>\n${snapshot.diffSummary || "(no changes)"}\n  </diff_summary>`,
+		];
+		if (snapshot.prLink) {
+			lines.push(`  <pull_request>${snapshot.prLink}</pull_request>`);
+		}
+		if (snapshot.latestSummary) {
+			lines.push(
+				`  <previous_agent_summary>\n${snapshot.latestSummary}\n  </previous_agent_summary>`,
+			);
+		}
+		lines.push("</handoff_context>");
+
+		const instruction =
+			userText && userText.trim().length > 0
+				? userText.trim()
+				: "Continue the work in this worktree from where the previous runner left off.";
+		return `${lines.join("\n")}\n\n${instruction}`;
+	}
 
 	parseHandoffCommand(text: string): HandoffCommand | null {
 		const match = text.match(HANDOFF_RE);
