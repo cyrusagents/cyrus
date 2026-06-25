@@ -7,6 +7,8 @@
  * source runner and starts the target lives in EdgeWorker.handleHandoffCommand.
  */
 
+import type { CyrusAgentSession, RunnerType } from "cyrus-core";
+
 export type HandoffTarget = "claude" | "codex";
 
 export interface HandoffCommand {
@@ -31,6 +33,35 @@ export interface GitSnapshotReader {
 export const HANDOFF_STOP_TIMEOUT_MS = 30000;
 
 const HANDOFF_RE = /\/handoff\s+(\S+)([\s\S]*)/i;
+
+/** Identify the runner a session is currently bound to. */
+export function getActiveRunnerType(
+	session: Pick<
+		CyrusAgentSession,
+		| "claudeSessionId"
+		| "geminiSessionId"
+		| "codexSessionId"
+		| "cursorSessionId"
+		| "agentRunner"
+	>,
+): RunnerType | "unknown" {
+	if (session.claudeSessionId) return "claude";
+	if (session.geminiSessionId) return "gemini";
+	if (session.codexSessionId) return "codex";
+	if (session.cursorSessionId) return "cursor";
+	switch (session.agentRunner?.constructor?.name) {
+		case "ClaudeRunner":
+			return "claude";
+		case "GeminiRunner":
+			return "gemini";
+		case "CodexRunner":
+			return "codex";
+		case "CursorRunner":
+			return "cursor";
+		default:
+			return "unknown";
+	}
+}
 
 export class HandoffService {
 	constructor(readonly _gitReader: GitSnapshotReader) {}
