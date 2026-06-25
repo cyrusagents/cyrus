@@ -6443,6 +6443,7 @@ ${input.userComment}
 		 * Defaults to `"linear"` (the pre-platform-aware behavior).
 		 */
 		sessionPlatform: "linear" | "github" | "gitlab" = "linear",
+		runnerTypeOverride?: RunnerType,
 	): Promise<{ config: AgentRunnerConfig; runnerType: RunnerType }> {
 		const log = this.logger.withContext({
 			sessionId,
@@ -6475,6 +6476,7 @@ ${input.userComment}
 			labels,
 			issueDescription,
 			maxTurns,
+			runnerTypeOverride,
 			// Per-platform MCP config paths — GitHub + GitLab share the
 			// `githubMcpConfigs` knob (single-repo PR contexts both); Linear
 			// gets `linearMcpConfigs`. Not a blanket override: the builder
@@ -7142,6 +7144,7 @@ ${input.userComment}
 		maxTurns?: number,
 		commentAuthor?: string,
 		commentTimestamp?: string,
+		runnerTypeOverride?: RunnerType,
 	): Promise<void> {
 		const log = this.logger.withContext({ sessionId });
 		// Check for existing runner
@@ -7149,6 +7152,7 @@ ${input.userComment}
 
 		// If there's an existing running runner that supports streaming, add to it
 		if (
+			!runnerTypeOverride &&
 			existingRunner?.isRunning() &&
 			existingRunner.supportsStreamingInput &&
 			existingRunner.addStreamMessage
@@ -7207,6 +7211,7 @@ ${input.userComment}
 		const hasCursorSession = !isNewSession && Boolean(session.cursorSessionId);
 		const needsNewSession =
 			isNewSession ||
+			Boolean(runnerTypeOverride) ||
 			(!hasClaudeSession &&
 				!hasGeminiSession &&
 				!hasCodexSession &&
@@ -7277,6 +7282,8 @@ ${input.userComment}
 				maxTurns, // Pass maxTurns if specified
 				resolvedWorkspaceId,
 				this.buildSkillSessionContext(repository, fullIssue, session),
+				"linear",
+				runnerTypeOverride,
 			);
 
 		// Create the appropriate runner based on session state
