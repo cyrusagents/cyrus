@@ -4450,6 +4450,16 @@ ${taskSection}`;
 			"/label-based-prompt",
 		);
 
+		// Cross-runner handoff via the creating comment (e.g. "@Cyrus /handoff codex").
+		// Linear @mentions create a NEW agent session, so a handoff requested this
+		// way arrives on the creation path (not the prompted path). Force the
+		// requested runner for this session; the issue's worktree is reused, so the
+		// target runner continues from the prior runner's files/commits/PR.
+		const creationHandoff = commentBody
+			? this.handoffService.parseHandoffCommand(commentBody)
+			: null;
+		const handoffRunnerOverride = creationHandoff?.targetRunner ?? undefined;
+
 		const agentSessionManager = this.agentSessionManager;
 
 		// Post instant acknowledgment thought
@@ -4570,10 +4580,12 @@ ${taskSection}`;
 					undefined, // maxTurns
 					linearWorkspaceId,
 					this.buildSkillSessionContext(primaryRepo, fullIssue, session),
+					"linear",
+					handoffRunnerOverride, // /handoff <runner> in the creating comment forces the runner
 				);
 
 			log.debug(
-				`Label-based runner selection for new session: ${runnerType} (session ${sessionId})`,
+				`Label-based runner selection for new session: ${runnerType} (session ${sessionId}, handoffOverride=${handoffRunnerOverride ?? "none"})`,
 			);
 
 			const runner = this.createRunnerForType(runnerType, runnerConfig);
