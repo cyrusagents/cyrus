@@ -5184,6 +5184,12 @@ ${taskSection}`;
 			return;
 		}
 
+		// Branch 3b: cross-runner handoff (`/handoff claude|codex`). Deliberately
+		// placed here — AFTER repository resolution and access control — because
+		// the handoff needs the routed `repositories` to start the target runner.
+		// It is intentionally NOT a sibling of the early `stop` check: a handoff
+		// arriving while a repo-selection or AskUserQuestion elicitation is pending
+		// is handled by those earlier branches first.
 		const handoff = this.handoffService.parseHandoffCommand(activityBody);
 		if (handoff) {
 			await this.handleHandoffCommand(webhook, repositories, handoff);
