@@ -126,6 +126,25 @@ export class HandoffService {
 		return `${lines.join("\n")}\n\n${instruction}`;
 	}
 
+	async waitForStopped(
+		isRunning: () => boolean,
+		opts: {
+			timeoutMs: number;
+			pollIntervalMs: number;
+			sleep: (ms: number) => Promise<void>;
+		},
+	): Promise<boolean> {
+		let elapsed = 0;
+		while (isRunning()) {
+			if (elapsed >= opts.timeoutMs) {
+				return false;
+			}
+			await opts.sleep(opts.pollIntervalMs);
+			elapsed += opts.pollIntervalMs;
+		}
+		return true;
+	}
+
 	parseHandoffCommand(text: string): HandoffCommand | null {
 		const match = text.match(HANDOFF_RE);
 		if (!match) {
