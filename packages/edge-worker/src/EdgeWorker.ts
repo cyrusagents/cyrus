@@ -151,6 +151,12 @@ import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { EgressProxy } from "./EgressProxy.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
+import {
+	getActiveRunnerType,
+	HANDOFF_STOP_TIMEOUT_MS,
+	type HandoffCommand,
+	HandoffService,
+} from "./HandoffService.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
 import type {
@@ -230,6 +236,7 @@ export class EdgeWorker extends EventEmitter {
 	/** @internal - Exposed for testing only */
 	public repositoryRouter: RepositoryRouter; // Repository routing and selection
 	private gitService: GitService;
+	private handoffService: HandoffService;
 	private activeWebhookCount = 0; // Track number of webhooks currently being processed
 	/** Handler for AskUserQuestion tool invocations via Linear select signal */
 	private askUserQuestionHandler: AskUserQuestionHandler;
@@ -424,6 +431,7 @@ export class EdgeWorker extends EventEmitter {
 		};
 		this.repositoryRouter = new RepositoryRouter(repositoryRouterDeps);
 		this.gitService = new GitService({ cyrusHome: this.cyrusHome });
+		this.handoffService = new HandoffService(this.gitService);
 
 		// Initialize AskUserQuestion handler for elicitation via Linear select signal
 		this.askUserQuestionHandler = new AskUserQuestionHandler({
@@ -5176,7 +5184,150 @@ ${taskSection}`;
 			return;
 		}
 
+		const handoff = this.handoffService.parseHandoffCommand(activityBody);
+		if (handoff) {
+			await this.handleHandoffCommand(webhook, repositories, handoff);
+			return;
+		}
+
 		await this.handleNormalPromptedActivity(webhook, repositories);
+	}
+
+	/**
+	 * Cross-runner handoff (Branch 3b of agentSessionPrompted).
+	 * Stops the active runner (sequentially, with a timeout), snapshots the
+	 * worktree/git/PR state, then starts the target runner fresh in the SAME
+	 * worktree with the snapshot injected into its prompt. Never runs both
+	 * runners concurrently.
+	 */
+	private async handleHandoffCommand(
+		webhook: AgentSessionPromptedWebhook,
+		repositories: RepositoryConfig[],
+		handoff: HandoffCommand,
+	): Promise<void> {
+		const { agentSession } = webhook;
+		const sessionId = agentSession.id;
+		const issueId = agentSession.issue?.id ?? "";
+		const linearWorkspaceId = webhook.organizationId;
+		const repository = repositories[0]!;
+
+		// Reject unsupported targets (only claude & codex are valid).
+		if (!handoff.targetRunner) {
+			await this.agentSessionManager.createResponseActivity(
+				sessionId,
+				`⚠️ Handoff failed: unknown runner "${handoff.rawTarget}". Supported targets: \`claude\`, \`codex\`.`,
+			);
+			return;
+		}
+		const target = handoff.targetRunner;
+
+		const session = this.agentSessionManager.getSession(sessionId);
+		if (!session) {
+			// No session yet (and therefore no active runner): nothing to hand
+			// off from. Ask the user to start the runner the normal way.
+			await this.agentSessionManager.createResponseActivity(
+				sessionId,
+				`⚠️ Handoff to \`${target}\` could not start: no active session was found for this issue. Mention me with a prompt to start one.`,
+			);
+			return;
+		}
+
+		const source = getActiveRunnerType(session);
+		if (source === target) {
+			await this.agentSessionManager.createResponseActivity(
+				sessionId,
+				`ℹ️ Already running \`${target}\` for this issue — nothing to hand off.`,
+			);
+			return;
+		}
+
+		// Sequentially stop the active runner before starting the target.
+		const runner = session.agentRunner;
+		if (runner) {
+			const wasRunning = runner.isRunning();
+			this.agentSessionManager.requestSessionStop(sessionId);
+			runner.stop();
+			if (wasRunning) {
+				const stopped = await this.handoffService.waitForStopped(
+					() => runner.isRunning(),
+					{
+						timeoutMs: HANDOFF_STOP_TIMEOUT_MS,
+						pollIntervalMs: 250,
+						sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+					},
+				);
+				if (!stopped) {
+					this.logger.warn(
+						`Handoff blocked: ${source} runner did not stop for session ${sessionId}`,
+						{ from: source, to: target, sessionId },
+					);
+					await this.agentSessionManager.createResponseActivity(
+						sessionId,
+						`⚠️ Handoff to \`${target}\` is blocked: the current \`${source}\` runner did not stop in time. It may be mid-operation — please try again in a moment.`,
+					);
+					return;
+				}
+			}
+		}
+
+		// Snapshot the source worktree state for the target's starting prompt.
+		const snapshot = this.handoffService.buildSnapshot({
+			sourceRunner: source,
+			targetRunner: target,
+			issueId,
+			sessionId,
+			worktreePath: session.workspace.path,
+			latestSummary: this.agentSessionManager.getLastAssistantBody(sessionId),
+		});
+		const handoffPrompt = this.handoffService.buildHandoffPrompt(
+			snapshot,
+			handoff.remainder,
+		);
+
+		// Clear the old runner binding so post-handoff routing follows the target.
+		this.agentSessionManager.clearRunnerSessionBindings(sessionId);
+
+		this.logger.info("Handoff starting", {
+			from: source,
+			to: target,
+			sessionId,
+			worktreePath: snapshot.worktreePath,
+			branch: snapshot.branch,
+		});
+
+		try {
+			await this.resumeAgentSession(
+				session,
+				repository,
+				sessionId,
+				this.agentSessionManager,
+				handoffPrompt,
+				"", // attachmentManifest
+				false, // isNewSession — session already exists
+				[], // additionalAllowedDirectories
+				linearWorkspaceId,
+				undefined, // maxTurns
+				undefined, // commentAuthor
+				undefined, // commentTimestamp
+				target, // runnerTypeOverride — forces the target runner
+			);
+			this.logger.info("Handoff complete", {
+				from: source,
+				to: target,
+				sessionId,
+			});
+		} catch (error) {
+			this.logger.error(
+				`Handoff failed to start ${target} runner for session ${sessionId}`,
+				error,
+			);
+			await this.agentSessionManager.createResponseActivity(
+				sessionId,
+				`⚠️ Handoff to \`${target}\` failed to start: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
 	}
 
 	/**
