@@ -8,6 +8,12 @@ import type { ResolvedCodexConfig } from "./types.js";
 
 const CLIENT_INFO = { name: "cyrus-codex-runner", version: "1.0.0" };
 const DEFAULT_IDLE_CLOSE_MS = 30_000;
+const AUTO_ACCEPT_MCP_ELICITATION_SERVERS = new Set(
+	(process.env.CODEX_MCP_AUTO_ACCEPT_SERVERS ?? "linear")
+		.split(",")
+		.map((serverName) => serverName.trim())
+		.filter(Boolean),
+);
 
 export interface AppServerThreadHandler {
 	onNotification(method: string, params: unknown): void;
@@ -144,7 +150,9 @@ class PooledAppServerProcess {
 		client.setNotificationHandler((method, params) =>
 			this.routeNotification(method, params),
 		);
-		client.setServerRequestHandler((method) => this.onServerRequest(method));
+		client.setServerRequestHandler((method, params) =>
+			this.onServerRequest(method, params),
+		);
 		client.on("exit", () => this.onProcessGone());
 		client.on("error", (error) => this.onProcessError(error));
 		client.start();
@@ -189,16 +197,44 @@ class PooledAppServerProcess {
 		}
 	}
 
-	private onServerRequest(method: string): unknown {
+	private onServerRequest(method: string, params: unknown): unknown {
 		// With approvalPolicy="never" the server should not ask for approvals;
 		// respond defensively so a stray request can never wedge a turn.
 		if (/auth/i.test(method)) {
 			return { chatgptAuthToken: null };
 		}
+		if (method === "mcpServer/elicitation/request") {
+			return this.onMcpElicitationRequest(params);
+		}
 		if (/approval/i.test(method)) {
 			return { decision: "accept" };
 		}
 		return {};
+	}
+
+	private onMcpElicitationRequest(params: unknown): unknown {
+		const request =
+			params && typeof params === "object"
+				? (params as {
+						serverName?: unknown;
+						_meta?: unknown;
+					})
+				: {};
+		const meta =
+			request._meta && typeof request._meta === "object"
+				? (request._meta as Record<string, unknown>)
+				: {};
+		const serverName =
+			typeof request.serverName === "string" ? request.serverName : "";
+
+		if (
+			meta.codex_approval_kind === "mcp_tool_call" &&
+			AUTO_ACCEPT_MCP_ELICITATION_SERVERS.has(serverName)
+		) {
+			return { action: "accept", content: {} };
+		}
+
+		return { action: "cancel" };
 	}
 
 	private onProcessGone(): void {

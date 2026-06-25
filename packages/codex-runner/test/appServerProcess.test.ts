@@ -155,6 +155,39 @@ describe("AppServerProcessManager pool", () => {
 		expect(a.notifications).toHaveLength(0);
 		expect(b.notifications).toHaveLength(0);
 	});
+
+	it("accepts only Linear MCP tool elicitation requests by default", async () => {
+		const { clients, factory } = recordingFactory();
+		const manager = new AppServerProcessManager(factory, { idleCloseMs: 0 });
+
+		await manager.acquire(configWithEnv({ CODEX_HOME: "/h" }));
+
+		const serverRequestHandler = clients[0]?.serverRequestHandler;
+		if (!serverRequestHandler) {
+			throw new Error("Expected app-server request handler to be registered");
+		}
+
+		expect(
+			await serverRequestHandler("mcpServer/elicitation/request", {
+				serverName: "linear",
+				_meta: { codex_approval_kind: "mcp_tool_call" },
+			}),
+		).toEqual({ action: "accept", content: {} });
+
+		expect(
+			await serverRequestHandler("mcpServer/elicitation/request", {
+				serverName: "codex_apps",
+				_meta: { codex_approval_kind: "mcp_tool_call" },
+			}),
+		).toEqual({ action: "cancel" });
+
+		expect(
+			await serverRequestHandler("mcpServer/elicitation/request", {
+				serverName: "linear",
+				_meta: { codex_approval_kind: "not_a_tool_call" },
+			}),
+		).toEqual({ action: "cancel" });
+	});
 });
 
 function handlerSpy() {
