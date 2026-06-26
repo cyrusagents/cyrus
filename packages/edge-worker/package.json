@@ -14,7 +14,7 @@
 	],
 	"scripts": {
 		"build": "tsc && npm run copy-prompts",
-		"copy-prompts": "cp label-prompt-template.md dist/ && cp -r prompts dist/ && rm -rf dist/cyrus-skills-plugin && cp -rL cyrus-skills-plugin dist/cyrus-skills-plugin",
+		"copy-prompts": "node scripts/copy-prompts.mjs",
 		"dev": "tsc --watch",
 		"test": "vitest",
 		"test:run": "vitest run",

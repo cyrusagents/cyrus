@@ -9,7 +9,7 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "tsc && cp -r src/prompts dist/prompts",
+		"build": "tsc && node scripts/copy-prompts.mjs",
 		"dev": "tsc --watch",
 		"test": "vitest",
 		"test:run": "vitest run",
