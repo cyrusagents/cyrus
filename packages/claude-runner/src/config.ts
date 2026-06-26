@@ -42,13 +42,10 @@ export const availableTools = [
 	"Skill",
 
 	// User interaction tools
-	"AskUserQuestion",
 	"SendMessage",
 	"PushNotification",
 
-	// Plan and worktree management
-	"EnterPlanMode",
-	"ExitPlanMode",
+	// Worktree management
 	"EnterWorktree",
 	"ExitWorktree",
 
@@ -65,7 +62,7 @@ export const availableTools = [
 	"TaskOutput",
 	"TaskStop",
 
-	// Tool discovery
+	// Tool discovery and search
 	"ToolSearch",
 
 	// Design sync
@@ -95,8 +92,6 @@ export const readOnlyTools: ToolName[] = [
 	"Monitor",
 	"LSP",
 	"TaskOutput",
-	"EnterPlanMode",
-	"ExitPlanMode",
 	"ToolSearch",
 ];
 
