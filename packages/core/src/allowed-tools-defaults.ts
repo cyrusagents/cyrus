@@ -43,14 +43,11 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"WebFetch",
 	"WebSearch",
 
-	// Planning + worktree management
-	"EnterPlanMode",
-	"ExitPlanMode",
+	// Worktree management
 	"EnterWorktree",
 	"ExitWorktree",
 
 	// User interaction
-	"AskUserQuestion",
 	"SendMessage",
 	"PushNotification",
 
@@ -114,7 +111,7 @@ export const SLACK_DEFAULT_ALLOWED_TOOLS = [
 	"SendMessage",
 	"ScheduleWakeup",
 
-	// Planning + task lifecycle
+	// Task lifecycle
 	"Task",
 	"TaskCreate",
 	"TaskUpdate",
@@ -122,8 +119,6 @@ export const SLACK_DEFAULT_ALLOWED_TOOLS = [
 	"TaskList",
 	"TaskOutput",
 	"TaskStop",
-	"EnterPlanMode",
-	"ExitPlanMode",
 
 	// Discovery
 	"Monitor",
@@ -164,14 +159,11 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	"WebFetch",
 	"WebSearch",
 
-	// Planning + worktree management
-	"EnterPlanMode",
-	"ExitPlanMode",
+	// Worktree management
 	"EnterWorktree",
 	"ExitWorktree",
 
 	// User interaction
-	"AskUserQuestion",
 	"SendMessage",
 	"PushNotification",
 
