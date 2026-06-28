@@ -4,7 +4,8 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
-_No internal-only changes._
+### Changed
+- Rewrote the five default workflow skills (`debug`, `implementation`, `investigate`, `summarize`, `verify-and-ship`) against Anthropic's skill-authoring best practices, as a consistent suite. Descriptions are now third-person with explicit "use when" triggers and negative triggers (which sibling skill to use instead). Bodies gain copyable progress checklists (rendered in the Linear timeline), fresh-evidence verification gates, and consistent voice/terminology. Skill-specific improvements: `debug` requires the reproduction test to fail for the *right reason* before fixing; `implementation` extracts acceptance criteria up front and handles the no-test-suite case honestly; `investigate` and `summarize` share one explicit delivery contract (output is streamed as the response — do not double-post via a tool); `verify-and-ship` fixes a defect where a branch with failing checks could be marked ready (now keeps the PR/MR a draft and surfaces failures, with an explicit ready-state decision and demote-to-draft on re-run), and folds GitHub/GitLab into a single platform decision point. Skill `name` fields and the resolver's routing prose are unchanged.
 
 ## [0.2.66] - 2026-06-19
 

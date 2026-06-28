@@ -1,86 +1,139 @@
 ---
 name: verify-and-ship
-description: Run all quality checks (tests, lint, typecheck), fix failures, update the changelog, commit, push, and create/update the pull request or merge request.
+description: Runs all quality checks (tests, lint, typecheck), fixes failures, updates the changelog, commits, pushes, and creates or updates the pull/merge request. Use after implementation or debug whenever code changed, before summarize. Not needed for questions or research (use investigate then summarize).
 ---
 
 # Verify and Ship
 
-After implementing your changes, follow these steps to verify quality and ship the work.
+Run after code changed, before summarize. Work through the phases in order. Phase 1 gates everything: validate acceptance criteria before shipping. The git/gh/glab and changelog commands below are exact — run them as written. The only flag latitude is the push-recovery escape hatch in Phase 4.
 
-## 1. Acceptance Criteria Validation (CRITICAL)
+Resolve these from context once: the issue identifier and Linear URL from `<linear_issue>` (`<identifier>` / `<url>`); the target branch from `<git_context>` (or `<context>`) as `<base_branch>`.
 
-Use the issue tracker `get_issue` tool to fetch the current issue details. Extract ALL acceptance criteria from the issue description and verify each one is satisfied by the implementation. If no explicit criteria exist, validate against the implied requirements from the issue title and description.
+Paste this checklist into your response and check items off as you go — Cyrus renders it in the Linear timeline (the ready-state decision in Phase 5 depends on the quality-check result):
 
-## 2. Quality Checks
+```
+- [ ] Acceptance criteria validated against the issue
+- [ ] Tests, lint, and typecheck run and read
+- [ ] Changelog updated (dedup against base branch)
+- [ ] Changes committed and pushed
+- [ ] PR/MR created or updated with the cyrus marker
+- [ ] Ready-state decided: mark ready only if checks pass and guidance allows
+```
 
-Run all applicable quality checks:
-- **Tests** — Run the full test suite. If tests fail, fix the issues and re-run. Retry up to 3 times. If you cannot resolve failures after 3 attempts, proceed and note the failures in your summary.
-- **Linting** — Run linting tools and fix any issues found.
-- **Type checking** — Run TypeScript type checking (if applicable) and fix any errors.
-- **Code review** — Review your changes for quality, consistency, and best practices. Remove any debug code, console.logs, or commented-out sections.
+## Phase 1: Validate acceptance criteria
 
-## 3. Changelog Update
+Fetch the current issue with the issue tracker's `get_issue` tool. Extract every acceptance criterion from the description and confirm the implementation satisfies each one. If the issue states no explicit criteria, validate against the implied requirements in the title and description. Treat unmet criteria as a quality failure surfaced in Phase 5.
 
-Check if the project has changelog files:
+## Phase 2: Quality checks
+
+Discover the project's non-interactive check commands first (from package.json, Makefile, or CLAUDE.md) and prefer run-once variants over watch mode — a watch-mode test command never exits and hangs the whole ship. Run each applicable check, read its output, and fix what it reports. Report from fresh command output, never from expectation — no "should pass" or "looks done".
+
+- **Tests** — Run the full suite once (not in watch mode). On failure, fix and re-run. Retry up to 3 times. If failures remain after 3 attempts, stop retrying and carry the failing result into Phase 5 (do not silently ship as passing).
+- **Lint** — Run the linter and fix what it flags.
+- **Typecheck** — Run type checking (if the project has it) and fix every error.
+- **Self-review** — Read the diff. Remove debug code, stray logging, and commented-out blocks.
+
+Record whether checks ended passing or still failing — Phase 5 branches on it.
+
+## Phase 3: Changelog
+
+Inspect state before mutating. Check for changelog files:
+
 ```bash
 ls -la CHANGELOG.md CHANGELOG.internal.md 2>/dev/null || echo "NO_CHANGELOG"
 ```
 
-If changelog files exist, diff against the base branch to detect entries already added by this branch:
+If none exist, skip this phase. Otherwise diff against the base branch (`<base_branch>` from `<git_context>` or `<context>`) to see what this branch already added:
 
 ```bash
-# See what changelog lines this branch has added compared to the base branch
-# Replace <base_branch> with the actual base branch from the issue context
 git diff <base_branch> -- CHANGELOG.md CHANGELOG.internal.md 2>/dev/null
 ```
 
-**Handling existing entries:**
-- If the diff shows this branch already added a changelog entry for the current issue (matching the issue identifier), **update that entry in-place** (e.g., to add the PR/MR link or refine the description). Do NOT add a duplicate entry.
-- If the diff shows this branch added changelog entries for a different issue or no entries at all, add a new entry.
+- If the diff shows this branch already added an entry for the current issue (matching the issue identifier), update that entry in place — add the PR/MR link or refine the wording. Do not add a duplicate.
+- Otherwise add a new entry.
 
-**Adding or updating entries:**
-- Place entries under `## [Unreleased]` in the appropriate subsection (`### Added`, `### Changed`, `### Fixed`, `### Removed`)
-- Focus on end-user impact — be concise but descriptive
-- Include the Linear issue identifier and PR/MR link (format: `([ISSUE-ID](linear_url), [#NUMBER](PR_OR_MR_URL))`)
-- Follow [Keep a Changelog](https://keepachangelog.com/) format
+Place entries under `## [Unreleased]` in the right subsection (`### Added`, `### Changed`, `### Fixed`, `### Removed`), focused on end-user impact, in [Keep a Changelog](https://keepachangelog.com/) format. Include the issue identifier and PR/MR link: `([ISSUE-ID](linear_url), [#NUMBER](pr_or_mr_url))`.
 
-## 4. Commit and Push
+## Phase 4: Commit and push
 
-- Stage all relevant changes (including changelog updates)
-- Commit with clear, descriptive messages following the project's commit conventions
-- Push to the remote repository
-
-## 5. Create or Update PR/MR
-
-Determine the platform from the repository context (`<github_url>` or `<gitlab_url>` in the issue context). Use the appropriate tool for the platform.
-
-### GitHub (when `<github_url>` is present)
+Stage the relevant changes (including the changelog), commit with a clear message following the project's conventions, then push:
 
 ```bash
 git push -u origin HEAD
-gh pr view --json url,number 2>/dev/null || gh pr create --draft --base [base_branch from context] --title "[descriptive title]" --body "Work in progress"
 ```
 
-### GitLab (when `<gitlab_url>` is present)
+If the push is rejected as non-fast-forward (e.g. history was rewritten during the Phase 2 retries) and the branch is a Cyrus-owned worktree branch, recover with `git push --force-with-lease`. If the push still fails, stop here and surface the failure — do not open or ready a PR/MR on un-pushed code.
+
+## Phase 5: Create or update the PR/MR
+
+**Pick the platform.** `<repository_routing_context>` renders both `<github_url>` and `<gitlab_url>`; the unused one is the literal `N/A`. If `<github_url>` is a real URL (not `N/A`), follow the **GitHub** branch; otherwise follow the **GitLab** branch. Follow exactly one.
+
+Resolve the bot mention handle once: use `<github_bot_username>` / `<gitlab_bot_username>` from `<agent_context>`. `<agent_context>` is omitted when those env vars are unset, so default to `cyrusagent`. This is the bot, distinct from the PR/MR author (see attribution below).
+
+**Ready-state decision (load-bearing).** If Phase 2 ended with failing checks or Phase 1 found unmet criteria, the branch is not shippable: the PR/MR must be a draft, keep any `WIP:` / `Draft:` prefix, and surface the failures at the top of the body and in your summary. On a re-run where an existing PR/MR was previously marked ready, actively demote it back to draft (GitHub `gh pr ready --undo`; GitLab `glab mr update --draft`) — do not just leave it ready. Only mark ready when checks pass AND `<agent_guidance>` does not call for keeping drafts.
+
+### GitHub branch
+
+Create the draft if absent, otherwise reuse the existing one:
 
 ```bash
-git push -u origin HEAD
-glab mr view 2>/dev/null || glab mr create --draft --target-branch [base_branch from context] --title "[descriptive title]" --description "Work in progress"
+gh pr view --json url,number 2>/dev/null || gh pr create --draft --base <base_branch> --title "[descriptive title]" --body "Work in progress"
 ```
 
-### PR/MR Description
+Write the rendered body template to a file and set it (use `--body-file` so the multi-line template, blockquote, and marker survive shell quoting):
 
-Update the PR/MR with a comprehensive description:
-- **Assignee attribution**: If `<github_username>` is available in the assignee context, add `Assignee: @username ([Display Name](linear_profile_url))` at the top of the body. If only a linear profile URL is available, use `Assignee: [Display Name](linear_profile_url)`.
-- **Summary** of changes, implementation approach, and testing performed
-- **Link** to the Linear issue
-- **Cyrus marker**: Include `<!-- generated-by-cyrus -->` as a hidden HTML comment at the end of the body
-- **Interaction tip**: Add this at the end (before the marker), using the bot username from `<github_bot_username>` or `<gitlab_bot_username>` in the `<agent_context>` block of the system prompt. If `<agent_context>` is not present, default to `cyrusagent`:
-  ```
-  ---
-  > **Tip:** I will respond to comments that @ mention @<bot_username> on this PR/MR. You can also submit a review with all your feedback at once, and I will automatically wake up to address each comment.
-  ```
+```bash
+gh pr edit --body-file <rendered-template-file>
+```
 
-Remove any "WIP:" or "Draft:" prefix from the title. Check `<agent_guidance>` — only mark the PR/MR as ready if guidance does NOT specify keeping them as drafts.
+Then apply the ready-state decision — mark ready only when allowed, or demote a now-failing PR back to draft:
 
-Verify the PR/MR targets the correct base branch from `<base_branch>` in the issue context.
+```bash
+gh pr ready          # only when checks pass and guidance allows
+gh pr ready --undo   # only to demote a previously-ready PR that is now failing
+```
+
+### GitLab branch
+
+```bash
+glab mr view 2>/dev/null || glab mr create --draft --target-branch <base_branch> --title "[descriptive title]" --description "Work in progress"
+```
+
+Set the rendered body template as the description:
+
+```bash
+glab mr update --description "<rendered template>"
+```
+
+Then apply the ready-state decision — mark ready only when allowed, or demote a now-failing MR back to draft:
+
+```bash
+glab mr update --ready   # only when checks pass and guidance allows
+glab mr update --draft   # only to demote a previously-ready MR that is now failing
+```
+
+### Body template (both platforms)
+
+Render this shape; the marker and tip are machine-detected. The assignee line follows the attribution rule below (not a literal copy). The tip text is verbatim user-facing copy — keep its first-person wording; do not rewrite it into imperative.
+
+```
+[If checks failing: ## Checks failing — not ready for review
+<one line per failing check / unmet criterion>]
+
+<Assignee line — per attribution rule below>
+
+## Summary
+<what changed, approach, testing performed>
+
+Closes <ISSUE-ID> — <linear_url>
+
+---
+
+> **Tip:** I will respond to comments that @ mention @<bot_handle> on this PR/MR. You can also leave review comments, and I will automatically wake up to address each comment.
+
+<!-- generated-by-cyrus -->
+```
+
+- **Attribution** comes from `<assignee>` inside `<linear_issue>`. On GitHub, if `<github_username>` is present use `Assignee: @<github_username> ([<linear_display_name>](<linear_profile_url>))`; on GitLab, if `<gitlab_username>` (or `<github_username>`) is present use `Assignee: @<username> ([<linear_display_name>](<linear_profile_url>))`. Otherwise `Assignee: [<linear_display_name>](<linear_profile_url>)`. Skip the line if no assignee data exists. Do not derive the bot handle from these usernames — they are the author, not the bot.
+- The `<!-- generated-by-cyrus -->` marker stays last; the interaction tip sits just before it; the checks-failing block (if any) stays first.
+- Confirm the PR/MR targets `<base_branch>` and fix the target if it drifted.
