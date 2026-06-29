@@ -4693,7 +4693,12 @@ ${taskSection}`;
 					: `I've stopped working on ${issueTitle}.\n\n**Stop Signal:** Received from ${senderName}\n**Action Taken:** Session terminated`,
 			);
 		} else {
-			// First stop on a warm session — interrupt current turn, keep session warm
+			// First stop on a warm session — interrupt current turn, keep session warm.
+			// Mark the session as interrupted first so completeSession swallows the
+			// error_during_execution result the SDK emits when the turn aborts (it
+			// contains "[ede_diagnostic] ..." text) instead of posting it to Linear as
+			// a spurious "An error occurred" activity (CYPACK-1352).
+			this.agentSessionManager.requestSessionInterrupt(agentSessionId);
 			await existingRunner!.interrupt!();
 			log.info(
 				`Interrupted current turn for session ${agentSessionId} (send stop again within 10s to fully terminate)`,

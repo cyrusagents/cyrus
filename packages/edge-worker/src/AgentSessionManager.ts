@@ -82,6 +82,7 @@ export class AgentSessionManager extends EventEmitter {
 	private taskSubjectsById: Map<string, string> = new Map(); // Cache task subjects by task ID (e.g., "1" → "Fix login bug")
 	private activeStatusActivitiesBySession: Map<string, string> = new Map(); // Maps session ID to active compacting status activity ID
 	private stopRequestedSessions: Set<string> = new Set(); // Sessions explicitly stopped by user signal
+	private interruptRequestedSessions: Set<string> = new Set(); // Sessions interrupted (first stop — turn aborts but session stays alive)
 	// Per-session serialization queue for handleClaudeMessage. The EdgeWorker's
 	// onMessage callback is fire-and-forget, so without serialization the async
 	// handlers can interleave — causing tool_result to be processed before its
@@ -362,6 +363,19 @@ export class AgentSessionManager extends EventEmitter {
 		this.activeTasksBySession.delete(sessionId);
 
 		const wasStopRequested = this.consumeStopRequest(sessionId);
+		const wasInterrupted = this.consumeInterruptRequest(sessionId);
+
+		if (wasInterrupted) {
+			// First-stop interrupt: the current turn was aborted via runner.interrupt()
+			// but the session stays warm awaiting the next prompt. The SDK surfaces the
+			// aborted turn as an error_during_execution `result` containing
+			// "[ede_diagnostic] ..." text — swallow it so it isn't posted to Linear as a
+			// spurious "An error occurred" activity (CYPACK-1352). Keep the session
+			// Active (don't update status) so the next prompt resumes normally.
+			log.info(`Session turn was interrupted by user`);
+			return;
+		}
+
 		const status = wasStopRequested
 			? AgentSessionStatus.Error
 			: resultMessage.subtype === "success"
@@ -436,6 +450,27 @@ export class AgentSessionManager extends EventEmitter {
 
 	requestSessionStop(linearAgentActivitySessionId: string): void {
 		this.stopRequestedSessions.add(linearAgentActivitySessionId);
+	}
+
+	/**
+	 * Mark a session as interrupted (first-stop signal on a warm session). The
+	 * session stays alive, but the aborted turn's error_during_execution result
+	 * (which contains "[ede_diagnostic] ..." text) must be swallowed by
+	 * completeSession rather than posted as an error activity (CYPACK-1352).
+	 */
+	requestSessionInterrupt(linearAgentActivitySessionId: string): void {
+		this.interruptRequestedSessions.add(linearAgentActivitySessionId);
+	}
+
+	private consumeInterruptRequest(
+		linearAgentActivitySessionId: string,
+	): boolean {
+		if (!this.interruptRequestedSessions.has(linearAgentActivitySessionId)) {
+			return false;
+		}
+
+		this.interruptRequestedSessions.delete(linearAgentActivitySessionId);
+		return true;
 	}
 
 	/**
