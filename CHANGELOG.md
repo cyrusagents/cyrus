@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file.
 - Forwarded and shared Slack messages are now included when you @mention Cyrus. Previously, forwarding a message (for example a Sentry alert) into a channel and @mentioning Cyrus passed along only your typed comment — the forwarded message's contents were dropped, so a forward with no comment gave Cyrus nothing to work with. The forwarded content is now part of the prompt. ([#1326](https://github.com/cyrusagents/cyrus/pull/1326))
 
 ### Changed
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.185` to `0.3.195` and `@anthropic-ai/sdk` from `^0.105.0` to `^0.106.0`, picking up the latest Claude Code capabilities. ([CYPACK-1358](https://linear.app/ceedar/issue/CYPACK-1358))
+- Refreshed Claude Code tool list: removed `AskUserQuestion`, `EnterPlanMode`, and `ExitPlanMode`, which no longer appear in SDK v0.3.195 session init blocks. ([CYPACK-1358](https://linear.app/ceedar/issue/CYPACK-1358))
 - Updated `@anthropic-ai/claude-agent-sdk` from `0.3.173` to `0.3.185` and `@anthropic-ai/sdk` from `^0.104.1` to `^0.105.0`, bringing in the latest Claude Code capabilities and bug fixes. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#1342](https://github.com/cyrusagents/cyrus/pull/1342))
 - Refreshed Claude Code tool list: added `DesignSync`, removed deprecated `TeamCreate` and `TeamDelete` tools. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#1342](https://github.com/cyrusagents/cyrus/pull/1342))
 
