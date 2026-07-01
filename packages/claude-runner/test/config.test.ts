@@ -27,11 +27,9 @@ describe("config", () => {
 				"TaskList",
 				"NotebookEdit",
 				"Skill",
-				"AskUserQuestion",
 				"SendMessage",
 				"PushNotification",
-				"EnterPlanMode",
-				"ExitPlanMode",
+				"ReportFindings",
 				"EnterWorktree",
 				"ExitWorktree",
 				"CronCreate",
@@ -47,7 +45,7 @@ describe("config", () => {
 				"DesignSync",
 				"Workflow",
 			]);
-			expect(availableTools).toHaveLength(32);
+			expect(availableTools).toHaveLength(30);
 		});
 
 		it("should define read-only tools", () => {
@@ -64,11 +62,10 @@ describe("config", () => {
 				"Monitor",
 				"LSP",
 				"TaskOutput",
-				"EnterPlanMode",
-				"ExitPlanMode",
+				"ReportFindings",
 				"ToolSearch",
 			]);
-			expect(readOnlyTools).toHaveLength(15);
+			expect(readOnlyTools).toHaveLength(14);
 		});
 
 		it("should define write tools", () => {
@@ -135,7 +132,7 @@ describe("config", () => {
 			expect(tools).toContain("TaskCreate");
 			expect(tools).toContain("NotebookEdit");
 			expect(tools).toContain("Skill");
-			expect(tools).toContain("AskUserQuestion");
+			expect(tools).toContain("ReportFindings");
 			expect(tools).not.toContain("Bash");
 
 			// Should have all tools minus Bash
