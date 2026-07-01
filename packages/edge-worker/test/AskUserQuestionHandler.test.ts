@@ -511,4 +511,110 @@ describe("AskUserQuestionHandler", () => {
 			expect(handler.pendingCount).toBe(0);
 		});
 	});
+
+	describe("timeout handling", () => {
+		const buildInput = (): AskUserQuestionInput => ({
+			questions: [
+				{
+					question: "Which database?",
+					header: "Database",
+					options: [
+						{ label: "PostgreSQL", description: "Open source relational DB" },
+					],
+					multiSelect: false,
+				},
+			],
+		});
+
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it("should resolve with a denial when no response arrives before the timeout", async () => {
+			const timeoutHandler = new AskUserQuestionHandler(
+				{ getIssueTracker: mockGetIssueTracker },
+				{ timeoutMs: 1000 },
+			);
+			const abortController = new AbortController();
+
+			const resultPromise = timeoutHandler.handleAskUserQuestion(
+				buildInput(),
+				"session-timeout",
+				"org-123",
+				abortController.signal,
+			);
+
+			// Flush the elicitation post so the pending question registers
+			await vi.advanceTimersByTimeAsync(0);
+			expect(timeoutHandler.hasPendingQuestion("session-timeout")).toBe(true);
+
+			// Advance past the timeout
+			await vi.advanceTimersByTimeAsync(1000);
+
+			const result = await resultPromise;
+			expect(result.answered).toBe(false);
+			expect(result.message).toContain("No response was received");
+			// Pending entry must be cleaned up
+			expect(timeoutHandler.hasPendingQuestion("session-timeout")).toBe(false);
+		});
+
+		it("should not time out when a response arrives first", async () => {
+			const timeoutHandler = new AskUserQuestionHandler(
+				{ getIssueTracker: mockGetIssueTracker },
+				{ timeoutMs: 1000 },
+			);
+			const abortController = new AbortController();
+
+			const resultPromise = timeoutHandler.handleAskUserQuestion(
+				buildInput(),
+				"session-fast",
+				"org-123",
+				abortController.signal,
+			);
+
+			await vi.advanceTimersByTimeAsync(0);
+
+			const handled = timeoutHandler.handleUserResponse(
+				"session-fast",
+				"PostgreSQL",
+			);
+			expect(handled).toBe(true);
+
+			// Advancing past the timeout must not double-resolve or throw
+			await vi.advanceTimersByTimeAsync(2000);
+
+			const result = await resultPromise;
+			expect(result.answered).toBe(true);
+			expect(result.answers).toEqual({ "Which database?": "PostgreSQL" });
+		});
+
+		it("should wait indefinitely when timeoutMs is 0", async () => {
+			const noTimeoutHandler = new AskUserQuestionHandler(
+				{ getIssueTracker: mockGetIssueTracker },
+				{ timeoutMs: 0 },
+			);
+			const abortController = new AbortController();
+
+			const resultPromise = noTimeoutHandler.handleAskUserQuestion(
+				buildInput(),
+				"session-inf",
+				"org-123",
+				abortController.signal,
+			);
+
+			await vi.advanceTimersByTimeAsync(0);
+			// Even after a long time, the question is still pending
+			await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+			expect(noTimeoutHandler.hasPendingQuestion("session-inf")).toBe(true);
+
+			// Clean up
+			noTimeoutHandler.handleUserResponse("session-inf", "PostgreSQL");
+			const result = await resultPromise;
+			expect(result.answered).toBe(true);
+		});
+	});
 });

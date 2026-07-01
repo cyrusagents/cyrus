@@ -51,9 +51,29 @@ export interface AskUserQuestionHandlerDeps {
  * Configuration for AskUserQuestionHandler
  */
 export interface AskUserQuestionHandlerConfig {
-	/** Placeholder for future configuration. Set to undefined. */
-	_placeholder?: undefined;
+	/**
+	 * Maximum time (in milliseconds) to wait for a user's response before
+	 * giving up and unblocking the agent.
+	 *
+	 * A pending question is otherwise only resolved by a "prompted" webhook or
+	 * by the session's AbortSignal. If that webhook is never delivered — for
+	 * example when the user replies in a way that never produces an
+	 * elicitation-response event — the Claude subprocess stays blocked on the
+	 * tool result indefinitely. This timeout bounds that wait so the agent can
+	 * proceed instead of deadlocking.
+	 *
+	 * Set to `0` to disable the timeout and wait indefinitely (legacy behavior).
+	 * Defaults to {@link DEFAULT_QUESTION_TIMEOUT_MS}.
+	 */
+	timeoutMs?: number;
 }
+
+/**
+ * Default time to wait for a user's response before unblocking the agent.
+ * 30 minutes: long enough for an attentive user, short enough to avoid a
+ * session hanging for hours on a lost response webhook.
+ */
+export const DEFAULT_QUESTION_TIMEOUT_MS = 30 * 60 * 1000;
 
 /**
  * Handler for presenting AskUserQuestion tool calls to users via Linear's select signal.
@@ -67,6 +87,7 @@ export interface AskUserQuestionHandlerConfig {
 export class AskUserQuestionHandler {
 	private deps: AskUserQuestionHandlerDeps;
 	private logger: ILogger;
+	private timeoutMs: number;
 
 	/**
 	 * Map of agent session ID to pending question data.
@@ -74,8 +95,13 @@ export class AskUserQuestionHandler {
 	 */
 	private pendingQuestions: Map<string, PendingQuestion> = new Map();
 
-	constructor(deps: AskUserQuestionHandlerDeps, logger?: ILogger) {
+	constructor(
+		deps: AskUserQuestionHandlerDeps,
+		config?: AskUserQuestionHandlerConfig,
+		logger?: ILogger,
+	) {
 		this.deps = deps;
+		this.timeoutMs = config?.timeoutMs ?? DEFAULT_QUESTION_TIMEOUT_MS;
 		this.logger =
 			logger ?? createLogger({ component: "AskUserQuestionHandler" });
 	}
@@ -188,31 +214,68 @@ export class AskUserQuestionHandler {
 			};
 		}
 
-		// Create promise to wait for user response
-		// Cleanup is handled via AbortSignal when the session ends
+		// Create promise to wait for user response.
+		// The promise is resolved by exactly one of three paths, all funneled
+		// through `finalize`: a user response, session abort, or timeout. A
+		// timeout is essential — without it a lost "prompted" webhook leaves the
+		// Claude subprocess blocked on this tool result forever.
 		return new Promise<AskUserQuestionResult>((resolve) => {
+			let settled = false;
+			let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+			// Declared before `finalize` so `finalize` can detach the listener
+			// without a forward reference; assigned below.
+			let abortHandler: () => void;
+
+			// Single resolution path: clear the timeout, detach the abort
+			// listener, drop the pending entry, and resolve exactly once.
+			const finalize = (result: AskUserQuestionResult) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				if (timeoutId !== undefined) {
+					clearTimeout(timeoutId);
+				}
+				signal.removeEventListener("abort", abortHandler);
+				this.pendingQuestions.delete(linearAgentSessionId);
+				resolve(result);
+			};
+
 			// Setup abort handler for session cancellation
-			const abortHandler = () => {
+			abortHandler = () => {
 				this.logger.debug(
 					`Question cancelled for session ${linearAgentSessionId}`,
 				);
-				this.pendingQuestions.delete(linearAgentSessionId);
-				resolve({
+				finalize({
 					answered: false,
 					message: "Operation was cancelled",
 				});
 			};
 			signal.addEventListener("abort", abortHandler, { once: true });
 
+			// Guard against a never-delivered response webhook deadlocking the
+			// tool call. On timeout, unblock the agent with a denial that tells
+			// it to proceed rather than hang.
+			if (this.timeoutMs > 0) {
+				timeoutId = setTimeout(() => {
+					const minutes = Math.round(this.timeoutMs / 60000);
+					this.logger.warn(
+						`AskUserQuestion for session ${linearAgentSessionId} timed out after ${this.timeoutMs}ms with no response`,
+					);
+					finalize({
+						answered: false,
+						message: `No response was received within ${minutes} minute(s). Proceed using your best judgment (for example, your recommended default), and ask again later if you still need the user's decision.`,
+					});
+				}, this.timeoutMs);
+				// Don't let this timer keep the process alive on its own.
+				timeoutId.unref?.();
+			}
+
 			// Store pending question
 			this.pendingQuestions.set(linearAgentSessionId, {
 				question,
-				resolve: (result: AskUserQuestionResult) => {
-					// Clean up abort handler before resolving
-					signal.removeEventListener("abort", abortHandler);
-					this.pendingQuestions.delete(linearAgentSessionId);
-					resolve(result);
-				},
+				resolve: finalize,
 				signal,
 			});
 		});

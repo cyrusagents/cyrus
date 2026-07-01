@@ -1,10 +1,15 @@
 import type { SlackSessionStartPlatformData } from "cyrus-core";
 import { describe, expect, it } from "vitest";
 import {
+	buildPromptText,
 	SlackMessageTranslator,
 	stripMention,
 } from "../src/SlackMessageTranslator.js";
-import type { SlackWebhookEvent } from "../src/types.js";
+import type {
+	SlackEventPayload,
+	SlackMessageAttachment,
+	SlackWebhookEvent,
+} from "../src/types.js";
 import { testThreadedWebhookEvent, testWebhookEvent } from "./fixtures.js";
 
 describe("SlackMessageTranslator", () => {
@@ -312,6 +317,143 @@ describe("stripMention", () => {
 	it("does not strip @mentions in the middle of text", () => {
 		expect(stripMention("hello <@U1234567890> world")).toBe(
 			"hello <@U1234567890> world",
+		);
+	});
+});
+
+describe("buildPromptText (attachment content)", () => {
+	const basePayload = (
+		attachments?: SlackMessageAttachment[],
+		text = "<@U0BOT1234> more info please",
+	): SlackEventPayload =>
+		({
+			type: "app_mention",
+			user: "U1234567890",
+			text,
+			ts: "1704110400.000100",
+			channel: "C9876543210",
+			event_ts: "1704110400.000100",
+			...(attachments ? { attachments } : {}),
+		}) as SlackEventPayload;
+
+	it("folds a flat-text attachment in after the user's comment", () => {
+		const payload = basePayload([
+			{
+				is_share: true,
+				author_name: "Sentry",
+				text: "[frontend] Error: page resources not found",
+			},
+		]);
+
+		expect(buildPromptText(payload)).toBe(
+			"more info please\n\n" +
+				"[Attachment from Sentry]\n" +
+				"[frontend] Error: page resources not found",
+		);
+	});
+
+	it("extracts the body from blocks when `text` is empty", () => {
+		const payload = basePayload([
+			{
+				is_share: true,
+				author_name: "Sentry",
+				text: "",
+				blocks: [
+					{
+						type: "rich_text",
+						elements: [
+							{
+								type: "rich_text_section",
+								elements: [
+									{ type: "text", text: "ping " },
+									{ type: "user", user_id: "U999" },
+									{ type: "text", text: " see " },
+									{ type: "link", url: "https://example.com/x" },
+								],
+							},
+						],
+					},
+				],
+			},
+		]);
+
+		expect(buildPromptText(payload)).toBe(
+			"more info please\n\n" +
+				"[Attachment from Sentry]\n" +
+				"ping <@U999> see https://example.com/x",
+		);
+	});
+
+	it("extracts the body from message_blocks (older share shape)", () => {
+		const payload = basePayload([
+			{
+				is_share: true,
+				author_id: "U555",
+				message_blocks: [
+					{
+						team: "T1",
+						channel: "C1",
+						ts: "123.456",
+						message: {
+							blocks: [
+								{
+									type: "rich_text",
+									elements: [
+										{
+											type: "rich_text_section",
+											elements: [{ type: "text", text: "original body" }],
+										},
+									],
+								},
+							],
+						},
+					},
+				],
+			},
+		]);
+
+		expect(buildPromptText(payload)).toBe(
+			"more info please\n\n[Attachment from U555]\noriginal body",
+		);
+	});
+
+	it("returns just the stripped comment when there are no attachments", () => {
+		const payload = basePayload(undefined, "<@U0BOT1234> plain comment");
+		expect(buildPromptText(payload)).toBe(stripMention(payload.text));
+		expect(buildPromptText(payload)).toBe("plain comment");
+	});
+
+	it("does not throw on empty/undefined text and empty attachments", () => {
+		expect(() =>
+			buildPromptText({ attachments: [] } as unknown as SlackEventPayload),
+		).not.toThrow();
+		expect(
+			buildPromptText({ attachments: [] } as unknown as SlackEventPayload),
+		).toBe("");
+		expect(buildPromptText({} as unknown as SlackEventPayload)).toBe("");
+	});
+
+	it("returns only the attachment block when the comment is empty", () => {
+		const payload = basePayload(
+			[{ is_share: true, author_name: "Sentry", text: "alert body" }],
+			"<@U0BOT1234>",
+		);
+		expect(buildPromptText(payload)).toBe(
+			"[Attachment from Sentry]\nalert body",
+		);
+	});
+
+	it("labels and joins multiple attachments by blank lines", () => {
+		const payload = basePayload(
+			[
+				{ author_name: "Sentry", text: "first" },
+				{ author_name: "Datadog", text: "second" },
+			],
+			"<@U0BOT1234>",
+		);
+		expect(buildPromptText(payload)).toBe(
+			"[Attachment from Sentry]\nfirst\n\n" +
+				"[Attachment from Datadog]\nsecond",
 		);
 	});
 });

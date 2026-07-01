@@ -2,8 +2,10 @@ import { join } from "node:path";
 import { getReadOnlyTools } from "cyrus-claude-runner";
 import type { RepositoryConfig } from "cyrus-core";
 import {
+	type SlackMessageAttachment,
 	SlackMessageService,
 	SlackReactionService,
+	type SlackWebhookEvent,
 } from "cyrus-slack-event-transport";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
@@ -500,6 +502,63 @@ describe("SlackChatAdapter session initiation", () => {
 				upstreamGated: true,
 			} as any),
 		).toBe(true);
+	});
+});
+
+describe("SlackChatAdapter task instructions", () => {
+	const mentionEvent = (
+		text: string,
+		attachments?: SlackMessageAttachment[],
+	): SlackWebhookEvent => ({
+		eventType: "app_mention",
+		eventId: "Ev1",
+		teamId: "T1",
+		payload: {
+			type: "app_mention",
+			user: "U1",
+			channel: "C1",
+			text,
+			ts: "1700000000.000200",
+			event_ts: "1700000000.000200",
+			attachments,
+		},
+	});
+
+	it("folds a forwarded attachment body in alongside the comment", () => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		expect(
+			adapter.extractTaskInstructions(
+				mentionEvent("<@U0BOT> please look", [
+					{
+						is_share: true,
+						author_name: "Sentry",
+						text: "[frontend] Error: page resources not found",
+					},
+				]),
+			),
+		).toBe(
+			"please look\n\n" +
+				"[Attachment from Sentry]\n" +
+				"[frontend] Error: page resources not found",
+		);
+	});
+
+	it("uses the forwarded attachment as the whole prompt when there is no comment", () => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		expect(
+			adapter.extractTaskInstructions(
+				mentionEvent("<@U0BOT>", [
+					{ is_share: true, author_name: "Sentry", text: "alert body" },
+				]),
+			),
+		).toBe("[Attachment from Sentry]\nalert body");
+	});
+
+	it("falls back to the placeholder when neither comment nor attachment has content", () => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		expect(adapter.extractTaskInstructions(mentionEvent("<@U0BOT>"))).toBe(
+			"Ask the user for more context",
+		);
 	});
 });
 
