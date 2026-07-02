@@ -27,6 +27,9 @@ function makeBuilder(): RunnerConfigBuilder {
 		determineRunnerSelection: () => ({ runnerType: "claude" as const }),
 		getDefaultModelForRunner: () => "opus",
 		getDefaultFallbackModelForRunner: () => "sonnet",
+		inferFallbackModel: () => undefined,
+		inferRunnerFromModel: () => undefined,
+		isModelCompatibleWithRunner: () => true,
 	};
 	return new RunnerConfigBuilder(
 		chatToolResolver,

@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Forwarded and shared Slack messages are now included when you @mention Cyrus. Previously, forwarding a message (for example a Sentry alert) into a channel and @mentioning Cyrus passed along only your typed comment — the forwarded message's contents were dropped, so a forward with no comment gave Cyrus nothing to work with. The forwarded content is now part of the prompt. ([#1326](https://github.com/cyrusagents/cyrus/pull/1326))
+- Per-repository `model` and `fallbackModel` configuration is now respected when no model label or description tag is present (previously the global default always won for both), and is only applied when it's compatible with the resolved agent — an agent-only selection (for example a `codex` or `gemini` label with no model tag) no longer hands a foreign-runner model string like a Claude model name to the wrong runner, including on session-continuation runner switches. Cursor sessions still accept GPT model ids directly (for example `gpt-5.4`), since Cursor supports those models natively. ([#1360](https://github.com/cyrusagents/cyrus/pull/1360))
 
 ### Changed
 - Updated `@anthropic-ai/claude-agent-sdk` from `0.3.173` to `0.3.185` and `@anthropic-ai/sdk` from `^0.104.1` to `^0.105.0`, bringing in the latest Claude Code capabilities and bug fixes. ([CYPACK-1346](https://linear.app/ceedar/issue/CYPACK-1346), [#1342](https://github.com/cyrusagents/cyrus/pull/1342))
