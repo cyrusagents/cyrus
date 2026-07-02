@@ -151,6 +151,12 @@ import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { EgressProxy } from "./EgressProxy.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
+import {
+	getActiveRunnerType,
+	HANDOFF_STOP_TIMEOUT_MS,
+	type HandoffCommand,
+	HandoffService,
+} from "./HandoffService.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
 import type {
@@ -230,6 +236,7 @@ export class EdgeWorker extends EventEmitter {
 	/** @internal - Exposed for testing only */
 	public repositoryRouter: RepositoryRouter; // Repository routing and selection
 	private gitService: GitService;
+	private handoffService: HandoffService;
 	private activeWebhookCount = 0; // Track number of webhooks currently being processed
 	/** Handler for AskUserQuestion tool invocations via Linear select signal */
 	private askUserQuestionHandler: AskUserQuestionHandler;
@@ -424,6 +431,7 @@ export class EdgeWorker extends EventEmitter {
 		};
 		this.repositoryRouter = new RepositoryRouter(repositoryRouterDeps);
 		this.gitService = new GitService({ cyrusHome: this.cyrusHome });
+		this.handoffService = new HandoffService(this.gitService);
 
 		// Initialize AskUserQuestion handler for elicitation via Linear select signal
 		this.askUserQuestionHandler = new AskUserQuestionHandler({
@@ -4442,6 +4450,16 @@ ${taskSection}`;
 			"/label-based-prompt",
 		);
 
+		// Cross-runner handoff via the creating comment (e.g. "@Cyrus /handoff codex").
+		// Linear @mentions create a NEW agent session, so a handoff requested this
+		// way arrives on the creation path (not the prompted path). Force the
+		// requested runner for this session; the issue's worktree is reused, so the
+		// target runner continues from the prior runner's files/commits/PR.
+		const creationHandoff = commentBody
+			? this.handoffService.parseHandoffCommand(commentBody)
+			: null;
+		const handoffRunnerOverride = creationHandoff?.targetRunner ?? undefined;
+
 		const agentSessionManager = this.agentSessionManager;
 
 		// Post instant acknowledgment thought
@@ -4562,10 +4580,12 @@ ${taskSection}`;
 					undefined, // maxTurns
 					linearWorkspaceId,
 					this.buildSkillSessionContext(primaryRepo, fullIssue, session),
+					"linear",
+					handoffRunnerOverride, // /handoff <runner> in the creating comment forces the runner
 				);
 
 			log.debug(
-				`Label-based runner selection for new session: ${runnerType} (session ${sessionId})`,
+				`Label-based runner selection for new session: ${runnerType} (session ${sessionId}, handoffOverride=${handoffRunnerOverride ?? "none"})`,
 			);
 
 			const runner = this.createRunnerForType(runnerType, runnerConfig);
@@ -5176,7 +5196,156 @@ ${taskSection}`;
 			return;
 		}
 
+		// Branch 3b: cross-runner handoff (`/handoff claude|codex`). Deliberately
+		// placed here — AFTER repository resolution and access control — because
+		// the handoff needs the routed `repositories` to start the target runner.
+		// It is intentionally NOT a sibling of the early `stop` check: a handoff
+		// arriving while a repo-selection or AskUserQuestion elicitation is pending
+		// is handled by those earlier branches first.
+		const handoff = this.handoffService.parseHandoffCommand(activityBody);
+		if (handoff) {
+			await this.handleHandoffCommand(webhook, repositories, handoff);
+			return;
+		}
+
 		await this.handleNormalPromptedActivity(webhook, repositories);
+	}
+
+	/**
+	 * Cross-runner handoff (Branch 3b of agentSessionPrompted).
+	 * Stops the active runner (sequentially, with a timeout), snapshots the
+	 * worktree/git/PR state, then starts the target runner fresh in the SAME
+	 * worktree with the snapshot injected into its prompt. Never runs both
+	 * runners concurrently.
+	 */
+	private async handleHandoffCommand(
+		webhook: AgentSessionPromptedWebhook,
+		repositories: RepositoryConfig[],
+		handoff: HandoffCommand,
+	): Promise<void> {
+		const { agentSession } = webhook;
+		const sessionId = agentSession.id;
+		const issueId = agentSession.issue?.id ?? "";
+		const linearWorkspaceId = webhook.organizationId;
+		const repository = repositories[0]!;
+
+		// Reject unsupported targets (only claude & codex are valid).
+		if (!handoff.targetRunner) {
+			await this.agentSessionManager.createResponseActivity(
+				sessionId,
+				`⚠️ Handoff failed: unknown runner "${handoff.rawTarget}". Supported targets: \`claude\`, \`codex\`.`,
+			);
+			return;
+		}
+		const target = handoff.targetRunner;
+
+		const session = this.agentSessionManager.getSession(sessionId);
+		if (!session) {
+			// No session yet (and therefore no active runner): nothing to hand
+			// off from. Ask the user to start the runner the normal way.
+			await this.agentSessionManager.createResponseActivity(
+				sessionId,
+				`⚠️ Handoff to \`${target}\` could not start: no active session was found for this issue. Mention me with a prompt to start one.`,
+			);
+			return;
+		}
+
+		const source = getActiveRunnerType(session);
+		if (source === target) {
+			await this.agentSessionManager.createResponseActivity(
+				sessionId,
+				`ℹ️ Already running \`${target}\` for this issue — nothing to hand off.`,
+			);
+			return;
+		}
+
+		// Sequentially stop the active runner before starting the target.
+		const runner = session.agentRunner;
+		if (runner) {
+			const wasRunning = runner.isRunning();
+			this.agentSessionManager.requestSessionStop(sessionId);
+			runner.stop();
+			if (wasRunning) {
+				const stopped = await this.handoffService.waitForStopped(
+					() => runner.isRunning(),
+					{
+						timeoutMs: HANDOFF_STOP_TIMEOUT_MS,
+						pollIntervalMs: 250,
+						sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+					},
+				);
+				if (!stopped) {
+					this.logger.warn(
+						`Handoff blocked: ${source} runner did not stop for session ${sessionId}`,
+						{ from: source, to: target, sessionId },
+					);
+					await this.agentSessionManager.createResponseActivity(
+						sessionId,
+						`⚠️ Handoff to \`${target}\` is blocked: the current \`${source}\` runner did not stop in time. It may be mid-operation — please try again in a moment.`,
+					);
+					return;
+				}
+			}
+		}
+
+		// Snapshot the source worktree state for the target's starting prompt.
+		const snapshot = this.handoffService.buildSnapshot({
+			sourceRunner: source,
+			targetRunner: target,
+			issueId,
+			sessionId,
+			worktreePath: session.workspace.path,
+			latestSummary: this.agentSessionManager.getLastAssistantBody(sessionId),
+		});
+		const handoffPrompt = this.handoffService.buildHandoffPrompt(
+			snapshot,
+			handoff.remainder,
+		);
+
+		// Clear the old runner binding so post-handoff routing follows the target.
+		this.agentSessionManager.clearRunnerSessionBindings(sessionId);
+
+		this.logger.info("Handoff starting", {
+			from: source,
+			to: target,
+			sessionId,
+			worktreePath: snapshot.worktreePath,
+			branch: snapshot.branch,
+		});
+
+		try {
+			await this.resumeAgentSession(
+				session,
+				repository,
+				sessionId,
+				this.agentSessionManager,
+				handoffPrompt,
+				"", // attachmentManifest
+				false, // isNewSession — session already exists
+				[], // additionalAllowedDirectories
+				linearWorkspaceId,
+				undefined, // maxTurns
+				undefined, // commentAuthor
+				undefined, // commentTimestamp
+				target, // runnerTypeOverride — forces the target runner
+			);
+			this.logger.info("Handoff complete", {
+				from: source,
+				to: target,
+				sessionId,
+			});
+		} catch (error) {
+			this.logger.error(
+				`Handoff failed to start ${target} runner for session ${sessionId}`,
+				error,
+			);
+			await this.agentSessionManager.createResponseActivity(
+				sessionId,
+				`⚠️ Handoff to \`${target}\` failed to start: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
 	}
 
 	/**
@@ -6443,6 +6612,7 @@ ${input.userComment}
 		 * Defaults to `"linear"` (the pre-platform-aware behavior).
 		 */
 		sessionPlatform: "linear" | "github" | "gitlab" = "linear",
+		runnerTypeOverride?: RunnerType,
 	): Promise<{ config: AgentRunnerConfig; runnerType: RunnerType }> {
 		const log = this.logger.withContext({
 			sessionId,
@@ -6475,6 +6645,7 @@ ${input.userComment}
 			labels,
 			issueDescription,
 			maxTurns,
+			runnerTypeOverride,
 			// Per-platform MCP config paths — GitHub + GitLab share the
 			// `githubMcpConfigs` knob (single-repo PR contexts both); Linear
 			// gets `linearMcpConfigs`. Not a blanket override: the builder
@@ -7142,6 +7313,7 @@ ${input.userComment}
 		maxTurns?: number,
 		commentAuthor?: string,
 		commentTimestamp?: string,
+		runnerTypeOverride?: RunnerType,
 	): Promise<void> {
 		const log = this.logger.withContext({ sessionId });
 		// Check for existing runner
@@ -7149,6 +7321,7 @@ ${input.userComment}
 
 		// If there's an existing running runner that supports streaming, add to it
 		if (
+			!runnerTypeOverride &&
 			existingRunner?.isRunning() &&
 			existingRunner.supportsStreamingInput &&
 			existingRunner.addStreamMessage
@@ -7207,6 +7380,7 @@ ${input.userComment}
 		const hasCursorSession = !isNewSession && Boolean(session.cursorSessionId);
 		const needsNewSession =
 			isNewSession ||
+			Boolean(runnerTypeOverride) ||
 			(!hasClaudeSession &&
 				!hasGeminiSession &&
 				!hasCodexSession &&
@@ -7277,6 +7451,8 @@ ${input.userComment}
 				maxTurns, // Pass maxTurns if specified
 				resolvedWorkspaceId,
 				this.buildSkillSessionContext(repository, fullIssue, session),
+				"linear",
+				runnerTypeOverride,
 			);
 
 		// Create the appropriate runner based on session state
