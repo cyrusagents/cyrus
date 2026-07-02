@@ -62,6 +62,12 @@ export interface IRunnerSelector {
 	};
 	getDefaultModelForRunner(runnerType: RunnerType): string;
 	getDefaultFallbackModelForRunner(runnerType: RunnerType): string;
+	inferFallbackModel(model: string, runnerType: RunnerType): string | undefined;
+	inferRunnerFromModel(model?: string): RunnerType | undefined;
+	isModelCompatibleWithRunner(
+		model: string | undefined,
+		runnerType: RunnerType,
+	): boolean;
 }
 
 /**
@@ -331,26 +337,27 @@ export class RunnerConfigBuilder {
 		let fallbackModelOverride = runnerSelection.fallbackModelOverride;
 
 		// If the labels have changed, and we are resuming a session. Use the existing runner for the session.
+		// Discard any cross-runner selector override rather than default-filling
+		// it — the compatibility gate below (repositoryModelIsCompatible /
+		// repositoryFallbackModelIsCompatible) now structurally prevents a
+		// foreign-runner repository.model/fallbackModel from leaking through,
+		// so repository config can safely resolve on the finalModel chain.
 		if (input.session.claudeSessionId && runnerType !== "claude") {
 			runnerType = "claude";
-			modelOverride = this.runnerSelector.getDefaultModelForRunner("claude");
-			fallbackModelOverride =
-				this.runnerSelector.getDefaultFallbackModelForRunner("claude");
+			modelOverride = undefined;
+			fallbackModelOverride = undefined;
 		} else if (input.session.geminiSessionId && runnerType !== "gemini") {
 			runnerType = "gemini";
-			modelOverride = this.runnerSelector.getDefaultModelForRunner("gemini");
-			fallbackModelOverride =
-				this.runnerSelector.getDefaultFallbackModelForRunner("gemini");
+			modelOverride = undefined;
+			fallbackModelOverride = undefined;
 		} else if (input.session.codexSessionId && runnerType !== "codex") {
 			runnerType = "codex";
-			modelOverride = this.runnerSelector.getDefaultModelForRunner("codex");
-			fallbackModelOverride =
-				this.runnerSelector.getDefaultFallbackModelForRunner("codex");
+			modelOverride = undefined;
+			fallbackModelOverride = undefined;
 		} else if (input.session.cursorSessionId && runnerType !== "cursor") {
 			runnerType = "cursor";
-			modelOverride = this.runnerSelector.getDefaultModelForRunner("cursor");
-			fallbackModelOverride =
-				this.runnerSelector.getDefaultFallbackModelForRunner("cursor");
+			modelOverride = undefined;
+			fallbackModelOverride = undefined;
 		}
 
 		// Log model override if found
@@ -358,10 +365,42 @@ export class RunnerConfigBuilder {
 			log.debug(`Model override via selector: ${modelOverride}`);
 		}
 
+		// A repository.model / repository.fallbackModel string only applies when
+		// it's compatible with the resolved runnerType (see
+		// RunnerSelectionService.isModelCompatibleWithRunner — no evidence of a
+		// different runner, an exact match, or a GPT-shaped model on Cursor,
+		// which accepts GPT model ids directly). Otherwise an agent-only
+		// selection (e.g. label "codex" with no model tag) would still hand a
+		// foreign-runner repository.model (e.g. a Claude string like "sonnet")
+		// to a Codex/Gemini/Cursor session.
+		const repositoryModelIsCompatible =
+			this.runnerSelector.isModelCompatibleWithRunner(
+				input.repository.model,
+				runnerType,
+			);
+		if (input.repository.model && !repositoryModelIsCompatible) {
+			log.debug(
+				`Skipping repository.model "${input.repository.model}" — incompatible with resolved runnerType "${runnerType}"`,
+			);
+		}
+		const repositoryFallbackModelIsCompatible =
+			this.runnerSelector.isModelCompatibleWithRunner(
+				input.repository.fallbackModel,
+				runnerType,
+			);
+		if (
+			input.repository.fallbackModel &&
+			!repositoryFallbackModelIsCompatible
+		) {
+			log.debug(
+				`Skipping repository.fallbackModel "${input.repository.fallbackModel}" — incompatible with resolved runnerType "${runnerType}"`,
+			);
+		}
+
 		// Determine final model from selectors, repository override, then runner-specific defaults
 		const finalModel =
 			modelOverride ||
-			input.repository.model ||
+			(repositoryModelIsCompatible ? input.repository.model : undefined) ||
 			this.runnerSelector.getDefaultModelForRunner(runnerType);
 
 		const resolvedWorkspaceId =
@@ -415,9 +454,19 @@ export class RunnerConfigBuilder {
 			),
 			// Priority order: label override > repository config > global default
 			model: finalModel,
+			// Priority order: label override > repository config (only when
+			// compatible with runnerType, same gate as repository.model above) >
+			// inferred from the resolved primary model (e.g. "sonnet" -> "haiku")
+			// > runner-wide default. The inferred step keeps a real step-down
+			// fallback even when no explicit override was requested (e.g.
+			// `claudeDefaultModel: "sonnet"` with no repository.fallbackModel
+			// should not fall back to "sonnet").
 			fallbackModel:
 				fallbackModelOverride ||
-				input.repository.fallbackModel ||
+				(repositoryFallbackModelIsCompatible
+					? input.repository.fallbackModel
+					: undefined) ||
+				this.runnerSelector.inferFallbackModel(finalModel, runnerType) ||
 				this.runnerSelector.getDefaultFallbackModelForRunner(runnerType),
 			logger: log,
 			hooks,

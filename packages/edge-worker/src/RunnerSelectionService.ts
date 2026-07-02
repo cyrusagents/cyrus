@@ -92,6 +92,108 @@ export class RunnerSelectionService {
 	}
 
 	/**
+	 * Detect whether a model name looks like a Codex/GPT model.
+	 */
+	private isCodexModel(model: string): boolean {
+		return (
+			/gpt-[a-z0-9.-]*codex$/i.test(model) || /^gpt-[a-z0-9.-]+$/i.test(model)
+		);
+	}
+
+	/**
+	 * Infer which runner a model name implies, if any — e.g. "opus" -> claude,
+	 * "gemini-2.5-pro" -> gemini, a GPT/Codex-shaped name -> codex. Returns
+	 * undefined when the model name gives no evidence either way (custom /
+	 * proxy model names, or an unset model).
+	 */
+	public inferRunnerFromModel(model?: string): RunnerType | undefined {
+		if (!model) return undefined;
+		const normalizedModel = model.toLowerCase();
+		if (normalizedModel.startsWith("gemini")) return "gemini";
+		if (
+			normalizedModel === "fable" ||
+			normalizedModel === "opus" ||
+			normalizedModel === "sonnet" ||
+			normalizedModel === "haiku" ||
+			normalizedModel.startsWith("claude")
+		) {
+			return "claude";
+		}
+		if (this.isCodexModel(normalizedModel)) return "codex";
+		return undefined;
+	}
+
+	/**
+	 * Whether a model name is compatible with a given runner type — i.e. safe
+	 * to hand that model string to that runner. Compatible when:
+	 * - `inferRunnerFromModel(model)` is undefined (no evidence either way,
+	 *   e.g. a custom/proxy model name — assume compatible), OR
+	 * - it equals `runnerType` exactly, OR
+	 * - the model looks like a Codex/GPT model and `runnerType` is "cursor"
+	 *   (Cursor accepts GPT model ids directly — see
+	 *   `CursorRunner.normalizeCursorModel` and the `cursorDefaultModel`
+	 *   schema docs in `packages/core/src/config-schemas.ts`).
+	 */
+	public isModelCompatibleWithRunner(
+		model: string | undefined,
+		runnerType: RunnerType,
+	): boolean {
+		const inferredRunner = this.inferRunnerFromModel(model);
+		if (inferredRunner === undefined) return true;
+		if (inferredRunner === runnerType) return true;
+		if (inferredRunner === "codex" && runnerType === "cursor") return true;
+		return false;
+	}
+
+	/**
+	 * Infer a sensible fallback (retry) model for a given primary model and
+	 * runner type — e.g. "opus" -> "sonnet" for Claude, one tier down for
+	 * Gemini, etc. Used both to infer a fallback for an explicit model
+	 * override, and (via `RunnerConfigBuilder`) to infer a fallback for the
+	 * *resolved* primary model when no explicit override was requested.
+	 */
+	public inferFallbackModel(
+		model: string,
+		runnerType: RunnerType,
+	): string | undefined {
+		const normalizedModel = model.toLowerCase();
+		if (runnerType === "claude") {
+			if (normalizedModel === "fable") return "opus";
+			if (normalizedModel === "opus") return "sonnet";
+			if (normalizedModel === "sonnet") return "haiku";
+			// Keep haiku fallback on sonnet for retry behavior
+			if (normalizedModel === "haiku") return "sonnet";
+			return "sonnet";
+		}
+		if (runnerType === "gemini") {
+			if (
+				normalizedModel === "gemini-3" ||
+				normalizedModel === "gemini-3-pro" ||
+				normalizedModel === "gemini-3-pro-preview"
+			) {
+				return "gemini-2.5-pro";
+			}
+			if (
+				normalizedModel === "gemini-2.5-pro" ||
+				normalizedModel === "gemini-2.5"
+			) {
+				return "gemini-2.5-flash";
+			}
+			if (normalizedModel === "gemini-2.5-flash") {
+				return "gemini-2.5-flash-lite";
+			}
+			if (normalizedModel === "gemini-2.5-flash-lite") {
+				return "gemini-2.5-flash-lite";
+			}
+			return "gemini-2.5-flash";
+		}
+		if (this.isCodexModel(normalizedModel)) {
+			return "gpt-5.2-codex";
+		}
+		return "gpt-5";
+	}
+
+	/**
 	 * Parse a bracketed tag from issue description.
 	 *
 	 * Supports escaped brackets (`\\[tag=value\\]`) which Linear can emit.
@@ -141,80 +243,6 @@ export class RunnerSelectionService {
 			"model",
 		);
 
-		const defaultModelByRunner: Record<RunnerType, string> = {
-			claude: this.getDefaultModelForRunner("claude"),
-			gemini: this.getDefaultModelForRunner("gemini"),
-			codex: this.getDefaultModelForRunner("codex"),
-			cursor: this.getDefaultModelForRunner("cursor"),
-		};
-		const defaultFallbackByRunner: Record<RunnerType, string> = {
-			claude: this.getDefaultFallbackModelForRunner("claude"),
-			gemini: this.getDefaultFallbackModelForRunner("gemini"),
-			codex: this.getDefaultFallbackModelForRunner("codex"),
-			cursor: this.getDefaultFallbackModelForRunner("cursor"),
-		};
-
-		const isCodexModel = (model: string): boolean =>
-			/gpt-[a-z0-9.-]*codex$/i.test(model) || /^gpt-[a-z0-9.-]+$/i.test(model);
-
-		const inferRunnerFromModel = (model?: string): RunnerType | undefined => {
-			if (!model) return undefined;
-			const normalizedModel = model.toLowerCase();
-			if (normalizedModel.startsWith("gemini")) return "gemini";
-			if (
-				normalizedModel === "fable" ||
-				normalizedModel === "opus" ||
-				normalizedModel === "sonnet" ||
-				normalizedModel === "haiku" ||
-				normalizedModel.startsWith("claude")
-			) {
-				return "claude";
-			}
-			if (isCodexModel(normalizedModel)) return "codex";
-			return undefined;
-		};
-
-		const inferFallbackModel = (
-			model: string,
-			runnerType: RunnerType,
-		): string | undefined => {
-			const normalizedModel = model.toLowerCase();
-			if (runnerType === "claude") {
-				if (normalizedModel === "fable") return "opus";
-				if (normalizedModel === "opus") return "sonnet";
-				if (normalizedModel === "sonnet") return "haiku";
-				// Keep haiku fallback on sonnet for retry behavior
-				if (normalizedModel === "haiku") return "sonnet";
-				return "sonnet";
-			}
-			if (runnerType === "gemini") {
-				if (
-					normalizedModel === "gemini-3" ||
-					normalizedModel === "gemini-3-pro" ||
-					normalizedModel === "gemini-3-pro-preview"
-				) {
-					return "gemini-2.5-pro";
-				}
-				if (
-					normalizedModel === "gemini-2.5-pro" ||
-					normalizedModel === "gemini-2.5"
-				) {
-					return "gemini-2.5-flash";
-				}
-				if (normalizedModel === "gemini-2.5-flash") {
-					return "gemini-2.5-flash-lite";
-				}
-				if (normalizedModel === "gemini-2.5-flash-lite") {
-					return "gemini-2.5-flash-lite";
-				}
-				return "gemini-2.5-flash";
-			}
-			if (isCodexModel(normalizedModel)) {
-				return "gpt-5.2-codex";
-			}
-			return "gpt-5";
-		};
-
 		const resolveAgentFromLabel = (
 			lowercaseLabels: string[],
 		): RunnerType | undefined => {
@@ -240,7 +268,7 @@ export class RunnerSelectionService {
 			lowercaseLabels: string[],
 		): string | undefined => {
 			const codexModelLabel = lowercaseLabels.find((label) =>
-				isCodexModel(label),
+				this.isCodexModel(label),
 			);
 			if (codexModelLabel) {
 				return codexModelLabel;
@@ -294,32 +322,23 @@ export class RunnerSelectionService {
 		const runnerType: RunnerType =
 			resolvedAgentFromDescription ||
 			resolvedAgentFromLabels ||
-			inferRunnerFromModel(explicitModel) ||
+			this.inferRunnerFromModel(explicitModel) ||
 			this.getDefaultRunner();
 
 		// If an explicit agent conflicts with model's implied runner, keep the agent and reset model.
-		const modelRunner = inferRunnerFromModel(explicitModel);
+		const modelRunner = this.inferRunnerFromModel(explicitModel);
 		let modelOverride = explicitModel;
 		if (modelOverride && modelRunner && modelRunner !== runnerType) {
 			modelOverride = undefined;
 		}
 
-		const resolvedModelOverride =
-			modelOverride ||
-			defaultModelByRunner[runnerType] ||
-			this.getDefaultModelForRunner(runnerType);
-
-		let fallbackModelOverride = inferFallbackModel(
-			resolvedModelOverride,
-			runnerType,
-		);
-		if (!fallbackModelOverride) {
-			fallbackModelOverride = defaultFallbackByRunner[runnerType];
-		}
+		const fallbackModelOverride = modelOverride
+			? this.inferFallbackModel(modelOverride, runnerType)
+			: undefined;
 
 		return {
 			runnerType,
-			modelOverride: resolvedModelOverride,
+			modelOverride,
 			fallbackModelOverride,
 		};
 	}

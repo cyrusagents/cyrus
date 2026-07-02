@@ -1105,7 +1105,27 @@ Issue: {{issue_identifier}}`;
 			]);
 
 			expect(runnerSelection.runnerType).toBe("claude");
+			expect(runnerSelection.modelOverride).toBeUndefined();
+		});
+
+		it("should return no modelOverride/fallbackModelOverride when no labels or description tag request a model", () => {
+			const runnerSelection = (
+				edgeWorker as any
+			).runnerSelectionService.determineRunnerSelection([]);
+
+			expect(runnerSelection.runnerType).toBe("claude");
+			expect(runnerSelection.modelOverride).toBeUndefined();
+			expect(runnerSelection.fallbackModelOverride).toBeUndefined();
+		});
+
+		it("should still resolve an explicit model label to modelOverride (regression guard)", () => {
+			const runnerSelection = (
+				edgeWorker as any
+			).runnerSelectionService.determineRunnerSelection(["opus"]);
+
+			expect(runnerSelection.runnerType).toBe("claude");
 			expect(runnerSelection.modelOverride).toBe("opus");
+			expect(runnerSelection.fallbackModelOverride).toBe("sonnet");
 		});
 	});
 
