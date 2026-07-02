@@ -42,13 +42,10 @@ export const availableTools = [
 	"Skill",
 
 	// User interaction tools
-	"AskUserQuestion",
 	"SendMessage",
 	"PushNotification",
 
 	// Plan and worktree management
-	"EnterPlanMode",
-	"ExitPlanMode",
 	"EnterWorktree",
 	"ExitWorktree",
 
@@ -73,6 +70,9 @@ export const availableTools = [
 
 	// Workflow orchestration
 	"Workflow",
+
+	// Findings reporting
+	"ReportFindings",
 ] as const;
 
 export type ToolName = (typeof availableTools)[number];
@@ -95,8 +95,6 @@ export const readOnlyTools: ToolName[] = [
 	"Monitor",
 	"LSP",
 	"TaskOutput",
-	"EnterPlanMode",
-	"ExitPlanMode",
 	"ToolSearch",
 ];
 
