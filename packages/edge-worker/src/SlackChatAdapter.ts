@@ -34,6 +34,17 @@ export const RECEIPT_REACTION = "eyes";
 /** Reaction that replaces the receipt one once the agent finished its turn (✅) */
 export const PROCESSED_REACTION = "white_check_mark";
 
+/** Status Slack renders as "<App Name> <status>" while Cyrus is working. */
+export const CYRUS_SLACK_ASSISTANT_STATUS = "is working through the request...";
+
+/** Loading messages shown by Slack's assistant thread status indicator. */
+export const CYRUS_SLACK_LOADING_MESSAGES = [
+	"Reading the thread...",
+	"Checking the workspace context...",
+	"Working through the request...",
+	"Verifying the result...",
+] as const;
+
 /**
  * Slack implementation of ChatPlatformAdapter.
  *
@@ -336,6 +347,38 @@ Supported mrkdwn syntax:
 				error instanceof Error ? error : new Error(String(error)),
 			);
 		}
+	}
+
+	async startInFlightResponse(event: SlackWebhookEvent): Promise<void> {
+		const token = this.getSlackBotToken(event);
+		if (!token) {
+			this.logger.warn("Cannot set Slack status: no slackBotToken available");
+			return;
+		}
+
+		const threadTs = event.payload.thread_ts || event.payload.ts;
+		await new SlackMessageService().setAssistantThreadStatus({
+			token,
+			channel_id: event.payload.channel,
+			thread_ts: threadTs,
+			status: CYRUS_SLACK_ASSISTANT_STATUS,
+			loading_messages: [...CYRUS_SLACK_LOADING_MESSAGES],
+		});
+	}
+
+	async clearInFlightResponse(event: SlackWebhookEvent): Promise<void> {
+		const token = this.getSlackBotToken(event);
+		if (!token) {
+			return;
+		}
+
+		const threadTs = event.payload.thread_ts || event.payload.ts;
+		await new SlackMessageService().setAssistantThreadStatus({
+			token,
+			channel_id: event.payload.channel,
+			thread_ts: threadTs,
+			status: "",
+		});
 	}
 
 	async acknowledgeReceipt(event: SlackWebhookEvent): Promise<void> {

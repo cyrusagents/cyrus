@@ -135,6 +135,241 @@ describe("SlackMessageService", () => {
 		});
 	});
 
+	describe("setAssistantThreadStatus", () => {
+		it("sets a branded assistant thread status without presentation placeholders", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ ok: true }),
+			});
+
+			await service.setAssistantThreadStatus({
+				token: "xoxb-test-token",
+				channel_id: "C9876543210",
+				thread_ts: "1704110400.000100",
+				status: "is working through the request...",
+				loading_messages: [
+					"Reading the thread...",
+					"Checking the workspace context...",
+				],
+			});
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				"https://slack.com/api/assistant.threads.setStatus",
+				{
+					method: "POST",
+					headers: {
+						Authorization: "Bearer xoxb-test-token",
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						channel_id: "C9876543210",
+						thread_ts: "1704110400.000100",
+						status: "is working through the request...",
+						loading_messages: [
+							"Reading the thread...",
+							"Checking the workspace context...",
+						],
+					}),
+				},
+			);
+
+			const body = JSON.parse(mockFetch.mock.calls[0]?.[1]?.body as string);
+			expect(body.username).toBeUndefined();
+			expect(body.icon_emoji).toBeUndefined();
+			expect(body.icon_url).toBeUndefined();
+		});
+
+		it("clears assistant thread status with an empty status", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ ok: true }),
+			});
+
+			await service.setAssistantThreadStatus({
+				token: "xoxb-test-token",
+				channel_id: "C9876543210",
+				thread_ts: "1704110400.000100",
+				status: "",
+			});
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				"https://slack.com/api/assistant.threads.setStatus",
+				expect.objectContaining({
+					body: JSON.stringify({
+						channel_id: "C9876543210",
+						thread_ts: "1704110400.000100",
+						status: "",
+					}),
+				}),
+			);
+		});
+	});
+
+	describe("streaming", () => {
+		it("starts a chunks stream in a channel with recipient fields", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					ok: true,
+					channel: "C9876543210",
+					ts: "1704110400.000300",
+				}),
+			});
+
+			const stream = await service.startStream({
+				token: "xoxb-test-token",
+				channel: "C9876543210",
+				thread_ts: "1704110400.000100",
+				recipient_user_id: "U123",
+				recipient_team_id: "T123",
+				mode: "chunks",
+				chunks: [
+					{
+						type: "task_update",
+						id: "read-thread",
+						title: "Reading the thread",
+						status: "in_progress",
+					},
+				],
+			});
+
+			expect(stream).toEqual({
+				channel: "C9876543210",
+				ts: "1704110400.000300",
+				mode: "chunks",
+			});
+			expect(mockFetch).toHaveBeenCalledWith(
+				"https://slack.com/api/chat.startStream",
+				expect.objectContaining({
+					body: JSON.stringify({
+						channel: "C9876543210",
+						thread_ts: "1704110400.000100",
+						recipient_user_id: "U123",
+						recipient_team_id: "T123",
+						chunks: [
+							{
+								type: "task_update",
+								id: "read-thread",
+								title: "Reading the thread",
+								status: "in_progress",
+							},
+						],
+					}),
+				}),
+			);
+		});
+
+		it("requires recipient fields when starting a stream in a channel", async () => {
+			await expect(
+				service.startStream({
+					token: "xoxb-test-token",
+					channel: "C9876543210",
+					thread_ts: "1704110400.000100",
+					mode: "chunks",
+				}),
+			).rejects.toThrow("recipient_user_id and recipient_team_id are required");
+			expect(mockFetch).not.toHaveBeenCalled();
+		});
+
+		it("allows a DM stream without recipient fields", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					ok: true,
+					channel: "D9876543210",
+					ts: "1704110400.000300",
+				}),
+			});
+
+			await service.startStream({
+				token: "xoxb-test-token",
+				channel: "D9876543210",
+				thread_ts: "1704110400.000100",
+				mode: "markdown",
+				markdown_text: "Working through this now.",
+			});
+
+			const body = JSON.parse(mockFetch.mock.calls[0]?.[1]?.body as string);
+			expect(body.recipient_user_id).toBeUndefined();
+			expect(body.recipient_team_id).toBeUndefined();
+			expect(body.markdown_text).toBe("Working through this now.");
+			expect(body.chunks).toBeUndefined();
+		});
+
+		it("rejects a stream start that mixes markdown_text and chunks", async () => {
+			await expect(
+				service.startStream({
+					token: "xoxb-test-token",
+					channel: "D9876543210",
+					thread_ts: "1704110400.000100",
+					mode: "markdown",
+					markdown_text: "Hello",
+					chunks: [{ type: "markdown_text", text: "Hello" }],
+				} as any),
+			).rejects.toThrow(
+				"Slack streams must use either markdown_text or chunks, not both",
+			);
+			expect(mockFetch).not.toHaveBeenCalled();
+		});
+
+		it("rejects appending content that does not match the stream mode", async () => {
+			await expect(
+				service.appendStream({
+					token: "xoxb-test-token",
+					stream: {
+						channel: "C9876543210",
+						ts: "1704110400.000300",
+						mode: "chunks",
+					},
+					markdown_text: "Wrong mode",
+				} as any),
+			).rejects.toThrow("Cannot append markdown_text to a chunks Slack stream");
+			expect(mockFetch).not.toHaveBeenCalled();
+		});
+
+		it("stops a chunks stream without switching modes", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ ok: true }),
+			});
+
+			await service.stopStream({
+				token: "xoxb-test-token",
+				stream: {
+					channel: "C9876543210",
+					ts: "1704110400.000300",
+					mode: "chunks",
+				},
+				chunks: [
+					{
+						type: "task_update",
+						id: "verify",
+						title: "Verifying the result",
+						status: "complete",
+					},
+				],
+			});
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				"https://slack.com/api/chat.stopStream",
+				expect.objectContaining({
+					body: JSON.stringify({
+						channel: "C9876543210",
+						ts: "1704110400.000300",
+						chunks: [
+							{
+								type: "task_update",
+								id: "verify",
+								title: "Verifying the result",
+								status: "complete",
+							},
+						],
+					}),
+				}),
+			);
+		});
+	});
+
 	describe("fetchThreadMessages", () => {
 		it("fetches thread messages with correct GET params and Bearer auth", async () => {
 			mockFetch.mockResolvedValueOnce({
