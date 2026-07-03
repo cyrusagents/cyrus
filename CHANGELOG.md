@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Slack chat sessions now show Cyrus-branded in-flight status while work is underway, clear that status when the turn finishes or errors, and include guardrails for Slack streaming replies so a stream cannot mix text and task/progress modes. ([CYPACK-1367](https://linear.app/ceedar/issue/CYPACK-1367), [#1362](https://github.com/cyrusagents/cyrus/pull/1362))
 - Forwarded and shared Slack messages are now included when you @mention Cyrus. Previously, forwarding a message (for example a Sentry alert) into a channel and @mentioning Cyrus passed along only your typed comment — the forwarded message's contents were dropped, so a forward with no comment gave Cyrus nothing to work with. The forwarded content is now part of the prompt. ([#1326](https://github.com/cyrusagents/cyrus/pull/1326))
 
 ### Changed
