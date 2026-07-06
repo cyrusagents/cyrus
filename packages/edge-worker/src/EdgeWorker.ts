@@ -102,25 +102,6 @@ import {
 	isPullRequestReviewPayload,
 	stripMention,
 } from "cyrus-github-event-transport";
-import type { GitLabWebhookEvent } from "cyrus-gitlab-event-transport";
-import {
-	extractDiscussionId,
-	extractSessionKey as extractGitLabSessionKey,
-	extractMRBaseBranchRef,
-	extractMRBranchRef,
-	extractMRIid,
-	extractMRTitle,
-	extractNoteAuthor,
-	extractNoteBody,
-	extractNoteId,
-	extractNoteUrl,
-	extractProjectId,
-	extractProjectPath,
-	GitLabCommentService,
-	GitLabEventTransport,
-	isNoteOnMergeRequest,
-	stripMention as stripGitLabMention,
-} from "cyrus-gitlab-event-transport";
 import {
 	LinearEventTransport,
 	LinearIssueTrackerService,
@@ -212,12 +193,10 @@ export class EdgeWorker extends EventEmitter {
 	private linearEventTransport: LinearEventTransport | null = null; // Single event transport for webhook delivery
 	private gitHubEventTransport: GitHubEventTransport | null = null; // GitHub event transport for forwarded GitHub webhooks
 	private gitHubAppTokenProvider: GitHubAppTokenProvider | null = null; // Self-hosted GitHub App token minting
-	private gitLabEventTransport: GitLabEventTransport | null = null; // GitLab event transport for forwarded GitLab webhooks
 	private slackEventTransport: SlackEventTransport | null = null;
 	private chatSessionHandler: ChatSessionHandler<SlackWebhookEvent> | null =
 		null;
 	private gitHubCommentService: GitHubCommentService; // Service for posting comments back to GitHub PRs
-	private gitLabCommentService: GitLabCommentService; // Service for posting comments back to GitLab MRs
 	private cliRPCServer: CLIRPCServer | null = null; // CLI RPC server for CLI platform mode
 	private configUpdater: ConfigUpdater | null = null; // Single config updater for configuration updates
 	private persistenceManager: PersistenceManager;
@@ -359,24 +338,6 @@ export class EdgeWorker extends EventEmitter {
 
 		// Initialize GitHub comment service for posting replies to GitHub PRs
 		this.gitHubCommentService = new GitHubCommentService();
-
-		// Initialize GitLab comment service for posting replies to GitLab MRs.
-		// For Self-Managed GitLab the API base URL must be derived from the
-		// configured repos' gitlabUrl host; otherwise the service falls back to
-		// gitlab.com and 404s on every reply. Picks the first configured
-		// GitLab repo's host (single GitLab host per Cyrus instance).
-		const firstGitlabRepo = config.repositories.find((r) => r.gitlabUrl);
-		let gitlabApiBaseUrl: string | undefined;
-		if (firstGitlabRepo?.gitlabUrl) {
-			try {
-				gitlabApiBaseUrl = new URL(firstGitlabRepo.gitlabUrl).origin;
-			} catch {
-				// malformed gitlabUrl — leave undefined and fall through to default
-			}
-		}
-		this.gitLabCommentService = new GitLabCommentService(
-			gitlabApiBaseUrl ? { apiBaseUrl: gitlabApiBaseUrl } : undefined,
-		);
 
 		// Initialize global session registry (centralized session storage)
 		this.globalSessionRegistry = new GlobalSessionRegistry();
@@ -833,7 +794,6 @@ export class EdgeWorker extends EventEmitter {
 		// These don't require repositories and must be available during onboarding
 		// for webhook URL verification to succeed.
 		this.registerGitHubEventTransport();
-		this.registerGitLabEventTransport();
 		this.registerSlackEventTransport();
 
 		// 3. Create and register ConfigUpdater (both platforms)
@@ -983,57 +943,6 @@ export class EdgeWorker extends EventEmitter {
 			`GitHub event transport registered (${verificationMode} mode)`,
 		);
 		this.logger.info("Webhook endpoint: POST /github-webhook");
-	}
-
-	/**
-	 * Register the GitLab event transport for receiving forwarded GitLab webhooks.
-	 * This creates a /gitlab-webhook endpoint that handles note events on merge requests.
-	 */
-	private registerGitLabEventTransport(): void {
-		const isExternalHost =
-			process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
-		const hasGitlabWebhookSecret =
-			process.env.GITLAB_WEBHOOK_SECRET != null &&
-			process.env.GITLAB_WEBHOOK_SECRET !== "";
-		const useSignatureVerification = isExternalHost && hasGitlabWebhookSecret;
-		const verificationMode = useSignatureVerification ? "signature" : "proxy";
-		const secret = useSignatureVerification
-			? process.env.GITLAB_WEBHOOK_SECRET!
-			: process.env.CYRUS_API_KEY || "";
-
-		this.gitLabEventTransport = new GitLabEventTransport({
-			fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
-			verificationMode,
-			secret,
-		});
-
-		// Listen for legacy GitLab webhook events
-		this.gitLabEventTransport.on("event", (event: GitLabWebhookEvent) => {
-			this.handleGitLabWebhook(event).catch((error) => {
-				this.logger.error(
-					"Failed to handle GitLab webhook",
-					error instanceof Error ? error : new Error(String(error)),
-				);
-			});
-		});
-
-		// Listen for unified internal messages (new message bus)
-		this.gitLabEventTransport.on("message", (message: InternalMessage) => {
-			this.handleMessage(message);
-		});
-
-		// Listen for errors
-		this.gitLabEventTransport.on("error", (error: Error) => {
-			this.handleError(error);
-		});
-
-		// Register the /gitlab-webhook endpoint
-		this.gitLabEventTransport.register();
-
-		this.logger.info(
-			`GitLab event transport registered (${verificationMode} mode)`,
-		);
-		this.logger.info("Webhook endpoint: POST /gitlab-webhook");
 	}
 
 	/**
@@ -1972,522 +1881,6 @@ ${taskSection}`;
 		} catch (error) {
 			this.logger.error(
 				"Failed to post GitHub reply",
-				error instanceof Error ? error : new Error(String(error)),
-			);
-		}
-	}
-
-	/**
-	 * Handle an incoming GitLab webhook event (note on a merge request).
-	 * Mirrors the GitHub webhook handler but uses GitLab-specific utilities.
-	 */
-	private async handleGitLabWebhook(event: GitLabWebhookEvent): Promise<void> {
-		this.activeWebhookCount++;
-
-		try {
-			// Only handle notes on merge requests
-			if (!isNoteOnMergeRequest(event)) {
-				this.logger.debug(
-					"Ignoring GitLab event: not a note on a merge request",
-				);
-				return;
-			}
-
-			const projectPath = extractProjectPath(event);
-			const mrIid = extractMRIid(event);
-			const noteBody = extractNoteBody(event);
-			const noteAuthor = extractNoteAuthor(event);
-			const mrTitle = extractMRTitle(event);
-			const sessionKey = extractGitLabSessionKey(event);
-
-			// Skip comments from the bot itself to prevent infinite loops
-			const botUsername = process.env.GITLAB_BOT_USERNAME;
-			if (botUsername && noteAuthor === botUsername) {
-				this.logger.debug(
-					`Ignoring note from bot user @${botUsername} on ${projectPath}!${mrIid}`,
-				);
-				return;
-			}
-
-			// Only trigger on notes that mention the bot (when configured)
-			if (botUsername && !noteBody.includes(`@${botUsername}`)) {
-				this.logger.debug(
-					`Ignoring note without @${botUsername} mention on ${projectPath}!${mrIid}`,
-				);
-				return;
-			}
-
-			this.logger.info(
-				`Processing GitLab webhook: ${projectPath}!${mrIid} by @${noteAuthor}`,
-			);
-
-			// Add "eyes" emoji reaction to acknowledge receipt
-			const reactionToken =
-				event.accessToken || process.env.GITLAB_ACCESS_TOKEN;
-			const noteId = extractNoteId(event);
-			const projectId = extractProjectId(event);
-			if (reactionToken && noteId && projectId && mrIid) {
-				this.gitLabCommentService
-					.addAwardEmoji({
-						token: reactionToken,
-						projectId,
-						mrIid,
-						noteId,
-						name: "eyes",
-					})
-					.catch((err: unknown) => {
-						this.logger.warn(
-							`Failed to add GitLab emoji reaction: ${err instanceof Error ? err.message : err}`,
-						);
-					});
-			}
-
-			// Find the repository configuration that matches this GitLab project
-			const repository = this.findRepositoryByGitLabUrl(projectPath);
-			if (!repository) {
-				this.logger.warn(
-					`No repository configured for GitLab project: ${projectPath}`,
-				);
-				return;
-			}
-
-			const agentSessionManager = this.agentSessionManager;
-
-			// Branch refs are available directly from the MR payload
-			const branchRef = extractMRBranchRef(event);
-			const baseBranchRef = extractMRBaseBranchRef(event);
-
-			if (!branchRef || !mrIid) {
-				this.logger.error(
-					`Could not determine branch or MR iid for ${projectPath}!${mrIid}`,
-				);
-				return;
-			}
-
-			// Strip the bot mention to get the task instructions
-			const mentionHandle = botUsername ? `@${botUsername}` : "@cyrusagent";
-			const taskInstructions = stripGitLabMention(noteBody, mentionHandle);
-
-			// Check for an existing multi-repo session that includes this repository
-			let workspace: { path: string; isGitWorktree: boolean } | null = null;
-			const multiRepoSession =
-				agentSessionManager.getActiveMultiRepoSessionForRepository(
-					repository.id,
-				);
-
-			if (multiRepoSession) {
-				const subWorktreePath =
-					multiRepoSession.workspace.repoPaths?.[repository.id];
-				if (subWorktreePath) {
-					workspace = {
-						path: subWorktreePath,
-						isGitWorktree: true,
-					};
-					this.logger.info(
-						`Resolved multi-repo sub-worktree for ${repository.name}: ${subWorktreePath}`,
-					);
-				} else {
-					this.logger.warn(
-						`No sub-worktree found for repo ${repository.name} in multi-repo session ${multiRepoSession.id}, falling back to root workspace`,
-					);
-					workspace = {
-						path: multiRepoSession.workspace.path,
-						isGitWorktree: true,
-					};
-				}
-			} else {
-				// Single-repo or no existing session: create workspace
-				workspace = await this.createGitLabWorkspace(
-					repository,
-					branchRef,
-					mrIid,
-				);
-			}
-
-			if (!workspace) {
-				this.logger.error(
-					`Failed to create workspace for ${projectPath}!${mrIid}`,
-				);
-				return;
-			}
-
-			this.logger.info(`GitLab workspace created at: ${workspace.path}`);
-
-			// Check if another active session is already using this branch/workspace
-			const existingSessions =
-				agentSessionManager.getActiveSessionsByBranchName(branchRef);
-			const firstExisting = existingSessions[0];
-			if (firstExisting) {
-				this.logger.warn(
-					`Reusing workspace from active session ${firstExisting.id} — concurrent writes possible`,
-				);
-			}
-
-			// Create a synthetic session for this GitLab MR note
-			const issueMinimal: IssueMinimal = {
-				id: sessionKey,
-				identifier: `${projectPath}!${mrIid}`,
-				title: mrTitle || `MR !${mrIid}`,
-				branchName: branchRef,
-			};
-
-			// Create an internal agent session (no Linear session for GitLab)
-			const gitlabSessionId = `gitlab-${Date.now()}`;
-			agentSessionManager.createCyrusAgentSession(
-				gitlabSessionId,
-				sessionKey,
-				issueMinimal,
-				workspace,
-				"gitlab", // Don't stream activities to Linear for GitLab sources
-				[
-					{
-						repositoryId: repository.id,
-						branchName: branchRef,
-						baseBranchName: baseBranchRef ?? repository.baseBranch,
-					},
-				],
-			);
-
-			// Register session-to-repo mapping and activity sink
-			this.sessionRepositories.set(gitlabSessionId, repository.id);
-			const activitySink = this.getActivitySinkForRepo(repository.id);
-			if (activitySink) {
-				agentSessionManager.setActivitySink(gitlabSessionId, activitySink);
-			}
-
-			const session = agentSessionManager.getSession(gitlabSessionId);
-			if (!session) {
-				this.logger.error(
-					`Failed to create session for GitLab webhook on ${projectPath}!${mrIid}`,
-				);
-				return;
-			}
-
-			// Initialize procedure metadata
-			if (!session.metadata) {
-				session.metadata = {};
-			}
-
-			// Store GitLab-specific metadata for reply posting
-			// Reuse commentId for note ID (serves the same purpose across platforms)
-			session.metadata.commentId = String(noteId);
-
-			// Build the system prompt for this GitLab MR session
-			// TODO: Use buildGitLabChangeRequestSystemPrompt for merge_request approval events
-			const isMergeRequestEvent = event.eventType === "merge_request";
-			const systemPrompt = isMergeRequestEvent
-				? this.buildGitLabChangeRequestSystemPrompt(
-						event,
-						branchRef,
-						taskInstructions,
-					)
-				: this.buildGitLabSystemPrompt(event, branchRef, taskInstructions);
-
-			// Build allowed tools using the GitHub platform resolver — GitLab and
-			// GitHub share the same PR-targeted, single-repo intent, so they use
-			// the same `githubAllowedTools` knob and the same `GITHUB_*` default.
-			const allowedTools =
-				this.toolPermissionResolver.buildGithubAllowedTools(repository);
-			const disallowedTools = this.buildDisallowedTools(repository);
-			const allowedDirectories: string[] = [repository.repositoryPath];
-
-			// Create agent runner using the standard config builder
-			const { config: runnerConfig, runnerType } =
-				await this.buildAgentRunnerConfig(
-					session,
-					repository,
-					gitlabSessionId,
-					systemPrompt,
-					allowedTools,
-					allowedDirectories,
-					disallowedTools,
-					undefined, // resumeSessionId
-					undefined, // labels
-					undefined, // issueDescription
-					200, // maxTurns
-					undefined, // linearWorkspaceId
-					this.buildSkillSessionContext(repository, undefined, session),
-					"gitlab", // sessionPlatform → uses githubMcpConfigs override
-				);
-
-			const runner = this.createRunnerForType(runnerType, runnerConfig);
-
-			// Store the runner in the session manager
-			agentSessionManager.addAgentRunner(gitlabSessionId, runner);
-
-			// Save persisted state
-			await this.savePersistedState();
-
-			this.emit(
-				"session:started",
-				sessionKey,
-				issueMinimal as unknown as Issue,
-				repository.id,
-			);
-
-			this.logger.info(
-				`Starting ${runnerType} runner for GitLab MR ${projectPath}!${mrIid}`,
-			);
-
-			// Start the session and handle completion
-			try {
-				const sessionInfo = await runner.start(taskInstructions);
-				this.logger.info(`GitLab session started: ${sessionInfo.sessionId}`);
-
-				// When session completes, post the reply back to GitLab
-				await this.postGitLabReply(event, runner, repository);
-			} catch (error) {
-				this.logger.error(
-					`GitLab session error for ${projectPath}!${mrIid}`,
-					error instanceof Error ? error : new Error(String(error)),
-				);
-			} finally {
-				await this.savePersistedState();
-			}
-		} catch (error) {
-			this.logger.error(
-				"Failed to process GitLab webhook",
-				error instanceof Error ? error : new Error(String(error)),
-			);
-		} finally {
-			this.activeWebhookCount--;
-		}
-	}
-
-	/**
-	 * Find a repository configuration that matches a GitLab project URL.
-	 * Matches against the gitlabUrl field in repository config.
-	 */
-	private findRepositoryByGitLabUrl(
-		projectPath: string,
-	): RepositoryConfig | null {
-		for (const repo of this.repositories.values()) {
-			if (!repo.gitlabUrl) continue;
-			if (
-				repo.gitlabUrl.includes(projectPath) ||
-				repo.gitlabUrl.endsWith(`/${projectPath}`)
-			) {
-				return repo;
-			}
-		}
-		return null;
-	}
-
-	/**
-	 * Create a git worktree for a GitLab MR branch.
-	 * If the worktree already exists for this branch, reuse it.
-	 */
-	private async createGitLabWorkspace(
-		repository: RepositoryConfig,
-		branchRef: string,
-		mrIid: number,
-	): Promise<{ path: string; isGitWorktree: boolean } | null> {
-		try {
-			// Create a synthetic issue-like object for the git service
-			const syntheticIssue = {
-				id: `gitlab-mr-${mrIid}`,
-				identifier: `MR-${mrIid}`,
-				title: `MR !${mrIid}`,
-				description: null,
-				url: "",
-				branchName: branchRef,
-				assigneeId: null,
-				stateId: null,
-				teamId: null,
-				labelIds: [],
-				priority: 0,
-				createdAt: new Date(),
-				updatedAt: new Date(),
-				archivedAt: null,
-				state: Promise.resolve(undefined),
-				assignee: Promise.resolve(undefined),
-				team: Promise.resolve(undefined),
-				parent: Promise.resolve(undefined),
-				project: Promise.resolve(undefined),
-				labels: () => Promise.resolve({ nodes: [] }),
-				comments: () => Promise.resolve({ nodes: [] }),
-				attachments: () => Promise.resolve({ nodes: [] }),
-				children: () => Promise.resolve({ nodes: [] }),
-				inverseRelations: () => Promise.resolve({ nodes: [] }),
-				update: () =>
-					Promise.resolve({
-						success: true,
-						issue: undefined,
-						lastSyncId: 0,
-					}),
-			} as unknown as Issue;
-
-			return await this.gitService.createGitWorktree(syntheticIssue, [
-				repository,
-			]);
-		} catch (error) {
-			this.logger.error(
-				`Failed to create GitLab workspace for MR !${mrIid}`,
-				error instanceof Error ? error : new Error(String(error)),
-			);
-			return null;
-		}
-	}
-
-	/**
-	 * Build a system prompt for a GitLab MR note session.
-	 */
-	private buildGitLabSystemPrompt(
-		event: GitLabWebhookEvent,
-		branchRef: string,
-		taskInstructions: string,
-	): string {
-		const projectPath = extractProjectPath(event);
-		const mrIid = extractMRIid(event);
-		const mrTitle = extractMRTitle(event);
-		const noteAuthor = extractNoteAuthor(event);
-		const noteUrl = extractNoteUrl(event);
-
-		return `You are working on a GitLab Merge Request.
-
-## Context
-- **Project**: ${projectPath}
-- **MR**: !${mrIid} - ${mrTitle || "Untitled"}
-- **Branch**: ${branchRef}
-- **Requested by**: @${noteAuthor}
-- **Note URL**: ${noteUrl}
-
-## Task
-${taskInstructions}
-
-## Instructions
-- You are already checked out on the MR branch \`${branchRef}\`
-- Make changes directly to the code on this branch
-- After making changes, commit and push them to the branch
-- Use \`glab\` CLI commands for GitLab-specific operations
-- Be concise in your responses as they will be posted back to the GitLab MR`;
-	}
-
-	/**
-	 * Build a system prompt for a GitLab MR change request session.
-	 */
-	private buildGitLabChangeRequestSystemPrompt(
-		event: GitLabWebhookEvent,
-		branchRef: string,
-		reviewBody: string,
-	): string {
-		const projectPath = extractProjectPath(event);
-		const mrIid = extractMRIid(event);
-		const mrTitle = extractMRTitle(event);
-		const noteAuthor = extractNoteAuthor(event);
-		const noteUrl = extractNoteUrl(event);
-
-		const hasReviewBody = reviewBody.trim().length > 0;
-
-		const taskSection = hasReviewBody
-			? `## Reviewer Feedback
-${reviewBody}
-
-## Instructions
-- Read the MR diff and the reviewer's feedback above to understand all requested changes
-- You are already checked out on the MR branch \`${branchRef}\`
-- Address all the reviewer's feedback and make the necessary changes
-- After making changes, commit and push them to the branch
-- Respond with a concise summary of the changes you made`
-			: `## Instructions
-- The reviewer has requested changes but did not leave a summary comment
-- Use \`glab mr view ${mrIid}\` and \`glab mr diff ${mrIid}\` to review the MR context
-- You are already checked out on the MR branch \`${branchRef}\`
-- Address all the reviewer's feedback and make the necessary changes
-- After making changes, commit and push them to the branch
-- Respond with a concise summary of the changes you made`;
-
-		return `You are working on a GitLab Merge Request that has received a change request review.
-
-## Context
-- **Project**: ${projectPath}
-- **MR**: !${mrIid} - ${mrTitle || "Untitled"}
-- **Branch**: ${branchRef}
-- **Reviewer**: @${noteAuthor}
-- **Note URL**: ${noteUrl}
-
-${taskSection}`;
-	}
-
-	/**
-	 * Post a reply back to the GitLab MR after the session completes.
-	 */
-	private async postGitLabReply(
-		event: GitLabWebhookEvent,
-		runner: IAgentRunner,
-		_repository: RepositoryConfig,
-	): Promise<void> {
-		try {
-			// Get the last assistant message from the runner as the summary
-			const messages = runner.getMessages();
-			const lastAssistantMessage = [...messages]
-				.reverse()
-				.find((m) => m.type === "assistant");
-
-			let summary = "Task completed. Please review the changes on this branch.";
-			if (
-				lastAssistantMessage &&
-				lastAssistantMessage.type === "assistant" &&
-				"message" in lastAssistantMessage
-			) {
-				const msg = lastAssistantMessage as {
-					message: {
-						content: Array<{ type: string; text?: string }>;
-					};
-				};
-				const textBlock = msg.message.content?.find(
-					(block) => block.type === "text" && block.text,
-				);
-				if (textBlock?.text) {
-					summary = textBlock.text;
-				}
-			}
-
-			const projectId = extractProjectId(event);
-			const mrIid = extractMRIid(event);
-			const discussionId = extractDiscussionId(event);
-
-			if (!mrIid) {
-				this.logger.warn("Cannot post GitLab reply: no MR iid");
-				return;
-			}
-
-			const token = event.accessToken || process.env.GITLAB_ACCESS_TOKEN;
-			if (!token) {
-				this.logger.warn(
-					"Cannot post GitLab reply: no access token or GITLAB_ACCESS_TOKEN configured",
-				);
-				this.logger.debug(
-					`Would have posted reply to ${extractProjectPath(event)}!${mrIid}: ${summary}`,
-				);
-				return;
-			}
-
-			if (discussionId) {
-				// Reply to the specific discussion thread
-				await this.gitLabCommentService.postDiscussionReply({
-					token,
-					projectId,
-					mrIid,
-					discussionId,
-					body: summary,
-				});
-			} else {
-				// Post as a top-level MR note
-				await this.gitLabCommentService.postMRNote({
-					token,
-					projectId,
-					mrIid,
-					body: summary,
-				});
-			}
-
-			this.logger.info(
-				`Posted GitLab reply to ${extractProjectPath(event)}!${mrIid}`,
-			);
-		} catch (error) {
-			this.logger.error(
-				"Failed to post GitLab reply",
 				error instanceof Error ? error : new Error(String(error)),
 			);
 		}
@@ -5894,11 +5287,9 @@ ${taskSection}`;
 
 		const sessionSource = session.id.startsWith("github-")
 			? "github"
-			: session.id.startsWith("gitlab-")
-				? "gitlab"
-				: session.id.startsWith("slack-")
-					? "slack"
-					: (session.issueContext?.trackerId ?? "linear");
+			: session.id.startsWith("slack-")
+				? "slack"
+				: (session.issueContext?.trackerId ?? "linear");
 
 		// For Linear-source sessions, `session.id` is already the Linear
 		// AgentSession id (they're literally the same UUID — the v3 rename
@@ -6314,19 +5705,13 @@ ${input.userComment}
 	 */
 	private buildAgentContextBlock(): string {
 		const githubBot = process.env.GITHUB_BOT_USERNAME || "";
-		const gitlabBot = process.env.GITLAB_BOT_USERNAME || "";
 
-		if (!githubBot && !gitlabBot) {
+		if (!githubBot) {
 			return "";
 		}
 
 		const lines: string[] = ["\n\n<agent_context>"];
-		if (githubBot) {
-			lines.push(`  <github_bot_username>${githubBot}</github_bot_username>`);
-		}
-		if (gitlabBot) {
-			lines.push(`  <gitlab_bot_username>${gitlabBot}</gitlab_bot_username>`);
-		}
+		lines.push(`  <github_bot_username>${githubBot}</github_bot_username>`);
 		lines.push("</agent_context>");
 
 		return lines.join("\n");
@@ -6476,7 +5861,7 @@ ${input.userComment}
 		 * `EdgeWorkerConfig.<platform>McpConfigs` override list applies.
 		 * Defaults to `"linear"` (the pre-platform-aware behavior).
 		 */
-		sessionPlatform: "linear" | "github" | "gitlab" = "linear",
+		sessionPlatform: "linear" | "github" = "linear",
 	): Promise<{ config: AgentRunnerConfig; runnerType: RunnerType }> {
 		const log = this.logger.withContext({
 			sessionId,
@@ -6509,13 +5894,13 @@ ${input.userComment}
 			labels,
 			issueDescription,
 			maxTurns,
-			// Per-platform MCP config paths — GitHub + GitLab share the
-			// `githubMcpConfigs` knob (single-repo PR contexts both); Linear
-			// gets `linearMcpConfigs`. Not a blanket override: the builder
-			// uses `repository.mcpConfigPath` when this repo has its own
-			// `allowedTools` override (so the repo's permission rules and
-			// MCP server set travel as a unit), and only falls through to
-			// this list when the repo inherits the platform allow-list.
+			// Per-platform MCP config paths — GitHub gets the `githubMcpConfigs`
+			// knob (single-repo PR contexts); Linear gets `linearMcpConfigs`.
+			// Not a blanket override: the builder uses `repository.mcpConfigPath`
+			// when this repo has its own `allowedTools` override (so the repo's
+			// permission rules and MCP server set travel as a unit), and only
+			// falls through to this list when the repo inherits the platform
+			// allow-list.
 			platformMcpConfigOverrides:
 				sessionPlatform === "linear"
 					? this.config.linearMcpConfigs

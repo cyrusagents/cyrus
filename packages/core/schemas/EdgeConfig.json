@@ -23,9 +23,6 @@
 					"githubUrl": {
 						"type": "string"
 					},
-					"gitlabUrl": {
-						"type": "string"
-					},
 					"linearWorkspaceId": {
 						"type": "string"
 					},

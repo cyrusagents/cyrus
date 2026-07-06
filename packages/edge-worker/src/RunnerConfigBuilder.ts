@@ -124,7 +124,7 @@ export interface IssueRunnerConfigInput {
 	/**
 	 * Filesystem paths to custom-integration `.mcp.json` files for this
 	 * issue session: `EdgeWorkerConfig.linearMcpConfigs` for Linear, or
-	 * `githubMcpConfigs` for GitHub/GitLab. The list is NOT a blanket
+	 * `githubMcpConfigs` for GitHub. The list is NOT a blanket
 	 * override — it's only consulted when the routed repo does NOT have its
 	 * own `allowedTools` override. If the repo has its own allow-list set,
 	 * the agent uses `repository.mcpConfigPath` instead so the repo's

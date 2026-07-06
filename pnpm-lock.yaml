@@ -328,9 +328,6 @@ importers:
       cyrus-github-event-transport:
         specifier: workspace:*
         version: link:../github-event-transport
-      cyrus-gitlab-event-transport:
-        specifier: workspace:*
-        version: link:../gitlab-event-transport
       cyrus-linear-event-transport:
         specifier: workspace:*
         version: link:../linear-event-transport
@@ -382,25 +379,6 @@ importers:
         version: 3.1.1(typescript@5.9.3)(vitest@4.1.9)
 
   packages/github-event-transport:
-    dependencies:
-      cyrus-core:
-        specifier: workspace:*
-        version: link:../core
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-    devDependencies:
-      '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
-      vitest:
-        specifier: ^4.1.0
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.8)(@vitest/ui@4.1.8)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.21.0)(yaml@2.8.3))
-
-  packages/gitlab-event-transport:
     dependencies:
       cyrus-core:
         specifier: workspace:*

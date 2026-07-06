@@ -146,7 +146,7 @@ export class AgentSessionManager extends EventEmitter {
 	 * @param issueId - Issue/PR identifier
 	 * @param issueMinimal - Minimal issue data
 	 * @param workspace - Workspace configuration
-	 * @param platform - Source platform ("linear", "github", "gitlab", "slack"). Defaults to "linear".
+	 * @param platform - Source platform ("linear", "github", "slack"). Defaults to "linear".
 	 *                   Only "linear" sessions will have activities streamed to Linear.
 	 * @param repositories - Repository contexts for the session (defaults to empty array)
 	 */
@@ -155,7 +155,7 @@ export class AgentSessionManager extends EventEmitter {
 		issueId: string,
 		issueMinimal: IssueMinimal,
 		workspace: Workspace,
-		platform: "linear" | "github" | "gitlab" | "slack" = "linear",
+		platform: "linear" | "github" | "slack" = "linear",
 		repositories: RepositoryContext[] = [],
 	): CyrusAgentSession {
 		const log = this.logger.withContext({

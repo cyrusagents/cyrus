@@ -32,7 +32,6 @@
 		"cyrus-config-updater": "workspace:*",
 		"cyrus-core": "workspace:*",
 		"cyrus-github-event-transport": "workspace:*",
-		"cyrus-gitlab-event-transport": "workspace:*",
 		"cyrus-linear-event-transport": "workspace:*",
 		"cyrus-mcp-tools": "workspace:*",
 		"cyrus-slack-event-transport": "workspace:*",

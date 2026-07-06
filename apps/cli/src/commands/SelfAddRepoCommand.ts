@@ -264,9 +264,7 @@ export class SelfAddRepoCommand extends BaseCommand {
 				routingLabels,
 			};
 
-			if (url.includes("gitlab.com") || url.includes("gitlab.")) {
-				repoConfig.gitlabUrl = url.replace(/\.git$/, "");
-			} else if (url.includes("github.com")) {
+			if (url.includes("github.com")) {
 				repoConfig.githubUrl = url.replace(/\.git$/, "");
 			}
 
