@@ -151,6 +151,23 @@ The server is injected only when `ATLASSIAN_MCP_TOKEN` or `ATLASSIAN_MCP_URL` is
 
 ---
 
+## LLMOps Observability (Langfuse)
+
+Cyrus can stream LLM observability data — traces of every model request and tool call, plus token/cost metrics and prompt/response log events — from each Claude Code session to [Langfuse](https://langfuse.com/). This uses the Claude Agent SDK's built-in OpenTelemetry instrumentation, so nothing extra runs inside your sessions.
+
+Configure it entirely through environment variables (put these in `~/.cyrus/.env`, alongside your other secrets):
+
+- **`LANGFUSE_PUBLIC_KEY`** — Your Langfuse project public key (`pk-lf-...`).
+- **`LANGFUSE_SECRET_KEY`** — Your Langfuse project secret key (`sk-lf-...`).
+- **`LANGFUSE_HOST`** *(optional)* — Langfuse base URL. Defaults to `https://cloud.langfuse.com` (EU region). Use `https://us.cloud.langfuse.com` for the US region, or your own URL for a self-hosted Langfuse. Cyrus appends the `/api/public/otel` OTLP path for you.
+- **`CYRUS_TELEMETRY_DISABLED`** *(optional)* — Set to `1` (or `true`/`yes`/`on`) to force telemetry off even when the keys above are present.
+
+When both `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are set, Cyrus automatically enables telemetry and injects the standard `OTEL_*` exporter variables (OTLP over HTTP/protobuf, with a Basic auth header derived from your keys) into every Claude Code session. When either key is missing, telemetry stays off and nothing changes.
+
+Under the hood this sets `CLAUDE_CODE_ENABLE_TELEMETRY=1` and the `OTEL_EXPORTER_OTLP_*` variables for you. If you already export your own `OTEL_*` variables (for example to route to a different collector), leave the Langfuse keys unset and Cyrus will pass your variables through untouched.
+
+---
+
 ## User Access Control
 
 Control which Linear users can delegate issues to Cyrus. Supports both global configuration and per-repository overrides.

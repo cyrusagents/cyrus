@@ -41,6 +41,7 @@ export {
 	CYRUS_SESSION_ENV,
 	normalizeMcpHttpTransport,
 } from "./session-env.js";
+export { buildLangfuseTelemetryEnv } from "./telemetry-env.js";
 export type {
 	APIAssistantMessage,
 	APIUserMessage,
