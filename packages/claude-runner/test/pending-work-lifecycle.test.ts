@@ -199,8 +199,9 @@ describe("ClaudeRunner pending-work lifecycle (CYPACK-1310)", () => {
 			expect(state.queryOptions).not.toBeNull();
 		});
 
-		// Both the caller's hook and the internal recorder are registered.
-		expect(state.queryOptions.hooks.Stop).toHaveLength(2);
+		// Caller's hook, the internal pending-work recorder, and the Langfuse
+		// exporter are all registered on Stop.
+		expect(state.queryOptions.hooks.Stop).toHaveLength(3);
 
 		await state.endTurn([], "done");
 		await completion;

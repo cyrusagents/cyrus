@@ -19,7 +19,6 @@ import {
 	type SDKMessage,
 	type SDKUserMessage,
 	type SessionCronSummary,
-	type SessionEndHookInput,
 	type StopHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentPendingWork, AskUserQuestionInput } from "cyrus-core";
@@ -1071,22 +1070,26 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 				},
 			],
 		};
-		// LLMOps: export the full session transcript to Langfuse when the
-		// session terminates. The SessionEnd hook fires once the transcript is
-		// complete (after the final result), so a single parse captures the
-		// whole session. Export is fire-and-forget: we never block session
-		// teardown, and any failure is logged and swallowed. No-op (config is
-		// null) when Langfuse keys are absent or telemetry is disabled.
+		// LLMOps: export the session transcript to Langfuse on every Stop. The
+		// SDK's SessionEnd hook does NOT fire during a normal query() loop (it
+		// only fires on explicit session teardown, which doesn't happen for
+		// resumed/warm sessions), so we hook Stop instead — it fires reliably
+		// after each turn with `transcript_path` populated. Object IDs are
+		// deterministic (derived from session/message/tool IDs), so each
+		// re-export upserts the same trace and only adds new turns' observations
+		// — giving progressive visibility without duplication. Export is
+		// fire-and-forget: never blocks the turn, failures logged + swallowed.
+		// No-op (config is null) when Langfuse keys are absent or disabled.
 		const langfuseExporter: HookCallbackMatcher = {
 			matcher: ".*",
 			hooks: [
 				async (input) => {
-					const endInput = input as SessionEndHookInput;
+					const stopInput = input as StopHookInput;
 					const config = resolveLangfuseConfig();
 					if (!config) return {};
 					this.exportToLangfuse(
-						endInput.session_id,
-						endInput.transcript_path,
+						stopInput.session_id,
+						stopInput.transcript_path,
 					).catch((err) =>
 						this.logger.event("langfuse_export_failed", {
 							claudeSessionId: this.sessionInfo?.sessionId,
@@ -1100,8 +1103,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 		const configHooks = this.config.hooks ?? {};
 		return {
 			...configHooks,
-			Stop: [...(configHooks.Stop ?? []), recorder],
-			SessionEnd: [...(configHooks.SessionEnd ?? []), langfuseExporter],
+			Stop: [...(configHooks.Stop ?? []), recorder, langfuseExporter],
 		};
 	}
 
