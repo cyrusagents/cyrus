@@ -524,6 +524,11 @@
 		"claudeDefaultFallbackModel": {
 			"type": "string"
 		},
+		"claudeAutoCompactWindow": {
+			"type": "integer",
+			"exclusiveMinimum": 0,
+			"maximum": 9007199254740991
+		},
 		"cursorDefaultModel": {
 			"type": "string"
 		},

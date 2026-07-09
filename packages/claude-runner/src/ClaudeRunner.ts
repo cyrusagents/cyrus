@@ -185,6 +185,9 @@ function buildSanitizedQueryOptions(
 		if (typeof settings.autoMemoryDirectory === "string") {
 			out.settingsAutoMemoryDirectory = settings.autoMemoryDirectory;
 		}
+		if (typeof settings.autoCompactWindow === "number") {
+			out.settingsAutoCompactWindow = settings.autoCompactWindow;
+		}
 	}
 
 	// Env — key names only, no values. Spreads `process.env`, so values are
@@ -648,6 +651,23 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 
 			const isDebugLogging = this.logger.getLevel() === LogLevel.DEBUG;
 
+			// SDK "flag settings" layer (the highest-priority user-controlled
+			// settings tier). We drive two independent knobs through it: Claude's
+			// auto-memory directory and the auto-compact window. Build the object
+			// once so both can coexist — a naive per-field
+			// `...(cond && { settings: {...} })` spread would have the later
+			// field's object clobber the earlier field's.
+			const sdkSettings: Record<string, unknown> = {};
+			if (this.config.autoMemoryDirectory) {
+				sdkSettings.autoMemoryDirectory = this.config.autoMemoryDirectory;
+			}
+			if (this.config.autoCompactWindow) {
+				// Smaller effective context window ⇒ the SDK auto-compacts earlier,
+				// capping the re-read context tax on long multi-subroutine sessions
+				// instead of only compacting near the model's full (~1M) window.
+				sdkSettings.autoCompactWindow = this.config.autoCompactWindow;
+			}
+
 			const queryOptions: Parameters<typeof query>[0] = {
 				prompt: promptForQuery,
 				options: {
@@ -709,10 +729,8 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					...(this.config.sessionStore && {
 						sessionStore: this.config.sessionStore,
 					}),
-					...(this.config.autoMemoryDirectory && {
-						settings: {
-							autoMemoryDirectory: this.config.autoMemoryDirectory,
-						},
+					...(Object.keys(sdkSettings).length > 0 && {
+						settings: sdkSettings,
 					}),
 					...(Object.keys(mcpServers).length > 0 && { mcpServers }),
 					// Only use MCP servers we explicitly pass via `mcpConfig` /

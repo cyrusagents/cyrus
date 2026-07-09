@@ -51,6 +51,15 @@ export interface ClaudeRunnerConfig extends AgentRunnerConfig {
 	 * back to its default (~/.claude/projects/<sanitized-cwd>/memory/).
 	 */
 	autoMemoryDirectory?: string;
+	/**
+	 * Effective context-window size (in tokens) at which the session
+	 * auto-compacts. Forwarded to the Claude SDK as `settings.autoCompactWindow`.
+	 * When unset, the SDK compacts only near the model's full context window
+	 * (e.g. ~1M tokens), which lets long multi-subroutine sessions accumulate a
+	 * large re-read context tax before ever compacting. Setting a smaller value
+	 * (e.g. 120000) forces earlier compaction to cap per-turn context cost.
+	 */
+	autoCompactWindow?: number;
 }
 
 export interface ClaudeSessionInfo {

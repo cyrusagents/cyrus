@@ -26,6 +26,15 @@
  *   - one `generation` per assistant turn (model, token usage, prompt, output),
  *   - one child `span` per tool call (input + matched tool_result output).
  *
+ * Each observation carries a real wall-clock duration reconstructed from the
+ * transcript record timestamps: a turn runs from the record that triggered it
+ * (the user prompt or the prior `tool_result`) to the assistant record that
+ * answered it, and a tool span runs until its `tool_result` lands. This lets
+ * Langfuse show which turns dominate a session's latency instead of reporting
+ * every span as zero-duration. Per-turn `timeToFirstToken` is deliberately left
+ * unset — it needs streaming timing a post-hoc transcript does not record, so a
+ * reported `0` would be a lie rather than a measurement.
+ *
  * All Langfuse object IDs are derived deterministically from stable transcript
  * IDs (session id, assistant message id, tool_use id), so a re-export upserts
  * the same objects instead of duplicating them — safe to call more than once.
@@ -120,7 +129,10 @@ interface AssistantTurn {
 	toolUses: ContentBlock[];
 	usage: Record<string, unknown>;
 	stopReason?: string;
+	/** When the request began — timestamp of the record that triggered the turn. */
 	startTime?: Date;
+	/** When the response completed — timestamp of the turn's latest record. */
+	endTime?: Date;
 }
 
 /** Coerce a message `content` field into an array of blocks. */
@@ -162,6 +174,21 @@ function toDate(ts: string | undefined): Date | undefined {
 
 function num(v: unknown): number {
 	return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+/**
+ * Ensure an observation never ends before it starts. Returns `end` when both
+ * bounds exist and `end >= start`; otherwise falls back to `start` (a
+ * zero-duration point) so Langfuse still receives a valid, orderable span even
+ * when a timestamp is missing or records arrive out of order.
+ */
+function clampEnd(
+	start: Date | undefined,
+	end: Date | undefined,
+): Date | undefined {
+	if (!start) return end;
+	if (!end) return start;
+	return end.getTime() >= start.getTime() ? end : start;
 }
 
 export interface ExportOptions {
@@ -234,11 +261,14 @@ export async function exportTranscriptToLangfuse(
 	// Pre-pass: map tool_use_id -> tool_result text (results live in later
 	// `user` turns, so we resolve them before emitting spans).
 	const toolResults = new Map<string, string>();
+	const toolResultTimes = new Map<string, Date>();
 	for (const rec of records) {
 		if (rec.type !== "user") continue;
+		const ts = toDate(rec.timestamp);
 		for (const block of asBlocks(rec.message?.content)) {
 			if (block.type === "tool_result" && block.tool_use_id) {
 				toolResults.set(block.tool_use_id, resultText(block.content));
+				if (ts) toolResultTimes.set(block.tool_use_id, ts);
 			}
 		}
 	}
@@ -264,15 +294,25 @@ export async function exportTranscriptToLangfuse(
 	// by `message.id` and emit exactly one generation per assistant turn.
 	const turns = new Map<string, AssistantTurn>();
 	let lastUserText = "";
+	// Timestamp of the previously-seen record (of any type). A turn's request
+	// begins when the record that triggered it — the user prompt or the prior
+	// tool_result — was written, so we stamp `startTime` from this rather than
+	// from the assistant record itself (which marks when the response landed).
+	let prevTimestamp: Date | undefined;
 
 	for (const rec of records) {
+		const ts = toDate(rec.timestamp);
 		if (rec.type === "user") {
 			const t = textOf(rec.message?.content);
 			// Ignore pure tool_result turns — they are not a human/agent prompt.
 			if (t) lastUserText = t;
+			prevTimestamp = ts ?? prevTimestamp;
 			continue;
 		}
-		if (rec.type !== "assistant" || !rec.message) continue;
+		if (rec.type !== "assistant" || !rec.message) {
+			prevTimestamp = ts ?? prevTimestamp;
+			continue;
+		}
 
 		const msg = rec.message;
 		const key = msg.id ?? rec.uuid ?? `idx-${turns.size}`;
@@ -286,9 +326,17 @@ export async function exportTranscriptToLangfuse(
 				toolUses: [],
 				usage: {},
 				stopReason: msg.stop_reason ?? undefined,
-				startTime: toDate(rec.timestamp),
+				// The request began at the triggering record; fall back to this
+				// record's own timestamp when there is no predecessor.
+				startTime: prevTimestamp ?? ts,
+				endTime: ts,
 			};
 			turns.set(key, turn);
+		}
+		// One message spans several records; its response is complete at the
+		// latest, so advance endTime as later records of the same turn arrive.
+		if (ts && (!turn.endTime || ts.getTime() > turn.endTime.getTime())) {
+			turn.endTime = ts;
 		}
 		// Records for one message repeat identical usage; keep the populated one.
 		if (msg.usage && Object.keys(msg.usage).length > 0) turn.usage = msg.usage;
@@ -298,6 +346,7 @@ export async function exportTranscriptToLangfuse(
 		for (const block of asBlocks(msg.content)) {
 			if (block.type === "tool_use") turn.toolUses.push(block);
 		}
+		prevTimestamp = ts ?? prevTimestamp;
 	}
 
 	let generations = 0;
@@ -311,6 +360,10 @@ export async function exportTranscriptToLangfuse(
 		const inputTokens = freshInput + cacheRead + cacheCreation;
 		const outputTokens = num(usage.output_tokens);
 		const { startTime } = turn;
+		// Real turn duration: request began at startTime, response landed at
+		// endTime. Clamp so a turn never ends before it starts (defends against
+		// clock skew / out-of-order records).
+		const endTime = clampEnd(startTime, turn.endTime);
 
 		trace.generation({
 			id: `gen-${turn.id}`,
@@ -328,7 +381,7 @@ export async function exportTranscriptToLangfuse(
 				output: outputTokens,
 			},
 			startTime,
-			endTime: startTime,
+			endTime,
 			metadata: {
 				stopReason: turn.stopReason,
 				rawUsage: usage,
@@ -337,15 +390,23 @@ export async function exportTranscriptToLangfuse(
 		});
 		generations++;
 
-		// One span per tool call, with its matched result as output.
+		// One span per tool call, with its matched result as output. The
+		// tool_use is emitted when the turn's response lands (endTime); the tool
+		// finishes when its tool_result is written back, so the span covers real
+		// tool-execution wall-clock.
 		for (const block of turn.toolUses) {
+			const toolStart = endTime;
+			const toolEnd = clampEnd(
+				toolStart,
+				(block.id ? toolResultTimes.get(block.id) : undefined) ?? toolStart,
+			);
 			trace.span({
 				id: `tool-${block.id ?? `${turn.id}-${toolSpans}`}`,
 				name: `tool:${block.name ?? "unknown"}`,
 				input: block.input,
 				output: block.id ? toolResults.get(block.id) : undefined,
-				startTime,
-				endTime: startTime,
+				startTime: toolStart,
+				endTime: toolEnd,
 			});
 			toolSpans++;
 		}

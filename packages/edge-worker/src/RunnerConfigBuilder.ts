@@ -33,6 +33,7 @@ import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
 import { appendCloudRuntimeAddendum } from "./prompts/cloudRuntimePromptAddendum.js";
+import { appendContextDisciplineAddendum } from "./prompts/contextDisciplinePromptAddendum.js";
 import { appendFailureModeAddendum } from "./prompts/failureModePromptAddendum.js";
 
 /**
@@ -80,6 +81,13 @@ export interface IssueRunnerConfigInput {
 	labels?: string[];
 	issueDescription?: string;
 	maxTurns?: number;
+	/**
+	 * Effective context-window size (tokens) at which Claude sessions
+	 * auto-compact (`EdgeWorkerConfig.claudeAutoCompactWindow`). Claude runner
+	 * only; ignored for Cursor. Undefined preserves the SDK's default
+	 * (model-context-sized) auto-compaction behavior.
+	 */
+	autoCompactWindow?: number;
 	/**
 	 * Filesystem paths to custom-integration `.mcp.json` files for this
 	 * issue session: `EdgeWorkerConfig.linearMcpConfigs` for Linear, or
@@ -272,7 +280,11 @@ export class RunnerConfigBuilder {
 			mcpConfigPath,
 			mcpConfig,
 			appendSystemPrompt: appendCloudRuntimeAddendum(
-				appendBrowserUseAddendum(appendFailureModeAddendum(input.systemPrompt)),
+				appendBrowserUseAddendum(
+					appendFailureModeAddendum(
+						appendContextDisciplineAddendum(input.systemPrompt),
+					),
+				),
 			),
 			// Priority order: label override > repository config > global default
 			model: finalModel,
@@ -327,6 +339,12 @@ export class RunnerConfigBuilder {
 
 		if (input.maxTurns !== undefined) {
 			config.maxTurns = input.maxTurns;
+		}
+
+		// Claude-only: forward the early auto-compaction window. Cursor manages
+		// its own context, so this is a no-op there and intentionally not set.
+		if (runnerType === "claude" && input.autoCompactWindow !== undefined) {
+			config.autoCompactWindow = input.autoCompactWindow;
 		}
 
 		return { config, runnerType };

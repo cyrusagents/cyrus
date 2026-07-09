@@ -406,6 +406,20 @@ Sets default allowed tools for each prompt type across all repositories. Reposit
 
 Path to a script that runs for all repositories when creating new worktrees. See the main README for details on setup scripts.
 
+### `claudeAutoCompactWindow` (number)
+
+Effective context-window size, in tokens, at which Claude sessions auto-compact their conversation. Applies to all repositories; Claude runner only (Cursor manages its own context).
+
+By default Claude's built-in auto-compaction only triggers near the model's full context window — for a 1M-token model, a long issue with many follow-ups and subroutines can accumulate hundreds of thousands of tokens of conversation that are re-sent on every turn (the dominant driver of cost and latency) before it ever compacts. Setting a smaller window makes Cyrus compact much earlier, capping the per-turn context cost.
+
+```json
+{
+  "claudeAutoCompactWindow": 120000
+}
+```
+
+When omitted, the SDK's default (model-context-sized) behavior is preserved and nothing changes. A value around `120000`–`150000` is a reasonable starting point for long-running issues; lower values compact more aggressively (cheaper, but more summarization of earlier context).
+
 ---
 
 ## Tool Configuration Priority

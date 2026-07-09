@@ -699,6 +699,10 @@ export class SessionOrchestrator {
 			labels,
 			issueDescription,
 			maxTurns,
+			// Global early auto-compaction window (Claude runner only). Caps the
+			// per-turn re-read context tax on long multi-subroutine sessions by
+			// forcing the SDK to compact well before the model's full window.
+			autoCompactWindow: config.claudeAutoCompactWindow,
 			// Per-platform MCP config paths — GitHub gets the `githubMcpConfigs`
 			// knob (single-repo PR contexts); Linear gets `linearMcpConfigs`.
 			// Not a blanket override: the builder uses `repository.mcpConfigPath`

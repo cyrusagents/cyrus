@@ -379,6 +379,21 @@ export const EdgeConfigSchema = z.object({
 	/** Default Claude fallback model if primary Claude model is unavailable */
 	claudeDefaultFallbackModel: z.string().optional(),
 
+	/**
+	 * Effective context-window size (in tokens) at which Claude sessions
+	 * auto-compact. Forwarded to the Claude SDK as `settings.autoCompactWindow`.
+	 *
+	 * The SDK's auto-compaction normally fires only near the *model's* full
+	 * context window — for a 1M-token model that means a session can accumulate
+	 * hundreds of thousands of tokens of re-read conversation history before it
+	 * ever compacts. Since re-reading accumulated context is the dominant cost
+	 * driver, setting a smaller window (e.g. 120000) makes the SDK compact much
+	 * earlier, capping the per-turn context tax on long multi-subroutine
+	 * sessions. When unset, the SDK's default (model-context-sized) behavior is
+	 * preserved. Claude runner only; Cursor manages its own context.
+	 */
+	claudeAutoCompactWindow: z.number().int().positive().optional(),
+
 	/** Default Cursor model to use across all repositories (e.g., "composer-2.5", "composer-2") */
 	cursorDefaultModel: z.string().optional(),
 

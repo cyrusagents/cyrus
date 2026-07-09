@@ -349,6 +349,151 @@ describe("exportTranscriptToLangfuse", () => {
 		});
 	});
 
+	it("reconstructs real per-turn and per-tool durations from timestamps", async () => {
+		// A two-turn session: the model spends 3s on turn 1 (ending in a tool
+		// call), the tool runs 2s, then the model spends 4s on turn 2. Every
+		// observation must report the real interval, not a zero-duration point.
+		const { client, calls } = makeFakeClient();
+		const transcriptPath = writeTempTranscript(
+			transcript([
+				JSON.stringify({
+					type: "user",
+					uuid: "u1",
+					timestamp: "2026-07-08T10:00:00.000Z",
+					message: { role: "user", content: "read the file" },
+				}),
+				JSON.stringify({
+					type: "assistant",
+					uuid: "a1",
+					timestamp: "2026-07-08T10:00:03.000Z",
+					message: {
+						id: "msg-1",
+						role: "assistant",
+						model: "claude-opus-4-8",
+						content: [
+							{
+								type: "tool_use",
+								id: "tu-1",
+								name: "Read",
+								input: { file_path: "/tmp/a.ts" },
+							},
+						],
+						usage: { input_tokens: 100, output_tokens: 20 },
+					},
+				}),
+				JSON.stringify({
+					type: "user",
+					uuid: "u2",
+					timestamp: "2026-07-08T10:00:05.000Z",
+					message: {
+						role: "user",
+						content: [
+							{ type: "tool_result", tool_use_id: "tu-1", content: "contents" },
+						],
+					},
+				}),
+				JSON.stringify({
+					type: "assistant",
+					uuid: "a2",
+					timestamp: "2026-07-08T10:00:09.000Z",
+					message: {
+						id: "msg-2",
+						role: "assistant",
+						model: "claude-opus-4-8",
+						content: [{ type: "text", text: "done" }],
+						usage: { input_tokens: 120, output_tokens: 8 },
+					},
+				}),
+			]),
+		);
+
+		await exportTranscriptToLangfuse({
+			transcriptPath,
+			sessionId: "sess-timing",
+			config: CONFIG,
+			clientFactory: () => client,
+		});
+
+		const bodyById = (kind: string, id: string) =>
+			(
+				calls.find(
+					(c) =>
+						(c as { kind: string; body?: { id?: string } }).kind === kind &&
+						(c as { body?: { id?: string } }).body?.id === id,
+				) as { body: { startTime?: Date; endTime?: Date } } | undefined
+			)?.body;
+
+		// Turn 1: 10:00:00 (triggering user prompt) -> 10:00:03 (response).
+		const turn1 = bodyById("generation", "gen-msg-1");
+		expect(turn1?.startTime?.toISOString()).toBe("2026-07-08T10:00:00.000Z");
+		expect(turn1?.endTime?.toISOString()).toBe("2026-07-08T10:00:03.000Z");
+
+		// Tool span: emitted at the turn's response (10:00:03) -> tool_result
+		// lands (10:00:05).
+		const tool = bodyById("span", "tool-tu-1");
+		expect(tool?.startTime?.toISOString()).toBe("2026-07-08T10:00:03.000Z");
+		expect(tool?.endTime?.toISOString()).toBe("2026-07-08T10:00:05.000Z");
+
+		// Turn 2: 10:00:05 (prior tool_result triggered it) -> 10:00:09.
+		const turn2 = bodyById("generation", "gen-msg-2");
+		expect(turn2?.startTime?.toISOString()).toBe("2026-07-08T10:00:05.000Z");
+		expect(turn2?.endTime?.toISOString()).toBe("2026-07-08T10:00:09.000Z");
+	});
+
+	it("collapses a split message's endTime to its latest record", async () => {
+		// The three-record split turn spans 10:00:01 -> 10:00:02; startTime comes
+		// from the 10:00:00 user prompt that triggered it.
+		const { client, calls } = makeFakeClient();
+		const usage = { input_tokens: 200, output_tokens: 40 };
+		const transcriptPath = writeTempTranscript(
+			transcript([
+				JSON.stringify({
+					type: "user",
+					uuid: "u1",
+					timestamp: "2026-07-08T10:00:00.000Z",
+					message: { role: "user", content: "do the thing" },
+				}),
+				JSON.stringify({
+					type: "assistant",
+					uuid: "a1",
+					timestamp: "2026-07-08T10:00:01.000Z",
+					message: {
+						id: "msg-split",
+						role: "assistant",
+						model: "claude-opus-4-8",
+						content: [{ type: "thinking", thinking: "hmm" }],
+						usage,
+					},
+				}),
+				JSON.stringify({
+					type: "assistant",
+					uuid: "a2",
+					timestamp: "2026-07-08T10:00:02.000Z",
+					message: {
+						id: "msg-split",
+						role: "assistant",
+						model: "claude-opus-4-8",
+						content: [{ type: "text", text: "done" }],
+						usage,
+					},
+				}),
+			]),
+		);
+
+		await exportTranscriptToLangfuse({
+			transcriptPath,
+			sessionId: "sess-split-timing",
+			config: CONFIG,
+			clientFactory: () => client,
+		});
+
+		const gen = calls.find(
+			(c) => (c as { kind: string }).kind === "generation",
+		) as { body: { startTime?: Date; endTime?: Date } };
+		expect(gen.body.startTime?.toISOString()).toBe("2026-07-08T10:00:00.000Z");
+		expect(gen.body.endTime?.toISOString()).toBe("2026-07-08T10:00:02.000Z");
+	});
+
 	it("skips corrupt JSONL lines without failing", async () => {
 		const { client } = makeFakeClient();
 		const transcriptPath = writeTempTranscript(
