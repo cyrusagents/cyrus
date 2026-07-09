@@ -67,7 +67,6 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 
 	// Monitoring + discovery
 	"Monitor",
-	"LSP",
 	"RemoteTrigger",
 	"ToolSearch",
 	"Skill",
@@ -186,7 +185,6 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 
 	// Monitoring + discovery
 	"Monitor",
-	"LSP",
 	"RemoteTrigger",
 	"ToolSearch",
 	"Skill",

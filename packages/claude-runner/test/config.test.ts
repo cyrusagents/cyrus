@@ -36,7 +36,6 @@ describe("config", () => {
 				"CronList",
 				"ScheduleWakeup",
 				"Monitor",
-				"LSP",
 				"RemoteTrigger",
 				"TaskOutput",
 				"TaskStop",
@@ -45,7 +44,7 @@ describe("config", () => {
 				"Workflow",
 				"ReportFindings",
 			]);
-			expect(availableTools).toHaveLength(30);
+			expect(availableTools).toHaveLength(29);
 		});
 
 		it("should define read-only tools", () => {
@@ -60,11 +59,10 @@ describe("config", () => {
 				"Task",
 				"Skill",
 				"Monitor",
-				"LSP",
 				"TaskOutput",
 				"ToolSearch",
 			]);
-			expect(readOnlyTools).toHaveLength(13);
+			expect(readOnlyTools).toHaveLength(12);
 		});
 
 		it("should define write tools", () => {
@@ -238,11 +236,6 @@ describe("config", () => {
 		it("WebSearch should be read-only", () => {
 			expect(readOnlyTools).toContain("WebSearch");
 			expect(writeTools).not.toContain("WebSearch");
-		});
-
-		it("LSP should be read-only", () => {
-			expect(readOnlyTools).toContain("LSP");
-			expect(writeTools).not.toContain("LSP");
 		});
 
 		it("Notebook tools should be categorized correctly", () => {
