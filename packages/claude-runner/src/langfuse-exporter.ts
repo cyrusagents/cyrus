@@ -47,6 +47,8 @@
  */
 
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ILogger } from "cyrus-core";
 
 /** Default Langfuse Cloud host (EU region), used when none is configured. */
@@ -88,6 +90,58 @@ export function resolveLangfuseConfig(
 		env.LANGFUSE_BASE_URL?.trim() ||
 		DEFAULT_LANGFUSE_HOST;
 	return { publicKey, secretKey, baseUrl: baseUrl.replace(/\/+$/, "") };
+}
+
+/**
+ * Cyrus's own package version, read once from the runner package's
+ * `package.json`. This is the dev/no-env fallback for the trace version; in the
+ * deployed systemd runtime `CYRUS_VERSION` is set explicitly (see
+ * `scripts/deploy-local.sh`) so this read is not relied upon there. Never
+ * throws — an unreadable/renamed package.json degrades to `"unknown"` rather
+ * than breaking the export.
+ */
+let cachedPackageVersion: string | undefined;
+function readCyrusPackageVersion(): string {
+	if (cachedPackageVersion !== undefined) return cachedPackageVersion;
+	try {
+		// dist/langfuse-exporter.js and src/langfuse-exporter.ts both sit one
+		// level under the package root, so `../package.json` resolves for the
+		// built output and for ts-run tests alike.
+		const pkgPath = resolve(
+			dirname(fileURLToPath(import.meta.url)),
+			"..",
+			"package.json",
+		);
+		const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
+			version?: string;
+		};
+		cachedPackageVersion = pkg.version?.trim() || "unknown";
+	} catch {
+		cachedPackageVersion = "unknown";
+	}
+	return cachedPackageVersion;
+}
+
+/**
+ * Compose the Langfuse trace `version` — the field Langfuse's version-comparison
+ * view keys on — so traces are attributable to a specific Cyrus build.
+ *
+ * Shape: `<semver>` or `<semver>+<commit>` when a build commit is known. The
+ * semver alone is static across a change (every package sits at the same
+ * version), so the appended short commit is what makes each deploy distinct and
+ * lets you compare newest-vs-previous even without a version bump.
+ *
+ * Sources (all optional; graceful fallbacks):
+ *   - semver:  `CYRUS_VERSION` env → runner `package.json` version → `"unknown"`.
+ *   - commit:  `CYRUS_BUILD_COMMIT` env (short SHA injected by the deploy
+ *     script). Omitted from the string when unset (e.g. local dev).
+ */
+export function resolveTraceVersion(
+	env: NodeJS.ProcessEnv = process.env,
+): string {
+	const semver = env.CYRUS_VERSION?.trim() || readCyrusPackageVersion();
+	const commit = env.CYRUS_BUILD_COMMIT?.trim();
+	return commit ? `${semver}+${commit}` : semver;
 }
 
 /** A single JSONL record from a Claude Code transcript (loosely typed). */
@@ -278,12 +332,22 @@ export async function exportTranscriptToLangfuse(
 		: defaultClientFactory(config));
 
 	const firstTs = records.find((r) => r.timestamp)?.timestamp;
+	const version = resolveTraceVersion();
 	const trace = client.trace({
 		id: `cyrus-${sessionId}`,
 		name: options.traceName || `cyrus-session-${sessionId.slice(0, 8)}`,
 		sessionId,
 		timestamp: toDate(firstTs),
-		metadata: { source: "cyrus", claudeSessionId: sessionId, ...metadata },
+		// Langfuse keys its version-comparison view on `version`; stamping the
+		// Cyrus build here lets a session's cost/latency be compared across
+		// deploys (e.g. before vs. after an optimization change).
+		version,
+		metadata: {
+			source: "cyrus",
+			claudeSessionId: sessionId,
+			version,
+			...metadata,
+		},
 	});
 
 	// A single assistant message is written to the transcript as several JSONL

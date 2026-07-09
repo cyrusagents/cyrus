@@ -53,6 +53,10 @@ git fetch --prune origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
 COMMIT="$(git rev-parse HEAD)"
 SHORT="$(git rev-parse --short HEAD)"
+# Product semver (the published `cyrus-ai` package). Threaded to the running
+# service as CYRUS_VERSION so Langfuse traces are tagged `<semver>+<commit>`
+# and can be compared across deploys. Falls back to "unknown" if unreadable.
+VERSION="$(node -p "require('$DEPLOY_DIR/apps/cli/package.json').version" 2>/dev/null || echo unknown)"
 
 # 2. Install + build the whole monorepo (apps/cli is built recursively).
 log "pnpm install --frozen-lockfile"
@@ -88,9 +92,12 @@ cat >"$DROPIN" <<EOF
 [Service]
 ExecStart=
 ExecStart=$NODE_BIN $ENTRYPOINT
+# Build identity for Langfuse trace versioning (<semver>+<commit>).
+Environment=CYRUS_VERSION=$VERSION
+Environment=CYRUS_BUILD_COMMIT=$SHORT
 EOF
 
-log "Restarting $SERVICE (commit $SHORT)"
+log "Restarting $SERVICE (version $VERSION+$SHORT)"
 systemctl --user daemon-reload
 systemctl --user restart "$SERVICE"
 sleep 2

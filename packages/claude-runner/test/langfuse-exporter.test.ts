@@ -4,6 +4,7 @@ import {
 	type LangfuseConfig,
 	type LangfuseLike,
 	resolveLangfuseConfig,
+	resolveTraceVersion,
 } from "../src/langfuse-exporter";
 
 const PK = "pk-lf-test";
@@ -74,6 +75,41 @@ describe("resolveLangfuseConfig", () => {
 				CYRUS_TELEMETRY_DISABLED: "1",
 			}),
 		).toBeNull();
+	});
+});
+
+describe("resolveTraceVersion", () => {
+	it("composes <semver>+<commit> when both env vars are set", () => {
+		expect(
+			resolveTraceVersion({
+				CYRUS_VERSION: "1.2.3",
+				CYRUS_BUILD_COMMIT: "abc1234",
+			}),
+		).toBe("1.2.3+abc1234");
+	});
+
+	it("uses the semver alone when no build commit is known", () => {
+		expect(resolveTraceVersion({ CYRUS_VERSION: "1.2.3" })).toBe("1.2.3");
+	});
+
+	it("trims whitespace from both env values", () => {
+		expect(
+			resolveTraceVersion({
+				CYRUS_VERSION: "  1.2.3  ",
+				CYRUS_BUILD_COMMIT: "  abc1234  ",
+			}),
+		).toBe("1.2.3+abc1234");
+	});
+
+	it("falls back to the runner package version (never 'unknown' in-repo) when CYRUS_VERSION is unset", () => {
+		// import.meta.url resolves to src/, so ../package.json is readable here.
+		const v = resolveTraceVersion({ CYRUS_BUILD_COMMIT: "abc1234" });
+		expect(v).toMatch(/^\d+\.\d+\.\d+.*\+abc1234$/);
+		expect(v.startsWith("unknown")).toBe(false);
+	});
+
+	it("returns a bare semver when neither env var is set", () => {
+		expect(resolveTraceVersion({})).toMatch(/^\d+\.\d+\.\d+/);
 	});
 });
 
@@ -212,6 +248,56 @@ describe("exportTranscriptToLangfuse", () => {
 			input: { file_path: "/tmp/a.ts" },
 			output: "file contents here",
 		});
+	});
+
+	it("stamps the trace (and its metadata) with the resolved build version", async () => {
+		const prevVersion = process.env.CYRUS_VERSION;
+		const prevCommit = process.env.CYRUS_BUILD_COMMIT;
+		process.env.CYRUS_VERSION = "0.2.66";
+		process.env.CYRUS_BUILD_COMMIT = "deadbee";
+		try {
+			const { client, calls } = makeFakeClient();
+			const transcriptPath = writeTempTranscript(
+				transcript([
+					JSON.stringify({
+						type: "user",
+						uuid: "u1",
+						timestamp: "2026-07-08T10:00:00.000Z",
+						message: { role: "user", content: "hi" },
+					}),
+					JSON.stringify({
+						type: "assistant",
+						uuid: "a1",
+						timestamp: "2026-07-08T10:00:01.000Z",
+						message: {
+							id: "msg-1",
+							role: "assistant",
+							model: "claude-opus-4-8",
+							content: [{ type: "text", text: "hello" }],
+							usage: { input_tokens: 10, output_tokens: 5 },
+						},
+					}),
+				]),
+			);
+
+			await exportTranscriptToLangfuse({
+				transcriptPath,
+				sessionId: "sess-ver",
+				config: CONFIG,
+				clientFactory: () => client,
+			});
+
+			const trace = calls.find(
+				(c) => (c as { kind: string }).kind === "trace",
+			) as { body: Record<string, unknown> };
+			expect(trace.body.version).toBe("0.2.66+deadbee");
+			expect(trace.body.metadata).toMatchObject({ version: "0.2.66+deadbee" });
+		} finally {
+			if (prevVersion === undefined) delete process.env.CYRUS_VERSION;
+			else process.env.CYRUS_VERSION = prevVersion;
+			if (prevCommit === undefined) delete process.env.CYRUS_BUILD_COMMIT;
+			else process.env.CYRUS_BUILD_COMMIT = prevCommit;
+		}
 	});
 
 	it("uses deterministic trace + object ids (re-export is idempotent)", async () => {
