@@ -71,6 +71,22 @@ describe("ConfigManager.reconcile", () => {
 		expect(result.changedKeys.has("global_setup_script")).toBe(true);
 	});
 
+	it("merges claudeSessionKeepAliveMinutes, honoring a disk 0 as an opt-out", () => {
+		const prev = prevConfig({
+			claudeSessionKeepAliveMinutes: 50,
+		} as Partial<EdgeWorkerConfig>);
+		const manager = makeManager(prev);
+
+		const result = manager.reconcile(prev, {
+			repositories: prev.repositories,
+			claudeSessionKeepAliveMinutes: 0,
+		});
+
+		// `0` disables keep-alive; a `||` merge would have silently kept 50.
+		expect(result.merged.claudeSessionKeepAliveMinutes).toBe(0);
+		expect(result.changedKeys.has("claudeSessionKeepAliveMinutes")).toBe(true);
+	});
+
 	// (2) nullish semantics — falsy disk values are honored, not overwritten.
 	it("honors falsy disk values (false, empty array) via ?? not ||", () => {
 		const prev = prevConfig({

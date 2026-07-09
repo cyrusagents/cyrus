@@ -420,6 +420,22 @@ By default Claude's built-in auto-compaction only triggers near the model's full
 
 When omitted, the SDK's default (model-context-sized) behavior is preserved and nothing changes. A value around `120000`–`150000` is a reasonable starting point for long-running issues; lower values compact more aggressively (cheaper, but more summarization of earlier context).
 
+### `claudeSessionKeepAliveMinutes` (number)
+
+How long a finished Claude session stays alive waiting for a follow-up comment before shutting down. Defaults to `50`; set `0` to disable. Claude runner only (Cursor manages its own session lifetime).
+
+Once a session's process has exited, a follow-up comment has to *resume* it: the whole stored conversation is replayed into a new process and re-written to the prompt cache, which on a long issue means 150k–250k tokens and around a dollar — every time. While the process is still alive the comment is simply appended to the running conversation, costing roughly a thousand tokens.
+
+```json
+{
+  "claudeSessionKeepAliveMinutes": 50
+}
+```
+
+The maximum is `55`, because an appended turn only stays cheap while the conversation is still in Anthropic's one-hour prompt cache; idling any longer would pay the full re-read anyway. Each waiting session holds an idle subprocess, so lower the window (or set `0`) if you run many concurrent issues on a small machine.
+
+Note that with keep-alive on, a first "stop" comment interrupts the session rather than killing its process outright; a second stop still forces it down.
+
 ---
 
 ## Tool Configuration Priority

@@ -60,6 +60,14 @@ export interface ClaudeRunnerConfig extends AgentRunnerConfig {
 	 * (e.g. 120000) forces earlier compaction to cap per-turn context cost.
 	 */
 	autoCompactWindow?: number;
+	/**
+	 * How long (in ms) to keep the streaming session alive after a turn ends,
+	 * waiting for a follow-up message. A positive value implies
+	 * `keepSessionWarm`. When the window elapses with no new message the prompt
+	 * is completed and the subprocess exits, so the next message resumes the
+	 * session normally. Unset or `0` restores the shut-down-on-result behavior.
+	 */
+	sessionKeepAliveMs?: number;
 }
 
 export interface ClaudeSessionInfo {

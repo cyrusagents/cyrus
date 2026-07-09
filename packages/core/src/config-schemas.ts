@@ -346,6 +346,14 @@ export const RepositoryConfigSchema = z.object({
 });
 
 /**
+ * Idle window a finished Claude session is kept alive for, when
+ * `claudeSessionKeepAliveMinutes` is not configured. Sits under Anthropic's
+ * 1-hour prompt-cache TTL so a follow-up comment appends to a still-cached
+ * conversation instead of paying to re-write it.
+ */
+export const DEFAULT_CLAUDE_SESSION_KEEP_ALIVE_MINUTES = 50;
+
+/**
  * Edge configuration - the serializable configuration stored in ~/.cyrus/config.json
  *
  * This schema defines all settings that can be persisted to disk.
@@ -393,6 +401,24 @@ export const EdgeConfigSchema = z.object({
 	 * preserved. Claude runner only; Cursor manages its own context.
 	 */
 	claudeAutoCompactWindow: z.number().int().positive().optional(),
+
+	/**
+	 * How long (in minutes) a finished Claude session stays alive waiting for a
+	 * follow-up comment before it shuts down. Defaults to
+	 * {@link DEFAULT_CLAUDE_SESSION_KEEP_ALIVE_MINUTES}; set `0` to disable.
+	 *
+	 * When the session process has already exited, a follow-up comment has to
+	 * *resume* it: the SDK replays the stored transcript into a new process,
+	 * which re-writes the entire conversation to the prompt cache (150–250k
+	 * tokens, ~$1+ on a long issue). If the process is still alive the comment is
+	 * simply appended to the running stream, costing about a thousand tokens.
+	 *
+	 * Capped at 55 minutes because the appended turn only stays cheap while the
+	 * conversation is still in Anthropic's 1-hour prompt cache; a longer idle
+	 * window would pay the full re-read anyway. Claude runner only; Cursor
+	 * manages its own session lifetime.
+	 */
+	claudeSessionKeepAliveMinutes: z.number().int().min(0).max(55).optional(),
 
 	/** Default Cursor model to use across all repositories (e.g., "composer-2.5", "composer-2") */
 	cursorDefaultModel: z.string().optional(),

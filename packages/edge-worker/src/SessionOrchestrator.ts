@@ -18,7 +18,10 @@ import type {
 	RepositoryConfig,
 	RunnerType,
 } from "cyrus-core";
-import { requireLinearWorkspaceId } from "cyrus-core";
+import {
+	DEFAULT_CLAUDE_SESSION_KEEP_ALIVE_MINUTES,
+	requireLinearWorkspaceId,
+} from "cyrus-core";
 import { CursorRunner } from "cyrus-cursor-runner";
 import type { AgentSessionManager } from "./AgentSessionManager.js";
 import type { GitService } from "./GitService.js";
@@ -155,6 +158,20 @@ export interface SessionOrchestratorDeps {
 		commentAuthor?: string,
 		commentTimestamp?: string,
 	): Promise<void>;
+}
+
+/**
+ * Idle keep-alive window in ms, or `undefined` when the session should shut
+ * down as soon as its turn ends. Keep-alive is on by default; an explicit `0`
+ * in the config opts out (the schema's `??` merge preserves a disk `0`).
+ */
+function resolveSessionKeepAliveMs(
+	config: EdgeWorkerConfig,
+): number | undefined {
+	const minutes =
+		config.claudeSessionKeepAliveMinutes ??
+		DEFAULT_CLAUDE_SESSION_KEEP_ALIVE_MINUTES;
+	return minutes > 0 ? minutes * 60_000 : undefined;
 }
 
 /**
@@ -487,14 +504,21 @@ export class SessionOrchestrator {
 			// See handlePromptWithStreamingCheck: a steer-only backend can reject
 			// the message if the turn just ended. Fall through to a fresh resume
 			// turn rather than dropping the comment. No-op for Claude.
+			let appended = false;
 			try {
 				existingRunner.addStreamMessage(fullPrompt);
-				return;
+				appended = true;
 			} catch (error) {
 				log.warn(
 					`Streaming message rejected for ${sessionId}; falling back to resume`,
 					{ error: error instanceof Error ? error.message : String(error) },
 				);
+			}
+			if (appended) {
+				// Kept outside the catch: a status-update failure must not be
+				// mistaken for a rejected message and trigger a needless resume.
+				await agentSessionManager.markSessionActive(sessionId);
+				return;
 			}
 		}
 
@@ -671,14 +695,22 @@ export class SessionOrchestrator {
 			// race window between "still running" and "turn finished". Fall
 			// through to the resume path so the comment is never dropped. Claude's
 			// streaming input never throws here, so this is effectively a no-op.
+			let appended = false;
 			try {
 				existingRunner.addStreamMessage(fullPrompt);
-				return true; // Message added to stream
+				appended = true;
 			} catch (error) {
 				log.warn(
 					`Streaming message rejected for ${sessionId}; falling back to resume (${logContext})`,
 					{ error: error instanceof Error ? error.message : String(error) },
 				);
+			}
+			if (appended) {
+				// The turn may have completed the session while the runner idled
+				// warm; it is working again. Kept outside the catch above so a
+				// status-update failure is never mistaken for a rejected message.
+				await agentSessionManager.markSessionActive(sessionId);
+				return true; // Message added to stream
 			}
 		}
 
@@ -765,6 +797,11 @@ export class SessionOrchestrator {
 			// per-turn re-read context tax on long multi-subroutine sessions by
 			// forcing the SDK to compact well before the model's full window.
 			autoCompactWindow: config.claudeAutoCompactWindow,
+			// Idle keep-alive window (Claude runner only). Keeps a finished session
+			// alive briefly so a follow-up comment appends to the live conversation
+			// rather than resuming — a resume re-writes the whole transcript to the
+			// prompt cache. On by default; `0` opts out.
+			sessionKeepAliveMs: resolveSessionKeepAliveMs(config),
 			// Per-platform MCP config paths — GitHub gets the `githubMcpConfigs`
 			// knob (single-repo PR contexts); Linear gets `linearMcpConfigs`.
 			// Not a blanket override: the builder uses `repository.mcpConfigPath`

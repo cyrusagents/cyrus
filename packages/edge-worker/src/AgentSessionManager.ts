@@ -633,6 +633,17 @@ export class AgentSessionManager extends EventEmitter {
 	}
 
 	/**
+	 * Mark a session active again after a message is appended to its live stream.
+	 *
+	 * A completed turn sets the session to `Complete` even when the runner stays
+	 * warm and idle. Without this, an appended follow-up would keep working under
+	 * a `Complete` session, which `getActiveSessionsByIssueId` consumers skip.
+	 */
+	async markSessionActive(sessionId: string): Promise<void> {
+		await this.updateSessionStatus(sessionId, AgentSessionStatus.Active);
+	}
+
+	/**
 	 * Update session status and metadata
 	 */
 	private async updateSessionStatus(

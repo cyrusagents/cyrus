@@ -89,6 +89,13 @@ export interface IssueRunnerConfigInput {
 	 */
 	autoCompactWindow?: number;
 	/**
+	 * Idle window (ms) a finished Claude session stays alive waiting for a
+	 * follow-up, derived from `EdgeWorkerConfig.claudeSessionKeepAliveMinutes`.
+	 * Claude runner only; ignored for Cursor. Undefined or `0` shuts the session
+	 * down when its turn ends, so the next comment resumes it.
+	 */
+	sessionKeepAliveMs?: number;
+	/**
 	 * Filesystem paths to custom-integration `.mcp.json` files for this
 	 * issue session: `EdgeWorkerConfig.linearMcpConfigs` for Linear, or
 	 * `githubMcpConfigs` for GitHub. The list is NOT a blanket
@@ -345,6 +352,12 @@ export class RunnerConfigBuilder {
 		// its own context, so this is a no-op there and intentionally not set.
 		if (runnerType === "claude" && input.autoCompactWindow !== undefined) {
 			config.autoCompactWindow = input.autoCompactWindow;
+		}
+
+		// Claude-only: forward the idle keep-alive window. Cursor owns its own
+		// session lifetime, so this is not set there.
+		if (runnerType === "claude" && input.sessionKeepAliveMs !== undefined) {
+			config.sessionKeepAliveMs = input.sessionKeepAliveMs;
 		}
 
 		return { config, runnerType };

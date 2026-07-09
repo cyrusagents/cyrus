@@ -93,6 +93,7 @@ function makeDeps(overrides: Partial<SessionOrchestratorDeps> = {}): {
 			addAgentRunner: vi.fn(),
 			handleClaudeMessage: vi.fn(async () => {}),
 			failSession: vi.fn(async () => {}),
+			markSessionActive: vi.fn(async () => {}),
 		} as any,
 		warmPool: warmPool as any,
 		runnerConfigBuilder: { buildIssueConfig } as any,
@@ -253,6 +254,35 @@ describe("SessionOrchestrator", () => {
 			);
 			expect(deps.agentSessionManager.addAgentRunner).toHaveBeenCalled();
 			expect(h.created[0].startStreaming).toHaveBeenCalledWith("RESUME_PROMPT");
+		});
+	});
+
+	describe("session keep-alive resolution", () => {
+		const startWithConfig = async (config: Record<string, unknown>) => {
+			const { deps, buildIssueConfig } = makeDeps({
+				getConfig: vi.fn(() => config as any),
+			} as any);
+			const orch = new SessionOrchestrator(deps);
+			await orch.startSession(START_REQ(null));
+			return buildIssueConfig.mock.calls[0][0].sessionKeepAliveMs;
+		};
+
+		it("keeps sessions alive for 50 minutes by default", async () => {
+			// Under the 1h prompt-cache TTL, so a follow-up appends to a still-warm
+			// conversation instead of paying to re-write it.
+			expect(await startWithConfig({})).toBe(50 * 60_000);
+		});
+
+		it("honors a configured window", async () => {
+			expect(await startWithConfig({ claudeSessionKeepAliveMinutes: 5 })).toBe(
+				5 * 60_000,
+			);
+		});
+
+		it("treats 0 as opting out (session shuts down when its turn ends)", async () => {
+			expect(
+				await startWithConfig({ claudeSessionKeepAliveMinutes: 0 }),
+			).toBeUndefined();
 		});
 	});
 
@@ -426,6 +456,46 @@ describe("SessionOrchestrator", () => {
 
 			expect(result).toBe(true);
 			expect(addStreamMessage).toHaveBeenCalledWith("hello\n\nATT");
+			expect(deps.resumeSessionDelegate).not.toHaveBeenCalled();
+			// An idle-warm session sits at Complete; appending puts it back to work.
+			expect(deps.agentSessionManager.markSessionActive).toHaveBeenCalledWith(
+				"sess-1",
+			);
+		});
+
+		it("still appends when marking the session active fails", async () => {
+			const { deps } = makeDeps();
+			(deps.agentSessionManager.markSessionActive as any).mockRejectedValueOnce(
+				new Error("tracker down"),
+			);
+			const orch = new SessionOrchestrator(deps);
+			const addStreamMessage = vi.fn();
+			const session: any = {
+				id: "sess-1",
+				agentRunner: {
+					isRunning: () => true,
+					supportsStreamingInput: true,
+					addStreamMessage,
+				},
+			};
+
+			// A status-update failure must not be mistaken for a rejected message
+			// and send an already-appended prompt down the resume path.
+			await expect(
+				orch.handlePromptWithStreamingCheck(
+					session,
+					REPO,
+					"sess-1",
+					deps.agentSessionManager,
+					"hello",
+					"",
+					false,
+					[],
+					"prompted",
+					"ws-1",
+				),
+			).rejects.toThrow("tracker down");
+			expect(addStreamMessage).toHaveBeenCalledTimes(1);
 			expect(deps.resumeSessionDelegate).not.toHaveBeenCalled();
 		});
 

@@ -292,11 +292,17 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	private keepSessionWarm: boolean;
 	private pendingSessionCrons: SessionCronSummary[] = [];
 	private pendingBackgroundTasks: BackgroundTaskSummary[] = [];
+	/** Armed while a warm session sits idle; fires to shut the subprocess down. */
+	private idleKeepAliveTimer: NodeJS.Timeout | null = null;
 
 	constructor(config: ClaudeRunnerConfig, keepSessionWarm = false) {
 		super();
 		this.config = config;
-		this.keepSessionWarm = keepSessionWarm;
+		// A configured keep-alive window implies the session is held open after a
+		// turn — the window is what bounds it. The warm-session pool is the other,
+		// independent reason to stay warm (and stays unbounded, as before).
+		this.keepSessionWarm =
+			keepSessionWarm || (config.sessionKeepAliveMs ?? 0) > 0;
 		this.logger = config.logger ?? createLogger({ component: "ClaudeRunner" });
 		this.cyrusHome = config.cyrusHome;
 
@@ -446,11 +452,17 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 
 	/**
 	 * Add a message to the streaming prompt (only works when in streaming mode)
+	 *
+	 * If the idle timer fires between this check and `addMessage`, the completed
+	 * StreamingPrompt throws — callers already catch that and fall back to a
+	 * resume, so the race costs a rewrite but never drops the message.
 	 */
 	addStreamMessage(content: string): void {
 		if (!this.streamingPrompt) {
 			throw new Error("Cannot add stream message when not in streaming mode");
 		}
+		// The session is busy again; the idle window restarts when this turn ends.
+		this.clearIdleKeepAliveTimer();
 		this.streamingPrompt.addMessage(content);
 	}
 
@@ -458,8 +470,39 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	 * Complete the streaming prompt (no more messages will be added)
 	 */
 	completeStream(): void {
+		this.clearIdleKeepAliveTimer();
 		if (this.streamingPrompt) {
 			this.streamingPrompt.complete();
+		}
+	}
+
+	/**
+	 * Start the idle window after a turn ends. When it elapses the prompt is
+	 * completed, the CLI's stdin closes, and the subprocess exits down the same
+	 * path a non-warm session takes on `result` — so a later comment simply
+	 * resumes. No-op when keep-alive is not configured (e.g. warm-pool sessions,
+	 * which stay open indefinitely).
+	 */
+	private armIdleKeepAliveTimer(): void {
+		const idleMs = this.config.sessionKeepAliveMs ?? 0;
+		if (idleMs <= 0) return;
+		this.clearIdleKeepAliveTimer();
+		this.idleKeepAliveTimer = setTimeout(() => {
+			this.idleKeepAliveTimer = null;
+			this.logger.event("session_idle_keepalive_expired", {
+				idleMs,
+				claudeSessionId: this.sessionInfo?.sessionId,
+			});
+			this.completeStream();
+		}, idleMs);
+		// Never hold the process open just to wait out an idle session.
+		this.idleKeepAliveTimer.unref?.();
+	}
+
+	private clearIdleKeepAliveTimer(): void {
+		if (this.idleKeepAliveTimer) {
+			clearTimeout(this.idleKeepAliveTimer);
+			this.idleKeepAliveTimer = null;
 		}
 	}
 
@@ -851,11 +894,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 				// processMessage reads the raw SDK shape to emit text/assistant/
 				// tool-use convenience events.
 				this.processMessage(message);
-				if (
-					message.type === "result" &&
-					!this.keepSessionWarm &&
-					this.streamingPrompt
-				) {
+				if (message.type === "result" && this.streamingPrompt) {
 					// The Stop hook fires before the result message reaches this
 					// loop, so the pending-work snapshot is fresh for this turn.
 					// When a scheduled wakeup or background task is still in
@@ -866,14 +905,21 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// pending work, and the result that follows completes the
 					// prompt here. Error results always complete: pending-work
 					// state may be stale when a turn dies mid-flight.
+					//
+					// No idle timer while pending work holds the prompt open: the
+					// wakeup turn that follows arms it once the work has drained.
 					if (message.subtype === "success" && this.hasPendingWork()) {
 						this.logger.event("session_held_open_for_pending_work", {
 							sessionCronCount: this.pendingSessionCrons.length,
 							backgroundTaskCount: this.pendingBackgroundTasks.length,
 							claudeSessionId: this.sessionInfo?.sessionId,
 						});
-					} else {
+					} else if (!this.keepSessionWarm) {
 						this.streamingPrompt.complete();
+					} else {
+						// Warm: hold the session open so a follow-up comment appends
+						// to the live conversation instead of paying to re-write it.
+						this.armIdleKeepAliveTimer();
 					}
 				}
 			}
@@ -936,6 +982,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 			}
 		} finally {
 			// Clean up
+			this.clearIdleKeepAliveTimer();
 			this.abortController = null;
 			this.activeQuery = null;
 			this.pendingResultMessage = null;
@@ -1160,6 +1207,8 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	 * Stop the current Claude session
 	 */
 	stop(): void {
+		this.clearIdleKeepAliveTimer();
+
 		if (this.abortController) {
 			this.logger.event("session_stop_requested", {
 				claudeSessionId: this.sessionInfo?.sessionId,
