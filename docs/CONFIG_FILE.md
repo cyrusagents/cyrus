@@ -436,6 +436,19 @@ The maximum is `55`, because an appended turn only stays cheap while the convers
 
 Note that with keep-alive on, a first "stop" comment interrupts the session rather than killing its process outright; a second stop still forces it down.
 
+### `claudeMaxWarmIdleSessions` (number)
+
+Caps how many kept-alive Claude sessions may sit idle at the same time. When more than this many sessions are idle-warm, the least-recently-used one is shut down gracefully (its next comment resumes normally). Sessions with scheduled/background work pending are never evicted. Claude runner only.
+
+```json
+{
+  "claudeSessionKeepAliveMinutes": 50,
+  "claudeMaxWarmIdleSessions": 20
+}
+```
+
+Defaults to `0`, meaning unbounded — the keep-alive window alone limits accumulation to sessions active in the last few minutes. Set a positive cap if you run many concurrent issues and want a hard ceiling on how many idle subprocesses are held at once. Only meaningful alongside a non-zero `claudeSessionKeepAliveMinutes`.
+
 ---
 
 ## Tool Configuration Priority
