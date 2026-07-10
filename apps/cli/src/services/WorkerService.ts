@@ -168,8 +168,17 @@ export class WorkerService {
 		// Load config once for model defaults
 		const edgeConfig = this.configService.load();
 
-		// Create EdgeWorker configuration
+		// Create EdgeWorker configuration.
+		//
+		// `EdgeWorkerConfig` is `EdgeConfig & EdgeWorkerRuntimeConfig`, so every
+		// serializable field the file carries already belongs here: spread it
+		// wholesale and let the keys below override. Re-listing fields by hand
+		// turns this into a merge whitelist that silently drops any newly added
+		// schema field (it inertly dropped `claudeAutoCompactWindow` and
+		// `claudeSessionKeepAliveMinutes`), which is the failure mode
+		// `ConfigManager.reconcile` was made schema-driven to avoid.
 		const config: EdgeWorkerConfig = {
+			...edgeConfig,
 			version: this.version,
 			repositories,
 			cyrusHome: this.cyrusHome,

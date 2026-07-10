@@ -100,9 +100,20 @@ Still required:
    `pathRegistry` in the same schema so `normalizeConfigPaths` expands `~/`.
 3. Wire consumers that should react to the field (builders, runners, etc.).
 
+**The field must also survive the CLI's config→worker hop.**
+`WorkerService.startEdgeWorker` (`apps/cli`) builds the `EdgeWorkerConfig` that
+`composeEdgeWorker` receives. It spreads `...edgeConfig` and overrides only the
+runtime-owned keys — keep it that way. `apps/cli/src/services/WorkerService.test.ts`
+enforces it: the fixture must enumerate every `EdgeConfigSchema.shape` key, so a
+new field fails the suite until you decide whether the CLI forwards it.
+
 **Historical note:** Pre-reconcile, a hardcoded `loadConfigSafely` whitelist and
 `globalKeys` array silently dropped new fields on reload (CYHOST-967). Do not
-reintroduce per-field merge lists.
+reintroduce per-field merge lists. It recurred anyway: `WorkerService`'s
+hand-written literal left `claudeAutoCompactWindow`, `claudeSessionKeepAliveMinutes`
+and `claudeMaxWarmIdleSessions` inert in the shipped CLI, while `apps/f1` set them
+directly on its own `EdgeWorkerConfig` and so kept "verifying" a path production
+never takes (DEV-139).
 
 ## Changing `cyrus-tools` MCP exposed tools
 
