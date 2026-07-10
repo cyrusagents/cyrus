@@ -93,3 +93,54 @@ describe("RunnerConfigBuilder sessionKeepAliveMs passthrough", () => {
 		).toBeUndefined();
 	});
 });
+
+describe("RunnerConfigBuilder warmSessionRegistry passthrough", () => {
+	const fakeRegistry = {
+		markIdle: () => {},
+		remove: () => {},
+		setMaxIdleSessions: () => {},
+		getMaxIdleSessions: () => 0,
+		idleCount: 0,
+	} as any;
+
+	function buildWithRegistry(runnerType: RunnerType, registry: unknown) {
+		return makeBuilder(runnerType).buildIssueConfig({
+			session: makeSession(),
+			repository: makeRepository(),
+			sessionId: "sess-1",
+			systemPrompt: "test",
+			allowedTools: ["Read(**)"],
+			allowedDirectories: ["/repos/repo-a"],
+			disallowedTools: [],
+			warmSessionRegistry: registry as any,
+			cyrusHome: "/tmp/cyrus-home",
+			linearWorkspaceId: "ws-1",
+			logger: silentLogger,
+			onMessage: () => {},
+			onError: () => {},
+			requireLinearWorkspaceId: () => "ws-1",
+		});
+	}
+
+	it("forwards the registry to the Claude runner config when set", () => {
+		const { config } = buildWithRegistry("claude", fakeRegistry);
+		expect(
+			(config as { warmSessionRegistry?: unknown }).warmSessionRegistry,
+		).toBe(fakeRegistry);
+	});
+
+	it("leaves the registry unset on the Claude config when not provided", () => {
+		const { config } = buildWithRegistry("claude", undefined);
+		expect(
+			(config as { warmSessionRegistry?: unknown }).warmSessionRegistry,
+		).toBeUndefined();
+	});
+
+	it("does not set the registry on the Cursor runner config", () => {
+		const { config, runnerType } = buildWithRegistry("cursor", fakeRegistry);
+		expect(runnerType).toBe("cursor");
+		expect(
+			(config as { warmSessionRegistry?: unknown }).warmSessionRegistry,
+		).toBeUndefined();
+	});
+});

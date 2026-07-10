@@ -4,6 +4,7 @@ import type {
 	ClaudeRunnerConfig,
 	SandboxSettings,
 	SessionStore,
+	WarmSessionRegistry,
 } from "cyrus-claude-runner";
 import { ClaudeRunner } from "cyrus-claude-runner";
 import type {
@@ -75,6 +76,11 @@ export interface SessionOrchestratorDeps {
 	promptAssembler: PromptAssembler;
 	getConfig(): EdgeWorkerConfig;
 	getClaudeSessionStore(): SessionStore | null;
+	/**
+	 * Shared LRU registry bounding concurrently-warm idle Claude sessions.
+	 * Forwarded to each Claude runner so it can register/de-register as idle.
+	 */
+	getWarmSessionRegistry(): WarmSessionRegistry;
 	getSandboxSettings(): SandboxSettings | undefined;
 	getEgressCaCertPath(): string | undefined;
 
@@ -802,6 +808,10 @@ export class SessionOrchestrator {
 			// rather than resuming — a resume re-writes the whole transcript to the
 			// prompt cache. On by default; `0` opts out.
 			sessionKeepAliveMs: resolveSessionKeepAliveMs(config),
+			// Shared LRU registry that caps concurrently-warm idle sessions. The
+			// cap itself lives on the registry (hot-reloaded on config change);
+			// the runner only needs the reference to register itself as idle.
+			warmSessionRegistry: this.deps.getWarmSessionRegistry(),
 			// Per-platform MCP config paths — GitHub gets the `githubMcpConfigs`
 			// knob (single-repo PR contexts); Linear gets `linearMcpConfigs`.
 			// Not a blanket override: the builder uses `repository.mcpConfigPath`

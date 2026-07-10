@@ -4,7 +4,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { LinearClient } from "@linear/sdk";
 import type { SessionStore } from "cyrus-claude-runner";
-import { HttpSessionStore } from "cyrus-claude-runner";
+import { HttpSessionStore, WarmSessionRegistry } from "cyrus-claude-runner";
 import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
 import { ConfigUpdater } from "cyrus-config-updater";
 import type {
@@ -139,6 +139,7 @@ export class EdgeWorker extends EventEmitter {
 	private sessionRepositories: Map<string, string> = new Map(); // Maps session ID to repository ID
 	private lastStopTimeBySession: Map<string, number> = new Map(); // Maps session ID to timestamp of last stop signal (for double-stop detection)
 	private warmPool!: WarmSessionPool; // Pre-warmed Claude session subprocess pool
+	private warmSessionRegistry!: WarmSessionRegistry; // LRU cap over concurrently-warm idle Claude sessions
 	private parkedRegistry!: ParkedSessionRegistry; // Sessions parked behind blocked-by dependencies
 	private sessionOrchestrator!: SessionOrchestrator; // Runner creation + message wiring
 	private issueTrackers: Map<string, IIssueTrackerService> = new Map(); // one issue tracker per Linear workspace (keyed by linearWorkspaceId)
@@ -604,6 +605,13 @@ export class EdgeWorker extends EventEmitter {
 		// Session split (Phase F): parked/warm/orchestration state machines.
 		// (In Phase G this construction moves to composeEdgeWorker.)
 		this.parkedRegistry = new ParkedSessionRegistry();
+		// LRU cap over concurrently-warm idle Claude sessions. `0` (default when
+		// `claudeMaxWarmIdleSessions` is unset) means unbounded — the keep-alive
+		// window alone governs accumulation. Hot-reloaded on `configChanged`.
+		this.warmSessionRegistry = new WarmSessionRegistry(
+			this.config.claudeMaxWarmIdleSessions ?? 0,
+			this.logger,
+		);
 		this.warmPool = new WarmSessionPool({
 			agentSessionManager: this.agentSessionManager,
 			// Warm and cold paths share the SAME AccessPolicy compute+adapter so
@@ -634,6 +642,7 @@ export class EdgeWorker extends EventEmitter {
 			promptAssembler: this.promptAssembler,
 			getConfig: () => this.config,
 			getClaudeSessionStore: () => this.claudeSessionStore,
+			getWarmSessionRegistry: () => this.warmSessionRegistry,
 			getSandboxSettings: () => this.sdkSandboxSettings ?? undefined,
 			getEgressCaCertPath: () => this.egressCaCertPath ?? undefined,
 			createCyrusAgentSession: (
@@ -756,6 +765,11 @@ export class EdgeWorker extends EventEmitter {
 				this.configManager.setConfig(changes.newConfig);
 				this.runnerSelectionService.setConfig(changes.newConfig);
 				this.toolPermissionResolver.setConfig(changes.newConfig);
+				// Live-update the warm-idle-session LRU cap; lowering it evicts the
+				// now-excess least-recently-used idle sessions immediately.
+				this.warmSessionRegistry.setMaxIdleSessions(
+					changes.newConfig.claudeMaxWarmIdleSessions ?? 0,
+				);
 			},
 		);
 		this.configManager.startConfigWatcher();

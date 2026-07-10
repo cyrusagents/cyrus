@@ -71,3 +71,7 @@ export type {
 	SessionStore,
 	SessionStoreEntry,
 } from "./types.js";
+export {
+	type WarmIdleSession,
+	WarmSessionRegistry,
+} from "./WarmSessionRegistry.js";

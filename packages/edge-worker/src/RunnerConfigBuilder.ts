@@ -9,6 +9,7 @@ import type {
 	SandboxSettings,
 	SdkPluginConfig,
 	StopHookInput,
+	WarmSessionRegistry,
 } from "cyrus-claude-runner";
 import type {
 	AgentMessage,
@@ -95,6 +96,12 @@ export interface IssueRunnerConfigInput {
 	 * down when its turn ends, so the next comment resumes it.
 	 */
 	sessionKeepAliveMs?: number;
+	/**
+	 * Shared LRU registry that bounds the number of concurrently-warm idle
+	 * Claude sessions. Claude runner only; ignored for Cursor. Undefined leaves
+	 * accumulation governed solely by the keep-alive window.
+	 */
+	warmSessionRegistry?: WarmSessionRegistry;
 	/**
 	 * Filesystem paths to custom-integration `.mcp.json` files for this
 	 * issue session: `EdgeWorkerConfig.linearMcpConfigs` for Linear, or
@@ -358,6 +365,12 @@ export class RunnerConfigBuilder {
 		// session lifetime, so this is not set there.
 		if (runnerType === "claude" && input.sessionKeepAliveMs !== undefined) {
 			config.sessionKeepAliveMs = input.sessionKeepAliveMs;
+		}
+
+		// Claude-only: forward the shared warm-session LRU registry so the runner
+		// can register itself as idle and be evicted when the cap is exceeded.
+		if (runnerType === "claude" && input.warmSessionRegistry !== undefined) {
+			config.warmSessionRegistry = input.warmSessionRegistry;
 		}
 
 		return { config, runnerType };

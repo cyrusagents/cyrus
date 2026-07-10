@@ -10,6 +10,7 @@ import type {
 	WarmQuery,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentMessage, AgentRunnerConfig } from "cyrus-core";
+import type { WarmSessionRegistry } from "./WarmSessionRegistry.js";
 
 export type { OnAskUserQuestion } from "cyrus-core";
 
@@ -68,6 +69,14 @@ export interface ClaudeRunnerConfig extends AgentRunnerConfig {
 	 * session normally. Unset or `0` restores the shut-down-on-result behavior.
 	 */
 	sessionKeepAliveMs?: number;
+	/**
+	 * Shared registry that bounds the number of concurrently-warm *idle*
+	 * sessions with an LRU eviction policy. When set, this runner registers
+	 * itself as idle while its keep-alive window is armed and de-registers when
+	 * it becomes busy or shuts down. Optional: without a registry the idle
+	 * keep-alive window alone governs how many warm sessions accumulate.
+	 */
+	warmSessionRegistry?: WarmSessionRegistry;
 }
 
 export interface ClaudeSessionInfo {

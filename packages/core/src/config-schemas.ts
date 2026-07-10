@@ -420,6 +420,19 @@ export const EdgeConfigSchema = z.object({
 	 */
 	claudeSessionKeepAliveMinutes: z.number().int().min(0).max(55).optional(),
 
+	/**
+	 * Maximum number of concurrently-warm *idle* Claude sessions kept alive by
+	 * `claudeSessionKeepAliveMinutes`. When the number of idle sessions exceeds
+	 * this cap, the least-recently-used idle session is shut down gracefully
+	 * (its next comment resumes normally). Sessions with pending scheduled work
+	 * are never evicted.
+	 *
+	 * `0` (the default when unset) means unbounded — the keep-alive window alone
+	 * governs how many warm sessions accumulate. Only meaningful when
+	 * `claudeSessionKeepAliveMinutes` is non-zero. Claude runner only.
+	 */
+	claudeMaxWarmIdleSessions: z.number().int().min(0).optional(),
+
 	/** Default Cursor model to use across all repositories (e.g., "composer-2.5", "composer-2") */
 	cursorDefaultModel: z.string().optional(),
 

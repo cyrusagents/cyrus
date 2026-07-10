@@ -4,6 +4,12 @@ import { TEST_CYRUS_HOME } from "./test-dirs.js";
 // Mock dependencies BEFORE imports
 vi.mock("cyrus-claude-runner", () => ({
 	ClaudeRunner: vi.fn(),
+	WarmSessionRegistry: vi.fn(function (this: any) {
+		this.markIdle = vi.fn();
+		this.remove = vi.fn();
+		this.setMaxIdleSessions = vi.fn();
+		this.getMaxIdleSessions = vi.fn(() => 0);
+	}),
 	getSafeTools: vi.fn(() => [
 		"Read",
 		"Edit",

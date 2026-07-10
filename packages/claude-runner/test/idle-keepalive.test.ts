@@ -362,4 +362,118 @@ describe("ClaudeRunner idle keep-alive", () => {
 		expect(() => runner.addStreamMessage("too late")).toThrow();
 		await sessionPromise;
 	});
+
+	describe("warm-session LRU registry integration", () => {
+		function makeRegistry() {
+			return {
+				markIdle: vi.fn(),
+				remove: vi.fn(),
+				setMaxIdleSessions: vi.fn(),
+				getMaxIdleSessions: vi.fn(() => 0),
+				idleCount: 0,
+			};
+		}
+
+		it("registers itself as idle when the keep-alive window arms", async () => {
+			const state = installMockQuery(mockQuery);
+			const registry = makeRegistry();
+			const runner = new ClaudeRunner(
+				{ ...keepAliveConfig, warmSessionRegistry: registry as any },
+				false,
+			);
+
+			const firstResult = waitForMessageCount(runner, 2);
+			const sessionPromise = runner.startStreaming("hello");
+			await vi.waitFor(() => {
+				expect(state.queryOptions).not.toBeNull();
+			});
+
+			await state.endTurn([], "done");
+			await firstResult;
+
+			// The turn ended warm: the runner is now an idle candidate for the cap.
+			expect(registry.markIdle).toHaveBeenCalledWith(runner);
+
+			runner.stop();
+			await sessionPromise;
+		});
+
+		it("de-registers from the registry when a follow-up message is appended", async () => {
+			const state = installMockQuery(mockQuery);
+			const registry = makeRegistry();
+			const runner = new ClaudeRunner(
+				{ ...keepAliveConfig, warmSessionRegistry: registry as any },
+				false,
+			);
+
+			const firstResult = waitForMessageCount(runner, 2);
+			const sessionPromise = runner.startStreaming("hello");
+			await vi.waitFor(() => {
+				expect(state.queryOptions).not.toBeNull();
+			});
+
+			await state.endTurn([], "done");
+			await firstResult;
+			registry.remove.mockClear();
+
+			// A comment appended before the window elapses makes the session busy
+			// again — it must leave the idle set so the cap reflects reality.
+			runner.addStreamMessage("one more thing");
+			expect(registry.remove).toHaveBeenCalledWith(runner.registryId);
+
+			runner.stop();
+			await sessionPromise;
+		});
+
+		it("de-registers on shutdown when the idle window elapses", async () => {
+			const state = installMockQuery(mockQuery);
+			const registry = makeRegistry();
+			const runner = new ClaudeRunner(
+				{ ...keepAliveConfig, warmSessionRegistry: registry as any },
+				false,
+			);
+
+			const firstResult = waitForMessageCount(runner, 2);
+			const completed = new Promise<void>((resolve) => {
+				runner.on("complete", () => resolve());
+			});
+			const sessionPromise = runner.startStreaming("hello");
+			await vi.waitFor(() => {
+				expect(state.queryOptions).not.toBeNull();
+			});
+
+			await state.endTurn([], "done");
+			await firstResult;
+			registry.remove.mockClear();
+
+			await vi.advanceTimersByTimeAsync(KEEP_ALIVE_MS);
+			await completed;
+
+			expect(registry.remove).toHaveBeenCalledWith(runner.registryId);
+			await sessionPromise;
+		});
+
+		it("stop() de-registers the idle session from the registry", async () => {
+			const state = installMockQuery(mockQuery);
+			const registry = makeRegistry();
+			const runner = new ClaudeRunner(
+				{ ...keepAliveConfig, warmSessionRegistry: registry as any },
+				false,
+			);
+
+			const firstResult = waitForMessageCount(runner, 2);
+			const sessionPromise = runner.startStreaming("hello");
+			await vi.waitFor(() => {
+				expect(state.queryOptions).not.toBeNull();
+			});
+
+			await state.endTurn([], "done");
+			await firstResult;
+			registry.remove.mockClear();
+
+			runner.stop();
+			expect(registry.remove).toHaveBeenCalledWith(runner.registryId);
+			await sessionPromise;
+		});
+	});
 });

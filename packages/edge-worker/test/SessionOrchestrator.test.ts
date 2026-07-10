@@ -113,6 +113,13 @@ function makeDeps(overrides: Partial<SessionOrchestratorDeps> = {}): {
 		} as any,
 		getConfig: vi.fn(() => ({}) as any),
 		getClaudeSessionStore: vi.fn(() => null),
+		getWarmSessionRegistry: vi.fn(() => ({
+			markIdle: vi.fn(),
+			remove: vi.fn(),
+			setMaxIdleSessions: vi.fn(),
+			getMaxIdleSessions: vi.fn(() => 0),
+			idleCount: 0,
+		})),
 		getSandboxSettings: vi.fn(() => undefined),
 		getEgressCaCertPath: vi.fn(() => undefined),
 		createCyrusAgentSession: vi.fn(async () => makeSessionData(session) as any),
@@ -283,6 +290,19 @@ describe("SessionOrchestrator", () => {
 			expect(
 				await startWithConfig({ claudeSessionKeepAliveMinutes: 0 }),
 			).toBeUndefined();
+		});
+
+		it("forwards the shared warm-session registry to the runner config", async () => {
+			const registry = { markIdle: vi.fn(), remove: vi.fn() };
+			const { deps, buildIssueConfig } = makeDeps({
+				getConfig: vi.fn(() => ({}) as any),
+				getWarmSessionRegistry: vi.fn(() => registry),
+			} as any);
+			const orch = new SessionOrchestrator(deps);
+			await orch.startSession(START_REQ(null));
+			expect(buildIssueConfig.mock.calls[0][0].warmSessionRegistry).toBe(
+				registry,
+			);
 		});
 	});
 

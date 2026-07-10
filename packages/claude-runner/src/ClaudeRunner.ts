@@ -56,6 +56,7 @@ import type {
 	ClaudeRunnerEvents,
 	ClaudeSessionInfo,
 } from "./types.js";
+import type { WarmIdleSession } from "./WarmSessionRegistry.js";
 
 // AbortError is no longer exported in v1.0.95, so we define it locally
 export class AbortError extends Error {
@@ -267,7 +268,10 @@ export declare interface ClaudeRunner {
 /**
  * Manages Claude SDK sessions and communication
  */
-export class ClaudeRunner extends EventEmitter implements IAgentRunner {
+export class ClaudeRunner
+	extends EventEmitter
+	implements IAgentRunner, WarmIdleSession
+{
 	/**
 	 * ClaudeRunner supports streaming input via startStreaming(), addStreamMessage(), and completeStream()
 	 */
@@ -294,6 +298,16 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	private pendingBackgroundTasks: BackgroundTaskSummary[] = [];
 	/** Armed while a warm session sits idle; fires to shut the subprocess down. */
 	private idleKeepAliveTimer: NodeJS.Timeout | null = null;
+	private static instanceCounter = 0;
+
+	/**
+	 * Stable per-instance id used as the LRU key in {@link WarmSessionRegistry}
+	 * (satisfies the `WarmIdleSession` contract). A monotonic counter is enough
+	 * — it only needs to be unique per process and survive before the Claude
+	 * session id is assigned.
+	 */
+	public readonly registryId =
+		`claude-runner-${++ClaudeRunner.instanceCounter}`;
 
 	constructor(config: ClaudeRunnerConfig, keepSessionWarm = false) {
 		super();
@@ -489,6 +503,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 		this.clearIdleKeepAliveTimer();
 		this.idleKeepAliveTimer = setTimeout(() => {
 			this.idleKeepAliveTimer = null;
+			this.config.warmSessionRegistry?.remove(this.registryId);
 			this.logger.event("session_idle_keepalive_expired", {
 				idleMs,
 				claudeSessionId: this.sessionInfo?.sessionId,
@@ -497,13 +512,41 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 		}, idleMs);
 		// Never hold the process open just to wait out an idle session.
 		this.idleKeepAliveTimer.unref?.();
+		// Register as idle-warm last, so an LRU eviction triggered by this call
+		// (which may complete our stream synchronously) runs against a timer that
+		// is already armed and will be cleared by the resulting completeStream().
+		this.config.warmSessionRegistry?.markIdle(this);
 	}
 
 	private clearIdleKeepAliveTimer(): void {
+		// Whenever the idle timer is cleared the session is no longer idle-warm:
+		// it either became busy again or is shutting down. Drop it from the LRU
+		// registry so the cap reflects only genuinely idle sessions.
+		this.config.warmSessionRegistry?.remove(this.registryId);
 		if (this.idleKeepAliveTimer) {
 			clearTimeout(this.idleKeepAliveTimer);
 			this.idleKeepAliveTimer = null;
 		}
+	}
+
+	// --- WarmIdleSession (WarmSessionRegistry contract) ---
+
+	/** The Claude session id when known — logging only. */
+	getClaudeSessionId(): string | undefined {
+		return this.sessionInfo?.sessionId ?? undefined;
+	}
+
+	/**
+	 * Evict this idle-warm session, called by {@link WarmSessionRegistry} when
+	 * the concurrently-warm cap is exceeded. Completes the streaming prompt down
+	 * the same graceful shutdown path the idle timer takes on expiry, so the
+	 * next comment on this session resumes normally.
+	 */
+	evictWarmSession(): void {
+		this.logger.event("warm_idle_session_evicted_self", {
+			claudeSessionId: this.sessionInfo?.sessionId,
+		});
+		this.completeStream();
 	}
 
 	/**

@@ -87,6 +87,21 @@ describe("ConfigManager.reconcile", () => {
 		expect(result.changedKeys.has("claudeSessionKeepAliveMinutes")).toBe(true);
 	});
 
+	it("merges claudeMaxWarmIdleSessions and flags it as a changed key", () => {
+		const prev = prevConfig({
+			claudeMaxWarmIdleSessions: 0,
+		} as Partial<EdgeWorkerConfig>);
+		const manager = makeManager(prev);
+
+		const result = manager.reconcile(prev, {
+			repositories: prev.repositories,
+			claudeMaxWarmIdleSessions: 10,
+		});
+
+		expect(result.merged.claudeMaxWarmIdleSessions).toBe(10);
+		expect(result.changedKeys.has("claudeMaxWarmIdleSessions")).toBe(true);
+	});
+
 	// (2) nullish semantics — falsy disk values are honored, not overwritten.
 	it("honors falsy disk values (false, empty array) via ?? not ||", () => {
 		const prev = prevConfig({
