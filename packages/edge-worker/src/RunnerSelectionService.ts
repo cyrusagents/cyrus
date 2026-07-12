@@ -1,5 +1,21 @@
 import type { EdgeWorkerConfig, RunnerType } from "cyrus-core";
 
+export type ReasoningEffort = "low" | "medium" | "high";
+
+/** Canonical GPT-5.6 labels. `gpt-5.6` is the documented Sol alias. */
+export const GPT56_MODEL_BY_LABEL = {
+	terra: "gpt-5.6-terra",
+	luna: "gpt-5.6-luna",
+	sol: "gpt-5.6-sol",
+	"gpt-5.6": "gpt-5.6-sol",
+} as const;
+
+const GPT56_MODEL_IDS = new Set<string>(Object.values(GPT56_MODEL_BY_LABEL));
+
+export function isRecognizedGpt56Model(model?: string): boolean {
+	return GPT56_MODEL_IDS.has(model?.toLowerCase() ?? "");
+}
+
 export class RunnerSelectionService {
 	private config: EdgeWorkerConfig;
 
@@ -118,7 +134,8 @@ export class RunnerSelectionService {
 	 *
 	 * Precedence:
 	 * 1. Description tags override labels
-	 * 2. Agent labels override model labels
+	 * 2. Agent labels override model labels, except a recognized GPT-5.6 label
+	 *    fails loudly instead of switching model families
 	 * 3. Model labels can infer agent type
 	 * 4. Defaults to claude runner
 	 */
@@ -129,6 +146,7 @@ export class RunnerSelectionService {
 		runnerType: RunnerType;
 		modelOverride?: string;
 		fallbackModelOverride?: string;
+		reasoningEffort: ReasoningEffort;
 	} {
 		const normalizedLabels = (labels || []).map((label) => label.toLowerCase());
 		const normalizedDescription = issueDescription || "";
@@ -156,6 +174,33 @@ export class RunnerSelectionService {
 
 		const isCodexModel = (model: string): boolean =>
 			/gpt-[a-z0-9.-]*codex$/i.test(model) || /^gpt-[a-z0-9.-]+$/i.test(model);
+
+		const resolveGpt56Model = (model?: string): string | undefined => {
+			if (!model) return undefined;
+			return GPT56_MODEL_BY_LABEL[
+				model.toLowerCase() as keyof typeof GPT56_MODEL_BY_LABEL
+			];
+		};
+
+		const resolveReasoningEffort = (
+			lowercaseLabels: string[],
+		): ReasoningEffort => {
+			const efforts = lowercaseLabels
+				.map((label) =>
+					label.startsWith("effort:") ? label.slice("effort:".length) : label,
+				)
+				.filter(
+					(effort): effort is ReasoningEffort =>
+						effort === "low" || effort === "medium" || effort === "high",
+				);
+			const uniqueEfforts = [...new Set(efforts)];
+			if (uniqueEfforts.length > 1) {
+				throw new Error(
+					`Conflicting reasoning effort labels: ${uniqueEfforts.join(", ")}. Remove all but one before dispatching.`,
+				);
+			}
+			return uniqueEfforts[0] ?? "medium";
+		};
 
 		const inferRunnerFromModel = (model?: string): RunnerType | undefined => {
 			if (!model) return undefined;
@@ -239,6 +284,12 @@ export class RunnerSelectionService {
 		const resolveModelFromLabel = (
 			lowercaseLabels: string[],
 		): string | undefined => {
+			for (const label of Object.keys(GPT56_MODEL_BY_LABEL)) {
+				if (lowercaseLabels.includes(label)) {
+					return resolveGpt56Model(label);
+				}
+			}
+
 			const codexModelLabel = lowercaseLabels.find((label) =>
 				isCodexModel(label),
 			);
@@ -287,9 +338,11 @@ export class RunnerSelectionService {
 							: undefined;
 		const resolvedAgentFromLabels = resolveAgentFromLabel(normalizedLabels);
 
-		const modelFromDescription = descriptionModelTagRaw;
+		const modelFromDescription =
+			resolveGpt56Model(descriptionModelTagRaw) || descriptionModelTagRaw;
 		const modelFromLabels = resolveModelFromLabel(normalizedLabels);
 		const explicitModel = modelFromDescription || modelFromLabels;
+		const reasoningEffort = resolveReasoningEffort(normalizedLabels);
 
 		const runnerType: RunnerType =
 			resolvedAgentFromDescription ||
@@ -301,6 +354,11 @@ export class RunnerSelectionService {
 		const modelRunner = inferRunnerFromModel(explicitModel);
 		let modelOverride = explicitModel;
 		if (modelOverride && modelRunner && modelRunner !== runnerType) {
+			if (isRecognizedGpt56Model(modelOverride)) {
+				throw new Error(
+					`GPT-5.6 model "${modelOverride}" requires the codex runner, but "${runnerType}" was selected. Remove the conflicting runner selector before dispatching.`,
+				);
+			}
 			modelOverride = undefined;
 		}
 
@@ -321,6 +379,7 @@ export class RunnerSelectionService {
 			runnerType,
 			modelOverride: resolvedModelOverride,
 			fallbackModelOverride,
+			reasoningEffort,
 		};
 	}
 }

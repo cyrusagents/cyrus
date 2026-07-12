@@ -123,6 +123,21 @@ describe("AppServerCodexBackend", () => {
 		expect(cfg?.mcp_servers).toEqual({ linear: { command: "linear-mcp" } });
 	});
 
+	it("passes reasoning effort through the Codex config namespace", async () => {
+		const { backend, client } = makeBackend();
+		await backend.open({
+			...baseConfig,
+			codexPath: "/bin/true",
+			model: "gpt-5.6-luna",
+			modelReasoningEffort: "high",
+		});
+		const params = client.lastRequest("thread/start")?.params as {
+			config?: Record<string, unknown>;
+		};
+
+		expect(params.config?.model_reasoning_effort).toBe("high");
+	});
+
 	it("serializes a workspace-mode sandbox to thread/start sandbox + config", async () => {
 		const { backend, client } = makeBackend();
 		await backend.open({
