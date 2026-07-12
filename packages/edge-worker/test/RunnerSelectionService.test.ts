@@ -1,5 +1,5 @@
 import type { EdgeWorkerConfig } from "cyrus-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	GPT56_MODEL_BY_LABEL,
 	RunnerSelectionService,
@@ -48,5 +48,20 @@ describe("RunnerSelectionService GPT-5.6 model routing", () => {
 		expect(() =>
 			makeService().determineRunnerSelection(["luna", "claude"]),
 		).toThrow(/requires the codex runner/);
+	});
+
+	it("logs an unknown model-family label before falling back", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		const selection = makeService().determineRunnerSelection([
+			"claude-made-up",
+		]);
+
+		expect(selection.runnerType).toBe("claude");
+		expect(warn).toHaveBeenCalledWith(
+			expect.stringContaining("Unknown model label(s): claude-made-up"),
+		);
+
+		warn.mockRestore();
 	});
 });

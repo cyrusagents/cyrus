@@ -343,6 +343,16 @@ export class RunnerSelectionService {
 		const modelFromLabels = resolveModelFromLabel(normalizedLabels);
 		const explicitModel = modelFromDescription || modelFromLabels;
 		const reasoningEffort = resolveReasoningEffort(normalizedLabels);
+		const unknownModelLabels = normalizedLabels.filter((label) => {
+			if (!/^(?:gpt|claude|gemini)(?:[-.:]|$)/.test(label)) return false;
+			if (isCodexModel(label)) return false;
+			return label !== "claude" && label !== "gemini";
+		});
+		if (unknownModelLabels.length > 0) {
+			console.warn(
+				`[RunnerSelectionService] Unknown model label(s): ${unknownModelLabels.join(", ")}; using the normal runner fallback.`,
+			);
+		}
 
 		const runnerType: RunnerType =
 			resolvedAgentFromDescription ||
