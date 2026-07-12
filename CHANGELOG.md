@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- GPT-5.6 model labels now select the Codex runner with the requested `gpt-5.6-terra`, `gpt-5.6-luna`, or `gpt-5.6-sol` model and propagate label-based reasoning effort to the OpenAI request instead of silently falling back to Claude Sonnet. ([BYE-340](https://linear.app/byelverton/issue/BYE-340/edgeworker-wire-gpt-56-model-labels-terralunasol-reasoning-effort-into), [#1371](https://github.com/cyrusagents/cyrus/pull/1371))
 - Forwarded and shared Slack messages are now included when you @mention Cyrus. Previously, forwarding a message (for example a Sentry alert) into a channel and @mentioning Cyrus passed along only your typed comment — the forwarded message's contents were dropped, so a forward with no comment gave Cyrus nothing to work with. The forwarded content is now part of the prompt. ([#1326](https://github.com/cyrusagents/cyrus/pull/1326))
 
 ### Changed
