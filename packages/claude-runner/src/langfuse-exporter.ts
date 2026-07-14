@@ -601,8 +601,16 @@ export interface LangfuseLike {
 	generation(body: Record<string, unknown>): unknown;
 	span(body: Record<string, unknown>): unknown;
 	event(body: Record<string, unknown>): unknown;
+	on?(
+		event: "error" | "warning",
+		listener: (error: unknown) => void,
+	): () => void;
 	flushAsync(): Promise<unknown>;
 	shutdownAsync?(): Promise<unknown>;
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }
 
 async function defaultClientFactory(
@@ -746,6 +754,12 @@ export async function exportTranscriptToLangfuse(
 	const client = await (options.clientFactory
 		? options.clientFactory(config)
 		: defaultClientFactory(config));
+	let ingestionFailure: unknown;
+	const recordIngestionFailure = (error: unknown): void => {
+		ingestionFailure ??= error;
+	};
+	const removeErrorListener = client.on?.("error", recordIngestionFailure);
+	const removeWarningListener = client.on?.("warning", recordIngestionFailure);
 
 	const version = resolveTraceVersion();
 	const traceId = `cyrus-${sessionId}`;
@@ -831,8 +845,18 @@ export async function exportTranscriptToLangfuse(
 		subagentToolSpans += counts.toolSpans;
 	}
 
-	await client.flushAsync();
-	if (client.shutdownAsync) await client.shutdownAsync();
+	try {
+		await client.flushAsync();
+		if (client.shutdownAsync) await client.shutdownAsync();
+	} finally {
+		removeErrorListener?.();
+		removeWarningListener?.();
+	}
+	if (ingestionFailure !== undefined) {
+		throw new Error(
+			`Langfuse ingestion failed: ${errorMessage(ingestionFailure)}`,
+		);
+	}
 
 	const compactions = parsed.compactBoundaries.length;
 	options.logger?.debug?.(

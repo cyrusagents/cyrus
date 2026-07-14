@@ -166,6 +166,42 @@ function transcript(lines: string[]): string {
 }
 
 describe("exportTranscriptToLangfuse", () => {
+	it("rejects when the Langfuse SDK reports a failed ingestion batch", async () => {
+		const { client: baseClient } = makeFakeClient();
+		const listeners = new Map<string, (error: unknown) => void>();
+		const client: LangfuseLike = {
+			...baseClient,
+			on(event, listener) {
+				listeners.set(event, listener);
+				return () => listeners.delete(event);
+			},
+			async flushAsync() {
+				listeners.get("warning")?.(
+					new Error("Langfuse ingestion failed with status 500"),
+				);
+			},
+		};
+		const transcriptPath = writeTempTranscript(
+			transcript([
+				JSON.stringify({
+					type: "user",
+					uuid: "u-ingestion-failure",
+					timestamp: "2026-07-14T10:00:00.000Z",
+					message: { role: "user", content: "hello" },
+				}),
+			]),
+		);
+
+		await expect(
+			exportTranscriptToLangfuse({
+				transcriptPath,
+				sessionId: "sess-ingestion-failure",
+				config: CONFIG,
+				clientFactory: () => client,
+			}),
+		).rejects.toThrow("Langfuse ingestion failed with status 500");
+	});
+
 	it("emits one generation per assistant turn + one span per tool_use", async () => {
 		const { client, calls } = makeFakeClient();
 		const transcriptPath = writeTempTranscript(
