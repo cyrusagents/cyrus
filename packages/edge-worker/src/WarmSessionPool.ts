@@ -4,7 +4,6 @@ import { basename, join } from "node:path";
 import type { McpServerConfig, WarmQuery } from "cyrus-claude-runner";
 import {
 	buildBaseSessionEnv,
-	getAvailableBuiltinTools,
 	normalizeMcpHttpTransport,
 } from "cyrus-claude-runner";
 import type {
@@ -192,7 +191,6 @@ export class WarmSessionPool {
 					// Without these, startup() inherits the user's defaultMode ("default"),
 					// which causes macOS permission prompts for file writes.
 					const allowedTools = this.deps.buildAllowedTools(repo);
-					const availableBuiltins = getAvailableBuiltinTools(allowedTools);
 
 					// Reconstruct the home-directory Read denials that ClaudeRunner.start()
 					// computes at query time. Warm sessions run warmSession.query()
@@ -252,7 +250,6 @@ export class WarmSessionPool {
 							cwd: session.workspace.path,
 							...(Object.keys(mcpServers).length > 0 && { mcpServers }),
 							...(allowedTools.length > 0 && { allowedTools }),
-							tools: availableBuiltins,
 							...(disallowedTools.length > 0 && { disallowedTools }),
 							...(warmPlugins.length > 0 && { plugins: warmPlugins }),
 							...(skills !== undefined && { skills }),

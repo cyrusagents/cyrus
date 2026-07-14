@@ -178,7 +178,6 @@ describe("WarmSessionPool", () => {
 			expect(startupOpts.options.disallowedTools).toEqual([
 				"Read(//home/u/.ssh/**)",
 			]);
-			expect(startupOpts.options.tools).toEqual(["Read", "Edit"]);
 		});
 	});
 

@@ -79,7 +79,7 @@ describe("ClaudeRunner - disallowedTools", () => {
 		expect(callArgs.options.allowedTools).toContain("Edit");
 	});
 
-	it("restricts built-in availability to the configured allowed tools", async () => {
+	it("preserves the SDK built-in preset when allowedTools is configured", async () => {
 		const config: ClaudeRunnerConfig = {
 			workingDirectory: "/test",
 			allowedTools: ["Read(**)", "Agent", "mcp__linear"],
@@ -90,7 +90,7 @@ describe("ClaudeRunner - disallowedTools", () => {
 		await runner.start("Test prompt");
 
 		const callArgs = queryMock.mock.calls[0][0];
-		expect(callArgs.options.tools).toEqual(["Read", "Agent"]);
+		expect(callArgs.options.tools).toBeUndefined();
 	});
 
 	it("fails closed when an unapproved tool reaches canUseTool", async () => {

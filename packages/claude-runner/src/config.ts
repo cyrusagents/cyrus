@@ -128,31 +128,6 @@ export function getAllTools(): string[] {
 	return [...availableTools];
 }
 
-function getBaseToolName(tool: string): string {
-	const parameterStart = tool.indexOf("(");
-	return parameterStart === -1 ? tool : tool.slice(0, parameterStart);
-}
-
-const availableBuiltinToolNames = new Set(availableTools.map(getBaseToolName));
-
-/**
- * Resolve an allowed-tools policy to the built-in tool names that should be
- * available to Claude. MCP entries are configured separately through
- * `mcpServers`; command/path suffixes only narrow permission matching and are
- * therefore stripped for the SDK's base `tools` list.
- */
-export function getAvailableBuiltinTools(
-	allowedTools: readonly string[],
-): string[] {
-	return [
-		...new Set(
-			allowedTools
-				.map(getBaseToolName)
-				.filter((tool) => availableBuiltinToolNames.has(tool)),
-		),
-	];
-}
-
 /**
  * Get all tools except Bash (safer default for repository configuration)
  */

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
 	availableTools,
 	getAllTools,
-	getAvailableBuiltinTools,
 	getCoordinatorTools,
 	getReadOnlyTools,
 	getSafeTools,
@@ -124,19 +123,6 @@ describe("config", () => {
 			// Modifying returned array shouldn't affect original
 			tools.push("NewTool");
 			expect(availableTools).not.toContain("NewTool");
-		});
-
-		it("derives built-in availability from allowed tool patterns", () => {
-			expect(
-				getAvailableBuiltinTools([
-					"Read(**)",
-					"Bash(git:*)",
-					"Agent",
-					"mcp__linear",
-					"UnknownTool",
-					"Read(/tmp/**)",
-				]),
-			).toEqual(["Read", "Bash", "Agent"]);
 		});
 
 		it("getSafeTools should return all tools except Bash", () => {

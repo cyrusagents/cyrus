@@ -39,7 +39,6 @@ import {
 } from "cyrus-core";
 import dotenv from "dotenv";
 import { toAgentMessage } from "./claude-message-projection.js";
-import { getAvailableBuiltinTools } from "./config.js";
 import {
 	exportTranscriptToLangfuse,
 	resolveLangfuseConfig,
@@ -757,12 +756,6 @@ export class ClaudeRunner
 				sdkSettings.autoCompactWindow = this.config.autoCompactWindow;
 			}
 
-			const availableBuiltins =
-				this.config.tools ??
-				(this.config.allowedTools !== undefined
-					? getAvailableBuiltinTools(this.config.allowedTools)
-					: undefined);
-
 			const queryOptions: Parameters<typeof query>[0] = {
 				prompt: promptForQuery,
 				options: {
@@ -860,7 +853,10 @@ export class ClaudeRunner
 					...(this.config.skills !== undefined && {
 						skills: this.config.skills,
 					}),
-					...(availableBuiltins !== undefined && { tools: availableBuiltins }),
+					// `tools` replaces the SDK built-in preset; never derive it from the
+					// permission-oriented `allowedTools` list. An empty override launches
+					// Claude with `--tools ""` and removes Bash, Read, Skill, and editors.
+					...(this.config.tools !== undefined && { tools: this.config.tools }),
 					...(this.config.maxTurns && { maxTurns: this.config.maxTurns }),
 					...(this.config.outputFormat && {
 						outputFormat: this.config.outputFormat,
