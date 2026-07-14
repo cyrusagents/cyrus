@@ -2,6 +2,8 @@ packages:
   - packages/*
   - apps/*
 
+enableGlobalVirtualStore: true
+
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
   - core-js
