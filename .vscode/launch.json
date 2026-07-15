@@ -1,0 +1,54 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug cyrus CLI (attach to terminal cyrus)",
+			"type": "node",
+			"request": "launch",
+			"runtimeVersion": "20.20.2",
+			"runtimeExecutablePath": "${env:HOME}/.nvm/versions/node/v20.20.2/bin/node",
+			"program": "${workspaceFolder}/apps/cli/src/app.ts",
+			"runtimeArgs": ["--inspect-brk"],
+			"cwd": "${workspaceFolder}",
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen",
+			"skipFiles": ["<node_internals>/**", "**/node_modules/tsx/**"],
+			"env": {
+				"FORCE_COLOR": "0",
+				"TSX_DEBUG": "true"
+			},
+			"smartStep": true
+		},
+		{
+			"name": "Debug LinearEventTransport Runner",
+			"type": "node",
+			"request": "launch",
+			"runtimeVersion": "20.20.2",
+			"runtimeExecutablePath": "${env:HOME}/.nvm/versions/node/v20.20.2/bin/node",
+			"program": "${workspaceFolder}/node_modules/.bin/tsx",
+			"args": [
+				"${workspaceFolder}/packages/linear-event-transport/test/LinearEventTransport.debug.runner.ts"
+			],
+			"cwd": "${workspaceFolder}",
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen",
+			"skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+		},
+		{
+			"name": "Debug LinearEventTransport Tests",
+			"type": "node",
+			"request": "launch",
+			"runtimeVersion": "20.20.2",
+			"runtimeExecutablePath": "${env:HOME}/.nvm/versions/node/v20.20.2/bin/node",
+			"program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+			"args": [
+				"run",
+				"${workspaceFolder}/packages/linear-event-transport/test/**/*.test.ts",
+				"--reporter=verbose"
+			],
+			"cwd": "${workspaceFolder}",
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen"
+		}
+	]
+}

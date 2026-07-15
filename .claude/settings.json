@@ -1,3 +1,19 @@
 {
-	"includeCoAuthoredBy": false
+	"includeCoAuthoredBy": false,
+	"permissions": {
+		"allow": [
+			"Bash(awk '/class LinearGraphQLClient/,/^class/' /Users/lixin/GitRepository/cyrus/packages/linear-event-transport/node_modules/@linear/sdk/dist/index-es.js)",
+			"WebFetch(domain:raw.githubusercontent.com)",
+			"Bash(grep -oP '\"\\(query|mutation\\) \\\\w+[^\"]{0,500}\"' /Users/lixin/GitRepository/cyrus/packages/linear-event-transport/node_modules/@linear/sdk/dist/index-es.js)",
+			"Bash(grep -oP '\"\\(query|mutation\\) [^{]{0,200}\"' /Users/lixin/GitRepository/cyrus/packages/linear-event-transport/node_modules/@linear/sdk/dist/index-es.js)",
+			"Bash(grep -oP 'query Issue \\\\{[^}]{0,300}\\\\}' /Users/lixin/GitRepository/cyrus/packages/linear-event-transport/node_modules/@linear/sdk/dist/index-es.js)",
+			"Bash(grep -oP '\"\\(query|mutation\\)\\\\s+[A-Za-z]+\\\\s*\\(?:\\\\\\([^\\)]*\\\\\\)\\)?\\\\s*\\\\{[^{]{0,100}' /Users/lixin/GitRepository/cyrus/packages/linear-event-transport/node_modules/@linear/sdk/dist/index-es.js)",
+			"Bash(grep -oP '\"\\(issue|team|comment|user\\)[^\"]{0,100}\"' /Users/lixin/GitRepository/cyrus/packages/linear-event-transport/node_modules/@linear/sdk/dist/index-es.js)",
+			"WebFetch(domain:api.github.com)",
+			"Bash(curl -s -X POST https://api.linear.app/graphql -H 'Authorization: Bearer lin_wh_YLvnqtrqFsu6MdGii7ljfg6bX9uHHRlUGSpAqaJlSGnp' -H 'Content-Type: application/json' -d '{ *)",
+			"Bash(curl -s -X POST https://api.linear.app/graphql -H 'Authorization: Bearer 18db04b7fa8cf4272013e0d64f78e31a' -H 'Content-Type: application/json' -d '{ *)",
+			"Bash(curl -s -X POST https://api.linear.app/graphql -H 'Authorization: Bearer lin_api_92drVt3Z4OwB4BWoArObOb6yBv0BOmgBkCb0Kkeg' -H 'Content-Type: application/json' -d '{ *)",
+			"Bash(curl -s -X POST https://api.linear.app/graphql -H 'Authorization: lin_api_92drVt3Z4OwB4BWoArObOb6yBv0BOmgBkCb0Kkeg' -H 'Content-Type: application/json' -d '{ *)"
+		]
+	}
 }
