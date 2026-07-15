@@ -198,6 +198,19 @@ export class WebhookRouter {
 	 */
 	private processedPromptedActivityKeys = new Set<string>();
 
+	/**
+	 * agentSession ids of created webhooks already routed. Linear's at-least-once
+	 * delivery redelivers an `agentSessionCreated` webhook when the ack is slow,
+	 * and each delivery used to call {@link WebhookRouterDeps.startSession}
+	 * unconditionally — building a second runner that reused the worktree and
+	 * overwrote the runner map entry while the first subprocess kept streaming
+	 * (two runners → two runs → two answers). Keyed on agentSession.id, which is
+	 * 1:1 with a creation event and stable across its redeliveries (a genuine
+	 * additional @mention session gets a distinct id, so it still routes).
+	 * Released on throw so a genuinely failed start can be retried by redelivery.
+	 */
+	private processedCreatedSessionKeys = new Set<string>();
+
 	constructor(
 		private deps: WebhookRouterDeps,
 		logger?: ILogger,
@@ -238,6 +251,56 @@ export class WebhookRouter {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Stable dedup key for a created webhook. agentSession.id is 1:1 with the
+	 * creation event; fall back to the `${createdAt}:${issueId}` shape used
+	 * elsewhere when it is somehow absent.
+	 */
+	private createdDeliveryKey(webhook: AgentSessionCreatedWebhook): string {
+		return (
+			webhook.agentSession?.id ??
+			`${webhook.createdAt}:${webhook.agentSession?.issue?.id}`
+		);
+	}
+
+	/**
+	 * True when this created webhook has already been routed. Records the key as
+	 * a side effect (so callers must ask only once per delivery), guarding every
+	 * created branch — needs_selection and start alike — against redelivery.
+	 */
+	private isDuplicateCreatedDelivery(
+		webhook: AgentSessionCreatedWebhook,
+	): boolean {
+		const key = this.createdDeliveryKey(webhook);
+
+		if (this.processedCreatedSessionKeys.has(key)) {
+			this.logger.debug(
+				`Duplicate created webhook delivery (key=${key}), skipping`,
+			);
+			return true;
+		}
+		this.processedCreatedSessionKeys.add(key);
+
+		// Prevent unbounded growth — prune the oldest keys when the set gets large.
+		if (this.processedCreatedSessionKeys.size > PROMPTED_DELIVERY_KEY_LIMIT) {
+			const keys = [...this.processedCreatedSessionKeys];
+			for (const stale of keys.slice(0, PROMPTED_DELIVERY_KEY_PRUNE_COUNT)) {
+				this.processedCreatedSessionKeys.delete(stale);
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Release a created dedup key so Linear's redelivery can retry a start that
+	 * threw. Called only on error — successful and early-return branches keep the
+	 * key so redeliveries stay suppressed.
+	 */
+	private forgetCreatedDelivery(webhook: AgentSessionCreatedWebhook): void {
+		this.processedCreatedSessionKeys.delete(this.createdDeliveryKey(webhook));
 	}
 
 	/**
@@ -289,6 +352,24 @@ export class WebhookRouter {
 	 * subsequent agentSessionPrompted webhook).
 	 */
 	async routeCreatedWebhook(
+		webhook: AgentSessionCreatedWebhook,
+		repos: RepositoryConfig[],
+	): Promise<void> {
+		// Drop redelivered creation events before any branch can start a second
+		// runner for the same agentSession (see processedCreatedSessionKeys).
+		if (this.isDuplicateCreatedDelivery(webhook)) {
+			return;
+		}
+
+		try {
+			await this.routeCreatedWebhookInner(webhook, repos);
+		} catch (error) {
+			this.forgetCreatedDelivery(webhook);
+			throw error;
+		}
+	}
+
+	private async routeCreatedWebhookInner(
 		webhook: AgentSessionCreatedWebhook,
 		repos: RepositoryConfig[],
 	): Promise<void> {

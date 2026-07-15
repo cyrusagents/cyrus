@@ -139,4 +139,42 @@ describe("WebhookRouter.routeCreatedWebhook", () => {
 		);
 		expect(deps.startSession).not.toHaveBeenCalled();
 	});
+
+	it("redelivered created webhook (same agentSession.id) starts only once", async () => {
+		const repo = makeRepo("cached-repo");
+		deps.getCachedRepositories.mockReturnValue([repo]);
+		const webhook = created();
+		// Linear's at-least-once delivery: the same creation event arrives twice.
+		await router.routeCreatedWebhook(webhook, repos);
+		await router.routeCreatedWebhook(webhook, repos);
+		expect(deps.startSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("concurrent redelivery while first start is in flight starts only once", async () => {
+		const repo = makeRepo("cached-repo");
+		deps.getCachedRepositories.mockReturnValue([repo]);
+		// startSession stays in flight briefly, mimicking runner A's subprocess
+		// still streaming when the redelivered webhook is routed.
+		deps.startSession.mockImplementation(
+			() => new Promise<void>((resolve) => setTimeout(resolve, 5)),
+		);
+		const webhook = created();
+		const first = router.routeCreatedWebhook(webhook, repos);
+		const second = router.routeCreatedWebhook(webhook, repos);
+		await Promise.all([first, second]);
+		expect(deps.startSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("a failed start is retried on redelivery (guard is released on throw)", async () => {
+		const repo = makeRepo("cached-repo");
+		deps.getCachedRepositories.mockReturnValue([repo]);
+		deps.startSession.mockRejectedValueOnce(new Error("boom"));
+		const webhook = created();
+		await expect(router.routeCreatedWebhook(webhook, repos)).rejects.toThrow(
+			"boom",
+		);
+		// Linear redelivers after the failure; the retry must be allowed through.
+		await router.routeCreatedWebhook(webhook, repos);
+		expect(deps.startSession).toHaveBeenCalledTimes(2);
+	});
 });
