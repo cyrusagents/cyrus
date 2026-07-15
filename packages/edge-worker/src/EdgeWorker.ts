@@ -1724,9 +1724,13 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 					}),
 			} as unknown as Issue;
 
-			return await this.gitService.createGitWorktree(syntheticIssue, [
-				repository,
-			]);
+			return await this.gitService.createGitWorktree(
+				syntheticIssue,
+				[repository],
+				{
+					crossRepoSiblingRepositories: Array.from(this.repositories.values()),
+				},
+			);
 		} catch (error) {
 			this.logger.error(
 				`Failed to create GitHub workspace for PR #${prNumber}`,
@@ -3297,6 +3301,7 @@ ${taskSection}`;
 				})
 			: await this.gitService.createGitWorktree(fullIssue, repositories, {
 					baseBranchOverrides,
+					crossRepoSiblingRepositories: Array.from(this.repositories.values()),
 					onRepoSetupHookEvent: async (event) => {
 						await this.postActivityViaSink(
 							linearWorkspaceId,

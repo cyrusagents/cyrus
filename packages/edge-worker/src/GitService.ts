@@ -6,9 +6,17 @@ import {
 	readFileSync,
 	rmSync,
 	statSync,
+	symlinkSync,
+	writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join, resolve as pathResolve } from "node:path";
+import {
+	basename,
+	dirname,
+	isAbsolute,
+	join,
+	resolve as pathResolve,
+} from "node:path";
 
 import type {
 	BaseBranchResolution,
@@ -34,11 +42,27 @@ export interface CreateGitWorktreeOptions {
 	 * Takes highest priority over graphite, parent, and default base branches.
 	 */
 	baseBranchOverrides?: Map<string, string>;
+	/**
+	 * Full set of configured repositories, used only to drop read-only
+	 * reference symlinks to the sibling repos a single-repo session can already
+	 * read (those sharing the routed repo's `readParentDirectory` parent). Pass
+	 * the complete active-repo list; the routed repo is filtered out. Omit to
+	 * disable cross-repo linking. See {@link GitService.linkCrossRepoSiblings}.
+	 */
+	crossRepoSiblingRepositories?: RepositoryConfig[];
 }
 
 export interface GitServiceOptions {
 	cyrusHome?: string;
 }
+
+/**
+ * Worktree-relative directory that holds read-only reference symlinks to
+ * sibling repositories a single-repo session can already read. Named (not
+ * dot-prefixed) so a plain `ls` surfaces it, and git-excluded so it never
+ * pollutes `git status`.
+ */
+export const CROSS_REPO_DIR = "cross-repo";
 
 export interface DeleteWorktreeOptions {
 	/**
@@ -577,6 +601,7 @@ export class GitService {
 			onRepoSetupHookEvent,
 			workspaceBaseDir: overrideBaseDir,
 			baseBranchOverrides,
+			crossRepoSiblingRepositories,
 		} = options ?? {};
 
 		if (repositories.length === 0) {
@@ -616,7 +641,7 @@ export class GitService {
 			this.logger.info(
 				`createGitWorktree: baseBranchOverrides=${baseBranchOverrides ? `Map(size=${baseBranchOverrides.size})` : "undefined"}, repoId=${repoId}, overrideValue=${overrideValue ?? "undefined"}`,
 			);
-			return this.createSingleRepoWorktree(
+			const workspace = await this.createSingleRepoWorktree(
 				issue,
 				repositories[0]!,
 				globalSetupScript,
@@ -624,6 +649,14 @@ export class GitService {
 				overrideValue,
 				onRepoSetupHookEvent,
 			);
+			if (workspace.isGitWorktree && crossRepoSiblingRepositories) {
+				this.linkCrossRepoSiblings(
+					workspace.path,
+					repositories[0]!,
+					crossRepoSiblingRepositories,
+				);
+			}
+			return workspace;
 		}
 
 		// N repos: parent folder with per-repo subdirectories
@@ -997,6 +1030,179 @@ export class GitService {
 				isGitWorktree: false,
 				resolvedBaseBranches: { [repository.id]: fallbackResolution },
 			};
+		}
+	}
+
+	/**
+	 * Drop read-only reference symlinks to the sibling repositories a single-repo
+	 * session can already read — those sharing the routed repo's readable parent
+	 * directory via `readParentDirectory`. Without this the agent only sees its
+	 * own worktree and never discovers that sibling checkouts (e.g. an indexer
+	 * service) are readable at their absolute paths, so it falls back to guessing
+	 * their contracts. See DEV-167.
+	 *
+	 * Links live under `<worktree>/cross-repo/<repo-name>` and the directory is
+	 * added to the worktree's git exclude so it never shows up in `git status` or
+	 * gets committed. Access stays read-only in practice: writes are confined to
+	 * the worktree by the sandbox, which binds the sibling checkouts read-only —
+	 * the same guarantee `readParentDirectory` already relies on.
+	 *
+	 * Failures are logged and swallowed: a missing sibling link must never abort
+	 * worktree creation.
+	 */
+	private linkCrossRepoSiblings(
+		workspacePath: string,
+		routedRepository: RepositoryConfig,
+		candidateRepositories: RepositoryConfig[],
+	): void {
+		// No parent-directory read grant → the agent cannot read siblings at all,
+		// so a symlink would only dangle into denied space. Nothing to do.
+		if (!routedRepository.readParentDirectory) {
+			return;
+		}
+
+		// `readParentDirectory` grants read access to exactly the routed repo's
+		// parent, so only siblings that share that parent are reachable.
+		const readableParent = dirname(routedRepository.repositoryPath);
+		const siblings = candidateRepositories.filter(
+			(repo) =>
+				repo.id !== routedRepository.id &&
+				repo.isActive !== false &&
+				dirname(repo.repositoryPath) === readableParent &&
+				existsSync(repo.repositoryPath),
+		);
+		if (siblings.length === 0) {
+			return;
+		}
+
+		const linkDir = join(workspacePath, CROSS_REPO_DIR);
+		try {
+			mkdirSync(linkDir, { recursive: true });
+		} catch (error) {
+			this.logger.warn(
+				`Failed to create cross-repo link directory at ${linkDir}:`,
+				(error as Error).message,
+			);
+			return;
+		}
+
+		for (const sibling of siblings) {
+			// Bring the sibling's checkout up to its latest default branch first,
+			// so the reference shows current code rather than a stale checkout.
+			this.refreshSiblingDefaultBranch(sibling);
+
+			const linkPath = join(linkDir, sibling.name);
+			// Idempotent, and never clobber an existing entry (e.g. a name
+			// collision between two configured repos).
+			if (existsSync(linkPath)) {
+				continue;
+			}
+			try {
+				symlinkSync(sibling.repositoryPath, linkPath, "dir");
+				this.logger.debug(
+					`Linked sibling repo '${sibling.name}' -> ${linkPath}`,
+				);
+			} catch (error) {
+				this.logger.warn(
+					`Failed to symlink sibling repo '${sibling.name}':`,
+					(error as Error).message,
+				);
+			}
+		}
+
+		this.excludeFromGitStatus(workspacePath, CROSS_REPO_DIR);
+	}
+
+	/**
+	 * Best-effort: bring a sibling repo's canonical checkout up to the latest
+	 * `origin/<baseBranch>` before it is exposed as a cross-repo read reference,
+	 * so the agent sees current default-branch code rather than a stale checkout.
+	 *
+	 * Only fast-forwards when the checkout is already on its default branch with a
+	 * clean working tree; anything else (detached HEAD, a feature branch, local
+	 * edits, or divergence that fails `--ff-only`) is left untouched. Every step
+	 * is swallowed on failure — freshness is a nicety, never a reason to abort or
+	 * mutate unexpected state. A no-remote repo simply keeps its current commit.
+	 */
+	private refreshSiblingDefaultBranch(repo: RepositoryConfig): void {
+		const { name, repositoryPath, baseBranch } = repo;
+		try {
+			execSync(`git fetch origin --no-tags "${baseBranch}"`, {
+				cwd: repositoryPath,
+				stdio: "pipe",
+				timeout: 30_000,
+			});
+		} catch {
+			// No reachable remote / branch — leave the checkout as-is.
+			return;
+		}
+
+		try {
+			const currentBranch = execSync("git rev-parse --abbrev-ref HEAD", {
+				cwd: repositoryPath,
+				encoding: "utf-8",
+			}).trim();
+			if (currentBranch !== baseBranch) {
+				this.logger.debug(
+					`Sibling repo '${name}' is on '${currentBranch}', not '${baseBranch}'; leaving its cross-repo reference untouched`,
+				);
+				return;
+			}
+
+			const dirty = execSync("git status --porcelain", {
+				cwd: repositoryPath,
+				encoding: "utf-8",
+			}).trim();
+			if (dirty.length > 0) {
+				this.logger.debug(
+					`Sibling repo '${name}' has local changes; skipping default-branch refresh`,
+				);
+				return;
+			}
+
+			execSync(`git merge --ff-only "origin/${baseBranch}"`, {
+				cwd: repositoryPath,
+				stdio: "pipe",
+				timeout: 30_000,
+			});
+		} catch (error) {
+			this.logger.warn(
+				`Failed to refresh sibling repo '${name}' to latest '${baseBranch}':`,
+				(error as Error).message,
+			);
+		}
+	}
+
+	/**
+	 * Add a root-anchored `entry` to the worktree's git exclude file, once.
+	 * `git rev-parse --git-path info/exclude` resolves the correct file even for
+	 * linked worktrees. Best-effort: failures are logged and swallowed.
+	 */
+	private excludeFromGitStatus(workspacePath: string, entry: string): void {
+		const line = `/${entry}/`;
+		try {
+			const gitPath = execSync("git rev-parse --git-path info/exclude", {
+				cwd: workspacePath,
+				encoding: "utf-8",
+			}).trim();
+			const excludePath = isAbsolute(gitPath)
+				? gitPath
+				: join(workspacePath, gitPath);
+			mkdirSync(dirname(excludePath), { recursive: true });
+			const existing = existsSync(excludePath)
+				? readFileSync(excludePath, "utf-8")
+				: "";
+			if (existing.split("\n").some((l) => l.trim() === line)) {
+				return;
+			}
+			const prefix =
+				existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
+			writeFileSync(excludePath, `${existing}${prefix}${line}\n`);
+		} catch (error) {
+			this.logger.warn(
+				`Failed to add '${line}' to git exclude for ${workspacePath}:`,
+				(error as Error).message,
+			);
 		}
 	}
 
