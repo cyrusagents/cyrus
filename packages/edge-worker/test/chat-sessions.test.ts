@@ -287,6 +287,100 @@ describe("ChatSessionHandler session-initiation gate", () => {
 	});
 });
 
+describe("ChatSessionHandler receipt acknowledgement gate", () => {
+	function buildHandler(adapter: ChatPlatformAdapter<TestEvent>) {
+		const createRunner = vi.fn(
+			() =>
+				({
+					supportsStreamingInput: false,
+					start: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
+					stop: vi.fn(),
+					isRunning: vi.fn().mockReturnValue(false),
+					isStreaming: vi.fn().mockReturnValue(false),
+					addStreamMessage: vi.fn(),
+					getMessages: vi.fn().mockReturnValue([]),
+				}) as any,
+		);
+		const handler = new ChatSessionHandler(adapter, {
+			cyrusHome: TEST_CYRUS_CHAT,
+			chatRepositoryProvider: createStaticProvider([]),
+			runnerConfigBuilder: createMockRunnerConfigBuilder(),
+			createRunner,
+			onWebhookStart: vi.fn(),
+			onWebhookEnd: vi.fn(),
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+		});
+		return { handler, createRunner };
+	}
+
+	it("does NOT acknowledge a non-initiating event in an unbound thread", async () => {
+		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+			"unbound-thread",
+		);
+		adapter.isSessionInitiatingEvent = () => false;
+		const acknowledgeReceipt = vi
+			.spyOn(adapter, "acknowledgeReceipt")
+			.mockResolvedValue(undefined);
+
+		const { handler, createRunner } = buildHandler(adapter);
+		await handler.handleEvent({
+			eventId: "chatter",
+			threadKey: "unbound-thread",
+		} as any);
+
+		// No 👀 left on an unrelated channel message, and the event is ignored.
+		expect(acknowledgeReceipt).not.toHaveBeenCalled();
+		expect(createRunner).not.toHaveBeenCalled();
+		expect(handler.listThreads()).toHaveLength(0);
+	});
+
+	it("acknowledges an initiating event (e.g. an @mention)", async () => {
+		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+			"mention-thread",
+		);
+		adapter.isSessionInitiatingEvent = () => true;
+		const acknowledgeReceipt = vi
+			.spyOn(adapter, "acknowledgeReceipt")
+			.mockResolvedValue(undefined);
+
+		const { handler } = buildHandler(adapter);
+		const event = { eventId: "mention", threadKey: "mention-thread" };
+		await handler.handleEvent(event as any);
+
+		expect(acknowledgeReceipt).toHaveBeenCalledTimes(1);
+		expect(acknowledgeReceipt).toHaveBeenCalledWith(event);
+	});
+
+	it("acknowledges a non-initiating follow-up in an already-bound thread", async () => {
+		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+			"engaged-thread",
+		);
+		// The initiating @mention binds the thread to a session.
+		adapter.isSessionInitiatingEvent = () => true;
+		const acknowledgeReceipt = vi
+			.spyOn(adapter, "acknowledgeReceipt")
+			.mockResolvedValue(undefined);
+
+		const { handler } = buildHandler(adapter);
+		await handler.handleEvent({
+			eventId: "mention",
+			threadKey: "engaged-thread",
+		} as any);
+		expect(handler.listThreads()).toHaveLength(1);
+		acknowledgeReceipt.mockClear();
+
+		// A plain follow-up (non-initiating) in that bound thread still engages,
+		// so it should be acknowledged.
+		adapter.isSessionInitiatingEvent = () => false;
+		const followUp = { eventId: "follow-up", threadKey: "engaged-thread" };
+		await handler.handleEvent(followUp as any);
+
+		expect(acknowledgeReceipt).toHaveBeenCalledTimes(1);
+		expect(acknowledgeReceipt).toHaveBeenCalledWith(followUp);
+	});
+});
+
 describe("ChatSessionHandler processed acknowledgement", () => {
 	it("calls acknowledgeProcessed when the runner emits a result", async () => {
 		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
