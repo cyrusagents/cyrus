@@ -94,6 +94,13 @@
 		"fallbackModel": {
 			"type": "string"
 		},
+		"settingSources": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"enum": ["user", "project", "local"]
+			}
+		},
 		"labelPrompts": {
 			"type": "object",
 			"properties": {

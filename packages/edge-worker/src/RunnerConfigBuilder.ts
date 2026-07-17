@@ -18,6 +18,7 @@ import type {
 	RepositoryConfig,
 	RunnerType,
 } from "cyrus-core";
+import { isValidSettingSourcesOverride } from "cyrus-core";
 import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
@@ -435,6 +436,15 @@ export class RunnerConfigBuilder {
 			...(runnerType === "claude" &&
 				input.sandboxSettings &&
 				this.buildSandboxConfig(input)),
+			// Per-repository settingSources override (Claude runner only — the
+			// option is specific to the Claude Agent SDK). Validated via
+			// isValidSettingSourcesOverride; an invalid/empty override is
+			// omitted here so ClaudeRunner's own fallback to the stock default
+			// (["user", "project", "local"]) applies.
+			...(runnerType === "claude" &&
+				isValidSettingSourcesOverride(input.repository.settingSources) && {
+					settingSources: input.repository.settingSources,
+				}),
 			// AskUserQuestion callback - only for Claude runner
 			...(runnerType === "claude" &&
 				input.createAskUserQuestionCallback && {
