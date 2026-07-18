@@ -250,4 +250,120 @@ No comments yet.
 			isStreaming: false,
 		});
 	});
+
+	it("buildGitHubSystemPrompt: renders the PR comment session prompt byte-identically", () => {
+		const assembler = buildAssembler();
+
+		const result = assembler.buildGitHubSystemPrompt({
+			repoFullName: "acme/widgets",
+			prNumber: 42,
+			prTitle: "Add widget support",
+			commentAuthor: "octocat",
+			commentUrl: "https://github.com/acme/widgets/pull/42#issuecomment-1",
+			branchRef: "feature/widgets",
+			taskInstructions: "Please fix the failing test.",
+		});
+
+		expect(result).toBe(`You are working on a GitHub Pull Request.
+
+## Context
+- **Repository**: acme/widgets
+- **PR**: #42 - Add widget support
+- **Branch**: feature/widgets
+- **Requested by**: @octocat
+- **Comment URL**: https://github.com/acme/widgets/pull/42#issuecomment-1
+
+## Task
+Please fix the failing test.
+
+## Instructions
+- You are already checked out on the PR branch \`feature/widgets\`
+- Make changes directly to the code on this branch
+- After making changes, commit and push them to the branch
+- Be concise in your responses as they will be posted back to the GitHub PR`);
+	});
+
+	it("buildGitHubSystemPrompt: falls back to 'Untitled' when prTitle is null", () => {
+		const assembler = buildAssembler();
+
+		const result = assembler.buildGitHubSystemPrompt({
+			repoFullName: "acme/widgets",
+			prNumber: null,
+			prTitle: null,
+			commentAuthor: "octocat",
+			commentUrl: "https://github.com/acme/widgets/pull/1#issuecomment-2",
+			branchRef: "feature/widgets",
+			taskInstructions: "Do the thing.",
+		});
+
+		expect(result).toContain("- **PR**: #null - Untitled");
+	});
+
+	it("buildGitHubChangeRequestSystemPrompt: renders the reviewer-feedback variant byte-identically", () => {
+		const assembler = buildAssembler();
+
+		const result = assembler.buildGitHubChangeRequestSystemPrompt({
+			repoFullName: "acme/widgets",
+			prNumber: 42,
+			prTitle: "Add widget support",
+			commentAuthor: "reviewer1",
+			commentUrl: "https://github.com/acme/widgets/pull/42#pullrequestreview-1",
+			branchRef: "feature/widgets",
+			reviewBody: "Please rename this variable.",
+		});
+
+		expect(
+			result,
+		).toBe(`You are working on a GitHub Pull Request that has received a change request review.
+
+## Context
+- **Repository**: acme/widgets
+- **PR**: #42 - Add widget support
+- **Branch**: feature/widgets
+- **Reviewer**: @reviewer1
+- **Review URL**: https://github.com/acme/widgets/pull/42#pullrequestreview-1
+
+## Reviewer Feedback
+Please rename this variable.
+
+## Instructions
+- Read the PR diff and the reviewer's feedback above to understand all requested changes
+- You are already checked out on the PR branch \`feature/widgets\`
+- Address all the reviewer's feedback and make the necessary changes
+- After making changes, commit and push them to the branch
+- Respond with a concise summary of the changes you made`);
+	});
+
+	it("buildGitHubChangeRequestSystemPrompt: renders the gh-api hint variant when reviewBody is empty", () => {
+		const assembler = buildAssembler();
+
+		const result = assembler.buildGitHubChangeRequestSystemPrompt({
+			repoFullName: "acme/widgets",
+			prNumber: 42,
+			prTitle: "Add widget support",
+			commentAuthor: "reviewer1",
+			commentUrl: "https://github.com/acme/widgets/pull/42#pullrequestreview-2",
+			branchRef: "feature/widgets",
+			reviewBody: "   ",
+		});
+
+		expect(
+			result,
+		).toBe(`You are working on a GitHub Pull Request that has received a change request review.
+
+## Context
+- **Repository**: acme/widgets
+- **PR**: #42 - Add widget support
+- **Branch**: feature/widgets
+- **Reviewer**: @reviewer1
+- **Review URL**: https://github.com/acme/widgets/pull/42#pullrequestreview-2
+
+## Instructions
+- The reviewer has requested changes but did not leave a summary comment
+- Use \`gh api repos/acme/widgets/pulls/42/reviews\` to read the review comments and understand what changes are needed
+- You are already checked out on the PR branch \`feature/widgets\`
+- Address all the reviewer's feedback and make the necessary changes
+- After making changes, commit and push them to the branch
+- Respond with a concise summary of the changes you made`);
+	});
 });

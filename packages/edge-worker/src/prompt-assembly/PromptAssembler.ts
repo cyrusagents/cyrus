@@ -13,6 +13,8 @@ import type {
 	SkillsPluginResolver,
 } from "../SkillsPluginResolver.js";
 import type {
+	GitHubChangeRequestSystemPromptInput,
+	GitHubSystemPromptInput,
 	IssueContextResult,
 	PromptAssemblyInput,
 	PromptAssemblyResult,
@@ -362,5 +364,86 @@ ${input.userComment}
 			workspaceRepoPaths,
 			agentSession?.comment?.id,
 		);
+	}
+
+	/**
+	 * Build a system prompt for a GitHub PR comment session.
+	 */
+	buildGitHubSystemPrompt(input: GitHubSystemPromptInput): string {
+		const {
+			repoFullName,
+			prNumber,
+			prTitle,
+			commentAuthor,
+			commentUrl,
+			branchRef,
+			taskInstructions,
+		} = input;
+
+		return `You are working on a GitHub Pull Request.
+
+## Context
+- **Repository**: ${repoFullName}
+- **PR**: #${prNumber} - ${prTitle || "Untitled"}
+- **Branch**: ${branchRef}
+- **Requested by**: @${commentAuthor}
+- **Comment URL**: ${commentUrl}
+
+## Task
+${taskInstructions}
+
+## Instructions
+- You are already checked out on the PR branch \`${branchRef}\`
+- Make changes directly to the code on this branch
+- After making changes, commit and push them to the branch
+- Be concise in your responses as they will be posted back to the GitHub PR`;
+	}
+
+	/**
+	 * Build a system prompt for a GitHub PR change request review session.
+	 */
+	buildGitHubChangeRequestSystemPrompt(
+		input: GitHubChangeRequestSystemPromptInput,
+	): string {
+		const {
+			repoFullName,
+			prNumber,
+			prTitle,
+			commentAuthor,
+			commentUrl,
+			branchRef,
+			reviewBody,
+		} = input;
+
+		const hasReviewBody = reviewBody.trim().length > 0;
+
+		const taskSection = hasReviewBody
+			? `## Reviewer Feedback
+${reviewBody}
+
+## Instructions
+- Read the PR diff and the reviewer's feedback above to understand all requested changes
+- You are already checked out on the PR branch \`${branchRef}\`
+- Address all the reviewer's feedback and make the necessary changes
+- After making changes, commit and push them to the branch
+- Respond with a concise summary of the changes you made`
+			: `## Instructions
+- The reviewer has requested changes but did not leave a summary comment
+- Use \`gh api repos/${repoFullName}/pulls/${prNumber}/reviews\` to read the review comments and understand what changes are needed
+- You are already checked out on the PR branch \`${branchRef}\`
+- Address all the reviewer's feedback and make the necessary changes
+- After making changes, commit and push them to the branch
+- Respond with a concise summary of the changes you made`;
+
+		return `You are working on a GitHub Pull Request that has received a change request review.
+
+## Context
+- **Repository**: ${repoFullName}
+- **PR**: #${prNumber} - ${prTitle || "Untitled"}
+- **Branch**: ${branchRef}
+- **Reviewer**: @${commentAuthor}
+- **Review URL**: ${commentUrl}
+
+${taskSection}`;
 	}
 }

@@ -133,3 +133,29 @@ export interface IssueContextResult {
 	/** Template version (if using versioned templates) */
 	version?: string;
 }
+
+/**
+ * Input for building a system prompt for a GitHub PR comment session.
+ */
+export interface GitHubSystemPromptInput {
+	repoFullName: string;
+	prNumber: number | null;
+	prTitle: string | null;
+	commentAuthor: string;
+	commentUrl: string;
+	branchRef: string;
+	taskInstructions: string;
+}
+
+/**
+ * Input for building a system prompt for a GitHub PR change request review session.
+ */
+export interface GitHubChangeRequestSystemPromptInput {
+	repoFullName: string;
+	prNumber: number | null;
+	prTitle: string | null;
+	commentAuthor: string;
+	commentUrl: string;
+	branchRef: string;
+	reviewBody: string;
+}
