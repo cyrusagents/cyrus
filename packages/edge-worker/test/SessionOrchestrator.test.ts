@@ -94,6 +94,7 @@ function makeDeps(overrides: Partial<SessionOrchestratorDeps> = {}): {
 			handleClaudeMessage: vi.fn(async () => {}),
 			failSession: vi.fn(async () => {}),
 			markSessionActive: vi.fn(async () => {}),
+			getSession: vi.fn(() => undefined),
 		} as any,
 		warmPool: warmPool as any,
 		runnerConfigBuilder: { buildIssueConfig } as any,
@@ -144,6 +145,10 @@ function makeDeps(overrides: Partial<SessionOrchestratorDeps> = {}): {
 		postSystemPromptSelectionThought: vi.fn(async () => {}),
 		emitSessionStarted: vi.fn(),
 		resumeSessionDelegate: vi.fn(async () => {}),
+		getRepositoryForSession: vi.fn(() => REPO),
+		getIssueTracker: vi.fn(() => undefined),
+		postParentResumeAcknowledgment: vi.fn(async () => {}),
+		postActivityDirect: vi.fn(async () => null),
 		...overrides,
 	};
 	return { deps, buildIssueConfig, warmPool, runnerType };

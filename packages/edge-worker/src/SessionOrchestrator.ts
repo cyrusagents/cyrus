@@ -9,6 +9,7 @@ import type {
 import { ClaudeRunner } from "cyrus-claude-runner";
 import { CodexRunner } from "cyrus-codex-runner";
 import type {
+	AgentActivityCreateInput,
 	AgentMessage,
 	AgentRunnerConfig,
 	AgentSessionCreatedWebhook,
@@ -16,6 +17,7 @@ import type {
 	EdgeWorkerConfig,
 	EffortLevel,
 	IAgentRunner,
+	IIssueTrackerService,
 	ILogger,
 	Issue,
 	RepositoryConfig,
@@ -171,6 +173,27 @@ export interface SessionOrchestratorDeps {
 		commentAuthor?: string,
 		commentTimestamp?: string,
 	): Promise<void>;
+	/** Collapses the two-step session-id -> repo-id -> repo lookup used to resolve a session's repository. */
+	getRepositoryForSession(sessionId: string): RepositoryConfig | undefined;
+	getIssueTracker(workspaceId: string): IIssueTrackerService | undefined;
+	/**
+	 * Post the "Resuming from child session" acknowledgment thought. Kept on
+	 * EdgeWorker (it routes through postThought/sink) and exposed as a callback,
+	 * mirroring {@link SessionOrchestratorDeps.postInstantAcknowledgment}.
+	 */
+	postParentResumeAcknowledgment(
+		sessionId: string,
+		linearWorkspaceId: string,
+	): Promise<void>;
+	/**
+	 * Post an activity directly via an ad-hoc `LinearActivitySink`. Kept on
+	 * EdgeWorker (it owns the sink wrap + error logging) and exposed as a callback.
+	 */
+	postActivityDirect(
+		issueTracker: IIssueTrackerService,
+		input: AgentActivityCreateInput,
+		label: string,
+	): Promise<string | null>;
 }
 
 /**
@@ -811,6 +834,106 @@ export class SessionOrchestrator {
 		);
 
 		return false; // Session was resumed
+	}
+
+	/**
+	 * Handle resuming a parent session when a child session completes
+	 * This is the core logic used by the resume parent session callback
+	 * Extracted to reduce duplication between constructor and addNewRepositories
+	 */
+	async handleResumeParentSession(
+		parentSessionId: string,
+		prompt: string,
+		childSessionId: string,
+	): Promise<void> {
+		const log = this.deps.logger.withContext({ sessionId: parentSessionId });
+		log.info(
+			`Child session completed, resuming parent session ${parentSessionId}`,
+		);
+
+		// Find parent session from the single session manager
+		log.debug(`Looking up parent session ${parentSessionId}`);
+		const parentSession =
+			this.deps.agentSessionManager.getSession(parentSessionId);
+		const parentRepo = this.deps.getRepositoryForSession(parentSessionId);
+		const parentAgentSessionManager = this.deps.agentSessionManager;
+
+		if (!parentSession || !parentRepo) {
+			log.error(
+				`Parent session ${parentSessionId} not found in any repository's agent session manager`,
+			);
+			return;
+		}
+
+		// Extract workspace ID once for all operations in this method
+		const parentWorkspaceId = requireLinearWorkspaceId(parentRepo);
+
+		log.debug(
+			`Found parent session - Issue: ${parentSession.issueId}, Workspace: ${parentSession.workspace.path}`,
+		);
+
+		// Get the child session to access its workspace path
+		const childSession =
+			this.deps.agentSessionManager.getSession(childSessionId);
+		const childWorkspaceDirs: string[] = [];
+		if (childSession) {
+			childWorkspaceDirs.push(childSession.workspace.path);
+			log.debug(
+				`Adding child workspace to parent allowed directories: ${childSession.workspace.path}`,
+			);
+		} else {
+			log.warn(
+				`Could not find child session ${childSessionId} to add workspace to parent allowed directories`,
+			);
+		}
+
+		await this.deps.postParentResumeAcknowledgment(
+			parentSessionId,
+			parentWorkspaceId,
+		);
+
+		// Post thought showing child result receipt
+		// Use parent's issue tracker since we're posting to the parent's session
+		const issueTracker = this.deps.getIssueTracker(parentWorkspaceId);
+		if (issueTracker && childSession) {
+			const childIssueIdentifier =
+				childSession.issue?.identifier || childSession.issueId;
+			const resultThought = `Received result from sub-issue ${childIssueIdentifier}:\n\n---\n\n${prompt}\n\n---`;
+
+			await this.deps.postActivityDirect(
+				issueTracker,
+				{
+					agentSessionId: parentSessionId,
+					content: { type: "thought", body: resultThought },
+				},
+				"child result receipt",
+			);
+		}
+
+		// Use centralized streaming check and routing logic
+		log.info(`Handling child result for parent session ${parentSessionId}`);
+		try {
+			await this.handlePromptWithStreamingCheck(
+				parentSession,
+				parentRepo,
+				parentSessionId,
+				parentAgentSessionManager,
+				prompt,
+				"", // No attachment manifest for child results
+				false, // Not a new session
+				childWorkspaceDirs, // Add child workspace directories to parent's allowed directories
+				"parent resume from child",
+				parentWorkspaceId,
+			);
+			log.info(
+				`Successfully handled child result for parent session ${parentSessionId}`,
+			);
+		} catch (error) {
+			log.error(`Failed to resume parent session ${parentSessionId}:`, error);
+			log.error(
+				`Error context - Parent issue: ${parentSession.issueId}, Repository: ${parentRepo.name}`,
+			);
+		}
 	}
 
 	/**

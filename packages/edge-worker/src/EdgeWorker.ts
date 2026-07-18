@@ -452,7 +452,7 @@ export class EdgeWorker extends EventEmitter {
 					);
 					return;
 				}
-				await this.handleResumeParentSession(
+				await this.sessionOrchestrator.handleResumeParentSession(
 					parentSessionId,
 					prompt,
 					childSessionId,
@@ -726,6 +726,15 @@ export class EdgeWorker extends EventEmitter {
 				this.config.handlers?.onSessionStart?.(issueId, issue, repositoryId);
 			},
 			resumeSessionDelegate: (...args) => this.resumeAgentSession(...args),
+			getRepositoryForSession: (sessionId) => {
+				const repoId = this.sessionRepositories.get(sessionId);
+				return repoId ? this.repositories.get(repoId) : undefined;
+			},
+			getIssueTracker: (workspaceId) => this.issueTrackers.get(workspaceId),
+			postParentResumeAcknowledgment: (sessionId, linearWorkspaceId) =>
+				this.postParentResumeAcknowledgment(sessionId, linearWorkspaceId),
+			postActivityDirect: (issueTracker, input, label) =>
+				this.postActivityDirect(issueTracker, input, label),
 		});
 
 		// Components will be initialized and registered in start() method before server starts
@@ -1814,107 +1823,6 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 	setConfigPath(configPath: string): void {
 		this.configPath = configPath;
 		this.configManager.setConfigPath(configPath);
-	}
-
-	/**
-	 * Handle resuming a parent session when a child session completes
-	 * This is the core logic used by the resume parent session callback
-	 * Extracted to reduce duplication between constructor and addNewRepositories
-	 */
-	private async handleResumeParentSession(
-		parentSessionId: string,
-		prompt: string,
-		childSessionId: string,
-	): Promise<void> {
-		const log = this.logger.withContext({ sessionId: parentSessionId });
-		log.info(
-			`Child session completed, resuming parent session ${parentSessionId}`,
-		);
-
-		// Find parent session from the single session manager
-		log.debug(`Looking up parent session ${parentSessionId}`);
-		const parentSession = this.agentSessionManager.getSession(parentSessionId);
-		const parentRepoId = this.sessionRepositories.get(parentSessionId);
-		const parentRepo = parentRepoId
-			? this.repositories.get(parentRepoId)
-			: undefined;
-		const parentAgentSessionManager = this.agentSessionManager;
-
-		if (!parentSession || !parentRepo) {
-			log.error(
-				`Parent session ${parentSessionId} not found in any repository's agent session manager`,
-			);
-			return;
-		}
-
-		// Extract workspace ID once for all operations in this method
-		const parentWorkspaceId = requireLinearWorkspaceId(parentRepo);
-
-		log.debug(
-			`Found parent session - Issue: ${parentSession.issueId}, Workspace: ${parentSession.workspace.path}`,
-		);
-
-		// Get the child session to access its workspace path
-		const childSession = this.agentSessionManager.getSession(childSessionId);
-		const childWorkspaceDirs: string[] = [];
-		if (childSession) {
-			childWorkspaceDirs.push(childSession.workspace.path);
-			log.debug(
-				`Adding child workspace to parent allowed directories: ${childSession.workspace.path}`,
-			);
-		} else {
-			log.warn(
-				`Could not find child session ${childSessionId} to add workspace to parent allowed directories`,
-			);
-		}
-
-		await this.postParentResumeAcknowledgment(
-			parentSessionId,
-			parentWorkspaceId,
-		);
-
-		// Post thought showing child result receipt
-		// Use parent's issue tracker since we're posting to the parent's session
-		const issueTracker = this.issueTrackers.get(parentWorkspaceId);
-		if (issueTracker && childSession) {
-			const childIssueIdentifier =
-				childSession.issue?.identifier || childSession.issueId;
-			const resultThought = `Received result from sub-issue ${childIssueIdentifier}:\n\n---\n\n${prompt}\n\n---`;
-
-			await this.postActivityDirect(
-				issueTracker,
-				{
-					agentSessionId: parentSessionId,
-					content: { type: "thought", body: resultThought },
-				},
-				"child result receipt",
-			);
-		}
-
-		// Use centralized streaming check and routing logic
-		log.info(`Handling child result for parent session ${parentSessionId}`);
-		try {
-			await this.handlePromptWithStreamingCheck(
-				parentSession,
-				parentRepo,
-				parentSessionId,
-				parentAgentSessionManager,
-				prompt,
-				"", // No attachment manifest for child results
-				false, // Not a new session
-				childWorkspaceDirs, // Add child workspace directories to parent's allowed directories
-				"parent resume from child",
-				parentWorkspaceId,
-			);
-			log.info(
-				`Successfully handled child result for parent session ${parentSessionId}`,
-			);
-		} catch (error) {
-			log.error(`Failed to resume parent session ${parentSessionId}:`, error);
-			log.error(
-				`Error context - Parent issue: ${parentSession.issueId}, Repository: ${parentRepo.name}`,
-			);
-		}
 	}
 
 	/**
