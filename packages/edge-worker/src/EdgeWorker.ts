@@ -2585,10 +2585,14 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 			throw new Error(`Failed to fetch full issue details for ${issue.id}`);
 		}
 
-		// Move issue to started state automatically, in case it's not already
-		await this.moveIssueToStartedState(fullIssue, linearWorkspaceId);
-
-		// Create workspace using full issue data
+		// Overlap the independent startup steps that only depend on the fetched
+		// issue: moving the issue to a started state (Linear mutation), creating
+		// the workspace (git worktree provisioning), and fetching issue labels
+		// (Linear read). None of these read each other's results, so awaiting
+		// them together shortens the critical path before the first model
+		// response. Labels are returned in AgentSessionData so startSession can
+		// consume this in-flight fetch instead of issuing a second round-trip.
+		//
 		// IMPORTANT: The CLI app (apps/cli/src/services/WorkerService.ts) typically provides
 		// a custom createWorkspace handler, so the handler path is the one taken in production.
 		// When adding new options here, always update the handler signature in config-types.ts
@@ -2596,8 +2600,8 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 		this.logger.info(
 			`createCyrusAgentSession: passing baseBranchOverrides=${baseBranchOverrides ? `Map(size=${baseBranchOverrides.size}, keys=[${Array.from(baseBranchOverrides.keys()).join(",")}])` : "undefined"}, useCustomHandler=${!!this.config.handlers?.createWorkspace}`,
 		);
-		const workspace = this.config.handlers?.createWorkspace
-			? await this.config.handlers.createWorkspace(fullIssue, repositories, {
+		const workspacePromise = this.config.handlers?.createWorkspace
+			? this.config.handlers.createWorkspace(fullIssue, repositories, {
 					baseBranchOverrides,
 					onRepoSetupHookEvent: async (event) => {
 						await this.postActivityViaSink(
@@ -2608,7 +2612,7 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 						);
 					},
 				})
-			: await this.gitService.createGitWorktree(fullIssue, repositories, {
+			: this.gitService.createGitWorktree(fullIssue, repositories, {
 					baseBranchOverrides,
 					crossRepoSiblingRepositories: Array.from(this.repositories.values()),
 					onRepoSetupHookEvent: async (event) => {
@@ -2620,6 +2624,12 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 						);
 					},
 				});
+
+		const [workspace, , labels] = await Promise.all([
+			workspacePromise,
+			this.moveIssueToStartedState(fullIssue, linearWorkspaceId),
+			this.fetchIssueLabels(fullIssue),
+		]);
 
 		this.logger.debug(`Workspace created at: ${workspace.path}`);
 
@@ -2651,30 +2661,6 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 			agentSessionManager.setActivitySink(sessionId, activitySink);
 		}
 
-		// Post combined routing + base branch activity
-		{
-			const repoLines = repositories.map((repo) => {
-				const resolution = workspace.resolvedBaseBranches?.[repo.id];
-				const branch = resolution?.branch ?? repo.baseBranch;
-				const sourceLabel = !resolution
-					? "default"
-					: resolution.source === "commit-ish"
-						? "override"
-						: resolution.source === "graphite-blocked-by"
-							? (resolution.detail ?? "graphite")
-							: resolution.source === "parent-issue"
-								? (resolution.detail ?? "parent")
-								: "default";
-				return `- **${repo.name}** → \`${branch}\` (${sourceLabel})`;
-			});
-			await this.postRoutingActivity(
-				sessionId,
-				linearWorkspaceId,
-				repoLines,
-				routingMethod,
-			);
-		}
-
 		// Get the newly created session
 		const session = agentSessionManager.getSession(sessionId);
 		if (!session) {
@@ -2683,37 +2669,71 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 			);
 		}
 
-		// Download attachments before creating Claude runner
-		const attachmentResult = await this.downloadIssueAttachments(
-			fullIssue,
-			linearWorkspaceId,
-			workspace.path,
-		);
+		// Combined routing + base branch activity lines
+		const repoLines = repositories.map((repo) => {
+			const resolution = workspace.resolvedBaseBranches?.[repo.id];
+			const branch = resolution?.branch ?? repo.baseBranch;
+			const sourceLabel = !resolution
+				? "default"
+				: resolution.source === "commit-ish"
+					? "override"
+					: resolution.source === "graphite-blocked-by"
+						? (resolution.detail ?? "graphite")
+						: resolution.source === "parent-issue"
+							? (resolution.detail ?? "parent")
+							: "default";
+			return `- **${repo.name}** → \`${branch}\` (${sourceLabel})`;
+		});
 
-		// Pre-create attachments directory even if no attachments exist yet
+		// Pre-compute the paths for the post-workspace steps. Attachments must
+		// stay after workspace creation: the branch-reuse path can return an
+		// arbitrary existing directory, so the attachments dir is keyed off the
+		// resolved workspace path (see AttachmentService) and must never be
+		// predicted ahead of time.
 		const workspaceFolderName = basename(workspace.path);
 		const attachmentsDir = join(
 			this.cyrusHome,
 			workspaceFolderName,
 			"attachments",
 		);
-		await mkdir(attachmentsDir, { recursive: true });
-
-		// Write Claude settings to disable co-authored-by attribution in the workspace.
-		// This uses the SDK's "local" settings source (loaded via settingSources: ["user", "project", "local"])
-		// to ensure Cyrus sessions don't add "Co-Authored-By: Claude" trailers to git commits.
 		const claudeSettingsDir = join(workspace.path, ".claude");
-		await mkdir(claudeSettingsDir, { recursive: true });
-		await writeFile(
-			join(claudeSettingsDir, "settings.local.json"),
-			JSON.stringify(
-				{
-					includeCoAuthoredBy: false,
-				},
-				null,
-				"\t",
+
+		// Overlap the independent post-workspace steps: downloading attachments,
+		// writing Claude local settings, pre-creating the attachments directory,
+		// and posting the routing activity. None depend on each other's results.
+		const [attachmentResult] = await Promise.all([
+			// Download attachments before creating Claude runner
+			this.downloadIssueAttachments(
+				fullIssue,
+				linearWorkspaceId,
+				workspace.path,
 			),
-		);
+			// Pre-create attachments directory even if no attachments exist yet
+			mkdir(attachmentsDir, { recursive: true }),
+			// Write Claude settings to disable co-authored-by attribution in the workspace.
+			// This uses the SDK's "local" settings source (loaded via settingSources: ["user", "project", "local"])
+			// to ensure Cyrus sessions don't add "Co-Authored-By: Claude" trailers to git commits.
+			(async () => {
+				await mkdir(claudeSettingsDir, { recursive: true });
+				await writeFile(
+					join(claudeSettingsDir, "settings.local.json"),
+					JSON.stringify(
+						{
+							includeCoAuthoredBy: false,
+						},
+						null,
+						"\t",
+					),
+				);
+			})(),
+			// Post combined routing + base branch activity
+			this.postRoutingActivity(
+				sessionId,
+				linearWorkspaceId,
+				repoLines,
+				routingMethod,
+			),
+		]);
 
 		// Build allowed directories list - always include attachments directory
 		// Include repository paths from all repositories
@@ -2745,6 +2765,7 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 			allowedDirectories,
 			allowedTools,
 			disallowedTools,
+			labels,
 		};
 	}
 

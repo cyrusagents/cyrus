@@ -60,6 +60,7 @@ function makeSessionData(session: any) {
 		allowedDirectories: ["/repo"],
 		allowedTools: ["Read"],
 		disallowedTools: [],
+		labels: [],
 	};
 }
 
@@ -286,6 +287,50 @@ describe("SessionOrchestrator", () => {
 			await orch.startSession(START_REQ(null));
 
 			expect(h.created[0].start).toHaveBeenCalledWith("USER_PROMPT");
+		});
+
+		it("does not fail startSession when the instant acknowledgment rejects", async () => {
+			const { deps } = makeDeps();
+			// Ack is fire-and-forget: a rejection must not abort session creation.
+			vi.mocked(deps.postInstantAcknowledgment).mockRejectedValueOnce(
+				new Error("linear down"),
+			);
+			const orch = new SessionOrchestrator(deps);
+
+			await expect(orch.startSession(START_REQ(null))).resolves.toBeUndefined();
+
+			// The session was still created and streaming still started.
+			expect(deps.createCyrusAgentSession).toHaveBeenCalledTimes(1);
+			expect(h.created[0].startStreaming).toHaveBeenCalledWith("USER_PROMPT");
+			// It should not have been awaited: labels are never re-fetched here.
+			expect(deps.fetchIssueLabels).not.toHaveBeenCalled();
+		});
+
+		it("consumes labels from the created session data instead of re-fetching", async () => {
+			const { deps } = makeDeps();
+			const sessionData = makeSessionData({
+				id: "sess-1",
+				issueContext: { issueId: "issue-1", issueIdentifier: "ISS-1" },
+				workspace: { path: "/repo/wt/ISS-1" },
+				agentRunner: undefined,
+			});
+			// createCyrusAgentSession returns labels fetched during session creation.
+			vi.mocked(deps.createCyrusAgentSession).mockImplementationOnce(
+				async () =>
+					({
+						...sessionData,
+						labels: ["bug", "backend"],
+					}) as any,
+			);
+			const orch = new SessionOrchestrator(deps);
+
+			await orch.startSession(START_REQ(null));
+
+			// No second round-trip for labels.
+			expect(deps.fetchIssueLabels).not.toHaveBeenCalled();
+			const assemblyInput = vi.mocked(deps.promptAssembler.assemble).mock
+				.calls[0]?.[0];
+			expect(assemblyInput?.labels).toEqual(["bug", "backend"]);
 		});
 	});
 

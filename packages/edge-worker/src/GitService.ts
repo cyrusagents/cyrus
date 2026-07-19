@@ -76,6 +76,23 @@ export interface DeleteWorktreeOptions {
 }
 
 /**
+ * Result of provisioning a single repo worktree (git checks, fetch, `worktree
+ * add`, `.worktreeinclude` copy) without yet running its setup scripts. This
+ * splits the parallelizable provision phase from the sequential setup phase so
+ * the multi-repo path can overlap independent provisioning work.
+ */
+interface ProvisionedWorktree {
+	workspace: Workspace;
+	/**
+	 * Path where setup scripts (global + per-repo) should run. Only set when a
+	 * fresh worktree was actually created; left undefined on reuse/fallback
+	 * paths, which must not re-run setup — mirroring the prior early-return
+	 * behavior.
+	 */
+	setupPath?: string;
+}
+
+/**
  * Service responsible for Git worktree operations
  */
 export class GitService {
@@ -520,35 +537,113 @@ export class GitService {
 		const repoPaths: Record<string, string> = {};
 		const resolvedBaseBranches: Record<string, BaseBranchResolution> = {};
 
+		// Split provisioning (parallelizable) from setup (must stay sequential).
+		// Provisioning is grouped by distinct repositoryPath: configs sharing a
+		// repositoryPath race on the same `.git/worktrees` metadata, so they are
+		// serialized within their group while distinct repos provision
+		// concurrently. Setup scripts run sequentially afterwards — user scripts
+		// commonly `pnpm install` against the shared global virtual store and
+		// concurrent installs corrupt it (PR #36).
+		const groups = new Map<string, RepositoryConfig[]>();
 		for (const repository of repositories) {
-			const repoSubPath = join(parentPath, repository.name);
-			this.logger.info(
-				`Creating worktree for repo '${repository.name}' at ${repoSubPath}`,
-			);
+			const group = groups.get(repository.repositoryPath);
+			if (group) {
+				group.push(repository);
+			} else {
+				groups.set(repository.repositoryPath, [repository]);
+			}
+		}
+		const groupList = Array.from(groups.values());
 
-			try {
-				const repoWorkspace = await this.createSingleRepoWorktree(
+		const provisionedById = new Map<string, ProvisionedWorktree>();
+		const buildFallback = (
+			repository: RepositoryConfig,
+		): ProvisionedWorktree => {
+			const repoSubPath = join(parentPath, repository.name);
+			mkdirSync(repoSubPath, { recursive: true });
+			return { workspace: { path: repoSubPath, isGitWorktree: false } };
+		};
+
+		const settled = await Promise.allSettled(
+			groupList.map(async (group) => {
+				const provisionedInGroup: Array<{
+					repository: RepositoryConfig;
+					provisioned: ProvisionedWorktree;
+				}> = [];
+				// Serialize within a group: same repositoryPath => shared
+				// `.git/worktrees`, so concurrent `worktree add` calls would race.
+				for (const repository of group) {
+					const repoSubPath = join(parentPath, repository.name);
+					this.logger.info(
+						`Creating worktree for repo '${repository.name}' at ${repoSubPath}`,
+					);
+					try {
+						const provisioned = await this.provisionSingleRepoWorktree(
+							issue,
+							repository,
+							repoSubPath, // override workspace path for N-repo layout
+							baseBranchOverrides?.get(repository.id),
+						);
+						provisionedInGroup.push({ repository, provisioned });
+					} catch (error) {
+						// Preserve per-repo fallback-dir-on-error semantics: one repo's
+						// failure still yields a fallback dir and never aborts the others.
+						this.logger.error(
+							`Failed to create worktree for repo '${repository.name}': ${(error as Error).message}`,
+						);
+						provisionedInGroup.push({
+							repository,
+							provisioned: buildFallback(repository),
+						});
+					}
+				}
+				return provisionedInGroup;
+			}),
+		);
+
+		settled.forEach((result, index) => {
+			if (result.status === "fulfilled") {
+				for (const { repository, provisioned } of result.value) {
+					provisionedById.set(repository.id, provisioned);
+				}
+			} else {
+				// A whole group promise rejecting is unexpected (per-repo errors are
+				// caught above), but fall back defensively so every repo still gets a dir.
+				this.logger.error(
+					`Worktree provisioning group failed: ${(result.reason as Error)?.message}`,
+				);
+				for (const repository of groupList[index]!) {
+					provisionedById.set(repository.id, buildFallback(repository));
+				}
+			}
+		});
+
+		// Collect paths + resolved base branches in original repository order.
+		for (const repository of repositories) {
+			const provisioned = provisionedById.get(repository.id);
+			if (!provisioned) continue;
+			repoPaths[repository.id] = provisioned.workspace.path;
+			if (provisioned.workspace.resolvedBaseBranches) {
+				Object.assign(
+					resolvedBaseBranches,
+					provisioned.workspace.resolvedBaseBranches,
+				);
+			}
+		}
+
+		// Run setup scripts sequentially in original repository order. The global
+		// setup script already ran once at the parent level above, so only the
+		// per-repo setup runs here (globalSetupScript intentionally omitted).
+		for (const repository of repositories) {
+			const provisioned = provisionedById.get(repository.id);
+			if (provisioned?.setupPath) {
+				await this.runWorktreeSetup(
+					provisioned.setupPath,
 					issue,
-					repository,
-					undefined, // global setup already ran
-					repoSubPath, // override workspace path for N-repo layout
-					baseBranchOverrides?.get(repository.id),
+					repository.name,
+					undefined, // global setup already ran at the parent level
 					onRepoSetupHookEvent,
 				);
-				repoPaths[repository.id] = repoWorkspace.path;
-				if (repoWorkspace.resolvedBaseBranches) {
-					Object.assign(
-						resolvedBaseBranches,
-						repoWorkspace.resolvedBaseBranches,
-					);
-				}
-			} catch (error) {
-				this.logger.error(
-					`Failed to create worktree for repo '${repository.name}': ${(error as Error).message}`,
-				);
-				// Create fallback directory for this repo
-				mkdirSync(repoSubPath, { recursive: true });
-				repoPaths[repository.id] = repoSubPath;
 			}
 		}
 
@@ -561,22 +656,22 @@ export class GitService {
 	}
 
 	/**
-	 * Create a single git worktree for one repository.
-	 * This is the core worktree creation logic, used by createGitWorktree for both
-	 * single-repo and multi-repo cases.
+	 * Provision a single git worktree for one repository: git checks, base-branch
+	 * fetch, `git worktree add`, and `.worktreeinclude` copy. This is the
+	 * parallelizable half of worktree creation — it does NOT run setup scripts.
+	 * The caller runs those separately (see {@link runWorktreeSetup}) so setup can
+	 * stay sequential even when provisioning is overlapped across repos.
 	 *
 	 * @param workspacePathOverride - Override the workspace path (used for N-repo subdirectories)
 	 */
-	private async createSingleRepoWorktree(
+	private async provisionSingleRepoWorktree(
 		issue: Issue,
 		repository: RepositoryConfig,
-		globalSetupScript?: string,
 		workspacePathOverride?: string,
 		baseBranchOverride?: string,
-		onRepoSetupHookEvent?: RepoSetupHookEventHandler,
-	): Promise<Workspace> {
+	): Promise<ProvisionedWorktree> {
 		this.logger.info(
-			`createSingleRepoWorktree for ${repository.name} (id=${repository.id}): baseBranchOverride=${baseBranchOverride ?? "undefined"}`,
+			`provisionSingleRepoWorktree for ${repository.name} (id=${repository.id}): baseBranchOverride=${baseBranchOverride ?? "undefined"}`,
 		);
 		// Build a fallback resolution for error paths where determineBaseBranch hasn't run
 		const fallbackResolution: BaseBranchResolution = baseBranchOverride
@@ -651,10 +746,13 @@ export class GitService {
 						this.logger.info(
 							`Worktree already exists at ${workspacePath}, using existing`,
 						);
+						// Reuse path: no setupPath — setup must not re-run.
 						return {
-							path: workspacePath,
-							isGitWorktree: true,
-							resolvedBaseBranches: { [repository.id]: resolution },
+							workspace: {
+								path: workspacePath,
+								isGitWorktree: true,
+								resolvedBaseBranches: { [repository.id]: resolution },
+							},
 						};
 					}
 					// Stale worktree entry — prune and continue with creation
@@ -696,10 +794,13 @@ export class GitService {
 					this.logger.info(
 						`Branch "${branchName}" is already checked out in worktree at ${existingWorktreePath}, reusing existing worktree`,
 					);
+					// Reuse path: no setupPath — setup must not re-run.
 					return {
-						path: existingWorktreePath,
-						isGitWorktree: true,
-						resolvedBaseBranches: { [repository.id]: resolution },
+						workspace: {
+							path: existingWorktreePath,
+							isGitWorktree: true,
+							resolvedBaseBranches: { [repository.id]: resolution },
+						},
 					};
 				}
 			}
@@ -822,28 +923,16 @@ export class GitService {
 				workspacePath,
 			);
 
-			// First, run the global setup script if configured
-			if (globalSetupScript) {
-				await this.runSetupScript(
-					globalSetupScript,
-					"global",
-					workspacePath,
-					issue,
-				);
-			}
-
-			// Then, check for repository setup scripts (cross-platform)
-			await this.runRepoSetupScript(
-				workspacePath,
-				issue,
-				repository.name,
-				onRepoSetupHookEvent,
-			);
-
+			// Provisioning complete. Setup scripts (global + per-repo) are run
+			// separately by the caller via runWorktreeSetup, so the multi-repo
+			// path can overlap provisioning while keeping setup sequential.
 			return {
-				path: workspacePath,
-				isGitWorktree: true,
-				resolvedBaseBranches: { [repository.id]: resolution },
+				workspace: {
+					path: workspacePath,
+					isGitWorktree: true,
+					resolvedBaseBranches: { [repository.id]: resolution },
+				},
+				setupPath: workspacePath,
 			};
 		} catch (error) {
 			const errorMessage = (error as Error).message;
@@ -858,10 +947,13 @@ export class GitService {
 				this.logger.info(
 					`Reusing existing worktree at ${worktreeMatch[1]} (branch already checked out)`,
 				);
+				// Reuse path: no setupPath — setup must not re-run.
 				return {
-					path: worktreeMatch[1],
-					isGitWorktree: true,
-					resolvedBaseBranches: { [repository.id]: fallbackResolution },
+					workspace: {
+						path: worktreeMatch[1],
+						isGitWorktree: true,
+						resolvedBaseBranches: { [repository.id]: fallbackResolution },
+					},
 				};
 			}
 
@@ -870,12 +962,77 @@ export class GitService {
 				workspacePathOverride ??
 				join(repository.workspaceBaseDir, issue.identifier);
 			mkdirSync(fallbackPath, { recursive: true });
+			// Fallback dir is not a worktree: no setupPath.
 			return {
-				path: fallbackPath,
-				isGitWorktree: false,
-				resolvedBaseBranches: { [repository.id]: fallbackResolution },
+				workspace: {
+					path: fallbackPath,
+					isGitWorktree: false,
+					resolvedBaseBranches: { [repository.id]: fallbackResolution },
+				},
 			};
 		}
+	}
+
+	/**
+	 * Run setup scripts for a freshly provisioned worktree: the global setup
+	 * script (if configured and not already run at the parent level) followed by
+	 * the per-repo setup script. Kept separate from provisioning so callers can
+	 * run setup sequentially — user setup scripts commonly `pnpm install` against
+	 * the shared global virtual store, and concurrent installs corrupt it.
+	 */
+	private async runWorktreeSetup(
+		setupPath: string,
+		issue: Issue,
+		repositoryName: string,
+		globalSetupScript?: string,
+		onRepoSetupHookEvent?: RepoSetupHookEventHandler,
+	): Promise<void> {
+		// First, run the global setup script if configured
+		if (globalSetupScript) {
+			await this.runSetupScript(globalSetupScript, "global", setupPath, issue);
+		}
+
+		// Then, check for repository setup scripts (cross-platform)
+		await this.runRepoSetupScript(
+			setupPath,
+			issue,
+			repositoryName,
+			onRepoSetupHookEvent,
+		);
+	}
+
+	/**
+	 * Create a single git worktree for one repository (provision + setup).
+	 * Used by createGitWorktree for the single-repo case; the multi-repo case
+	 * drives {@link provisionSingleRepoWorktree} and {@link runWorktreeSetup}
+	 * directly so it can overlap provisioning across repos.
+	 *
+	 * @param workspacePathOverride - Override the workspace path (used for N-repo subdirectories)
+	 */
+	private async createSingleRepoWorktree(
+		issue: Issue,
+		repository: RepositoryConfig,
+		globalSetupScript?: string,
+		workspacePathOverride?: string,
+		baseBranchOverride?: string,
+		onRepoSetupHookEvent?: RepoSetupHookEventHandler,
+	): Promise<Workspace> {
+		const { workspace, setupPath } = await this.provisionSingleRepoWorktree(
+			issue,
+			repository,
+			workspacePathOverride,
+			baseBranchOverride,
+		);
+		if (setupPath) {
+			await this.runWorktreeSetup(
+				setupPath,
+				issue,
+				repository.name,
+				globalSetupScript,
+				onRepoSetupHookEvent,
+			);
+		}
+		return workspace;
 	}
 
 	/**

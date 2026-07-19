@@ -55,4 +55,11 @@ export interface AgentSessionData {
 	allowedDirectories: string[];
 	allowedTools: string[];
 	disallowedTools: string[];
+	/**
+	 * Issue labels fetched during session creation. Returned here so callers
+	 * (e.g. {@link SessionOrchestrator.startSession}) can await the in-flight
+	 * fetch that was kicked off alongside workspace creation rather than issuing
+	 * a second round-trip.
+	 */
+	labels: string[];
 }

@@ -1819,6 +1819,146 @@ describe("GitService", () => {
 				"/home/user/.cyrus/worktrees/ENG-97/cyrus-hosted",
 			);
 		});
+
+		/**
+		 * Instrument the async provisioning boundary (`copyIgnoredFiles`) to record
+		 * how many provisions are in flight, globally and per repositoryPath. The
+		 * boundary yields a macrotask so concurrent provisions overlap here if the
+		 * loop does not serialize them — an "exec-order spy" on the provision phase.
+		 */
+		const instrumentProvisionConcurrency = (svc: GitService) => {
+			const state = {
+				order: [] as string[],
+				perPathMax: new Map<string, number>(),
+				globalMax: 0,
+			};
+			const perPathActive = new Map<string, number>();
+			let globalActive = 0;
+			(svc as any).worktreeIncludeService.copyIgnoredFiles = vi.fn(
+				async (repoPath: string, workspacePath: string) => {
+					state.order.push(workspacePath);
+					const active = (perPathActive.get(repoPath) ?? 0) + 1;
+					perPathActive.set(repoPath, active);
+					state.perPathMax.set(
+						repoPath,
+						Math.max(state.perPathMax.get(repoPath) ?? 0, active),
+					);
+					globalActive += 1;
+					state.globalMax = Math.max(state.globalMax, globalActive);
+					// Yield so any concurrent provision can overlap here.
+					await new Promise((resolve) => setImmediate(resolve));
+					perPathActive.set(repoPath, (perPathActive.get(repoPath) ?? 1) - 1);
+					globalActive -= 1;
+				},
+			);
+			return state;
+		};
+
+		const passthroughGitMock = () => {
+			mockExecSync.mockImplementation((cmd: any) => {
+				const cmdStr = String(cmd);
+				if (cmdStr === "git rev-parse --git-dir") return Buffer.from(".git\n");
+				if (cmdStr === "git worktree list --porcelain") return "";
+				if (cmdStr.includes("git rev-parse --verify"))
+					throw new Error("not found");
+				if (cmdStr.includes("git fetch origin")) return Buffer.from("");
+				if (cmdStr.includes("git ls-remote"))
+					return Buffer.from("abc123 refs/heads/main\n");
+				if (cmdStr.includes("git worktree add")) return Buffer.from("");
+				return Buffer.from("");
+			});
+		};
+
+		it("serializes provisioning for configs sharing a repositoryPath", async () => {
+			const issue = makeIssue();
+			// Two configs, same underlying git repo — they race on `.git/worktrees`.
+			const repoA = makeRepository({
+				id: "repo-a",
+				name: "cyrus-a",
+				repositoryPath: "/home/user/shared",
+			});
+			const repoB = makeRepository({
+				id: "repo-b",
+				name: "cyrus-b",
+				repositoryPath: "/home/user/shared",
+			});
+			passthroughGitMock();
+			const state = instrumentProvisionConcurrency(gitService);
+
+			const result = await gitService.createGitWorktree(issue, [repoA, repoB]);
+
+			// Both worktrees provisioned under the parent.
+			expect(result.repoPaths!["repo-a"]).toBe(
+				"/home/user/.cyrus/worktrees/ENG-97/cyrus-a",
+			);
+			expect(result.repoPaths!["repo-b"]).toBe(
+				"/home/user/.cyrus/worktrees/ENG-97/cyrus-b",
+			);
+			// Same repositoryPath => provisioning never overlaps.
+			expect(state.perPathMax.get("/home/user/shared")).toBe(1);
+			// Serialized order follows original repository order.
+			expect(state.order).toEqual([
+				"/home/user/.cyrus/worktrees/ENG-97/cyrus-a",
+				"/home/user/.cyrus/worktrees/ENG-97/cyrus-b",
+			]);
+		});
+
+		it("provisions distinct repositoryPaths concurrently", async () => {
+			const issue = makeIssue();
+			const repo1 = makeRepository({
+				id: "repo-1",
+				name: "cyrus",
+				repositoryPath: "/home/user/cyrus",
+			});
+			const repo2 = makeRepository({
+				id: "repo-2",
+				name: "cyrus-hosted",
+				repositoryPath: "/home/user/cyrus-hosted",
+			});
+			passthroughGitMock();
+			const state = instrumentProvisionConcurrency(gitService);
+
+			await gitService.createGitWorktree(issue, [repo1, repo2]);
+
+			// Distinct repositoryPaths overlap at the provisioning boundary.
+			expect(state.globalMax).toBeGreaterThanOrEqual(2);
+		});
+
+		it("keeps repo setup sequential (per-repo, original order) while provisioning overlaps", async () => {
+			const issue = makeIssue();
+			const repo1 = makeRepository({
+				id: "repo-1",
+				name: "cyrus",
+				repositoryPath: "/home/user/cyrus",
+			});
+			const repo2 = makeRepository({
+				id: "repo-2",
+				name: "cyrus-hosted",
+				repositoryPath: "/home/user/cyrus-hosted",
+			});
+			passthroughGitMock();
+
+			// Spy on the per-repo setup step. Track concurrency and order: setup must
+			// never overlap (concurrent `pnpm install` corrupts the shared store) and
+			// must follow original repository order.
+			let setupActive = 0;
+			let setupMax = 0;
+			const setupOrder: string[] = [];
+			(gitService as any).runRepoSetupScript = vi.fn(
+				async (_workspacePath: string, _issue: unknown, repoName: string) => {
+					setupActive += 1;
+					setupMax = Math.max(setupMax, setupActive);
+					setupOrder.push(repoName);
+					await new Promise((resolve) => setImmediate(resolve));
+					setupActive -= 1;
+				},
+			);
+
+			await gitService.createGitWorktree(issue, [repo1, repo2]);
+
+			expect(setupMax).toBe(1);
+			expect(setupOrder).toEqual(["cyrus", "cyrus-hosted"]);
+		});
 	});
 
 	describe("determineBaseBranch", () => {

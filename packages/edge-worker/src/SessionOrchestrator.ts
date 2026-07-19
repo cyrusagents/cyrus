@@ -393,8 +393,14 @@ export class SessionOrchestrator {
 
 		const agentSessionManager = this.deps.agentSessionManager;
 
-		// Post instant acknowledgment thought
-		await this.deps.postInstantAcknowledgment(sessionId, linearWorkspaceId);
+		// Post instant acknowledgment thought. Fire-and-forget: it swallows its
+		// own errors internally and nothing downstream depends on it, so there
+		// is no reason to block session creation on the round-trip.
+		void this.deps
+			.postInstantAcknowledgment(sessionId, linearWorkspaceId)
+			.catch((error) => {
+				log.warn(`Instant acknowledgment failed: ${(error as Error).message}`);
+			});
 
 		// Create the session using the shared method (pass full repositories array)
 		const sessionData = await this.deps.createCyrusAgentSession(
@@ -415,10 +421,10 @@ export class SessionOrchestrator {
 			attachmentResult,
 			attachmentsDir: _attachmentsDir,
 			allowedDirectories,
+			// Labels were fetched during session creation (overlapped with workspace
+			// provisioning) and are needed here for system prompt and runner selection.
+			labels,
 		} = sessionData;
-
-		// Fetch labels early (needed for system prompt and runner selection)
-		const labels = await this.deps.fetchIssueLabels(fullIssue);
 
 		log.info(`Starting agent session for issue ${fullIssue.identifier}`);
 
