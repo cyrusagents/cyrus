@@ -1472,7 +1472,7 @@ describe("RepositoryRouter", () => {
 				// When: Eliciting user selection
 				await env.router.elicitUserRepositorySelection(webhook, [repo1, repo2]);
 
-				// Then: Should post elicitation with correct options
+				// Then: Should post elicitation with repository names as options
 				expect(env.mockLinearClient.createAgentActivity).toHaveBeenCalledWith({
 					agentSessionId: "session-123",
 					content: {
@@ -1481,10 +1481,7 @@ describe("RepositoryRouter", () => {
 					},
 					signal: AgentActivitySignal.Select,
 					signalMetadata: {
-						options: [
-							{ value: "https://github.com/org/frontend" },
-							{ value: "https://github.com/org/backend" },
-						],
+						options: [{ value: "Frontend Repo" }, { value: "Backend Repo" }],
 					},
 				});
 			});
@@ -1506,6 +1503,61 @@ describe("RepositoryRouter", () => {
 						},
 					}),
 				);
+			});
+
+			it("should never send credential-bearing git URLs as option values", async () => {
+				// Given: Repository whose git URL embeds a PAT
+				const repo = env
+					.repository("repo-1", "Mirage Pools")
+					.withGithubUrl(
+						"https://user:github_pat_secret123@github.com/org/mirage-pools",
+					)
+					.build();
+
+				const webhook = env.webhook().build();
+
+				// When: Eliciting user selection
+				await env.router.elicitUserRepositorySelection(webhook, [repo]);
+
+				// Then: Option value is the repository name, not the URL
+				expect(env.mockLinearClient.createAgentActivity).toHaveBeenCalledWith(
+					expect.objectContaining({
+						signalMetadata: {
+							options: [{ value: "Mirage Pools" }],
+						},
+					}),
+				);
+				const payload = JSON.stringify(
+					(env.mockLinearClient.createAgentActivity as any).mock.calls,
+				);
+				expect(payload).not.toContain("github_pat_secret123");
+			});
+
+			it("should truncate option values to Linear's 100 character limit", async () => {
+				// Given: Repository with a name longer than 100 characters
+				const longName = "a".repeat(150);
+				const repo = env.repository("repo-1", longName).build();
+
+				const webhook = env.webhook().withSession("session-123").build();
+
+				// When: Eliciting user selection
+				await env.router.elicitUserRepositorySelection(webhook, [repo]);
+
+				// Then: Option value is truncated to 100 characters
+				expect(env.mockLinearClient.createAgentActivity).toHaveBeenCalledWith(
+					expect.objectContaining({
+						signalMetadata: {
+							options: [{ value: "a".repeat(100) }],
+						},
+					}),
+				);
+
+				// And: Selecting via the truncated value resolves the repository
+				const result = await env.router.selectRepositoryFromResponse(
+					"session-123",
+					"a".repeat(100),
+				);
+				expect(result).toBe(repo);
 			});
 
 			it("should store pending selection for later processing", async () => {

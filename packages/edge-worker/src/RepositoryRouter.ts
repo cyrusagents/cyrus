@@ -10,6 +10,11 @@ import {
 } from "cyrus-core";
 
 /**
+ * Linear rejects select-signal option values longer than 100 characters.
+ */
+const MAX_SELECT_OPTION_VALUE_LENGTH = 100;
+
+/**
  * Repository routing result types
  */
 export type RepositoryRoutingResult =
@@ -576,7 +581,7 @@ export class RepositoryRouter {
 
 				const fullIssue = await issueTracker.fetchIssue(issueId);
 				const project = await fullIssue?.project;
-				if (!project || !project.name) {
+				if (!project?.name) {
 					this.logger.debug(
 						`No project name found for issue ${issueId} in repository ${repo.name}`,
 					);
@@ -644,9 +649,11 @@ export class RepositoryRouter {
 			return;
 		}
 
-		// Create repository options
+		// Create repository options. Use the configured repository name, never
+		// git URLs: configured URLs may embed credentials (which must not be
+		// sent to Linear) and can exceed Linear's option value length limit.
 		const options = workspaceRepos.map((repo) => ({
-			value: repo.githubUrl || repo.gitlabUrl || repo.name,
+			value: repo.name.slice(0, MAX_SELECT_OPTION_VALUE_LENGTH),
 		}));
 
 		// Post elicitation activity
@@ -729,12 +736,15 @@ export class RepositoryRouter {
 		// Remove from pending map
 		this.pendingSelections.delete(agentSessionId);
 
-		// Find selected repository by GitHub/GitLab URL or name
+		// Find selected repository by name (option values are names, possibly
+		// truncated to Linear's length limit), falling back to GitHub/GitLab URL
 		const selectedRepo = pendingData.workspaceRepos.find(
 			(repo) =>
+				repo.name === selectedRepositoryName ||
+				repo.name.slice(0, MAX_SELECT_OPTION_VALUE_LENGTH) ===
+					selectedRepositoryName ||
 				repo.githubUrl === selectedRepositoryName ||
-				repo.gitlabUrl === selectedRepositoryName ||
-				repo.name === selectedRepositoryName,
+				repo.gitlabUrl === selectedRepositoryName,
 		);
 
 		// Fallback to first repository if not found
