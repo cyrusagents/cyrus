@@ -14,6 +14,8 @@ import type {
 	AgentSessionCreatedWebhook,
 	AgentSessionPromptedWebhook,
 	BaseBranchResolution,
+	Comment,
+	Connection,
 	ContentUpdateMessage,
 	CyrusAgentSession,
 	EdgeWorkerConfig,
@@ -131,6 +133,10 @@ import { ConfigManager, type RepositoryChanges } from "./ConfigManager.js";
 import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
+import {
+	type HandoffParseResult,
+	parseHandoffMarker,
+} from "./HandoffMarkerParser.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
 import type {
@@ -154,6 +160,12 @@ import { LinearActivitySink } from "./sinks/LinearActivitySink.js";
 import { ToolPermissionResolver } from "./ToolPermissionResolver.js";
 import type { AgentSessionData, EdgeWorkerEvents } from "./types.js";
 import { UserAccessControl } from "./UserAccessControl.js";
+import {
+	readWorkLeaseConfig,
+	readWorkLeaseToken,
+	WorkLeaseClient,
+	WorkLeaseError,
+} from "./WorkLeaseClient.js";
 
 export declare interface EdgeWorker {
 	on<K extends keyof EdgeWorkerEvents>(
@@ -3195,7 +3207,8 @@ ${taskSection}`;
 	 * @param linearWorkspaceId Linear workspace ID (from webhook.organizationId)
 	 * @returns Object containing session details and setup information
 	 */
-	private async createCyrusAgentSession(
+	/** @internal Exposed for testing: exercises the full session-startup sequence. */
+	public async createCyrusAgentSession(
 		sessionId: string,
 		issue: { id: string; identifier: string },
 		repositoriesOrSingle: RepositoryConfig | RepositoryConfig[],
@@ -3218,6 +3231,18 @@ ${taskSection}`;
 			throw new Error(`Failed to fetch full issue details for ${issue.id}`);
 		}
 
+		// ── Work-lease handoff check (BRI-3257) ──────────────────────────────────
+		// Must happen BEFORE any issue-state transition, worktree creation, or session
+		// mutation. Fail closed on any error when a marker is present.
+		const effectiveBaseBranchOverrides = await this.performHandoffCheck(
+			fullIssue.id,
+			fullIssue.identifier,
+			linearWorkspaceId,
+			primaryRepo,
+			baseBranchOverrides,
+		);
+		// ─────────────────────────────────────────────────────────────────────────
+
 		// Move issue to started state automatically, in case it's not already
 		await this.moveIssueToStartedState(fullIssue, linearWorkspaceId);
 
@@ -3227,14 +3252,14 @@ ${taskSection}`;
 		// When adding new options here, always update the handler signature in config-types.ts
 		// AND the CLI's handler implementation in WorkerService.ts to pass them through.
 		this.logger.info(
-			`createCyrusAgentSession: passing baseBranchOverrides=${baseBranchOverrides ? `Map(size=${baseBranchOverrides.size}, keys=[${Array.from(baseBranchOverrides.keys()).join(",")}])` : "undefined"}, useCustomHandler=${!!this.config.handlers?.createWorkspace}`,
+			`createCyrusAgentSession: passing baseBranchOverrides=${effectiveBaseBranchOverrides ? `Map(size=${effectiveBaseBranchOverrides.size}, keys=[${Array.from(effectiveBaseBranchOverrides.keys()).join(",")}])` : "undefined"}, useCustomHandler=${!!this.config.handlers?.createWorkspace}`,
 		);
 		const workspace = this.config.handlers?.createWorkspace
 			? await this.config.handlers.createWorkspace(fullIssue, repositories, {
-					baseBranchOverrides,
+					baseBranchOverrides: effectiveBaseBranchOverrides,
 				})
 			: await this.gitService.createGitWorktree(fullIssue, repositories, {
-					baseBranchOverrides,
+					baseBranchOverrides: effectiveBaseBranchOverrides,
 				});
 
 		this.logger.debug(`Workspace created at: ${workspace.path}`);
@@ -4541,6 +4566,162 @@ ${taskSection}`;
 			);
 			// Don't throw - we don't want to fail the entire assignment process due to state update failure
 		}
+	}
+
+	/**
+	 * Fetch all issue comment pages and check for a CYRUS-MACHINE-HANDOFF marker.
+	 *
+	 * If a marker is found and valid, adopts the work lease from the authority and
+	 * returns an updated `baseBranchOverrides` map that binds the primary repo to the
+	 * handoff `starting_sha`. If no marker exists, returns the original map unchanged.
+	 *
+	 * Fails closed (throws) on:
+	 *   - Comment pagination error (network failure, cursor cycle, page overflow)
+	 *   - Any raw marker present but invalid/malformed/duplicate
+	 *   - Marker present but env vars missing
+	 *   - Any authority network error, HTTP error, or binding mismatch
+	 *
+	 * @internal Exposed as public for testing; callers outside EdgeWorker should not
+	 *           rely on this method's signature.
+	 */
+	public async performHandoffCheck(
+		issueId: string,
+		issueIdentifier: string,
+		linearWorkspaceId: string,
+		primaryRepo: RepositoryConfig,
+		baseBranchOverrides?: Map<string, string>,
+	): Promise<Map<string, string> | undefined> {
+		const issueTracker = this.issueTrackers.get(linearWorkspaceId);
+		if (!issueTracker) {
+			this.logger.warn(
+				`[HandoffCheck] No issue tracker for workspace ${linearWorkspaceId}; skipping`,
+			);
+			return baseBranchOverrides;
+		}
+
+		// If the issue tracker does not support comment fetching (e.g. minimal test
+		// mocks), there can be no handoff marker — take the legacy path immediately.
+		if (typeof issueTracker.fetchComments !== "function") {
+			this.logger.debug(
+				`[HandoffCheck] Issue tracker for ${linearWorkspaceId} does not support fetchComments; skipping handoff check`,
+			);
+			return baseBranchOverrides;
+		}
+
+		// ── Fetch all comment pages ──────────────────────────────────────────────
+		const MAX_PAGES = 50;
+		const PAGE_SIZE = 50;
+		const allComments: Comment[] = [];
+		let cursor: string | undefined;
+		const seenCursors = new Set<string>();
+
+		for (let page = 0; page < MAX_PAGES; page++) {
+			let conn: Connection<Comment>;
+			try {
+				conn = await issueTracker.fetchComments(issueId, {
+					first: PAGE_SIZE,
+					after: cursor,
+				});
+			} catch (err) {
+				throw new Error(
+					`[HandoffCheck] Failed to fetch comment page ${page + 1} for issue ${issueIdentifier}: ${(err as Error).message}`,
+				);
+			}
+
+			allComments.push(...conn.nodes);
+
+			const pi = conn.pageInfo;
+			if (!pi?.hasNextPage) break;
+
+			// Fail closed: hasNextPage=true but no cursor
+			if (!pi.endCursor) {
+				throw new Error(
+					`[HandoffCheck] Pagination error on page ${page + 1} for ${issueIdentifier}: hasNextPage=true but endCursor is absent`,
+				);
+			}
+
+			// Fail closed: cursor cycle
+			if (seenCursors.has(pi.endCursor)) {
+				throw new Error(
+					`[HandoffCheck] Pagination cursor cycle detected for ${issueIdentifier} at cursor '${pi.endCursor}'`,
+				);
+			}
+
+			seenCursors.add(pi.endCursor);
+			cursor = pi.endCursor;
+
+			// Fail closed: overflow
+			if (page === MAX_PAGES - 1 && pi.hasNextPage) {
+				throw new Error(
+					`[HandoffCheck] Comment page overflow for ${issueIdentifier}: exceeded ${MAX_PAGES} pages`,
+				);
+			}
+		}
+
+		this.logger.debug(
+			`[HandoffCheck] Fetched ${allComments.length} comments (${seenCursors.size + 1} page(s)) for ${issueIdentifier}`,
+		);
+
+		// ── Parse and validate handoff marker ────────────────────────────────────
+		const parseResult: HandoffParseResult = parseHandoffMarker(
+			allComments,
+			issueIdentifier,
+			primaryRepo.githubUrl,
+		);
+
+		if (parseResult.type === "none") {
+			// No marker — legacy/manual path. Do not check env vars.
+			this.logger.debug(
+				`[HandoffCheck] No CYRUS-MACHINE-HANDOFF marker for ${issueIdentifier}; using legacy path`,
+			);
+			return baseBranchOverrides;
+		}
+
+		if (parseResult.type === "error") {
+			// Any raw marker present but invalid → fail closed before any mutation
+			throw new Error(
+				`[HandoffCheck] Invalid handoff marker for ${issueIdentifier}: ${parseResult.reason}`,
+			);
+		}
+
+		// parseResult.type === "found"
+		const { data: handoff } = parseResult;
+		this.logger.info(
+			`[HandoffCheck] Valid handoff marker found for ${issueIdentifier} (lease ${handoff.lease_id}); adopting`,
+		);
+
+		// ── Read authority config (only when marker is present) ──────────────────
+		const leaseConfig = readWorkLeaseConfig();
+		const bearerToken = readWorkLeaseToken();
+
+		if (!leaseConfig || !bearerToken) {
+			throw new Error(
+				`[HandoffCheck] CYRUS-MACHINE-HANDOFF marker present for ${issueIdentifier} but work-lease env vars are missing (CYRUS_WORK_LEASE_URL, CYRUS_WORK_LEASE_TOKEN, CYRUS_WORK_LEASE_PRINCIPAL_ID required)`,
+			);
+		}
+
+		// ── Adopt and verify via authority ───────────────────────────────────────
+		const client = new WorkLeaseClient(leaseConfig, this.logger);
+		try {
+			await client.adoptAndVerify(handoff, bearerToken);
+		} catch (err) {
+			if (err instanceof WorkLeaseError) {
+				throw new Error(
+					`[HandoffCheck] Work-lease adoption failed for ${issueIdentifier}: ${err.message}`,
+				);
+			}
+			throw err;
+		}
+
+		// ── Bind starting_sha as base branch for primary repo ────────────────────
+		const updatedOverrides = new Map<string, string>(baseBranchOverrides ?? []);
+		updatedOverrides.set(primaryRepo.id, handoff.starting_sha);
+
+		this.logger.info(
+			`[HandoffCheck] Lease adopted; binding ${primaryRepo.name} to starting_sha ${handoff.starting_sha}`,
+		);
+
+		return updatedOverrides;
 	}
 
 	/**
