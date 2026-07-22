@@ -3,7 +3,13 @@ import { z } from "zod";
 /**
  * Supported runner/harness types for agent execution.
  */
-export const RunnerTypeSchema = z.enum(["claude", "gemini", "codex", "cursor"]);
+export const RunnerTypeSchema = z.enum([
+	"claude",
+	"gemini",
+	"codex",
+	"cursor",
+	"opencode",
+]);
 export type RunnerType = z.infer<typeof RunnerTypeSchema>;
 
 /**
@@ -50,6 +56,44 @@ export const UserAccessControlConfigSchema = z.object({
 	 * Defaults to: "You are not authorized to delegate issues to this agent."
 	 */
 	blockMessage: z.string().optional(),
+});
+
+export type JsonValue =
+	| string
+	| number
+	| boolean
+	| null
+	| JsonValue[]
+	| { [key: string]: JsonValue };
+
+export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+	z.union([
+		z.string(),
+		z.number(),
+		z.boolean(),
+		z.null(),
+		z.array(JsonValueSchema),
+		z.record(z.string(), JsonValueSchema),
+	]),
+);
+
+export type JsonObject = { [key: string]: JsonValue };
+
+export const JsonObjectSchema: z.ZodType<JsonObject> = z.record(
+	z.string(),
+	JsonValueSchema,
+);
+
+export const OpenCodeStateScopeSchema = z.enum([
+	"inherit",
+	"shared",
+	"repository",
+]);
+export type OpenCodeStateScope = z.infer<typeof OpenCodeStateScopeSchema>;
+
+export const OpenCodeConfigSchema = z.object({
+	stateScope: OpenCodeStateScopeSchema.optional(),
+	config: JsonObjectSchema.optional(),
 });
 
 /**
@@ -311,6 +355,9 @@ export const RepositoryConfigSchema = z.object({
 
 	// Repository-specific user access control
 	userAccessControl: UserAccessControlConfigSchema.optional(),
+
+	// Repository-specific OpenCode runtime config overrides
+	opencode: OpenCodeConfigSchema.optional(),
 });
 
 /**
@@ -358,6 +405,18 @@ export const EdgeConfigSchema = z.object({
 
 	/** Default Cursor fallback model if primary Cursor model is unavailable */
 	cursorDefaultFallbackModel: z.string().optional(),
+
+	/** Default OpenCode model to use across all repositories (e.g., "openai/gpt-5.5", "anthropic/claude-sonnet-4.5") */
+	opencodeDefaultModel: z.string().optional(),
+
+	/** Default OpenCode fallback model if primary OpenCode model is unavailable */
+	opencodeDefaultFallbackModel: z.string().optional(),
+
+	/** Infer OpenCode runner when a model selector uses OpenCode provider/model syntax (e.g., "openai/gpt-5.5", "anthropic/claude-sonnet-4.5") */
+	inferOpenCodeRunnerFromProviderModel: z.boolean().optional(),
+
+	/** Global OpenCode runtime config overrides */
+	opencode: OpenCodeConfigSchema.optional(),
 
 	/**
 	 * Default runner/harness to use when no runner is specified via labels or description tags.
@@ -604,6 +663,7 @@ export type UserAccessControlConfig = z.infer<
 	typeof UserAccessControlConfigSchema
 >;
 export type LinearWorkspaceConfig = z.infer<typeof LinearWorkspaceConfigSchema>;
+export type OpenCodeConfigOverrides = z.infer<typeof OpenCodeConfigSchema>;
 export type RepositoryConfig = z.infer<typeof RepositoryConfigSchema>;
 export type EdgeConfig = z.infer<typeof EdgeConfigSchema>;
 export type SandboxConfig = z.infer<typeof SandboxConfigSchema>;

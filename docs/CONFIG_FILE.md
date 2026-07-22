@@ -50,6 +50,147 @@ Expected file format:
 
 Learn more about MCP: https://code.claude.com/docs/en/mcp
 
+### `opencode` (object)
+
+OpenCode sessions run with Cyrus-managed inline runtime config for generated MCP servers and permission rules. By default, Cyrus otherwise inherits the parent process environment for CLI config, state, and cache paths, matching the behavior of other agent providers and allowing tools such as `gh` and `glab` to use your normal terminal authentication. You can opt into dedicated Cyrus-managed OpenCode state globally or per repository with `opencode.stateScope`.
+
+Use `opencode.config` when an OpenCode session needs OpenCode-native runtime configuration such as plugins, instructions, formatters, providers, themes, or other OpenCode config keys. It can be configured globally or per repository.
+
+Cyrus does not automatically import your existing global OpenCode config or plugin list into agent sessions. Copy only the OpenCode-native settings you want Cyrus sessions to use into `opencode.config`; Cyrus then merges those explicit settings with its generated MCP and permission rules.
+
+Use `opencode.stateScope` to control how OpenCode-launched CLI tools store config/state/cache:
+
+- `inherit` (default): do not override `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`, or `OPENCODE_CONFIG_DIR`; CLI tools inherit the same storage your Cyrus process has.
+- `shared`: use one dedicated Cyrus OpenCode state root for all OpenCode sessions: `~/.cyrus/opencode-state/shared/`.
+- `repository`: use one dedicated Cyrus OpenCode state root per configured repository: `~/.cyrus/opencode-state/repositories/<repository-id>/`.
+
+`repository` settings override global settings. Cyrus always keeps `OPENCODE_CONFIG_CONTENT` for generated MCP and permission rules regardless of state scope.
+
+**Global OpenCode config example:**
+
+```json
+{
+  "opencode": {
+    "stateScope": "inherit",
+    "config": {
+      "plugin": ["opencode-wakatime"],
+      "instructions": ["~/.config/opencode/CYRUS.md"],
+      "share": "disabled"
+    }
+  },
+  "repositories": [
+    {
+      "id": "main-app",
+      "name": "Main Application",
+      "repositoryPath": "/path/to/repo"
+    }
+  ]
+}
+```
+
+**Repository OpenCode config example:**
+
+```json
+{
+  "repositories": [
+    {
+      "id": "main-app",
+      "name": "Main Application",
+      "repositoryPath": "/path/to/repo",
+      "opencode": {
+        "stateScope": "repository",
+        "config": {
+          "plugin": ["@company/opencode-repo-plugin"],
+          "instructions": ["OPENCODE.md"],
+          "formatter": true
+        }
+      }
+    }
+  ]
+}
+```
+
+Within the Cyrus-generated inline OpenCode config, values are merged in this order:
+
+1. Global `opencode.config`
+2. Repository `opencode.config`
+3. Cyrus-generated MCP configuration
+4. Cyrus-generated permission configuration
+
+Merge behavior:
+
+- Objects deep-merge.
+- Arrays replace earlier arrays instead of concatenating.
+- Repository values override global values for the same non-object key.
+- Cyrus-generated MCP servers win over user-provided MCP servers with the same name.
+- Cyrus-generated permissions replace user-provided OpenCode permissions because they are Cyrus safety controls.
+
+This describes Cyrus's inline config merge order, not OpenCode's complete config-loading precedence. OpenCode applies Cyrus's inline config after project config, so the managed inline config can still override OpenCode settings that were loaded earlier.
+
+This explicit merge path is intentional: it keeps Cyrus-launched OpenCode sessions predictable and reviewable while still allowing opt-in OpenCode plugins, instructions, and provider/runtime settings.
+
+For MCP servers that should work across runners, prefer `mcpConfigPath`. Cyrus reads those MCP server definitions and translates them for Claude, OpenCode, and other supported runners. Use `opencode.config` for OpenCode-native runtime config that only applies to OpenCode.
+
+**OpenCode MCP OAuth authentication:**
+
+Some OpenCode MCP servers require an interactive OAuth setup step, such as:
+
+```bash
+opencode mcp auth sentry
+```
+
+Cyrus leaves OpenCode's data home unchanged, so OAuth credentials created by the OpenCode CLI remain available to Cyrus-launched OpenCode sessions. The MCP server name must match between the authentication command and the Cyrus config.
+
+If the MCP server is only defined in Cyrus `opencode.config` and not in your normal global OpenCode config, create a temporary OpenCode config file with the same server definition and authenticate through it:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "sentry": {
+      "type": "remote",
+      "url": "https://mcp.sentry.dev/mcp",
+      "oauth": {}
+    }
+  }
+}
+```
+
+Then run:
+
+```bash
+OPENCODE_CONFIG=/path/to/opencode-auth-config.json opencode mcp auth sentry
+```
+
+After authentication, keep the same MCP server name (`sentry` in this example) in Cyrus `opencode.config.mcp` or `mcpConfigPath`. OpenCode stores the OAuth credentials in its data home, while Cyrus supplies the runtime MCP config for agent sessions.
+
+**Authenticating other CLI tools for OpenCode sessions:**
+
+With the default `opencode.stateScope: "inherit"`, OpenCode-launched tools use the same CLI auth storage as the Cyrus process, so authenticate them normally before starting Cyrus, for example:
+
+```bash
+glab auth login
+```
+
+If you set `opencode.stateScope` to `shared` or `repository`, CLIs that store auth under XDG paths, such as `glab`, will use the dedicated Cyrus root instead. To pre-authenticate one of these tools exactly where the agent will look, run the CLI with the matching environment shape.
+
+For `shared`:
+
+```bash
+CYRUS_HOME="${CYRUS_HOME:-$HOME/.cyrus}"
+STATE_ROOT="$CYRUS_HOME/opencode-state/shared"
+
+mkdir -p "$STATE_ROOT/opencode-config" "$STATE_ROOT/state" "$STATE_ROOT/cache" "$STATE_ROOT/config"
+
+OPENCODE_CONFIG_DIR="$STATE_ROOT/opencode-config" \
+XDG_STATE_HOME="$STATE_ROOT/state" \
+XDG_CACHE_HOME="$STATE_ROOT/cache" \
+XDG_CONFIG_HOME="$STATE_ROOT/config" \
+glab auth login
+```
+
+For `repository`, replace `shared` with `repositories/<repository-id>`, for example `~/.cyrus/opencode-state/repositories/main-app/`. Credentials written this way persist in the configured Cyrus OpenCode state root and are available to later OpenCode sessions using the same scope.
+
 ### `teamKeys` (array of strings)
 
 Routes Linear issues from specific teams to this repository. When specified, only issues from matching teams trigger Cyrus.

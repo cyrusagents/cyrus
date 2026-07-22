@@ -468,7 +468,7 @@ transitive-dependency vulnerabilities:
    transitive. Regenerate the lockfile and let pnpm's natural resolution do the
    work.
 
-2. **Only use root `pnpm.overrides` when a direct-dep bump cannot reach the
+2. **Only use workspace-level overrides in `pnpm-workspace.yaml` when a direct-dep bump cannot reach the
    vulnerable transitive.** This is the fallback for deep transitives (3+
    levels deep) whose owning direct dep has no released version that resolves
    to the patched transitive — typically because upstream hasn't released yet
@@ -477,7 +477,7 @@ transitive-dependency vulnerabilities:
 
 3. **Always clean up overrides when a future dep bump makes them redundant.**
    When you update a direct dependency (security or otherwise), check whether
-   any existing entry in `pnpm.overrides` is now satisfied naturally by the
+   any existing override entry is now satisfied naturally by the
    new resolution. If so, **remove that override in the same change**. Verify
    with `pnpm install && pnpm audit` that the removal is safe before committing.
 
