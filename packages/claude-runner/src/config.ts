@@ -42,13 +42,10 @@ export const availableTools = [
 	"Skill",
 
 	// User interaction tools
-	"AskUserQuestion",
 	"SendMessage",
 	"PushNotification",
 
 	// Plan and worktree management
-	"EnterPlanMode",
-	"ExitPlanMode",
 	"EnterWorktree",
 	"ExitWorktree",
 
@@ -60,20 +57,21 @@ export const availableTools = [
 
 	// Monitoring and task lifecycle
 	"Monitor",
-	"LSP",
 	"RemoteTrigger",
 	"TaskOutput",
 	"TaskStop",
 
-	// Team management
-	"TeamCreate",
-	"TeamDelete",
-
 	// Tool discovery
 	"ToolSearch",
 
+	// Design sync
+	"DesignSync",
+
 	// Workflow orchestration
 	"Workflow",
+
+	// Findings reporting
+	"ReportFindings",
 ] as const;
 
 export type ToolName = (typeof availableTools)[number];
@@ -94,10 +92,7 @@ export const readOnlyTools: ToolName[] = [
 	"Task",
 	"Skill",
 	"Monitor",
-	"LSP",
 	"TaskOutput",
-	"EnterPlanMode",
-	"ExitPlanMode",
 	"ToolSearch",
 ];
 

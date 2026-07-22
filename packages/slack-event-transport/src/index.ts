@@ -6,6 +6,7 @@ export type {
 } from "./SlackMessageService.js";
 export { SlackMessageService } from "./SlackMessageService.js";
 export {
+	buildPromptText,
 	SlackMessageTranslator,
 	stripMention,
 } from "./SlackMessageTranslator.js";
@@ -19,6 +20,7 @@ export type {
 	SlackEventTransportConfig,
 	SlackEventTransportEvents,
 	SlackEventType,
+	SlackMessageAttachment,
 	SlackMessageEvent,
 	SlackUser,
 	SlackVerificationMode,

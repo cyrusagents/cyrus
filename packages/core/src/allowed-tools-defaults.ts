@@ -43,14 +43,11 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"WebFetch",
 	"WebSearch",
 
-	// Planning + worktree management
-	"EnterPlanMode",
-	"ExitPlanMode",
+	// Worktree management
 	"EnterWorktree",
 	"ExitWorktree",
 
 	// User interaction
-	"AskUserQuestion",
 	"SendMessage",
 	"PushNotification",
 
@@ -70,17 +67,18 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 
 	// Monitoring + discovery
 	"Monitor",
-	"LSP",
 	"RemoteTrigger",
 	"ToolSearch",
 	"Skill",
 
-	// Team lifecycle
-	"TeamCreate",
-	"TeamDelete",
+	// Design sync
+	"DesignSync",
 
 	// Workflow orchestration
 	"Workflow",
+
+	// Findings reporting
+	"ReportFindings",
 
 	// Workspace MCP servers — explicit, no implicit appending. Linear
 	// sessions include `mcp__slack` so Cyrus can post status updates and
@@ -123,8 +121,6 @@ export const SLACK_DEFAULT_ALLOWED_TOOLS = [
 	"TaskList",
 	"TaskOutput",
 	"TaskStop",
-	"EnterPlanMode",
-	"ExitPlanMode",
 
 	// Discovery
 	"Monitor",
@@ -165,14 +161,11 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	"WebFetch",
 	"WebSearch",
 
-	// Planning + worktree management
-	"EnterPlanMode",
-	"ExitPlanMode",
+	// Worktree management
 	"EnterWorktree",
 	"ExitWorktree",
 
 	// User interaction
-	"AskUserQuestion",
 	"SendMessage",
 	"PushNotification",
 
@@ -192,17 +185,18 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 
 	// Monitoring + discovery
 	"Monitor",
-	"LSP",
 	"RemoteTrigger",
 	"ToolSearch",
 	"Skill",
 
-	// Team lifecycle
-	"TeamCreate",
-	"TeamDelete",
+	// Design sync
+	"DesignSync",
 
 	// Workflow orchestration
 	"Workflow",
+
+	// Findings reporting
+	"ReportFindings",
 
 	// Workspace MCP servers GitHub sessions need
 	"mcp__linear",
