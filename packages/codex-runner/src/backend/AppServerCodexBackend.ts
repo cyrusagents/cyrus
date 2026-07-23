@@ -268,6 +268,12 @@ export class AppServerCodexBackend
 			: {};
 		const sandbox = config.sandbox;
 
+		// Codex's app-server accepts this setting in its config namespace and
+		// translates it to the OpenAI request's reasoning.effort field.
+		if (config.modelReasoningEffort) {
+			base.model_reasoning_effort = config.modelReasoningEffort;
+		}
+
 		if (sandbox.kind === "profile") {
 			base.permissions = {
 				[sandbox.profileId]: {
