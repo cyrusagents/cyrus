@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Repository selection prompts in Linear now use the configured repository name as the option value instead of the git URL. Previously, when a repository's configured GitHub/GitLab URL exceeded Linear's 100-character limit on option values — common when the URL embeds an access token — the selection prompt failed to post and the session stalled with an error. Using the repository name also keeps credential-bearing URLs out of the data sent to Linear. ([#1379](https://github.com/cyrusagents/cyrus/pull/1379))
 - Forwarded and shared Slack messages are now included when you @mention Cyrus. Previously, forwarding a message (for example a Sentry alert) into a channel and @mentioning Cyrus passed along only your typed comment — the forwarded message's contents were dropped, so a forward with no comment gave Cyrus nothing to work with. The forwarded content is now part of the prompt. ([#1326](https://github.com/cyrusagents/cyrus/pull/1326))
 
 ### Changed
