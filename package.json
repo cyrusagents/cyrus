@@ -53,7 +53,11 @@
 			"body-parser": ">=2.3.0",
 			"brace-expansion": ">=5.0.7",
 			"js-yaml": ">=4.3.0",
-			"shell-quote": ">=1.9.0"
+			"shell-quote": ">=1.9.0",
+			"hono": ">=4.12.27",
+			"fast-uri": ">=3.1.4",
+			"@hono/node-server": ">=2.0.5",
+			"@opentelemetry/propagator-jaeger": ">=2.9.0"
 		}
 	},
 	"lint-staged": {

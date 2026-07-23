@@ -40,7 +40,7 @@
 		"cyrus-mcp-tools": "workspace:*",
 		"cyrus-simple-agent-runner": "workspace:*",
 		"cyrus-slack-event-transport": "workspace:*",
-		"fastify": "^5.8.5",
+		"fastify": "^5.10.0",
 		"fastify-mcp": "^2.1.0",
 		"file-type": "^21.3.2",
 		"ignore": "^7.0.5",
