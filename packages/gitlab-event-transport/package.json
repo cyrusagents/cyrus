@@ -17,7 +17,7 @@
 	},
 	"dependencies": {
 		"cyrus-core": "workspace:*",
-		"fastify": "^5.8.5"
+		"fastify": "^5.10.0"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",

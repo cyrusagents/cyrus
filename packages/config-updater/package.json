@@ -24,7 +24,7 @@
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.29.0",
 		"cyrus-core": "workspace:*",
-		"fastify": "^5.8.5",
+		"fastify": "^5.10.0",
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
