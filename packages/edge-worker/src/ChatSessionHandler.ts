@@ -170,18 +170,28 @@ export class ChatSessionHandler<TEvent> {
 				`Processing ${this.adapter.platformName} webhook: ${this.adapter.getEventId(event)}`,
 			);
 
-			// Fire-and-forget acknowledgement (e.g., emoji reaction)
-			this.adapter.acknowledgeReceipt(event).catch((err: unknown) => {
-				this.logger.warn(
-					`Failed to acknowledge ${this.adapter.platformName} event: ${err instanceof Error ? err.message : err}`,
-				);
-			});
-
 			const taskInstructions = this.adapter.extractTaskInstructions(event);
 			const threadKey = this.adapter.getThreadKey(event);
 
 			// Check if there's already an active session for this thread
 			const existingSessionId = this.threadSessions.get(threadKey);
+
+			// Fire-and-forget acknowledgement (e.g., emoji reaction) — only when
+			// this event will actually engage: a follow-up in a thread we're already
+			// bound to, or a session-initiating event (e.g. a Slack @mention).
+			// Non-initiating events return below without ever reaching
+			// acknowledgeProcessed(), so acking them leaves a receipt reaction on
+			// every message in any channel Cyrus can see that is never cleared.
+			if (
+				existingSessionId ||
+				this.adapter.isSessionInitiatingEvent?.(event) !== false
+			) {
+				this.adapter.acknowledgeReceipt(event).catch((err: unknown) => {
+					this.logger.warn(
+						`Failed to acknowledge ${this.adapter.platformName} event: ${err instanceof Error ? err.message : err}`,
+					);
+				});
+			}
 			if (existingSessionId) {
 				const existingSession =
 					this.sessionManager.getSession(existingSessionId);
