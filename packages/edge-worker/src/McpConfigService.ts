@@ -75,11 +75,14 @@ export class McpConfigService {
 		const linearToken = this.deps.getLinearTokenForWorkspace(linearWorkspaceId);
 		const issueTracker = this.deps.getIssueTracker(linearWorkspaceId);
 		if (!linearToken || !issueTracker?.getClient) {
-			// CLI platform mode — no Linear client available, return config without cyrus-tools
+			// CLI platform mode — no Linear client available, return config without cyrus-tools.
+			// Always-load cyrus-docs so its tools stay out of the SDK's deferred
+			// tool-search bucket (see the strategy note on the full config below).
 			const mcpConfig: Record<string, McpServerConfig> = {
 				"cyrus-docs": {
 					type: "http",
 					url: "https://atcyrus.com/docs/mcp",
+					alwaysLoad: true,
 				},
 			};
 			return mcpConfig;
@@ -104,6 +107,29 @@ export class McpConfigService {
 
 		// Workspace-level MCP servers — configured once regardless of repo count
 		// https://linear.app/docs/mcp
+		//
+		// Tool-loading strategy (why some servers set `alwaysLoad` and one does not):
+		//
+		// The official Linear MCP (mcp.linear.app) registers ~50 verbose tools.
+		// Their combined descriptions alone push past the Claude Agent SDK's
+		// ~10%-of-context threshold, which silently flips the SDK into MCP
+		// tool-search "auto" mode. In that mode EVERY MCP tool — including our
+		// own local ones — is deferred behind an on-demand `ToolSearch`. Because
+		// the Linear server is remote, discovering those deferred schemas costs
+		// real network round-trips, so turn 1 stalls for up to ~a minute before
+		// the agent can touch the issue at all.
+		//
+		// We keep the remote Linear catalog DEFERRED (no `alwaysLoad`) so its 50
+		// tools never bloat the turn-1 context — the essentials the agent needs
+		// on turn 1 (issue title/description/state, comment threads) are already
+		// injected into the prompt, and the long tail of Linear operations is
+		// still reachable via `ToolSearch` when genuinely needed.
+		//
+		// Cyrus's own local servers (`cyrus-tools`, `cyrus-docs`) are small and
+		// served locally, so we mark them `alwaysLoad` to exempt them from that
+		// auto-defer bucket. This keeps the tools Cyrus's workflow actually
+		// depends on (session/feedback management, uploads, issue relations,
+		// docs search) immediately available with no ToolSearch round-trip.
 		const mcpConfig: Record<string, McpServerConfig> = {
 			linear: {
 				type: "http",
@@ -123,10 +149,12 @@ export class McpConfigService {
 							}
 						: {}),
 				},
+				alwaysLoad: true,
 			},
 			"cyrus-docs": {
 				type: "http",
 				url: "https://atcyrus.com/docs/mcp",
+				alwaysLoad: true,
 			},
 		};
 
