@@ -4,7 +4,8 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
-_No internal-only changes._
+### Changed
+- Replaced the Slack-specific `ChatSessionHandler` lifecycle class with `AgentSessionLifecycleService`, so Slack and generic surface sessions now share one create/resume/inject/reply path backed by the primary `AgentSessionManager`. ([CYPACK-1300](https://linear.app/ceedar/issue/CYPACK-1300/add-generic-agent-session-webhook-trigger-copy), [#1305](https://github.com/cyrusagents/cyrus/pull/1305))
 
 ## [0.2.66] - 2026-06-19
 

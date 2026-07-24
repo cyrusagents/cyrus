@@ -39,7 +39,7 @@ export declare interface SlackEventTransport {
  * - message: A plain message in a channel/thread the bot can see. Emitted only
  *   for threaded replies that aren't the bot's own message and aren't a
  *   subtype event (edits, joins, etc.). Whether it actually does anything is
- *   decided downstream (ChatSessionHandler only continues already-bound
+ *   decided downstream (the runtime lifecycle only continues already-bound
  *   threads). Slack delivers both an `app_mention` AND a `message` event for a
  *   message that mentions the bot, so identical `(channel, ts)` pairs are
  *   de-duplicated here to avoid double-prompting.

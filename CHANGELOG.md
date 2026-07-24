@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Generic agent-session webhooks can now start and resume standalone Cyrus sessions from trusted surfaces such as cyrus-hosted using stable session bindings. ([CYPACK-1300](https://linear.app/ceedar/issue/CYPACK-1300/add-generic-agent-session-webhook-trigger-copy), [#1305](https://github.com/cyrusagents/cyrus/pull/1305))
+
 ### Fixed
 - Forwarded and shared Slack messages are now included when you @mention Cyrus. Previously, forwarding a message (for example a Sentry alert) into a channel and @mentioning Cyrus passed along only your typed comment — the forwarded message's contents were dropped, so a forward with no comment gave Cyrus nothing to work with. The forwarded content is now part of the prompt. ([#1326](https://github.com/cyrusagents/cyrus/pull/1326))
 

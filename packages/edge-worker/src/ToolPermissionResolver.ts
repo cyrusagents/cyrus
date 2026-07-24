@@ -5,6 +5,7 @@ import {
 } from "cyrus-claude-runner";
 import type { EdgeWorkerConfig, ILogger, RepositoryConfig } from "cyrus-core";
 import {
+	GENERIC_DEFAULT_ALLOWED_TOOLS,
 	GITHUB_DEFAULT_ALLOWED_TOOLS,
 	LINEAR_DEFAULT_ALLOWED_TOOLS,
 	SLACK_DEFAULT_ALLOWED_TOOLS,
@@ -25,7 +26,7 @@ export type PromptType =
  * The resolver is **additive only**: it never appends or strips tools after
  * the explicit list is chosen. The per-platform defaults live in cyrus-core
  * (`LINEAR_DEFAULT_ALLOWED_TOOLS`, `SLACK_DEFAULT_ALLOWED_TOOLS`,
- * `GITHUB_DEFAULT_ALLOWED_TOOLS`) and include workspace MCP prefixes
+ * `GITHUB_DEFAULT_ALLOWED_TOOLS`, `GENERIC_DEFAULT_ALLOWED_TOOLS`) and include workspace MCP prefixes
  * (`mcp__linear`, `mcp__cyrus-tools`, etc.) explicitly. Callers that want a
  * tighter list pass `linearAllowedTools` / `slackAllowedTools` /
  * `githubAllowedTools` on `EdgeWorkerConfig`, or set repo-level
@@ -89,13 +90,20 @@ export class ToolPermissionResolver {
 	 *   `allowedTools` (already `mcp__*` prefixed).
 	 */
 	public buildChatAllowedTools(
+		platformName = "slack",
 		mcpConfigKeys?: string[],
 		userMcpTools?: string[],
 	): string[] {
 		const baseChatTools =
-			this.config.slackAllowedTools && this.config.slackAllowedTools.length > 0
-				? this.config.slackAllowedTools
-				: [...SLACK_DEFAULT_ALLOWED_TOOLS];
+			platformName === "generic"
+				? this.config.genericAllowedTools &&
+					this.config.genericAllowedTools.length > 0
+					? this.config.genericAllowedTools
+					: [...GENERIC_DEFAULT_ALLOWED_TOOLS]
+				: this.config.slackAllowedTools &&
+						this.config.slackAllowedTools.length > 0
+					? this.config.slackAllowedTools
+					: [...SLACK_DEFAULT_ALLOWED_TOOLS];
 
 		const mcpToolPermissions = (mcpConfigKeys ?? []).map(
 			(server) => `mcp__${server}`,

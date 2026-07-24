@@ -10,6 +10,12 @@ export type {
 	UserIdentifier,
 	Workspace,
 } from "cyrus-core";
+export type {
+	AgentSessionLifecycleServiceDeps,
+	AgentSessionSurfaceAdapter,
+	AgentSessionSurfaceName,
+} from "./AgentSessionLifecycleService.js";
+export { AgentSessionLifecycleService } from "./AgentSessionLifecycleService.js";
 export { AgentSessionManager } from "./AgentSessionManager.js";
 export type {
 	AskUserQuestionHandlerConfig,
@@ -18,15 +24,22 @@ export type {
 export { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
 export type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 export { LiveChatRepositoryProvider } from "./ChatRepositoryProvider.js";
-export type {
-	ChatPlatformAdapter,
-	ChatPlatformName,
-	ChatSessionHandlerDeps,
-} from "./ChatSessionHandler.js";
-export { ChatSessionHandler } from "./ChatSessionHandler.js";
 export { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 export { EdgeWorker } from "./EdgeWorker.js";
 export { EgressProxy } from "./EgressProxy.js";
+export { GenericAgentSessionAdapter } from "./GenericAgentSessionAdapter.js";
+export { GenericAgentSessionTransport } from "./GenericAgentSessionTransport.js";
+export type {
+	GenericAgentSessionEventType,
+	GenericAgentSessionTransportConfig,
+	GenericAgentSessionTransportEvents,
+	GenericAgentSessionWebhook,
+} from "./GenericAgentSessionTypes.js";
+export {
+	GENERIC_AGENT_SESSION_ROUTE,
+	GenericAgentSessionEventTypeSchema,
+	GenericAgentSessionWebhookSchema,
+} from "./GenericAgentSessionTypes.js";
 export type { CreateGitWorktreeOptions } from "./GitService.js";
 export { GitService } from "./GitService.js";
 export type { SerializedGlobalRegistryState } from "./GlobalSessionRegistry.js";
