@@ -1,6 +1,7 @@
 # Dependency directories
 node_modules
 **/node_modules
+.pnpm-store
 
 # This monorepo uses pnpm — npm/yarn lockfiles should never be committed
 package-lock.json

@@ -52,6 +52,12 @@ export interface ChatPlatformAdapter<TEvent> {
 	/** Fetch thread context as formatted string. Returns "" if not applicable */
 	fetchThreadContext(event: TEvent): Promise<string>;
 
+	/** Mark a platform thread as actively being handled, if supported. */
+	startInFlightResponse?(event: TEvent): Promise<void>;
+
+	/** Clear any active in-flight indicator for the platform thread, if supported. */
+	clearInFlightResponse?(event: TEvent): Promise<void>;
+
 	/** Post the agent's final response back to the platform */
 	postReply(event: TEvent, runner: IAgentRunner): Promise<void>;
 
@@ -198,6 +204,7 @@ export class ChatSessionHandler<TEvent> {
 							`Injecting follow-up prompt into running session ${existingSessionId} (thread ${threadKey})`,
 						);
 						this.enqueueReply(existingSessionId, event);
+						await this.startInFlightResponse(event);
 						existingRunner.addStreamMessage(taskInstructions);
 					} else {
 						// Runner can't accept mid-turn input (e.g. exec Codex). Queue the
@@ -339,6 +346,7 @@ export class ChatSessionHandler<TEvent> {
 			// stays open and the start() promise doesn't resolve until the
 			// whole session ends.
 			this.enqueueReply(sessionId, event);
+			await this.startInFlightResponse(event);
 			const startPromise =
 				runner.supportsStreamingInput && runner.startStreaming
 					? runner.startStreaming(userPrompt)
@@ -349,7 +357,7 @@ export class ChatSessionHandler<TEvent> {
 						`${this.adapter.platformName} session started: ${sessionInfo.sessionId}`,
 					);
 				})
-				.catch((error: unknown) => {
+				.catch(async (error: unknown) => {
 					this.logger.error(
 						`${this.adapter.platformName} session error for event ${eventId}`,
 						error instanceof Error ? error : new Error(String(error)),
@@ -357,7 +365,8 @@ export class ChatSessionHandler<TEvent> {
 					// Runner died before emitting a final `result`. Drop any
 					// still-queued reply events for this session so a later
 					// resumeSession() doesn't pair them with a future turn.
-					this.clearPendingReplies(sessionId);
+					const clearedEvents = this.clearPendingReplies(sessionId);
+					await this.clearInFlightResponses(clearedEvents);
 				})
 				.finally(() => {
 					this.deps.onStateChange().catch((error: unknown) => {
@@ -452,6 +461,7 @@ export class ChatSessionHandler<TEvent> {
 		// warm sessions hold the streaming prompt open across turns so the
 		// start() promise only resolves when the whole session ends.
 		this.enqueueReply(sessionId, event);
+		await this.startInFlightResponse(event);
 		const startPromise =
 			runner.supportsStreamingInput && runner.startStreaming
 				? runner.startStreaming(taskInstructions)
@@ -462,12 +472,13 @@ export class ChatSessionHandler<TEvent> {
 					`${this.adapter.platformName} session resumed: ${sessionInfo.sessionId} (was ${resumeSessionId})`,
 				);
 			})
-			.catch((error: unknown) => {
+			.catch(async (error: unknown) => {
 				this.logger.error(
 					`${this.adapter.platformName} resume session error for ${sessionId}`,
 					error instanceof Error ? error : new Error(String(error)),
 				);
-				this.clearPendingReplies(sessionId);
+				const clearedEvents = this.clearPendingReplies(sessionId);
+				await this.clearInFlightResponses(clearedEvents);
 			});
 	}
 
@@ -498,6 +509,10 @@ export class ChatSessionHandler<TEvent> {
 					this.logger.error(
 						`Failed to post ${this.adapter.platformName} reply for session ${sessionId}`,
 						error instanceof Error ? error : new Error(String(error)),
+					);
+				} finally {
+					await this.clearInFlightResponses(
+						events.length > 0 ? events : [replyEvent],
 					);
 				}
 				// Fire-and-forget processed acknowledgement for every drained
@@ -573,6 +588,40 @@ export class ChatSessionHandler<TEvent> {
 		this.lastReplyEvent.set(sessionId, event);
 	}
 
+	private async startInFlightResponse(event: TEvent): Promise<void> {
+		if (!this.adapter.startInFlightResponse) {
+			return;
+		}
+		try {
+			await this.adapter.startInFlightResponse(event);
+		} catch (error) {
+			this.logger.warn(
+				`Failed to start ${this.adapter.platformName} in-flight response status: ${error instanceof Error ? error.message : error}`,
+			);
+		}
+	}
+
+	private async clearInFlightResponses(events: TEvent[]): Promise<void> {
+		if (!this.adapter.clearInFlightResponse || events.length === 0) {
+			return;
+		}
+		const seen = new Set<string>();
+		for (const event of events) {
+			const key = this.adapter.getThreadKey(event);
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			try {
+				await this.adapter.clearInFlightResponse(event);
+			} catch (error) {
+				this.logger.warn(
+					`Failed to clear ${this.adapter.platformName} in-flight response status: ${error instanceof Error ? error.message : error}`,
+				);
+			}
+		}
+	}
+
 	private drainReplies(sessionId: string): TEvent[] {
 		const queue = this.pendingReplyEvents.get(sessionId);
 		if (!queue || queue.length === 0) return [];
@@ -586,14 +635,15 @@ export class ChatSessionHandler<TEvent> {
 	 * resumeSession() on the same sessionId would pair the stale events with
 	 * the first `result` of the new runner.
 	 */
-	private clearPendingReplies(sessionId: string): void {
+	private clearPendingReplies(sessionId: string): TEvent[] {
 		this.lastReplyEvent.delete(sessionId);
 		const queue = this.pendingReplyEvents.get(sessionId);
-		if (!queue || queue.length === 0) return;
+		if (!queue || queue.length === 0) return [];
 		this.logger.warn(
 			`Discarding ${queue.length} pending ${this.adapter.platformName} reply event(s) for session ${sessionId} after runner error`,
 		);
 		this.pendingReplyEvents.delete(sessionId);
+		return queue;
 	}
 
 	/**

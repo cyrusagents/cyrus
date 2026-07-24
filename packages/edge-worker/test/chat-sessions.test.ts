@@ -15,6 +15,8 @@ import { ChatSessionHandler } from "../src/ChatSessionHandler.js";
 import type { RunnerConfigBuilder } from "../src/RunnerConfigBuilder.js";
 import {
 	BEHAVIOURS_PAGE_ROUTE,
+	CYRUS_SLACK_ASSISTANT_STATUS,
+	CYRUS_SLACK_LOADING_MESSAGES,
 	PROCESSED_REACTION,
 	RECEIPT_REACTION,
 	SLACK_NO_RESPONSE_SENTINEL,
@@ -407,6 +409,101 @@ describe("ChatSessionHandler processed acknowledgement", () => {
 	});
 });
 
+describe("ChatSessionHandler in-flight response status", () => {
+	it("starts status when a turn is queued and clears it when the runner emits a result", async () => {
+		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+			"status-thread",
+		);
+		const startInFlightResponse = vi.fn().mockResolvedValue(undefined);
+		const clearInFlightResponse = vi.fn().mockResolvedValue(undefined);
+		adapter.startInFlightResponse = startInFlightResponse;
+		adapter.clearInFlightResponse = clearInFlightResponse;
+
+		let capturedConfig: any;
+		const createRunner = vi.fn((config: any) => {
+			capturedConfig = config;
+			return {
+				supportsStreamingInput: false,
+				start: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
+				stop: vi.fn(),
+				isRunning: vi.fn().mockReturnValue(false),
+				isStreaming: vi.fn().mockReturnValue(false),
+				addStreamMessage: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+			} as any;
+		});
+		const handler = new ChatSessionHandler(adapter, {
+			cyrusHome: TEST_CYRUS_CHAT,
+			chatRepositoryProvider: createStaticProvider([]),
+			runnerConfigBuilder: createMockRunnerConfigBuilder(),
+			createRunner,
+			onWebhookStart: vi.fn(),
+			onWebhookEnd: vi.fn(),
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+		});
+
+		const event = { eventId: "mention", threadKey: "status-thread" };
+		await handler.handleEvent(event as any);
+
+		expect(startInFlightResponse).toHaveBeenCalledTimes(1);
+		expect(startInFlightResponse).toHaveBeenCalledWith(event);
+		expect(clearInFlightResponse).not.toHaveBeenCalled();
+
+		await capturedConfig.onMessage({
+			type: "result",
+			subtype: "success",
+			is_error: false,
+			result: "done",
+			session_id: "session-1",
+		});
+
+		expect(clearInFlightResponse).toHaveBeenCalledTimes(1);
+		expect(clearInFlightResponse).toHaveBeenCalledWith(event);
+	});
+
+	it("clears status if the runner rejects before emitting a result", async () => {
+		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+			"error-thread",
+		);
+		const startInFlightResponse = vi.fn().mockResolvedValue(undefined);
+		const clearInFlightResponse = vi.fn().mockResolvedValue(undefined);
+		adapter.startInFlightResponse = startInFlightResponse;
+		adapter.clearInFlightResponse = clearInFlightResponse;
+
+		const createRunner = vi.fn(
+			() =>
+				({
+					supportsStreamingInput: false,
+					start: vi.fn().mockRejectedValue(new Error("runner failed")),
+					stop: vi.fn(),
+					isRunning: vi.fn().mockReturnValue(false),
+					isStreaming: vi.fn().mockReturnValue(false),
+					addStreamMessage: vi.fn(),
+					getMessages: vi.fn().mockReturnValue([]),
+				}) as any,
+		);
+		const handler = new ChatSessionHandler(adapter, {
+			cyrusHome: TEST_CYRUS_CHAT,
+			chatRepositoryProvider: createStaticProvider([]),
+			runnerConfigBuilder: createMockRunnerConfigBuilder(),
+			createRunner,
+			onWebhookStart: vi.fn(),
+			onWebhookEnd: vi.fn(),
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+		});
+
+		const event = { eventId: "mention", threadKey: "error-thread" };
+		await handler.handleEvent(event as any);
+		await new Promise((resolve) => setImmediate(resolve));
+
+		expect(startInFlightResponse).toHaveBeenCalledWith(event);
+		expect(clearInFlightResponse).toHaveBeenCalledTimes(1);
+		expect(clearInFlightResponse).toHaveBeenCalledWith(event);
+	});
+});
+
 describe("ChatSessionHandler busy follow-up queueing", () => {
 	it("queues a follow-up that can't be streamed and delivers it after the turn", async () => {
 		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
@@ -676,6 +773,67 @@ describe("SlackChatAdapter responding policy", () => {
 		expect(removeSpy.mock.invocationCallOrder[0]).toBeLessThan(
 			addSpy.mock.invocationCallOrder[0] ?? 0,
 		);
+	});
+});
+
+describe("SlackChatAdapter in-flight response status", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	const slackEvent = () =>
+		({
+			eventType: "app_mention",
+			eventId: "Ev1",
+			teamId: "T1",
+			slackBotToken: "xoxb-test",
+			payload: {
+				type: "app_mention",
+				user: "U1",
+				channel: "C1",
+				text: "<@U0BOT> help",
+				ts: "1700000000.000200",
+				thread_ts: "1700000000.000100",
+				event_ts: "1700000000.000200",
+			},
+		}) as any;
+
+	it("sets Cyrus-branded status using Slack's installed app identity", async () => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		const statusSpy = vi
+			.spyOn(SlackMessageService.prototype, "setAssistantThreadStatus")
+			.mockResolvedValue(undefined);
+
+		await adapter.startInFlightResponse(slackEvent());
+
+		expect(statusSpy).toHaveBeenCalledTimes(1);
+		expect(statusSpy.mock.calls[0]?.[0]).toEqual({
+			token: "xoxb-test",
+			channel_id: "C1",
+			thread_ts: "1700000000.000100",
+			status: CYRUS_SLACK_ASSISTANT_STATUS,
+			loading_messages: [...CYRUS_SLACK_LOADING_MESSAGES],
+		});
+		expect(statusSpy.mock.calls[0]?.[0].username).toBeUndefined();
+		expect(statusSpy.mock.calls[0]?.[0].icon_emoji).toBeUndefined();
+		expect(statusSpy.mock.calls[0]?.[0].icon_url).toBeUndefined();
+	});
+
+	it("clears active status with an empty status string", async () => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		const statusSpy = vi
+			.spyOn(SlackMessageService.prototype, "setAssistantThreadStatus")
+			.mockResolvedValue(undefined);
+
+		await adapter.clearInFlightResponse(slackEvent());
+
+		expect(statusSpy).toHaveBeenCalledTimes(1);
+		expect(statusSpy.mock.calls[0]?.[0]).toEqual({
+			token: "xoxb-test",
+			channel_id: "C1",
+			thread_ts: "1700000000.000100",
+			status: "",
+		});
 	});
 });
 
