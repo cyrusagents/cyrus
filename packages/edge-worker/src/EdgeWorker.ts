@@ -72,9 +72,11 @@ import {
 	isStopSignalMessage,
 	isUnassignMessage,
 	isUserPromptMessage,
+	isValidSettingSourcesOverride,
 	PersistenceManager,
 	requireLinearWorkspaceId,
 	resolvePath,
+	VALID_SETTING_SOURCES,
 	WebhookIpValidator,
 } from "cyrus-core";
 import { CursorRunner } from "cyrus-cursor-runner";
@@ -6824,7 +6826,14 @@ ${input.userComment}
 							...(Object.keys(mcpServers).length > 0 && { mcpServers }),
 							...(allowedTools.length > 0 && { allowedTools }),
 							...(disallowedTools.length > 0 && { disallowedTools }),
-							settingSources: ["user", "project", "local"],
+							// Per-repository settingSources override, validated the same
+							// way as RunnerConfigBuilder/ClaudeRunner; falls back to the
+							// stock default when unset or invalid.
+							settingSources: isValidSettingSourcesOverride(
+								repoConfig.settingSources,
+							)
+								? repoConfig.settingSources
+								: [...VALID_SETTING_SOURCES],
 							// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally not set here;
 							// see CYPACK-1108 and ClaudeRunner.start() for context.
 							env: buildBaseSessionEnv(),

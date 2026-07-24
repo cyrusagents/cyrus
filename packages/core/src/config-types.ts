@@ -12,6 +12,7 @@ export {
 	type EdgeConfigPayload,
 	EdgeConfigPayloadSchema,
 	EdgeConfigSchema,
+	isValidSettingSourcesOverride,
 	type LinearWorkspaceConfig,
 	LinearWorkspaceConfigSchema,
 	migrateEdgeConfig,
@@ -26,10 +27,12 @@ export {
 	requireLinearWorkspaceId,
 	type SandboxConfig,
 	SandboxConfigSchema,
+	type SettingSourceOverride,
 	type UserAccessControlConfig,
 	UserAccessControlConfigSchema,
 	type UserIdentifier,
 	UserIdentifierSchema,
+	VALID_SETTING_SOURCES,
 } from "./config-schemas.js";
 
 export { TRUSTED_DOMAINS } from "./trusted-domains.js";

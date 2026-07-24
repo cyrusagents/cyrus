@@ -11,6 +11,7 @@ import type {
 // Import the AskUserQuestionInput type from the SDK's tool input types
 // This ensures we use the SDK's official type definitions
 import type { AskUserQuestionInput as SDKAskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
+import type { SettingSourceOverride } from "./config-schemas.js";
 import type { ILogger } from "./logging/ILogger.js";
 
 // ============================================================================
@@ -473,6 +474,14 @@ export interface AgentRunnerConfig {
 	model?: string;
 	/** Fallback model if primary is unavailable */
 	fallbackModel?: string;
+	/**
+	 * Per-repository override of the Claude Agent SDK's settingSources
+	 * option (Claude runner only). Validated via
+	 * isValidSettingSourcesOverride before use; falls back to
+	 * VALID_SETTING_SOURCES (["user", "project", "local"]) when unset or
+	 * invalid.
+	 */
+	settingSources?: SettingSourceOverride[];
 	/** Maximum number of turns before completing session */
 	maxTurns?: number;
 	/** Built-in tools available in model context (empty array disables all tools) */

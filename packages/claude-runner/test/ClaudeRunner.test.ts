@@ -220,6 +220,84 @@ describe("ClaudeRunner", () => {
 			});
 		});
 
+		it("should use a valid config.settingSources override instead of the stock default", async () => {
+			const runnerWithOverride = new ClaudeRunner({
+				...defaultConfig,
+				settingSources: ["project"],
+			});
+
+			mockQuery.mockImplementation(async function* () {
+				yield {
+					type: "assistant",
+					message: { content: [{ type: "text", text: "Hello!" }] },
+					parent_tool_use_id: null,
+					session_id: "test-session",
+				} as any;
+			});
+
+			await runnerWithOverride.start("test");
+
+			expect(mockQuery).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.objectContaining({
+						settingSources: ["project"],
+					}),
+				}),
+			);
+		});
+
+		it("should fall back to the stock default when config.settingSources is invalid", async () => {
+			const runnerWithInvalidOverride = new ClaudeRunner({
+				...defaultConfig,
+				settingSources: ["not-a-real-source"] as any,
+			});
+
+			mockQuery.mockImplementation(async function* () {
+				yield {
+					type: "assistant",
+					message: { content: [{ type: "text", text: "Hello!" }] },
+					parent_tool_use_id: null,
+					session_id: "test-session",
+				} as any;
+			});
+
+			await runnerWithInvalidOverride.start("test");
+
+			expect(mockQuery).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.objectContaining({
+						settingSources: ["user", "project", "local"],
+					}),
+				}),
+			);
+		});
+
+		it("should fall back to the stock default when config.settingSources is an empty array", async () => {
+			const runnerWithEmptyOverride = new ClaudeRunner({
+				...defaultConfig,
+				settingSources: [],
+			});
+
+			mockQuery.mockImplementation(async function* () {
+				yield {
+					type: "assistant",
+					message: { content: [{ type: "text", text: "Hello!" }] },
+					parent_tool_use_id: null,
+					session_id: "test-session",
+				} as any;
+			});
+
+			await runnerWithEmptyOverride.start("test");
+
+			expect(mockQuery).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.objectContaining({
+						settingSources: ["user", "project", "local"],
+					}),
+				}),
+			);
+		});
+
 		it("should throw error if session already running", async () => {
 			// Mock a long-running query
 			mockQuery.mockImplementation(async function* () {

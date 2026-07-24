@@ -26,8 +26,10 @@ import {
 	createLogger,
 	type IAgentRunner,
 	type ILogger,
+	isValidSettingSourcesOverride,
 	LogLevel,
 	StreamingPrompt,
+	VALID_SETTING_SOURCES,
 } from "cyrus-core";
 import dotenv from "dotenv";
 import { ClaudeMessageFormatter, type IMessageFormatter } from "./formatter.js";
@@ -666,7 +668,15 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// load file based settings, to maintain more backwards compatibility,
 					// particularly with CLAUDE.md files, settings files, and custom slash commands,
 					// see: https://docs.claude.com/en/docs/claude-code/sdk/migration-guide#settings-sources-no-longer-loaded-by-default
-					settingSources: ["user", "project", "local"],
+					// A per-repository config.settingSources override (validated via
+					// isValidSettingSourcesOverride) lets a repo opt out of loading
+					// user-scope settings; an unset/invalid override falls back to
+					// the stock default below.
+					settingSources: isValidSettingSourcesOverride(
+						this.config.settingSources,
+					)
+						? this.config.settingSources
+						: [...VALID_SETTING_SOURCES],
 					env: {
 						...buildBaseSessionEnv(),
 						// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally NOT set while

@@ -86,6 +86,7 @@ export type {
 	RepositoryConfigPayload,
 	RunnerType,
 	SandboxConfig,
+	SettingSourceOverride,
 	UserAccessControlConfig,
 	UserIdentifier,
 } from "./config-types.js";
@@ -93,6 +94,7 @@ export {
 	EdgeConfigPayloadSchema,
 	// Zod schemas for runtime validation
 	EdgeConfigSchema,
+	isValidSettingSourcesOverride,
 	LinearWorkspaceConfigSchema,
 	migrateEdgeConfig,
 	NetworkPolicySchema,
@@ -105,6 +107,7 @@ export {
 	TRUSTED_DOMAINS,
 	UserAccessControlConfigSchema,
 	UserIdentifierSchema,
+	VALID_SETTING_SOURCES,
 } from "./config-types.js";
 // Constants
 export {

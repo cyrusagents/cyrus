@@ -14,7 +14,11 @@ import type {
 	SessionStore,
 	WarmQuery,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ILogger, OnAskUserQuestion } from "cyrus-core";
+import type {
+	ILogger,
+	OnAskUserQuestion,
+	SettingSourceOverride,
+} from "cyrus-core";
 
 export type { OnAskUserQuestion } from "cyrus-core";
 
@@ -44,6 +48,13 @@ export interface ClaudeRunnerConfig {
 	mcpConfig?: Record<string, McpServerConfig>; // Additional/override MCP servers
 	model?: string; // Claude model to use (e.g., "opus", "sonnet", "haiku")
 	fallbackModel?: string; // Fallback model if primary model is unavailable
+	/**
+	 * Override for the SDK's settingSources option. Validated via
+	 * isValidSettingSourcesOverride (cyrus-core) before use; an unset or
+	 * invalid value falls back to VALID_SETTING_SOURCES
+	 * (["user", "project", "local"]).
+	 */
+	settingSources?: SettingSourceOverride[];
 	maxTurns?: number; // Maximum number of turns before completing the session
 	tools?: string[]; // Built-in tools available in model context (empty array disables all tools)
 	cyrusHome: string; // Cyrus home directory

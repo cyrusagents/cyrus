@@ -7,6 +7,33 @@ export const RunnerTypeSchema = z.enum(["claude", "gemini", "codex", "cursor"]);
 export type RunnerType = z.infer<typeof RunnerTypeSchema>;
 
 /**
+ * Stock default for the Claude Agent SDK's settingSources option — loads
+ * user, project, and local (`.claude/settings.local.json`) settings for
+ * backwards compatibility. See:
+ * https://docs.claude.com/en/docs/claude-code/sdk/migration-guide#settings-sources-no-longer-loaded-by-default
+ */
+export const VALID_SETTING_SOURCES = ["user", "project", "local"] as const;
+export type SettingSourceOverride = (typeof VALID_SETTING_SOURCES)[number];
+
+/**
+ * Validate a per-repository / per-runner settingSources override before it
+ * reaches the Claude Agent SDK: must be a non-empty array whose entries are
+ * all valid setting sources. An invalid override (empty, wrong type, unknown
+ * entry) should fall back to VALID_SETTING_SOURCES rather than being passed
+ * through as-is — this keeps a malformed config from silently disabling all
+ * settings loading.
+ */
+export function isValidSettingSourcesOverride(
+	value: unknown,
+): value is SettingSourceOverride[] {
+	return (
+		Array.isArray(value) &&
+		value.length > 0 &&
+		value.every((s) => (VALID_SETTING_SOURCES as readonly string[]).includes(s))
+	);
+}
+
+/**
  * User identifier for access control matching.
  * Supports multiple formats for flexibility:
  * - String: treated as user ID (e.g., "usr_abc123")
@@ -305,6 +332,14 @@ export const RepositoryConfigSchema = z.object({
 	appendInstruction: z.string().optional(),
 	model: z.string().optional(),
 	fallbackModel: z.string().optional(),
+	/**
+	 * Per-repository override of the Claude Agent SDK's settingSources
+	 * option (see VALID_SETTING_SOURCES / isValidSettingSourcesOverride).
+	 * Lets a repo opt out of loading user-scope settings (e.g. multi-repo
+	 * machines that want per-repo context hygiene). Invalid/empty overrides
+	 * fall back to the stock ["user", "project", "local"] default.
+	 */
+	settingSources: z.array(z.enum(VALID_SETTING_SOURCES)).optional(),
 
 	// Label-based system prompt configuration
 	labelPrompts: LabelPromptsSchema.optional(),
