@@ -435,6 +435,94 @@ Issue: {{issue_identifier}}`;
 			expect(ClaudeRunner).not.toHaveBeenCalled();
 		});
 
+		it("should select Codex runner when the creating comment contains '/handoff codex' (no codex label)", async () => {
+			// Linear @mentions create a NEW agent session, so `@Cyrus /handoff codex`
+			// arrives on the creation path. The handoff command must force the runner
+			// even though the issue has no codex label/tag (default would be Claude).
+			const mockIssue = createMockIssueWithLabels([]);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus /handoff codex\n\nfix the failing test" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("codex");
+			expect(CodexRunner).toHaveBeenCalled();
+			expect(ClaudeRunner).not.toHaveBeenCalled();
+		});
+
+		it("should select Claude runner when the creating comment contains '/handoff claude' over a codex label", async () => {
+			// The handoff command in the creating comment wins over label-based selection.
+			const mockIssue = createMockIssueWithLabels(["codex"]);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus /handoff claude please continue" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("claude");
+			expect(ClaudeRunner).toHaveBeenCalled();
+			expect(CodexRunner).not.toHaveBeenCalled();
+		});
+
+		it("should ignore an unknown '/handoff <runner>' target and fall back to label selection", async () => {
+			// `/handoff gemini` is not a valid handoff target (claude|codex only), so
+			// the override is not applied and normal label selection (codex) stands.
+			const mockIssue = createMockIssueWithLabels(["codex"]);
+			mockLinearClient.issue.mockResolvedValue(mockIssue);
+
+			const webhook: LinearAgentSessionCreatedWebhook = {
+				type: "Issue",
+				action: "agentSessionCreated",
+				organizationId: "test-workspace",
+				agentSession: {
+					id: "agent-session-123",
+					issue: {
+						id: "issue-123",
+						identifier: "TEST-123",
+						team: { key: "TEST" },
+					},
+					comment: { body: "@cyrus /handoff gemini do the thing" },
+				},
+			};
+
+			await (edgeWorker as any).handleAgentSessionCreatedWebhook(webhook, [
+				mockRepository,
+			]);
+
+			expect(capturedRunnerType).toBe("codex");
+		});
+
 		it("should select Codex runner with gpt-5-codex model when 'gpt-5-codex' label is present", async () => {
 			const mockIssue = createMockIssueWithLabels(["gpt-5-codex"]);
 			mockLinearClient.issue.mockResolvedValue(mockIssue);

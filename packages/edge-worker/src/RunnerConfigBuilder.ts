@@ -158,6 +158,12 @@ export interface IssueRunnerConfigInput {
 	sandboxSettings?: SandboxSettings;
 	/** CA cert path for MITM TLS termination — passed via child process env */
 	egressCaCertPath?: string;
+	/**
+	 * When set, forces this exact runner type for the session, bypassing
+	 * label/description selection AND the sticky-resume binding. Used by
+	 * cross-runner handoff. Leave undefined for all normal sessions.
+	 */
+	runnerTypeOverride?: RunnerType;
 }
 
 export function resolveIssueMcpConfigPath(
@@ -330,8 +336,15 @@ export class RunnerConfigBuilder {
 		let modelOverride = runnerSelection.modelOverride;
 		let fallbackModelOverride = runnerSelection.fallbackModelOverride;
 
-		// If the labels have changed, and we are resuming a session. Use the existing runner for the session.
-		if (input.session.claudeSessionId && runnerType !== "claude") {
+		// Cross-runner handoff: an explicit override wins over everything —
+		// label/description selection and the sticky-resume binding below.
+		if (input.runnerTypeOverride) {
+			runnerType = input.runnerTypeOverride;
+			modelOverride = this.runnerSelector.getDefaultModelForRunner(runnerType);
+			fallbackModelOverride =
+				this.runnerSelector.getDefaultFallbackModelForRunner(runnerType);
+		} else if (input.session.claudeSessionId && runnerType !== "claude") {
+			// If the labels have changed, and we are resuming a session. Use the existing runner for the session.
 			runnerType = "claude";
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("claude");
 			fallbackModelOverride =

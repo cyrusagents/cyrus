@@ -1327,6 +1327,28 @@ export class AgentSessionManager extends EventEmitter {
 		return this.sessions.get(sessionId);
 	}
 
+	/** Buffered last assistant text for a session (used as the handoff summary). */
+	getLastAssistantBody(sessionId: string): string | undefined {
+		return this.lastAssistantBodyBySession.get(sessionId);
+	}
+
+	/**
+	 * Clear every runner-specific session id on a session so that, after a
+	 * cross-runner handoff, normal routing follows the newly-bound runner
+	 * instead of the previous one. The target runner repopulates its own id on
+	 * its first system message.
+	 */
+	clearRunnerSessionBindings(sessionId: string): void {
+		const session = this.sessions.get(sessionId);
+		if (!session) {
+			return;
+		}
+		session.claudeSessionId = undefined;
+		session.geminiSessionId = undefined;
+		session.codexSessionId = undefined;
+		session.cursorSessionId = undefined;
+	}
+
 	/**
 	 * Get session entries by session ID
 	 */
