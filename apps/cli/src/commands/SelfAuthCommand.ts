@@ -66,7 +66,8 @@ export class SelfAuthCommand extends BaseCommand {
 				const { SharedApplicationServer } = await import("cyrus-edge-worker");
 				const sharedApplicationServer = new SharedApplicationServer(
 					this.callbackPort,
-					baseUrl,
+					//
+					"0.0.0.0",
 					false,
 				);
 				await sharedApplicationServer.startCloudflareTunnel(
@@ -247,7 +248,7 @@ export class SelfAuthCommand extends BaseCommand {
 			refresh_token?: string;
 		};
 
-		if (!data.access_token || !data.access_token.startsWith("lin_oauth_")) {
+		if (!data.access_token?.startsWith("lin_oauth_")) {
 			throw new Error("Invalid access token received");
 		}
 
