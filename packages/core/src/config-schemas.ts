@@ -306,6 +306,42 @@ export const RepositoryConfigSchema = z.object({
 	model: z.string().optional(),
 	fallbackModel: z.string().optional(),
 
+	/**
+	 * Path to a custom Claude Code executable to dispatch this repository's
+	 * sessions with. When set, cyrus forwards this to the Claude Agent SDK
+	 * as `pathToClaudeCodeExecutable`, causing the SDK to spawn that binary
+	 * instead of its bundled CLI.
+	 *
+	 * Useful when operators wrap the Claude binary for sandboxed/containerized
+	 * dispatch, credential brokering, telemetry header injection, or other
+	 * per-invocation transforms. The wrapper must accept the same CLI surface
+	 * as `@anthropic-ai/claude-code` and be directly executable (shebang).
+	 *
+	 * Only honored for the `claude` runner type; ignored for codex/gemini/cursor.
+	 */
+	pathToClaudeCodeExecutable: z.string().optional(),
+
+	/**
+	 * Path to a custom Codex CLI binary to dispatch this repository's sessions
+	 * with. When set, cyrus forwards this to the codex runner as `codexPath`,
+	 * causing the runner to spawn that binary instead of the default `codex`
+	 * on PATH. Same wrapper use cases as `pathToClaudeCodeExecutable`.
+	 *
+	 * Only honored for the `codex` runner type; ignored for claude/gemini/cursor.
+	 */
+	codexPath: z.string().optional(),
+
+	/**
+	 * Path to a custom Gemini CLI binary to dispatch this repository's
+	 * sessions with. When set, cyrus forwards this to the gemini runner as
+	 * `geminiPath`, causing the runner to spawn that binary instead of the
+	 * default `gemini` on PATH. Same wrapper use cases as
+	 * `pathToClaudeCodeExecutable`.
+	 *
+	 * Only honored for the `gemini` runner type; ignored for claude/codex/cursor.
+	 */
+	geminiPath: z.string().optional(),
+
 	// Label-based system prompt configuration
 	labelPrompts: LabelPromptsSchema.optional(),
 
