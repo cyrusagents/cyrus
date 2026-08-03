@@ -475,6 +475,25 @@
 							}
 						},
 						"additionalProperties": false
+					},
+					"opencode": {
+						"type": "object",
+						"properties": {
+							"stateScope": {
+								"type": "string",
+								"enum": ["inherit", "shared", "repository"]
+							},
+							"config": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {
+									"$ref": "#/$defs/__schema0"
+								}
+							}
+						},
+						"additionalProperties": false
 					}
 				},
 				"required": [
@@ -539,9 +558,37 @@
 		"cursorDefaultFallbackModel": {
 			"type": "string"
 		},
+		"opencodeDefaultModel": {
+			"type": "string"
+		},
+		"opencodeDefaultFallbackModel": {
+			"type": "string"
+		},
+		"inferOpenCodeRunnerFromProviderModel": {
+			"type": "boolean"
+		},
+		"opencode": {
+			"type": "object",
+			"properties": {
+				"stateScope": {
+					"type": "string",
+					"enum": ["inherit", "shared", "repository"]
+				},
+				"config": {
+					"type": "object",
+					"propertyNames": {
+						"type": "string"
+					},
+					"additionalProperties": {
+						"$ref": "#/$defs/__schema0"
+					}
+				}
+			},
+			"additionalProperties": false
+		},
 		"defaultRunner": {
 			"type": "string",
-			"enum": ["claude", "gemini", "codex", "cursor"]
+			"enum": ["claude", "gemini", "codex", "cursor", "opencode"]
 		},
 		"defaultModel": {
 			"type": "string"
@@ -966,5 +1013,38 @@
 		}
 	},
 	"required": ["repositories"],
-	"additionalProperties": false
+	"additionalProperties": false,
+	"$defs": {
+		"__schema0": {
+			"anyOf": [
+				{
+					"type": "string"
+				},
+				{
+					"type": "number"
+				},
+				{
+					"type": "boolean"
+				},
+				{
+					"type": "null"
+				},
+				{
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/__schema0"
+					}
+				},
+				{
+					"type": "object",
+					"propertyNames": {
+						"type": "string"
+					},
+					"additionalProperties": {
+						"$ref": "#/$defs/__schema0"
+					}
+				}
+			]
+		}
+	}
 }

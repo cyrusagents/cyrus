@@ -46,6 +46,9 @@ interface V2CyrusAgentSession {
 	};
 	claudeSessionId?: string;
 	geminiSessionId?: string;
+	codexSessionId?: string;
+	cursorSessionId?: string;
+	opencodeSessionId?: string;
 	metadata?: Record<string, unknown>;
 }
 
@@ -311,6 +314,9 @@ export class PersistenceManager {
 			workspace: v2Session.workspace,
 			claudeSessionId: v2Session.claudeSessionId,
 			geminiSessionId: v2Session.geminiSessionId,
+			codexSessionId: v2Session.codexSessionId,
+			cursorSessionId: v2Session.cursorSessionId,
+			opencodeSessionId: v2Session.opencodeSessionId,
 			metadata: v2Session.metadata,
 			// New field: structured issue context
 			issueContext,

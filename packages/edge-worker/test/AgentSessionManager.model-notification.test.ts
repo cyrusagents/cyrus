@@ -66,7 +66,7 @@ describe("AgentSessionManager - Model Notification", () => {
 		expect(modelNotificationCall[0]).toBe(sessionId);
 		expect(modelNotificationCall[1]).toEqual({
 			type: "thought",
-			body: "Using model: claude-3-opus-20240229",
+			body: "Using model: claude/claude-3-opus-20240229",
 		});
 	});
 

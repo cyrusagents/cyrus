@@ -1,0 +1,6 @@
+{"type":"step_start","session_id":"oc_realistic_456"}
+{"type":"tool_use","part":{"tool":"read","call_id":"read_1","state":{"status":"pending","input":{"filePath":"/tmp/f1-test/src/index.ts"}}}}
+{"type":"tool_use","part":{"tool":"read","call_id":"read_1","state":{"status":"completed","input":{"filePath":"/tmp/f1-test/src/index.ts"},"output":"export { RateLimiter } from './rate-limiter';"}}}
+{"type":"tool_use","part":{"tool":"shell","call_id":"shell_1","state":{"status":"error","input":{"cmd":"pnpm test --filter missing"},"error":{"message":"No projects matched the filter","code":"ERR_PNPM_FILTER"}}}}
+{"type":"tool_use","part":{"tool":"edit","call_id":"edit_1","state":{"status":"success","input":{"filePath":"/tmp/f1-test/src/index.ts","description":"Add export"},"metadata":{"diff":"@@\n+export { OpenCodeProbe } from './opencode-probe';"}}}}
+{"type":"step_finish","stop_reason":"end_turn","usage":{"input_tokens":321,"output_tokens":45,"cache_read_input_tokens":7,"cache_creation_input_tokens":2},"total_cost_usd":0.0123,"result":"Validated OpenCode transcript replay."}

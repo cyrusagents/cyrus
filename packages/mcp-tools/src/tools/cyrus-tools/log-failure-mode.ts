@@ -30,7 +30,7 @@ import { z } from "zod";
 export interface ResolvedSession {
 	sessionId: string;
 	runnerSessionId?: string | null;
-	runnerType?: "claude" | "gemini" | "codex" | "cursor" | null;
+	runnerType?: "claude" | "gemini" | "codex" | "cursor" | "opencode" | null;
 	sourceIssueIdentifier?: string | null;
 	workspacePath?: string | null;
 	sessionSource?: string | null;
