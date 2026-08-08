@@ -36,6 +36,32 @@ function getRepoNameFromUrl(repoUrl: string): string {
 }
 
 /**
+ * Extract org/repo format from various Git URL formats.
+ * The gh CLI expects "org/repo" format, not full URLs.
+ *
+ * Supported formats:
+ * - https://github.com/org/repo -> org/repo
+ * - https://github.com/org/repo.git -> org/repo
+ * - git@github.com:org/repo.git -> org/repo
+ */
+function getOrgRepoFromUrl(repoUrl: string): string {
+	// Handle SSH URLs: git@github.com:org/repo.git
+	const sshMatch = repoUrl.match(/git@github\.com:([^/]+)\/([^/]+?)(\.git)?$/);
+	if (sshMatch?.[1] && sshMatch?.[2]) {
+		return `${sshMatch[1]}/${sshMatch[2]}`;
+	}
+
+	// Handle HTTPS URLs: https://github.com/org/repo or https://github.com/org/repo.git
+	const httpsMatch = repoUrl.match(/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/);
+	if (httpsMatch?.[1] && httpsMatch?.[2]) {
+		return `${httpsMatch[1]}/${httpsMatch[2]}`;
+	}
+
+	// Fallback: return original URL (may still work for some cases)
+	return repoUrl;
+}
+
+/**
  * Handle repository cloning or verification
  * - Clones repositories to ~/.cyrus/repos/<repo-name> using GitHub CLI (gh)
  * - If repository exists, verify it's a git repo and do nothing
@@ -101,7 +127,9 @@ export async function handleRepository(
 
 		// Clone the repository using gh
 		try {
-			const cloneCmd = `gh repo clone "${payload.repository_url}" "${repoPath}"`;
+			// gh repo clone expects "org/repo" format, not full URLs
+			const orgRepo = getOrgRepoFromUrl(payload.repository_url);
+			const cloneCmd = `gh repo clone "${orgRepo}" "${repoPath}"`;
 			await execAsync(cloneCmd);
 
 			// Verify the clone was successful
