@@ -1,13 +1,20 @@
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { AgentRunnerConfig, IAgentRunner } from "./agent-runner-types.js";
 import type { Workspace } from "./CyrusAgentSession.js";
 // Import types for use in this file
-import type { EdgeConfig, RepositoryConfig } from "./config-schemas.js";
+import type {
+	EdgeConfig,
+	RepositoryConfig,
+	RunnerType,
+} from "./config-schemas.js";
 import type { Issue } from "./issue-tracker/types.js";
 
 // Re-export schemas and types from config-schemas
 export {
+	type ClaudeRateLimitType,
+	ClaudeRateLimitTypeSchema,
 	type EdgeConfig,
 	type EdgeConfigPayload,
 	EdgeConfigPayloadSchema,
@@ -21,6 +28,10 @@ export {
 	type RepositoryConfigPayload,
 	RepositoryConfigPayloadSchema,
 	RepositoryConfigSchema,
+	type RunnerFallbackPolicy,
+	RunnerFallbackPolicySchema,
+	type RunnerFallbacks,
+	RunnerFallbacksSchema,
 	type RunnerType,
 	RunnerTypeSchema,
 	requireLinearWorkspaceId,
@@ -141,6 +152,12 @@ export interface EdgeWorkerRuntimeConfig {
 	 * These are callback functions that cannot be serialized to JSON.
 	 */
 	handlers?: {
+		/** Optional runner factory used by harnesses that replay provider streams. */
+		createRunner?: (
+			runnerType: RunnerType,
+			config: AgentRunnerConfig,
+		) => IAgentRunner;
+
 		/** Called when workspace needs to be created. Accepts array of repositories for multi-repo workspaces. */
 		createWorkspace?: (
 			issue: Issue,

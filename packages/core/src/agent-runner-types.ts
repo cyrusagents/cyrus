@@ -222,6 +222,13 @@ export interface IMessageFormatter {
  */
 export interface IAgentRunner {
 	/**
+	 * Optional preflight used before an automatic cross-provider fallback.
+	 * Runners without a probe are assumed available and surface startup errors
+	 * through their normal result stream.
+	 */
+	isAvailable?(): Promise<boolean>;
+
+	/**
 	 * Indicates whether this runner supports streaming input
 	 *
 	 * When true, the runner supports `startStreaming()`, `addStreamMessage()`, and `completeStream()`.

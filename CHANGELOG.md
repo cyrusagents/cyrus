@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - `ClaudeRunnerConfig` accepts a `spawnClaudeCodeProcess` override, forwarded to the Claude Agent SDK option of the same name. Lets the Claude Code process run somewhere other than a local child process — a container, a Kubernetes pod, a remote host — without forking the runner. ([#1391](https://github.com/cyrusagents/cyrus/pull/1391))
+- Claude sessions can now continue automatically with a configured Codex fallback when selected subscription quota limits are exhausted, while preserving the current worktree and session context. ([MEL-187](https://linear.app/melodymaifafafa/issue/MEL-187/claude-%E4%BC%9A%E8%AF%9D%E9%A2%9D%E5%BA%A6%E8%80%97%E5%B0%BD%E6%97%B6%E8%87%AA%E5%8A%A8%E5%88%87%E6%8D%A2%E5%88%B0-codex-runner), [#1396](https://github.com/cyrusagents/cyrus/pull/1396))
 
 ### Fixed
 - Linear webhooks sent from Linear's three newly added delivery IPs are no longer rejected. Instances validating webhook source IPs were intermittently dropping agent mentions (the agent appeared to randomly not respond) after Linear expanded its documented egress IP list on 2026-08-04. ([#1395](https://github.com/cyrusagents/cyrus/pull/1395))

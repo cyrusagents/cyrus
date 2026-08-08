@@ -70,6 +70,52 @@ function buildCodexConfig(sandboxSettings?: Record<string, unknown>) {
 }
 
 describe("RunnerConfigBuilder Codex sandbox plumbing", () => {
+	it("forces Codex for fallback while preserving the Claude turn context", () => {
+		const session = makeSession();
+		session.claudeSessionId = "claude-session";
+		const { config, runnerType } = makeCodexBuilder().buildIssueConfig({
+			session,
+			repository: {
+				id: "repo-a",
+				name: "Repo A",
+				repositoryPath: "/repos/repo-a",
+				allowedTools: [],
+			} as unknown as RepositoryConfig,
+			sessionId: "sess-1",
+			systemPrompt: "same system prompt",
+			allowedTools: ["Read(**)", "Bash(*)"],
+			allowedDirectories: ["/ws/root/attachments", "/repos/repo-a"],
+			disallowedTools: ["Bash(rm *)"],
+			platformMcpConfigOverrides: ["/tmp/linear-mcp.json"],
+			cyrusHome: "/tmp/cyrus-home",
+			linearWorkspaceId: "ws-1",
+			logger: silentLogger,
+			onMessage: () => {},
+			onError: () => {},
+			requireLinearWorkspaceId: () => "ws-1",
+			sandboxSettings: { enabled: true },
+			runnerTypeOverride: "codex",
+		});
+
+		expect(runnerType).toBe("codex");
+		expect(config).toEqual(
+			expect.objectContaining({
+				workingDirectory: "/ws/root",
+				allowedTools: ["Read(**)", "Bash(*)"],
+				allowedDirectories: ["/ws/root/attachments", "/repos/repo-a"],
+				disallowedTools: ["Bash(rm *)"],
+				mcpConfigPath: "/tmp/linear-mcp.json",
+				model: "gpt-5.5",
+				fallbackModel: "gpt-5.4",
+				sandboxSettings: {
+					allowWrite: ["/ws/root"],
+					allowRead: ["/ws/root", "/ws/root/attachments", "/repos/repo-a"],
+				},
+			}),
+		);
+		expect(config.resumeSessionId).toBeUndefined();
+	});
+
 	it("translates the egress sandbox into a Codex filesystem allow-list", () => {
 		// Plumbs both write (worktree) and read (worktree + allowed dirs) roots;
 		// the Codex runner turns these into a per-thread permission profile.

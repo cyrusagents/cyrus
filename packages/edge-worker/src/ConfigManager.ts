@@ -1,7 +1,12 @@
 import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
 import { watch as chokidarWatch, type FSWatcher } from "chokidar";
-import type { EdgeWorkerConfig, ILogger, RepositoryConfig } from "cyrus-core";
+import {
+	type EdgeWorkerConfig,
+	type ILogger,
+	type RepositoryConfig,
+	RunnerFallbacksSchema,
+} from "cyrus-core";
 
 /**
  * Describes the set of repository-level changes detected after a config
@@ -196,6 +201,20 @@ export class ConfigManager extends EventEmitter {
 
 			const configContent = await readFile(this.configPath, "utf-8");
 			const parsedConfig = JSON.parse(configContent);
+			let runnerFallbacks = this.config.runnerFallbacks;
+			if (parsedConfig.runnerFallbacks !== undefined) {
+				const fallbackResult = RunnerFallbacksSchema.safeParse(
+					parsedConfig.runnerFallbacks,
+				);
+				if (!fallbackResult.success) {
+					this.logger.error(
+						"❌ Invalid runnerFallbacks config:",
+						fallbackResult.error,
+					);
+					return null;
+				}
+				runnerFallbacks = fallbackResult.data;
+			}
 
 			// Merge with current EdgeWorker config structure
 			const newConfig: EdgeWorkerConfig = {
@@ -225,6 +244,7 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.cursorDefaultFallbackModel ||
 					this.config.cursorDefaultFallbackModel,
 				defaultRunner: parsedConfig.defaultRunner || this.config.defaultRunner,
+				runnerFallbacks,
 				promptDefaults:
 					parsedConfig.promptDefaults || this.config.promptDefaults,
 				// Preserve legacy fields while rolling out new config keys.
@@ -338,6 +358,7 @@ export class ConfigManager extends EventEmitter {
 	private detectGlobalConfigChanges(newConfig: EdgeWorkerConfig): boolean {
 		const globalKeys: Array<keyof EdgeWorkerConfig> = [
 			"defaultRunner",
+			"runnerFallbacks",
 			"claudeDefaultModel",
 			"claudeDefaultFallbackModel",
 			"geminiDefaultModel",

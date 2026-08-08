@@ -59,6 +59,7 @@ export interface IRunnerSelector {
 		runnerType: RunnerType;
 		modelOverride?: string;
 		fallbackModelOverride?: string;
+		selectionWasExplicit?: boolean;
 	};
 	getDefaultModelForRunner(runnerType: RunnerType): string;
 	getDefaultFallbackModelForRunner(runnerType: RunnerType): string;
@@ -158,6 +159,8 @@ export interface IssueRunnerConfigInput {
 	sandboxSettings?: SandboxSettings;
 	/** CA cert path for MITM TLS termination — passed via child process env */
 	egressCaCertPath?: string;
+	/** Force a provider for a cross-runner fallback attempt. */
+	runnerTypeOverride?: RunnerType;
 }
 
 export function resolveIssueMcpConfigPath(
@@ -303,6 +306,7 @@ export class RunnerConfigBuilder {
 	buildIssueConfig(input: IssueRunnerConfigInput): {
 		config: AgentRunnerConfig;
 		runnerType: RunnerType;
+		selectionWasExplicit: boolean;
 	} {
 		const log = input.logger;
 
@@ -329,24 +333,46 @@ export class RunnerConfigBuilder {
 		let runnerType = runnerSelection.runnerType;
 		let modelOverride = runnerSelection.modelOverride;
 		let fallbackModelOverride = runnerSelection.fallbackModelOverride;
+		if (input.runnerTypeOverride) {
+			runnerType = input.runnerTypeOverride;
+			modelOverride = this.runnerSelector.getDefaultModelForRunner(runnerType);
+			fallbackModelOverride =
+				this.runnerSelector.getDefaultFallbackModelForRunner(runnerType);
+		}
 
 		// If the labels have changed, and we are resuming a session. Use the existing runner for the session.
-		if (input.session.claudeSessionId && runnerType !== "claude") {
+		if (
+			!input.runnerTypeOverride &&
+			input.session.claudeSessionId &&
+			runnerType !== "claude"
+		) {
 			runnerType = "claude";
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("claude");
 			fallbackModelOverride =
 				this.runnerSelector.getDefaultFallbackModelForRunner("claude");
-		} else if (input.session.geminiSessionId && runnerType !== "gemini") {
+		} else if (
+			!input.runnerTypeOverride &&
+			input.session.geminiSessionId &&
+			runnerType !== "gemini"
+		) {
 			runnerType = "gemini";
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("gemini");
 			fallbackModelOverride =
 				this.runnerSelector.getDefaultFallbackModelForRunner("gemini");
-		} else if (input.session.codexSessionId && runnerType !== "codex") {
+		} else if (
+			!input.runnerTypeOverride &&
+			input.session.codexSessionId &&
+			runnerType !== "codex"
+		) {
 			runnerType = "codex";
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("codex");
 			fallbackModelOverride =
 				this.runnerSelector.getDefaultFallbackModelForRunner("codex");
-		} else if (input.session.cursorSessionId && runnerType !== "cursor") {
+		} else if (
+			!input.runnerTypeOverride &&
+			input.session.cursorSessionId &&
+			runnerType !== "cursor"
+		) {
 			runnerType = "cursor";
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("cursor");
 			fallbackModelOverride =
@@ -483,7 +509,11 @@ export class RunnerConfigBuilder {
 			config.maxTurns = input.maxTurns;
 		}
 
-		return { config, runnerType };
+		return {
+			config,
+			runnerType,
+			selectionWasExplicit: runnerSelection.selectionWasExplicit === true,
+		};
 	}
 
 	/**

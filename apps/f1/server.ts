@@ -21,12 +21,17 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getAllTools } from "cyrus-claude-runner";
+import { getAllTools, type SDKMessage } from "cyrus-claude-runner";
 import {
+	type AgentRunnerConfig,
+	type AgentSessionInfo,
 	type EdgeWorkerConfig,
 	getDefaultReposDir,
 	getDefaultWorktreesDir,
+	type IAgentRunner,
+	type IMessageFormatter,
 	type RepositoryConfig,
+	type RunnerType,
 } from "cyrus-core";
 import { EdgeWorker } from "cyrus-edge-worker";
 import type { SlackWebhookEvent } from "cyrus-slack-event-transport";
@@ -44,6 +49,127 @@ const DEFAULT_WORKTREES_BASE_DIR = getDefaultWorktreesDir(CYRUS_HOME);
 // Optional second repository path for multi-repo orchestration testing
 const CYRUS_REPO_PATH_2 = process.env.CYRUS_REPO_PATH_2;
 const MULTI_REPO_MODE = Boolean(CYRUS_REPO_PATH_2);
+const REPLAY_CLAUDE_QUOTA = process.env.CYRUS_REPLAY_CLAUDE_QUOTA === "1";
+
+abstract class ReplayRunner implements IAgentRunner {
+	readonly supportsStreamingInput = true;
+	protected running = false;
+
+	constructor(protected readonly config: AgentRunnerConfig) {}
+
+	abstract start(prompt: string): Promise<AgentSessionInfo>;
+
+	startStreaming(prompt?: string): Promise<AgentSessionInfo> {
+		return this.start(prompt ?? "");
+	}
+
+	stop(): void {
+		this.running = false;
+	}
+
+	isRunning(): boolean {
+		return this.running;
+	}
+
+	getMessages(): SDKMessage[] {
+		return [];
+	}
+
+	getFormatter(): IMessageFormatter {
+		throw new Error("Replay runners do not emit tool events");
+	}
+
+	protected async emitMessage(message: SDKMessage): Promise<void> {
+		await this.config.onMessage?.(message);
+	}
+}
+
+class ClaudeQuotaReplayRunner extends ReplayRunner {
+	async start(_prompt: string): Promise<AgentSessionInfo> {
+		this.running = true;
+		await this.emitMessage({
+			type: "rate_limit_event",
+			session_id: "f1-replay-claude-session",
+			uuid: "f1-replay-rate-limit",
+			rate_limit_info: {
+				status: "rejected",
+				rateLimitType: "five_hour",
+				resetsAt: 1_800_000_000,
+			},
+		} as unknown as SDKMessage);
+		await this.emitMessage({
+			type: "result",
+			subtype: "success",
+			session_id: "f1-replay-claude-session",
+			is_error: false,
+			result: "This Claude result must be suppressed",
+			total_cost_usd: 0,
+			usage: {},
+		} as unknown as SDKMessage);
+		this.running = false;
+		return {
+			sessionId: "f1-replay-claude-session",
+			startedAt: new Date(),
+			isRunning: false,
+		};
+	}
+}
+
+// The exact class name intentionally matches the production runner discriminator.
+class CodexRunner extends ReplayRunner {
+	async isAvailable(): Promise<boolean> {
+		return true;
+	}
+
+	async start(_prompt: string): Promise<AgentSessionInfo> {
+		this.running = true;
+		void this.emitMessage({
+			type: "system",
+			subtype: "init",
+			session_id: "f1-replay-codex-session",
+			model: "gpt-5.5",
+			tools: [],
+			permissionMode: "never",
+			apiKeySource: "f1-replay",
+		} as unknown as SDKMessage);
+		void this.emitMessage({
+			type: "assistant",
+			session_id: "f1-replay-codex-session",
+			message: {
+				content: [
+					{
+						type: "text",
+						text: "Codex completed the replayed fallback work item.",
+					},
+				],
+			},
+		} as unknown as SDKMessage);
+		void this.emitMessage({
+			type: "result",
+			subtype: "success",
+			session_id: "f1-replay-codex-session",
+			is_error: false,
+			result: "Codex completed the replayed fallback work item.",
+			total_cost_usd: 0,
+			usage: {},
+		} as unknown as SDKMessage);
+		this.running = false;
+		return {
+			sessionId: "f1-replay-codex-session",
+			startedAt: new Date(),
+			isRunning: false,
+		};
+	}
+}
+
+function createReplayRunner(
+	runnerType: RunnerType,
+	config: AgentRunnerConfig,
+): IAgentRunner {
+	if (runnerType === "claude") return new ClaudeQuotaReplayRunner(config);
+	if (runnerType === "codex") return new CodexRunner(config);
+	throw new Error(`F1 quota replay does not support ${runnerType}`);
+}
 
 // Validate port
 if (Number.isNaN(CYRUS_PORT) || CYRUS_PORT < 1 || CYRUS_PORT > 65535) {
@@ -166,12 +292,25 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 		claudeDefaultFallbackModel: "haiku",
 		// Env-gated runner selection for harness validation (default unchanged).
 		// e.g. CYRUS_DEFAULT_RUNNER=codex to exercise the Codex (app-server) path.
-		...(process.env.CYRUS_DEFAULT_RUNNER && {
-			defaultRunner: process.env.CYRUS_DEFAULT_RUNNER as
-				| "claude"
-				| "gemini"
-				| "codex"
-				| "cursor",
+		...(process.env.CYRUS_DEFAULT_RUNNER &&
+			!REPLAY_CLAUDE_QUOTA && {
+				defaultRunner: process.env.CYRUS_DEFAULT_RUNNER as
+					| "claude"
+					| "gemini"
+					| "codex"
+					| "cursor",
+			}),
+		...(REPLAY_CLAUDE_QUOTA && {
+			defaultRunner: "claude" as const,
+			runnerFallbacks: {
+				claude: {
+					runners: ["codex" as const],
+					rateLimitTypes: ["five_hour" as const],
+				},
+			},
+			handlers: {
+				createRunner: createReplayRunner,
+			},
 		}),
 		codexDefaultModel: process.env.CODEX_MODEL || "gpt-5.5",
 		// Enable all tools including Edit(**), Bash, etc. for full testing capability

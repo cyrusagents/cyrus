@@ -6,6 +6,43 @@ import { z } from "zod";
 export const RunnerTypeSchema = z.enum(["claude", "gemini", "codex", "cursor"]);
 export type RunnerType = z.infer<typeof RunnerTypeSchema>;
 
+/** Claude subscription quota buckets exposed by the Agent SDK. */
+export const ClaudeRateLimitTypeSchema = z.enum([
+	"five_hour",
+	"seven_day",
+	"seven_day_opus",
+	"seven_day_sonnet",
+	"seven_day_overage_included",
+	"overage",
+]);
+
+/**
+ * Cross-provider recovery policy for one source runner.
+ *
+ * Fallbacks are deliberately opt-in per quota bucket. This prevents auth,
+ * tool, warning, and ordinary provider errors from silently changing the
+ * runner selected by the user.
+ */
+export const RunnerFallbackPolicySchema = z.object({
+	runners: z.array(RunnerTypeSchema).min(1),
+	rateLimitTypes: z.array(ClaudeRateLimitTypeSchema).min(1),
+	overrideExplicitSelectors: z.boolean().optional(),
+});
+
+export const RunnerFallbacksSchema = z
+	.partialRecord(RunnerTypeSchema, RunnerFallbackPolicySchema)
+	.superRefine((fallbacks, context) => {
+		for (const [source, policy] of Object.entries(fallbacks)) {
+			if (policy?.runners.includes(source as RunnerType)) {
+				context.addIssue({
+					code: "custom",
+					path: [source, "runners"],
+					message: `Runner "${source}" cannot fall back directly to itself`,
+				});
+			}
+		}
+	});
+
 /**
  * User identifier for access control matching.
  * Supports multiple formats for flexibility:
@@ -367,6 +404,12 @@ export const EdgeConfigSchema = z.object({
 	defaultRunner: RunnerTypeSchema.optional(),
 
 	/**
+	 * Quota-specific cross-provider recovery policies keyed by source runner.
+	 * Example: `{ claude: { runners: ["codex"], rateLimitTypes: ["five_hour"] } }`.
+	 */
+	runnerFallbacks: RunnerFallbacksSchema.optional(),
+
+	/**
 	 * @deprecated Use claudeDefaultModel instead.
 	 * Legacy field retained for backwards compatibility and migrated on load.
 	 */
@@ -606,6 +649,9 @@ export type UserAccessControlConfig = z.infer<
 export type LinearWorkspaceConfig = z.infer<typeof LinearWorkspaceConfigSchema>;
 export type RepositoryConfig = z.infer<typeof RepositoryConfigSchema>;
 export type EdgeConfig = z.infer<typeof EdgeConfigSchema>;
+export type ClaudeRateLimitType = z.infer<typeof ClaudeRateLimitTypeSchema>;
+export type RunnerFallbackPolicy = z.infer<typeof RunnerFallbackPolicySchema>;
+export type RunnerFallbacks = z.infer<typeof RunnerFallbacksSchema>;
 export type SandboxConfig = z.infer<typeof SandboxConfigSchema>;
 export type NetworkPolicy = z.infer<typeof NetworkPolicySchema>;
 export type RepositoryConfigPayload = z.infer<

@@ -44,6 +44,7 @@ describe("JSON Schema export", () => {
 				"geminiDefaultModel",
 				"codexDefaultModel",
 				"defaultRunner",
+				"runnerFallbacks",
 				"defaultModel",
 				"defaultFallbackModel",
 				"global_setup_script",

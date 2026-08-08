@@ -73,6 +73,7 @@ export type {
 } from "./CyrusAgentSession.js";
 // Configuration types
 export type {
+	ClaudeRateLimitType,
 	EdgeConfig,
 	EdgeConfigPayload,
 	EdgeWorkerConfig,
@@ -84,12 +85,15 @@ export type {
 	RepoSetupHookStatus,
 	RepositoryConfig,
 	RepositoryConfigPayload,
+	RunnerFallbackPolicy,
+	RunnerFallbacks,
 	RunnerType,
 	SandboxConfig,
 	UserAccessControlConfig,
 	UserIdentifier,
 } from "./config-types.js";
 export {
+	ClaudeRateLimitTypeSchema,
 	EdgeConfigPayloadSchema,
 	// Zod schemas for runtime validation
 	EdgeConfigSchema,
@@ -98,6 +102,8 @@ export {
 	NetworkPolicySchema,
 	RepositoryConfigPayloadSchema,
 	RepositoryConfigSchema,
+	RunnerFallbackPolicySchema,
+	RunnerFallbacksSchema,
 	RunnerTypeSchema,
 	requireLinearWorkspaceId,
 	resolvePath,

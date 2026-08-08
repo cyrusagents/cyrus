@@ -537,6 +537,46 @@
 			"type": "string",
 			"enum": ["claude", "gemini", "codex", "cursor"]
 		},
+		"runnerFallbacks": {
+			"type": "object",
+			"propertyNames": {
+				"type": "string",
+				"enum": ["claude", "gemini", "codex", "cursor"]
+			},
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"runners": {
+						"minItems": 1,
+						"type": "array",
+						"items": {
+							"type": "string",
+							"enum": ["claude", "gemini", "codex", "cursor"]
+						}
+					},
+					"rateLimitTypes": {
+						"minItems": 1,
+						"type": "array",
+						"items": {
+							"type": "string",
+							"enum": [
+								"five_hour",
+								"seven_day",
+								"seven_day_opus",
+								"seven_day_sonnet",
+								"seven_day_overage_included",
+								"overage"
+							]
+						}
+					},
+					"overrideExplicitSelectors": {
+						"type": "boolean"
+					}
+				},
+				"required": ["runners", "rateLimitTypes"],
+				"additionalProperties": false
+			}
+		},
 		"defaultModel": {
 			"type": "string"
 		},

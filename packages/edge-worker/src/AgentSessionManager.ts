@@ -21,6 +21,7 @@ import {
 	type ILogger,
 	type IssueMinimal,
 	type RepositoryContext,
+	type RunnerType,
 	type SerializedCyrusAgentSession,
 	type SerializedCyrusAgentSessionEntry,
 	type Workspace,
@@ -89,6 +90,11 @@ export class AgentSessionManager extends EventEmitter {
 	// deferred tools like ToolSearch, where a tool_use and its tool_result can
 	// arrive back-to-back in the same microtask batch).
 	private messageProcessingQueues: Map<string, Promise<void>> = new Map();
+	private suppressedRunnerSessions: Map<string, Set<string>> = new Map();
+	private rateLimitFallbackHandler?: (
+		sessionId: string,
+		message: SDKRateLimitEvent,
+	) => Promise<boolean>;
 	private getParentSessionId?: (childSessionId: string) => string | undefined;
 	private resumeParentSession?: (
 		parentSessionId: string,
@@ -117,6 +123,15 @@ export class AgentSessionManager extends EventEmitter {
 	 */
 	setActivitySink(sessionId: string, sink: IActivitySink): void {
 		this.activitySinks.set(sessionId, sink);
+	}
+
+	setRateLimitFallbackHandler(
+		handler: (
+			sessionId: string,
+			message: SDKRateLimitEvent,
+		) => Promise<boolean>,
+	): void {
+		this.rateLimitFallbackHandler = handler;
 	}
 
 	/**
@@ -517,6 +532,15 @@ export class AgentSessionManager extends EventEmitter {
 	): Promise<void> {
 		const log = this.sessionLog(sessionId);
 		try {
+			const runnerSessionId = (message as { session_id?: string }).session_id;
+			if (
+				runnerSessionId &&
+				this.suppressedRunnerSessions.get(sessionId)?.has(runnerSessionId)
+			) {
+				log.debug(`Ignoring superseded runner message ${message.type}`);
+				return;
+			}
+
 			switch (message.type) {
 				case "system":
 					if (message.subtype === "init") {
@@ -598,7 +622,10 @@ export class AgentSessionManager extends EventEmitter {
 					break;
 
 				case "rate_limit_event":
-					this.handleRateLimitEvent(sessionId, message as SDKRateLimitEvent);
+					await this.handleRateLimitEvent(
+						sessionId,
+						message as SDKRateLimitEvent,
+					);
 					break;
 
 				default:
@@ -629,14 +656,23 @@ export class AgentSessionManager extends EventEmitter {
 	/**
 	 * Handle rate limit events from Claude runners
 	 */
-	private handleRateLimitEvent(
+	private async handleRateLimitEvent(
 		sessionId: string,
 		message: SDKRateLimitEvent,
-	): void {
+	): Promise<void> {
 		const log = this.sessionLog(sessionId);
 		const info = message.rate_limit_info;
 
 		if (info.status === "rejected") {
+			if (this.rateLimitFallbackHandler) {
+				try {
+					if (await this.rateLimitFallbackHandler(sessionId, message)) {
+						return;
+					}
+				} catch (error) {
+					log.error("Runner fallback handler failed:", error);
+				}
+			}
 			const resetsAt = info.resetsAt
 				? new Date(info.resetsAt * 1000).toISOString()
 				: "unknown";
@@ -1359,6 +1395,49 @@ export class AgentSessionManager extends EventEmitter {
 		log.debug(`Added agent runner`);
 	}
 
+	/** Ignore all remaining messages from a provider attempt being replaced. */
+	suppressRunnerSession(sessionId: string, runnerSessionId: string): void {
+		const suppressed =
+			this.suppressedRunnerSessions.get(sessionId) ?? new Set();
+		suppressed.add(runnerSessionId);
+		this.suppressedRunnerSessions.set(sessionId, suppressed);
+	}
+
+	/** Replace the active provider while keeping the Cyrus/Linear session intact. */
+	switchAgentRunner(
+		sessionId: string,
+		agentRunner: IAgentRunner,
+		runnerType: RunnerType,
+	): void {
+		const session = this.sessions.get(sessionId);
+		if (!session) return;
+
+		session.agentRunner?.stop();
+		session.agentRunner = agentRunner;
+		session.status = AgentSessionStatus.Active;
+		session.updatedAt = Date.now();
+		session.claudeSessionId = undefined;
+		session.geminiSessionId = undefined;
+		session.codexSessionId = undefined;
+		session.cursorSessionId = undefined;
+
+		this.activeTasksBySession.delete(sessionId);
+		this.lastAssistantBodyBySession.delete(sessionId);
+		this.lastAssistantBodyIsToolInputBySession.delete(sessionId);
+		this.bufferedAssistantEntryBySession.delete(sessionId);
+		this.sessionLog(sessionId).info(`Switched active runner to ${runnerType}`);
+	}
+
+	/** End a failed fallback without replacing the actionable quota error. */
+	async failRunnerFallback(sessionId: string, body: string): Promise<void> {
+		this.activeTasksBySession.delete(sessionId);
+		this.lastAssistantBodyBySession.delete(sessionId);
+		this.lastAssistantBodyIsToolInputBySession.delete(sessionId);
+		this.bufferedAssistantEntryBySession.delete(sessionId);
+		await this.updateSessionStatus(sessionId, AgentSessionStatus.Error);
+		await this.createErrorActivity(sessionId, body);
+	}
+
 	/**
 	 *  Get all agent runners
 	 */
@@ -1642,6 +1721,7 @@ export class AgentSessionManager extends EventEmitter {
 		this.lastAssistantBodyBySession.delete(sessionId);
 		this.bufferedAssistantEntryBySession.delete(sessionId);
 		this.messageProcessingQueues.delete(sessionId);
+		this.suppressedRunnerSessions.delete(sessionId);
 		log.debug("Removed session");
 	}
 

@@ -168,6 +168,7 @@ import {
 	RunnerConfigBuilder,
 	resolveIssueMcpConfigPath,
 } from "./RunnerConfigBuilder.js";
+import { RunnerFallbackController } from "./RunnerFallbackController.js";
 import { RunnerSelectionService } from "./RunnerSelectionService.js";
 import { SharedApplicationServer } from "./SharedApplicationServer.js";
 import {
@@ -206,6 +207,7 @@ export class EdgeWorker extends EventEmitter {
 	private config: EdgeWorkerConfig;
 	private repositories: Map<string, RepositoryConfig> = new Map(); // repository 'id' (internal, stored in config.json) mapped to the full repo config
 	private agentSessionManager: AgentSessionManager; // Single instance managing all agent sessions across repositories
+	private runnerFallbackController: RunnerFallbackController;
 	private activitySinks: Map<string, IActivitySink> = new Map(); // Maps Linear workspace ID to activity sink (one per workspace, mirrors issueTrackers)
 	private sessionRepositories: Map<string, string> = new Map(); // Maps session ID to repository ID
 	private lastStopTimeBySession: Map<string, number> = new Map(); // Maps session ID to timestamp of last stop signal (for double-stop detection)
@@ -487,6 +489,16 @@ export class EdgeWorker extends EventEmitter {
 					childSessionId,
 				);
 			},
+		);
+		this.runnerFallbackController = new RunnerFallbackController({
+			getConfig: () => this.config,
+			sessionManager: this.agentSessionManager,
+			createRunner: (runnerType, runnerConfig) =>
+				this.createRunnerForType(runnerType, runnerConfig),
+		});
+		this.agentSessionManager.setRateLimitFallbackHandler?.(
+			(sessionId, message) =>
+				this.runnerFallbackController.handleRateLimit(sessionId, message),
 		);
 
 		// Initialize repositories with path resolution
@@ -3401,6 +3413,7 @@ ${taskSection}`;
 				`Session stopped — ${message.workItemIdentifier} was marked as Done or Canceled.`,
 			);
 			this.agentSessionManager.removeSession(session.id);
+			this.runnerFallbackController.removeSession(session.id);
 		}
 
 		// Build the set of repositories involved with this issue so per-repo
@@ -4547,28 +4560,57 @@ ${taskSection}`;
 
 			// Create agent runner with system prompt from assembly
 			// buildAgentRunnerConfig now determines runner type from labels internally
-			const { config: runnerConfig, runnerType } =
-				await this.buildAgentRunnerConfig(
-					session,
-					primaryRepo,
-					sessionId,
-					assembly.systemPrompt,
-					allowedTools,
-					allowedDirectories,
-					disallowedTools,
-					undefined, // resumeSessionId
-					labels, // Pass labels for runner selection and model override
-					fullIssue.description || undefined, // Description tags can override label selectors
-					undefined, // maxTurns
-					linearWorkspaceId,
-					this.buildSkillSessionContext(primaryRepo, fullIssue, session),
-				);
+			const {
+				config: runnerConfig,
+				runnerType,
+				selectionWasExplicit,
+			} = await this.buildAgentRunnerConfig(
+				session,
+				primaryRepo,
+				sessionId,
+				assembly.systemPrompt,
+				allowedTools,
+				allowedDirectories,
+				disallowedTools,
+				undefined, // resumeSessionId
+				labels, // Pass labels for runner selection and model override
+				fullIssue.description || undefined, // Description tags can override label selectors
+				undefined, // maxTurns
+				linearWorkspaceId,
+				this.buildSkillSessionContext(primaryRepo, fullIssue, session),
+			);
 
 			log.debug(
 				`Label-based runner selection for new session: ${runnerType} (session ${sessionId})`,
 			);
 
 			const runner = this.createRunnerForType(runnerType, runnerConfig);
+			this.runnerFallbackController.registerTurn({
+				sessionId,
+				runnerType,
+				selectionWasExplicit,
+				prompt: assembly.userPrompt,
+				buildConfig: async (fallbackType) =>
+					(
+						await this.buildAgentRunnerConfig(
+							session,
+							primaryRepo,
+							sessionId,
+							assembly.systemPrompt,
+							allowedTools,
+							allowedDirectories,
+							disallowedTools,
+							undefined,
+							labels,
+							fullIssue.description || undefined,
+							undefined,
+							linearWorkspaceId,
+							this.buildSkillSessionContext(primaryRepo, fullIssue, session),
+							"linear",
+							fallbackType,
+						)
+					).config,
+			});
 
 			// Store runner by comment ID
 			agentSessionManager.addAgentRunner(sessionId, runner);
@@ -5337,6 +5379,9 @@ ${taskSection}`;
 		runnerType: "claude" | "gemini" | "codex" | "cursor",
 		config: AgentRunnerConfig,
 	): IAgentRunner {
+		if (this.config.handlers?.createRunner) {
+			return this.config.handlers.createRunner(runnerType, config);
+		}
 		switch (runnerType) {
 			case "claude": {
 				// Inject the hosted SessionStore at the last moment so it only
@@ -6443,7 +6488,12 @@ ${input.userComment}
 		 * Defaults to `"linear"` (the pre-platform-aware behavior).
 		 */
 		sessionPlatform: "linear" | "github" | "gitlab" = "linear",
-	): Promise<{ config: AgentRunnerConfig; runnerType: RunnerType }> {
+		runnerTypeOverride?: RunnerType,
+	): Promise<{
+		config: AgentRunnerConfig;
+		runnerType: RunnerType;
+		selectionWasExplicit: boolean;
+	}> {
 		const log = this.logger.withContext({
 			sessionId,
 			platform: session.issueContext?.trackerId,
@@ -6493,6 +6543,7 @@ ${input.userComment}
 			skills: allowedSkillNames,
 			sandboxSettings: this.sdkSandboxSettings ?? undefined,
 			egressCaCertPath: this.egressCaCertPath ?? undefined,
+			runnerTypeOverride,
 			onMessage: (message: SDKMessage) => {
 				this.handleClaudeMessage(sessionId, message, repository.id);
 			},
@@ -7262,22 +7313,25 @@ ${input.userComment}
 		// Create runner configuration
 		// buildAgentRunnerConfig determines runner type from labels for new sessions
 		// For existing sessions, we still need labels for model override but ignore runner type
-		const { config: runnerConfig, runnerType } =
-			await this.buildAgentRunnerConfig(
-				session,
-				repository,
-				sessionId,
-				systemPrompt,
-				allowedTools,
-				allowedDirectories,
-				disallowedTools,
-				resumeSessionId,
-				labels, // Always pass labels to preserve model override
-				fullIssue.description || undefined, // Description tags can override label selectors
-				maxTurns, // Pass maxTurns if specified
-				resolvedWorkspaceId,
-				this.buildSkillSessionContext(repository, fullIssue, session),
-			);
+		const {
+			config: runnerConfig,
+			runnerType,
+			selectionWasExplicit,
+		} = await this.buildAgentRunnerConfig(
+			session,
+			repository,
+			sessionId,
+			systemPrompt,
+			allowedTools,
+			allowedDirectories,
+			disallowedTools,
+			resumeSessionId,
+			labels, // Always pass labels to preserve model override
+			fullIssue.description || undefined, // Description tags can override label selectors
+			maxTurns, // Pass maxTurns if specified
+			resolvedWorkspaceId,
+			this.buildSkillSessionContext(repository, fullIssue, session),
+		);
 
 		// Create the appropriate runner based on session state
 		const runner = this.createRunnerForType(runnerType, runnerConfig);
@@ -7299,6 +7353,32 @@ ${input.userComment}
 			commentAuthor,
 			commentTimestamp,
 		);
+		this.runnerFallbackController.registerTurn({
+			sessionId,
+			runnerType,
+			selectionWasExplicit,
+			prompt: fullPrompt,
+			buildConfig: async (fallbackType) =>
+				(
+					await this.buildAgentRunnerConfig(
+						session,
+						repository,
+						sessionId,
+						systemPrompt,
+						allowedTools,
+						allowedDirectories,
+						disallowedTools,
+						undefined,
+						labels,
+						fullIssue.description || undefined,
+						maxTurns,
+						resolvedWorkspaceId,
+						this.buildSkillSessionContext(repository, fullIssue, session),
+						"linear",
+						fallbackType,
+					)
+				).config,
+		});
 
 		// Start session - use streaming mode if supported for ability to add messages later
 		try {

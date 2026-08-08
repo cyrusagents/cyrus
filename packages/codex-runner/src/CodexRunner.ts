@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
+import { promisify } from "node:util";
 import type { IAgentRunner, IMessageFormatter, SDKMessage } from "cyrus-core";
 import { AppServerCodexBackend } from "./backend/AppServerCodexBackend.js";
 import type {
@@ -73,6 +75,21 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 		if (config.onMessage) this.on("message", config.onMessage);
 		if (config.onError) this.on("error", config.onError);
 		if (config.onComplete) this.on("complete", config.onComplete);
+	}
+
+	/** Verify the CLI exists and has credentials before an automatic fallback. */
+	async isAvailable(): Promise<boolean> {
+		if (process.env.OPENAI_API_KEY) return true;
+		try {
+			const { stdout, stderr } = await promisify(execFile)(
+				this.config.codexPath || "codex",
+				["login", "status"],
+				{ timeout: 5_000 },
+			);
+			return /^logged in\b/im.test(stdout + stderr);
+		} catch {
+			return false;
+		}
 	}
 
 	async start(prompt: string): Promise<CodexSessionInfo> {
