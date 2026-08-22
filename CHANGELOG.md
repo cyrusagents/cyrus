@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Codex sessions now default to `medium` reasoning effort. Previously any `gpt-5*` model was pinned to `high` and every other Codex model inherited whatever the Codex CLI happened to default to, so the effort actually used was neither predictable nor adjustable per issue. You can now set it explicitly by labelling the issue `low`, `medium`, or `high` (the prefixed forms `effort:low` / `effort:medium` / `effort:high` work identically), and the chosen effort reaches OpenAI as the request's `reasoning.effort`. Applying two conflicting effort labels stops the run with an explicit error instead of silently picking one. ([BYE-340](https://linear.app/byelverton/issue/BYE-340/edgeworker-wire-gpt-56-model-labels-terralunasol-reasoning-effort-into), [#1371](https://github.com/cyrusagents/cyrus/pull/1371))
+
 ### Fixed
+- GPT-5.6 model labels now run on the Codex runtime instead of silently falling back to Claude Sonnet. Labelling an issue `terra`, `luna`, or `sol` selects the Codex runner with `gpt-5.6-terra`, `gpt-5.6-luna`, or `gpt-5.6-sol` respectively, and the bare `gpt-5.6` label maps to Sol; the same names work as a `[model=...]` description tag, which takes precedence over labels. Combining one of these with a Claude or Gemini selector, or applying one to an issue whose session is already running on another runtime, now fails with an explicit error naming the conflict rather than quietly dropping the model you asked for. Model-family-shaped labels Cyrus does not recognize are logged before the normal runner fallback applies. ([BYE-340](https://linear.app/byelverton/issue/BYE-340/edgeworker-wire-gpt-56-model-labels-terralunasol-reasoning-effort-into), [#1371](https://github.com/cyrusagents/cyrus/pull/1371))
 - The self-hosted GitHub App setup flow (`cyrus-setup-github` skill, "enable @mentions") no longer fails with "Default events are not supported by permissions: organization". The generated App manifest subscribed to an event with no matching permission, so GitHub rejected the submission and no App was ever created. ([#1406](https://github.com/cyrusagents/cyrus/issues/1406), [#1407](https://github.com/cyrusagents/cyrus/pull/1407))
 
 ### Security

@@ -7,6 +7,8 @@ import {
 	RunnerConfigBuilder,
 } from "../src/RunnerConfigBuilder.js";
 
+type RunnerSelection = ReturnType<IRunnerSelector["determineRunnerSelection"]>;
+
 const silentLogger: ILogger = {
 	debug: () => {},
 	info: () => {},
@@ -14,7 +16,9 @@ const silentLogger: ILogger = {
 	error: () => {},
 } as unknown as ILogger;
 
-function makeBuilder(): RunnerConfigBuilder {
+function makeBuilder(
+	selection: RunnerSelection = { runnerType: "codex" },
+): RunnerConfigBuilder {
 	const chatToolResolver: IChatToolResolver = {
 		buildChatAllowedTools: () => ["Read(**)"],
 	};
@@ -23,7 +27,7 @@ function makeBuilder(): RunnerConfigBuilder {
 		buildMergedMcpConfigPath: () => undefined,
 	};
 	const runnerSelector: IRunnerSelector = {
-		determineRunnerSelection: () => ({ runnerType: "codex" as const }),
+		determineRunnerSelection: () => selection,
 		getDefaultModelForRunner: () => "gpt-5.5",
 		getDefaultFallbackModelForRunner: () => "gpt-5.2-codex",
 	};
@@ -74,5 +78,47 @@ describe("RunnerConfigBuilder Codex managed skills", () => {
 		expect(config.plugins).toEqual(plugins);
 		expect(config.skills).toEqual(["custom-user"]);
 		expect(config.codexHome).toBeUndefined();
+	});
+
+	it("passes GPT-5.6 model and reasoning effort into the Codex config", () => {
+		const session = {
+			issueId: "issue-1",
+			issue: { identifier: "ABC-1" },
+			workspace: { path: "/ws/repo-a", isGitWorktree: true },
+		} as unknown as CyrusAgentSession;
+		const repository = {
+			id: "repo-a",
+			name: "Repo A",
+			repositoryPath: "/repos/repo-a",
+			allowedTools: [],
+		} as unknown as RepositoryConfig;
+
+		const { config, runnerType } = makeBuilder({
+			runnerType: "codex",
+			modelOverride: "gpt-5.6-luna",
+			fallbackModelOverride: "gpt-5.2-codex",
+			reasoningEffort: "high",
+		}).buildIssueConfig({
+			session,
+			repository,
+			sessionId: "sess-1",
+			systemPrompt: "test",
+			allowedTools: ["Read(**)"],
+			allowedDirectories: ["/repos/repo-a"],
+			disallowedTools: [],
+			cyrusHome: "/tmp/cyrus-home",
+			linearWorkspaceId: "ws-1",
+			logger: silentLogger,
+			onMessage: () => {},
+			onError: () => {},
+			requireLinearWorkspaceId: () => "ws-1",
+		});
+
+		expect(runnerType).toBe("codex");
+		expect(config.model).toBe("gpt-5.6-luna");
+		expect((config as Record<string, unknown>).modelReasoningEffort).toBe(
+			"high",
+		);
+		expect(config.model).not.toBe("sonnet");
 	});
 });

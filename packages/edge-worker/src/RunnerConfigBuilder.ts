@@ -23,6 +23,10 @@ import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
 import { appendCloudRuntimeAddendum } from "./prompts/cloudRuntimePromptAddendum.js";
 import { appendFailureModeAddendum } from "./prompts/failureModePromptAddendum.js";
+import {
+	isRecognizedGpt56Model,
+	type ReasoningEffort,
+} from "./RunnerSelectionService.js";
 
 /**
  * Subset of McpConfigService consumed by RunnerConfigBuilder.
@@ -59,6 +63,7 @@ export interface IRunnerSelector {
 		runnerType: RunnerType;
 		modelOverride?: string;
 		fallbackModelOverride?: string;
+		reasoningEffort?: ReasoningEffort;
 	};
 	getDefaultModelForRunner(runnerType: RunnerType): string;
 	getDefaultFallbackModelForRunner(runnerType: RunnerType): string;
@@ -329,14 +334,25 @@ export class RunnerConfigBuilder {
 		let runnerType = runnerSelection.runnerType;
 		let modelOverride = runnerSelection.modelOverride;
 		let fallbackModelOverride = runnerSelection.fallbackModelOverride;
+		const reasoningEffort = runnerSelection.reasoningEffort ?? "medium";
 
 		// If the labels have changed, and we are resuming a session. Use the existing runner for the session.
 		if (input.session.claudeSessionId && runnerType !== "claude") {
+			if (isRecognizedGpt56Model(modelOverride)) {
+				throw new Error(
+					`Cannot apply GPT-5.6 model "${modelOverride}" to an existing Claude session. Start a new Codex session instead.`,
+				);
+			}
 			runnerType = "claude";
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("claude");
 			fallbackModelOverride =
 				this.runnerSelector.getDefaultFallbackModelForRunner("claude");
 		} else if (input.session.geminiSessionId && runnerType !== "gemini") {
+			if (isRecognizedGpt56Model(modelOverride)) {
+				throw new Error(
+					`Cannot apply GPT-5.6 model "${modelOverride}" to an existing Gemini session. Start a new Codex session instead.`,
+				);
+			}
 			runnerType = "gemini";
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("gemini");
 			fallbackModelOverride =
@@ -347,6 +363,11 @@ export class RunnerConfigBuilder {
 			fallbackModelOverride =
 				this.runnerSelector.getDefaultFallbackModelForRunner("codex");
 		} else if (input.session.cursorSessionId && runnerType !== "cursor") {
+			if (isRecognizedGpt56Model(modelOverride)) {
+				throw new Error(
+					`Cannot apply GPT-5.6 model "${modelOverride}" to an existing Cursor session. Start a new Codex session instead.`,
+				);
+			}
 			runnerType = "cursor";
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("cursor");
 			fallbackModelOverride =
@@ -419,6 +440,9 @@ export class RunnerConfigBuilder {
 				fallbackModelOverride ||
 				input.repository.fallbackModel ||
 				this.runnerSelector.getDefaultFallbackModelForRunner(runnerType),
+			...(runnerType === "codex" && {
+				modelReasoningEffort: reasoningEffort,
+			}),
 			logger: log,
 			hooks,
 			// Plugins providing managed skills.

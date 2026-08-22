@@ -10,11 +10,8 @@ import type {
 import { buildCodexMcpServersConfig } from "./mcpConfigTranslator.js";
 import { resolveCodexSandbox } from "./sandboxPolicy.js";
 
-function getDefaultReasoningEffortForModel(
-	model?: string,
-): CodexRunnerConfig["modelReasoningEffort"] | undefined {
-	// All gpt-5 variants (including plain "gpt-5") reject xhigh; pin to "high".
-	return /^gpt-5/i.test(model || "") ? "high" : undefined;
+function getDefaultReasoningEffort(): CodexRunnerConfig["modelReasoningEffort"] {
+	return "medium";
 }
 
 /**
@@ -31,8 +28,7 @@ export class CodexConfigBuilder {
 
 		const codexHome = this.resolveCodexHome();
 		const reasoningEffort =
-			this.config.modelReasoningEffort ??
-			getDefaultReasoningEffortForModel(this.config.model);
+			this.config.modelReasoningEffort ?? getDefaultReasoningEffort();
 		const webSearchMode =
 			this.config.webSearchMode ??
 			(this.config.includeWebSearch ? "live" : undefined);
