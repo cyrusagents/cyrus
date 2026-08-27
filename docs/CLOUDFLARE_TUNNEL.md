@@ -74,10 +74,9 @@ export CLOUDFLARE_TOKEN=eyJhIjoiXXXXXXX...your_token_here...XXXXXXX
 
 Cyrus will automatically start the Cloudflare tunnel in the background when it detects the `CLOUDFLARE_TOKEN` environment variable.
 
-`cloudflared` connects outbound and reaches the origin over loopback, so nothing off-box needs to connect to the port
-directly. If you have `CYRUS_HOST_EXTERNAL=true` set, add `export CYRUS_SERVER_HOST=127.0.0.1` to keep the port off your
-public interfaces - it changes the bind address only, leaving direct webhook signature verification and source-IP
-validation on. See [Self-Hosting](./SELF_HOSTING.md) for the full explanation.
+`cloudflared` reaches the origin over loopback, so if you have `CYRUS_HOST_EXTERNAL=true` set, add
+`export CYRUS_SERVER_HOST=127.0.0.1` to keep the port off your public interfaces. See
+[Self-Hosting](./SELF_HOSTING.md#43-cyrus_server_host) for what the override does and does not change.
 
 ---
 

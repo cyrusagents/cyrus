@@ -2,6 +2,8 @@
  * Application constants
  */
 
+import { isIPv4 } from "node:net";
+
 /**
  * Default server port for OAuth callbacks and webhooks
  */
@@ -24,14 +26,10 @@ export function parsePort(
 /**
  * Resolve the address the HTTP server binds to.
  *
- * `CYRUS_SERVER_HOST` is an explicit override; when it is unset the address is
- * derived from `CYRUS_HOST_EXTERNAL` exactly as before.
- *
- * The two are separate because `CYRUS_HOST_EXTERNAL` is not a bind knob: it also
- * selects the webhook verification mode (direct signature vs proxied) and the
- * default for webhook source-IP validation. The override lets a deployment that
- * is fronted by a tunnel or reverse proxy on the same host bind loopback without
- * changing either of those.
+ * `CYRUS_HOST_EXTERNAL` is not a bind knob: it also selects the webhook
+ * verification mode and the source-IP validation default. `CYRUS_SERVER_HOST`
+ * exists so a deployment fronted by a tunnel or reverse proxy can move the bind
+ * address without changing either of those.
  *
  * @param value Raw `CYRUS_SERVER_HOST` value, if set
  * @param isExternalHost Whether `CYRUS_HOST_EXTERNAL` is enabled
@@ -43,34 +41,24 @@ export function resolveServerHost(
 	return value?.trim() || (isExternalHost ? "0.0.0.0" : "localhost");
 }
 
-/** Addresses that only the local machine can reach. */
+/** Addresses only the local machine can reach. */
 function isLoopbackHost(host: string): boolean {
 	const lower = host.toLowerCase();
-	return (
-		lower === "localhost" ||
-		lower === "::1" ||
-		lower === "[::1]" ||
-		// 127.0.0.0/8 is all loopback; the prefix check is case-insensitive
-		// because digits aren't, but lowercasing keeps it consistent.
-		lower.startsWith("127.")
-	);
+	if (lower === "localhost" || lower === "::1" || lower === "[::1]") {
+		return true;
+	}
+	// Hostnames can start "127." too (`127.example.com`), so the address has to
+	// parse as IPv4 before the 127.0.0.0/8 prefix means anything.
+	return isIPv4(lower) && lower.startsWith("127.");
 }
 
 /**
- * Error text for a `CYRUS_SERVER_HOST` that widens exposure rather than
- * narrowing it, or `null` when the resolved address is unremarkable.
+ * Error text for a `CYRUS_SERVER_HOST` that binds beyond loopback without
+ * `CYRUS_HOST_EXTERNAL=true`, or `null` when the address is acceptable.
  *
- * Binding a non-loopback address without `CYRUS_HOST_EXTERNAL=true` is a
- * combination that was unreachable before `CYRUS_SERVER_HOST` existed, and it is
- * the dangerous one: webhook source-IP validation defaults off and webhooks are
- * verified in proxy mode against `CYRUS_API_KEY`, so the port is reachable from
- * the network with the weaker of the two verification paths in front of it.
- *
- * Only an explicit override can produce it - the derived address for
- * `CYRUS_HOST_EXTERNAL=false` is loopback. Cyrus therefore rejects the
- * configuration before opening the listener rather than binding it: a non-
- * loopback override requires `CYRUS_HOST_EXTERNAL=true`, otherwise Cyrus stays
- * loopback-only.
+ * That combination is unreachable without the override and is the dangerous
+ * one: the port is on the network while webhooks are verified in proxy mode and
+ * source-IP validation is off by default. Cyrus rejects it rather than binding.
  */
 export function serverHostError(
 	host: string,

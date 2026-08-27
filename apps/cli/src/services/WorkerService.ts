@@ -162,10 +162,8 @@ export class WorkerService {
 	}
 
 	/**
-	 * Reject a `CYRUS_SERVER_HOST` that exposes the port more widely than the
-	 * deployment's webhook configuration expects. A non-loopback override
-	 * requires `CYRUS_HOST_EXTERNAL=true`; without it Cyrus is loopback-only and
-	 * startup fails before the listener is opened.
+	 * Throws before any listener is opened, so a rejected `CYRUS_SERVER_HOST`
+	 * never gets bound.
 	 */
 	private rejectRiskyBind(serverHost: string, isExternalHost: boolean): void {
 		const error = serverHostError(serverHost, isExternalHost);

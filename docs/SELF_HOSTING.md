@@ -197,21 +197,24 @@ ANTHROPIC_API_KEY=your-api-key
 # CLOUDFLARE_TOKEN=your-cloudflare-token
 ```
 
-**`CYRUS_SERVER_HOST`** sets the address Cyrus listens on. Leave it unset and Cyrus binds `0.0.0.0` when
-`CYRUS_HOST_EXTERNAL=true` and `localhost` otherwise, which is what you want if webhook providers connect to the port
+### 4.3 `CYRUS_SERVER_HOST`
+
+`CYRUS_SERVER_HOST` sets the address Cyrus listens on. Leave it unset and Cyrus binds `0.0.0.0` when
+`CYRUS_HOST_EXTERNAL=true` and `localhost` otherwise - the right default when webhook providers connect to the port
 directly.
 
-Set it when you front Cyrus with a tunnel or a reverse proxy on the same host - `cloudflared` connects outbound and
-reaches the origin over loopback, as does an nginx or Caddy on the same box, so nothing off-box needs to reach the port.
+Set it when a tunnel or a reverse proxy on the same host fronts Cyrus. `cloudflared` connects outbound and reaches the
+origin over loopback, as does an nginx or Caddy on the same box, so nothing off-box needs to reach the port.
 `CYRUS_SERVER_HOST=127.0.0.1` alongside `CYRUS_HOST_EXTERNAL=true` keeps the port off your public interfaces while
-leaving direct webhook signature verification and source-IP validation on. Do not use it to change the bind address by
-turning `CYRUS_HOST_EXTERNAL` off: that flag also selects the webhook verification mode and the IP-validation default.
+leaving direct webhook signature verification and source-IP validation on.
 
-The mirror-image mistake is worth naming too. Pointing `CYRUS_SERVER_HOST` at a non-loopback address *without*
-`CYRUS_HOST_EXTERNAL=true` would put the port on the network while webhooks are still verified in proxy mode and
-source-IP validation is off by default - the weaker path, exposed. Cyrus rejects that configuration at startup
-rather than binding it: a non-loopback override requires `CYRUS_HOST_EXTERNAL=true`. Without it, Cyrus stays
-loopback-only.
+Do not move the bind address by turning `CYRUS_HOST_EXTERNAL` off instead: that flag also selects the webhook
+verification mode and the source-IP validation default.
+
+A non-loopback `CYRUS_SERVER_HOST` requires `CYRUS_HOST_EXTERNAL=true`. Without it the port would be on the network
+while webhooks are verified in proxy mode and source-IP validation is off, so Cyrus rejects the configuration at
+startup and stays loopback-only. Loopback means `localhost`, `::1`, or an address in `127.0.0.0/8` - a hostname that
+merely starts with `127.` is not accepted.
 
 ---
 

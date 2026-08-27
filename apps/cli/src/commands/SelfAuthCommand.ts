@@ -18,12 +18,7 @@ import { BaseCommand } from "./ICommand.js";
 export class SelfAuthCommand extends BaseCommand {
 	private server: FastifyInstance | null = null;
 	private callbackPort = parseInt(process.env.CYRUS_SERVER_PORT || "3456", 10);
-	/**
-	 * Resolved and validated once in `execute` so both the Cloudflare-tunnel
-	 * `SharedApplicationServer` and the OAuth-callback listener bind the same
-	 * address. A non-loopback override without `CYRUS_HOST_EXTERNAL=true` is
-	 * rejected before either listener opens.
-	 */
+	/** Resolved once in `execute` so both listeners bind the same address. */
 	private listenHost = "localhost";
 
 	async execute(_args: string[]): Promise<void> {
@@ -67,10 +62,8 @@ export class SelfAuthCommand extends BaseCommand {
 		console.log(`   Callback port: ${this.callbackPort}`);
 		console.log();
 
-		// Resolve and validate the bind address once, before any listener opens.
-		// A non-loopback CYRUS_SERVER_HOST without CYRUS_HOST_EXTERNAL=true is
-		// rejected: the callback port would be on the network while webhooks are
-		// verified in proxy mode and source-IP validation is off by default.
+		// Validate before any listener opens, so a rejected configuration never
+		// gets bound.
 		const isExternalHost =
 			process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 		this.listenHost = resolveServerHost(
@@ -88,9 +81,8 @@ export class SelfAuthCommand extends BaseCommand {
 				this.logger.info("Starting cloudflare tunnel...");
 
 				const { SharedApplicationServer } = await import("cyrus-edge-worker");
-				// 2nd arg is the bind address, not a public URL. Only the port is
-				// read by startCloudflareTunnel today, but passing baseUrl here
-				// would fail the moment anyone calls start() on this instance.
+				// 2nd arg is the bind address, not a public URL - passing baseUrl
+				// here would break start() on this instance.
 				const sharedApplicationServer = new SharedApplicationServer(
 					this.callbackPort,
 					this.listenHost,

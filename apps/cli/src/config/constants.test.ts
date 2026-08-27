@@ -85,10 +85,28 @@ describe("serverHostError", () => {
 			"LOCALHOST",
 			"127.0.0.1",
 			"127.1.2.3",
+			"127.255.255.254",
 			"::1",
 			"[::1]",
 		]) {
 			expect(serverHostError(host, false)).toBeNull();
+		}
+	});
+
+	it("rejects hostnames that only look like 127.0.0.0/8", () => {
+		for (const host of [
+			"127.example.com",
+			"127.0.0.1.nip.io",
+			"127.attacker.net",
+			// Not valid dotted-quads, so not addresses Cyrus will treat as loopback.
+			"127.1",
+			"127",
+			"127.0.0.256",
+			"127.0.0.01",
+		]) {
+			expect(serverHostError(host, false)).toContain(
+				`CYRUS_SERVER_HOST=${host}`,
+			);
 		}
 	});
 
