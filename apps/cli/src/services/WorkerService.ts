@@ -8,7 +8,12 @@ import type {
 import type { GitService, SharedApplicationServer } from "cyrus-edge-worker";
 import { EdgeWorker } from "cyrus-edge-worker";
 import { SlackEventTransport } from "cyrus-slack-event-transport";
-import { DEFAULT_SERVER_PORT, parsePort } from "../config/constants.js";
+import {
+	DEFAULT_SERVER_PORT,
+	parsePort,
+	resolveServerHost,
+	serverHostError,
+} from "../config/constants.js";
 import type { Workspace } from "../config/types.js";
 import type { ConfigService } from "./ConfigService.js";
 import type { Logger } from "./Logger.js";
@@ -107,7 +112,11 @@ export class WorkerService {
 			process.env.CYRUS_SERVER_PORT,
 			DEFAULT_SERVER_PORT,
 		);
-		const serverHost = isExternalHost ? "0.0.0.0" : "localhost";
+		const serverHost = resolveServerHost(
+			process.env.CYRUS_SERVER_HOST,
+			isExternalHost,
+		);
+		this.rejectRiskyBind(serverHost, isExternalHost);
 
 		this.setupWaitingServer = new SharedApplicationServer(
 			serverPort,
@@ -150,6 +159,17 @@ export class WorkerService {
 			this.logger.info(line);
 		}
 		this.logger.divider(70);
+	}
+
+	/**
+	 * Reject a `CYRUS_SERVER_HOST` that exposes the port more widely than the
+	 * deployment's webhook configuration expects. A non-loopback override
+	 * requires `CYRUS_HOST_EXTERNAL=true`; without it Cyrus is loopback-only and
+	 * startup fails before the listener is opened.
+	 */
+	private rejectRiskyBind(serverHost: string, isExternalHost: boolean): void {
+		const error = serverHostError(serverHost, isExternalHost);
+		if (error) throw new Error(error);
 	}
 
 	/**
@@ -205,6 +225,11 @@ export class WorkerService {
 		// Determine if using external host
 		const isExternalHost =
 			process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+		const serverHost = resolveServerHost(
+			process.env.CYRUS_SERVER_HOST,
+			isExternalHost,
+		);
+		this.rejectRiskyBind(serverHost, isExternalHost);
 
 		// Load config once for model defaults
 		const edgeConfig = this.configService.load();
@@ -266,7 +291,7 @@ export class WorkerService {
 					| undefined) || edgeConfig.defaultRunner,
 			webhookBaseUrl: process.env.CYRUS_BASE_URL,
 			serverPort: parsePort(process.env.CYRUS_SERVER_PORT, DEFAULT_SERVER_PORT),
-			serverHost: isExternalHost ? "0.0.0.0" : "localhost",
+			serverHost,
 			ngrokAuthToken,
 			handlers: {
 				createWorkspace: async (

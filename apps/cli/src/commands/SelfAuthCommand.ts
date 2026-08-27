@@ -8,6 +8,7 @@ import {
 } from "cyrus-core";
 import Fastify, { type FastifyInstance } from "fastify";
 import open from "open";
+import { resolveServerHost, serverHostError } from "../config/constants.js";
 import { BaseCommand } from "./ICommand.js";
 
 /**
@@ -17,6 +18,13 @@ import { BaseCommand } from "./ICommand.js";
 export class SelfAuthCommand extends BaseCommand {
 	private server: FastifyInstance | null = null;
 	private callbackPort = parseInt(process.env.CYRUS_SERVER_PORT || "3456", 10);
+	/**
+	 * Resolved and validated once in `execute` so both the Cloudflare-tunnel
+	 * `SharedApplicationServer` and the OAuth-callback listener bind the same
+	 * address. A non-loopback override without `CYRUS_HOST_EXTERNAL=true` is
+	 * rejected before either listener opens.
+	 */
+	private listenHost = "localhost";
 
 	async execute(_args: string[]): Promise<void> {
 		console.log("\nCyrus Linear Self-Authentication");
@@ -59,14 +67,33 @@ export class SelfAuthCommand extends BaseCommand {
 		console.log(`   Callback port: ${this.callbackPort}`);
 		console.log();
 
+		// Resolve and validate the bind address once, before any listener opens.
+		// A non-loopback CYRUS_SERVER_HOST without CYRUS_HOST_EXTERNAL=true is
+		// rejected: the callback port would be on the network while webhooks are
+		// verified in proxy mode and source-IP validation is off by default.
+		const isExternalHost =
+			process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+		this.listenHost = resolveServerHost(
+			process.env.CYRUS_SERVER_HOST,
+			isExternalHost,
+		);
+		const hostError = serverHostError(this.listenHost, isExternalHost);
+		if (hostError) {
+			this.logError(hostError);
+			process.exit(1);
+		}
+
 		try {
 			if (process.env.CLOUDFLARE_TOKEN) {
 				this.logger.info("Starting cloudflare tunnel...");
 
 				const { SharedApplicationServer } = await import("cyrus-edge-worker");
+				// 2nd arg is the bind address, not a public URL. Only the port is
+				// read by startCloudflareTunnel today, but passing baseUrl here
+				// would fail the moment anyone calls start() on this instance.
 				const sharedApplicationServer = new SharedApplicationServer(
 					this.callbackPort,
-					baseUrl,
+					this.listenHost,
 					false,
 				);
 				await sharedApplicationServer.startCloudflareTunnel(
@@ -187,12 +214,8 @@ export class SelfAuthCommand extends BaseCommand {
 				reject(new Error("Missing authorization code"));
 			});
 
-			const isExternalHost =
-				process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
-			const listenHost = isExternalHost ? "0.0.0.0" : "localhost";
-
 			this.server
-				.listen({ port: this.callbackPort, host: listenHost })
+				.listen({ port: this.callbackPort, host: this.listenHost })
 				.then(() => {
 					console.log(
 						`Waiting for authorization on port ${this.callbackPort}...`,
@@ -247,7 +270,7 @@ export class SelfAuthCommand extends BaseCommand {
 			refresh_token?: string;
 		};
 
-		if (!data.access_token || !data.access_token.startsWith("lin_oauth_")) {
+		if (!data.access_token?.startsWith("lin_oauth_")) {
 			throw new Error("Invalid access token received");
 		}
 

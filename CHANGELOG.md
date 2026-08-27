@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - `userAccessControl` now applies to Slack: add `{ "slackId": "U012AB3CD" }` entries to `allowedUsers` or `blockedUsers`, and only listed users can start or continue a Slack session. Everyone else is ignored silently by default, or answered with the block message on an @mention when `blockBehavior` is `"comment"`. Lists without Slack entries leave Slack unchanged. See [User Access Control](docs/CONFIG_FILE.md#user-access-control). ([#1587](https://github.com/cyrusagents/cyrus/issues/1587))
+- **`CYRUS_SERVER_HOST` sets the address Cyrus listens on.** Leave it unset and the bind address is derived from `CYRUS_HOST_EXTERNAL` as before. Set it when a tunnel or reverse proxy on the same host fronts Cyrus: `CYRUS_SERVER_HOST=127.0.0.1` with `CYRUS_HOST_EXTERNAL=true` keeps the port off your public interfaces without switching webhook verification into proxy mode. A non-loopback address requires `CYRUS_HOST_EXTERNAL=true`; otherwise Cyrus rejects the configuration at startup. ([#1408](https://github.com/cyrusagents/cyrus/issues/1408), [#1411](https://github.com/cyrusagents/cyrus/pull/1411))
 
 ### Fixed
 - Slack thread replies in threads Cyrus was never mentioned in no longer get the 👀 receipt reaction; ignored messages leave no trace. ([#1544](https://github.com/cyrusagents/cyrus/issues/1544))

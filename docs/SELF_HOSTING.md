@@ -181,6 +181,8 @@ Your env file (`~/.cyrus/.env`) should now contain:
 LINEAR_DIRECT_WEBHOOKS=true
 CYRUS_BASE_URL=https://your-public-url.com
 CYRUS_SERVER_PORT=3456
+# Optional: the address Cyrus binds to.
+# CYRUS_SERVER_HOST=127.0.0.1
 
 # Linear OAuth
 LINEAR_CLIENT_ID=your_client_id
@@ -194,6 +196,22 @@ ANTHROPIC_API_KEY=your-api-key
 # Optional: Cloudflare Tunnel
 # CLOUDFLARE_TOKEN=your-cloudflare-token
 ```
+
+**`CYRUS_SERVER_HOST`** sets the address Cyrus listens on. Leave it unset and Cyrus binds `0.0.0.0` when
+`CYRUS_HOST_EXTERNAL=true` and `localhost` otherwise, which is what you want if webhook providers connect to the port
+directly.
+
+Set it when you front Cyrus with a tunnel or a reverse proxy on the same host - `cloudflared` connects outbound and
+reaches the origin over loopback, as does an nginx or Caddy on the same box, so nothing off-box needs to reach the port.
+`CYRUS_SERVER_HOST=127.0.0.1` alongside `CYRUS_HOST_EXTERNAL=true` keeps the port off your public interfaces while
+leaving direct webhook signature verification and source-IP validation on. Do not use it to change the bind address by
+turning `CYRUS_HOST_EXTERNAL` off: that flag also selects the webhook verification mode and the IP-validation default.
+
+The mirror-image mistake is worth naming too. Pointing `CYRUS_SERVER_HOST` at a non-loopback address *without*
+`CYRUS_HOST_EXTERNAL=true` would put the port on the network while webhooks are still verified in proxy mode and
+source-IP validation is off by default - the weaker path, exposed. Cyrus rejects that configuration at startup
+rather than binding it: a non-loopback override requires `CYRUS_HOST_EXTERNAL=true`. Without it, Cyrus stays
+loopback-only.
 
 ---
 
