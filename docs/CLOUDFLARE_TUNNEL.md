@@ -76,7 +76,7 @@ Cyrus will automatically start the Cloudflare tunnel in the background when it d
 
 `cloudflared` reaches the origin over loopback, so if you have `CYRUS_HOST_EXTERNAL=true` set, add
 `export CYRUS_SERVER_HOST=127.0.0.1` to keep the port off your public interfaces. See
-[Self-Hosting](./SELF_HOSTING.md#43-cyrus_server_host) for what the override does and does not change.
+[Self-Hosting](./SELF_HOSTING.md#43-choosing-a-bind-address) for what the override does and does not change.
 
 ---
 

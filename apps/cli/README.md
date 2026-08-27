@@ -52,6 +52,6 @@ The interactive wizard will prompt you for:
   - Supplies the default bind address: `0.0.0.0` when `true`, `localhost` when `false` or unset
 - `CYRUS_SERVER_HOST` - Address the server binds to, overriding the default above. Default: unset
   - Set this when a tunnel or reverse proxy on the same host fronts Cyrus: `CYRUS_SERVER_HOST=127.0.0.1` with `CYRUS_HOST_EXTERNAL=true` binds loopback without changing webhook verification
-  - A non-loopback address requires `CYRUS_HOST_EXTERNAL=true`; otherwise Cyrus rejects the configuration at startup. See [Self-Hosting](../../docs/SELF_HOSTING.md#43-cyrus_server_host)
+  - A non-loopback address requires `CYRUS_HOST_EXTERNAL=true`; otherwise Cyrus rejects the configuration at startup. See [Self-Hosting](../../docs/SELF_HOSTING.md#43-choosing-a-bind-address)
 - `LINEAR_ALLOWED_TOOLS` - Comma-separated list of tools allowed for Linear-triggered sessions. Overrides `linearAllowedTools` in `~/.cyrus/config.json` when set.
 - `DISALLOWED_TOOLS` - Comma-separated list of tools disallowed across all sessions. Overrides `defaultDisallowedTools` in `~/.cyrus/config.json` when set.

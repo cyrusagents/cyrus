@@ -197,24 +197,20 @@ ANTHROPIC_API_KEY=your-api-key
 # CLOUDFLARE_TOKEN=your-cloudflare-token
 ```
 
-### 4.3 `CYRUS_SERVER_HOST`
+### 4.3 Choosing a Bind Address
 
 `CYRUS_SERVER_HOST` sets the address Cyrus listens on. Leave it unset and Cyrus binds `0.0.0.0` when
-`CYRUS_HOST_EXTERNAL=true` and `localhost` otherwise - the right default when webhook providers connect to the port
-directly.
+`CYRUS_HOST_EXTERNAL=true` and `localhost` otherwise, which is what you want when webhook providers connect to the
+port directly.
 
-Set it when a tunnel or a reverse proxy on the same host fronts Cyrus. `cloudflared` connects outbound and reaches the
-origin over loopback, as does an nginx or Caddy on the same box, so nothing off-box needs to reach the port.
+Set it when a tunnel or a reverse proxy on the same host fronts Cyrus and nothing off-box needs to reach the port.
 `CYRUS_SERVER_HOST=127.0.0.1` alongside `CYRUS_HOST_EXTERNAL=true` keeps the port off your public interfaces while
-leaving direct webhook signature verification and source-IP validation on.
+leaving direct webhook signature verification and source-IP validation on. Turning `CYRUS_HOST_EXTERNAL` off is not an
+alternative: that flag also selects the webhook verification mode and the source-IP validation default.
 
-Do not move the bind address by turning `CYRUS_HOST_EXTERNAL` off instead: that flag also selects the webhook
-verification mode and the source-IP validation default.
-
-A non-loopback `CYRUS_SERVER_HOST` requires `CYRUS_HOST_EXTERNAL=true`. Without it the port would be on the network
-while webhooks are verified in proxy mode and source-IP validation is off, so Cyrus rejects the configuration at
-startup and stays loopback-only. Loopback means `localhost`, `::1`, or an address in `127.0.0.0/8` - a hostname that
-merely starts with `127.` is not accepted.
+A non-loopback `CYRUS_SERVER_HOST` requires `CYRUS_HOST_EXTERNAL=true`; otherwise Cyrus rejects the configuration at
+startup rather than putting the port on the network with webhooks verified in proxy mode. Loopback means `localhost`,
+`::1`, or an address in `127.0.0.0/8` - a hostname that merely starts with `127.` is not accepted.
 
 ---
 
