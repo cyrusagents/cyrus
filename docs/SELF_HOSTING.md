@@ -209,8 +209,9 @@ leaving direct webhook signature verification and source-IP validation on. Turni
 alternative: that flag also selects the webhook verification mode and the source-IP validation default.
 
 A non-loopback `CYRUS_SERVER_HOST` requires `CYRUS_HOST_EXTERNAL=true`; otherwise Cyrus rejects the configuration at
-startup rather than putting the port on the network with webhooks verified in proxy mode. Loopback means `localhost`,
-`::1`, or an address in `127.0.0.0/8` - a hostname that merely starts with `127.` is not accepted.
+startup rather than putting the port on the network while `CYRUS_HOST_EXTERNAL` still says the instance is not
+reachable from outside. Loopback means `localhost`, `::1`, or an address in `127.0.0.0/8` - a hostname that merely
+starts with `127.` is not accepted.
 
 ---
 

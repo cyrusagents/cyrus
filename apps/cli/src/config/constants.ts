@@ -57,8 +57,8 @@ function isLoopbackHost(host: string): boolean {
  * `CYRUS_HOST_EXTERNAL=true`, or `null` when the address is acceptable.
  *
  * That combination is unreachable without the override and is the dangerous
- * one: the port is on the network while webhooks are verified in proxy mode and
- * source-IP validation is off by default. Cyrus rejects it rather than binding.
+ * one: the port is on the network while `CYRUS_HOST_EXTERNAL` still says the
+ * instance is not. Cyrus rejects it rather than binding.
  */
 export function serverHostError(
 	host: string,
@@ -68,8 +68,8 @@ export function serverHostError(
 
 	return (
 		`CYRUS_SERVER_HOST=${host} binds a non-loopback address while CYRUS_HOST_EXTERNAL is not set. ` +
-		"A non-loopback override requires CYRUS_HOST_EXTERNAL=true (direct webhook signature verification " +
-		"and source-IP validation); without it Cyrus is loopback-only. Set CYRUS_HOST_EXTERNAL=true if " +
-		"this instance receives webhooks directly, or use a loopback address."
+		"Without CYRUS_HOST_EXTERNAL=true, webhook source-IP validation is off by default and GitHub and " +
+		"Slack webhooks are verified in proxy mode, so Cyrus stays loopback-only. Set CYRUS_HOST_EXTERNAL=true " +
+		"if this instance receives webhooks directly, or use a loopback address."
 	);
 }

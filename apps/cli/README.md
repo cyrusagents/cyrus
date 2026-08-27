@@ -48,7 +48,7 @@ The interactive wizard will prompt you for:
 
 - `CYRUS_HOST_EXTERNAL` - Set to `true` when Cyrus receives webhooks directly rather than through the proxy. Default: `false`
   - Use this when running in Docker containers or when you need external access to the webhook server
-  - Selects direct (signature-verified) webhook handling and turns on webhook source-IP validation by default
+  - Selects direct (signature-verified) GitHub and Slack webhook handling, and turns on webhook source-IP validation by default
   - Supplies the default bind address: `0.0.0.0` when `true`, `localhost` when `false` or unset
 - `CYRUS_SERVER_HOST` - Address the server binds to, overriding the default above. Default: unset
   - Set this when a tunnel or reverse proxy on the same host fronts Cyrus: `CYRUS_SERVER_HOST=127.0.0.1` with `CYRUS_HOST_EXTERNAL=true` binds loopback without changing webhook verification
