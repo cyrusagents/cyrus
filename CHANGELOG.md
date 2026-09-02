@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Assigning an issue to Cyrus no longer occasionally kicks off duplicate agent sessions. Linear delivers webhooks at-least-once and retries deliveries it considers failed; a redelivered session-created webhook used to spawn a second runner in the same worktree, with the two sessions interfering with each other and the first becoming unstoppable. Duplicate deliveries are now detected and ignored, including retries that arrive after a restart. ([#1450](https://github.com/cyrusagents/cyrus/pull/1450))
 - EdgeWorker state saves are now atomic, preventing a process interrupted during a save from leaving a truncated state file that strands in-flight sessions; empty and legacy-truncated state files also recover cleanly. Thanks @connor-tembo for the contribution. ([CYPACK-1486](https://linear.app/ceedar/issue/CYPACK-1486/can-you-add-a-changelog-entry-for-this), [#1444](https://github.com/cyrusagents/cyrus/pull/1444))
 
 ### Changed
