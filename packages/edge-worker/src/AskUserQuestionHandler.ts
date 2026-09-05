@@ -94,6 +94,32 @@ export class AskUserQuestionHandler {
 	 * @param signal - AbortSignal for cancellation
 	 * @returns Promise resolving to the user's answer or denial
 	 */
+	/**
+	 * Build the result for a question that never reached a human.
+	 *
+	 * Every one of these paths previously returned a bare `answered: false` with a
+	 * terse reason, which is the same shape a human declining would produce. The
+	 * model receives only this object, so "replaced by a newer question" and "the
+	 * user said no" were indistinguishable — and the absence of an answer reads as
+	 * permission to continue. Observed in the wild: an agent asked whether to
+	 * proceed, the question was cancelled unanswered, and the agent shipped the
+	 * work anyway, leaving a Linear thread that looks like it was approved.
+	 *
+	 * The message is deliberately explicit rather than terse, because it is the
+	 * only part of this the model actually reads.
+	 */
+	private notAnswered(reason: string): AskUserQuestionResult {
+		return {
+			answered: false,
+			cancelled: true,
+			message:
+				`NOT ANSWERED — ${reason}. No human saw or responded to this question. ` +
+				"This is not approval and must not be treated as one. Do not proceed as " +
+				"though the question was answered; stop and report that you could not " +
+				"obtain a decision.",
+		};
+	}
+
 	async handleAskUserQuestion(
 		input: AskUserQuestionInput,
 		linearAgentSessionId: string,
@@ -105,11 +131,10 @@ export class AskUserQuestionHandler {
 			this.logger.error(
 				`Invalid input: expected exactly 1 question, got ${input.questions?.length ?? 0}`,
 			);
-			return {
-				answered: false,
-				message:
-					"Only one question at a time is supported. Please ask each question separately.",
-			};
+			return this.notAnswered(
+				"only one question at a time is supported, and this call contained " +
+					`${input.questions?.length ?? 0}; ask each question separately`,
+			);
 		}
 
 		const question = input.questions[0]!;
@@ -119,10 +144,9 @@ export class AskUserQuestionHandler {
 
 		// Check if already cancelled
 		if (signal.aborted) {
-			return {
-				answered: false,
-				message: "Operation was cancelled",
-			};
+			return this.notAnswered(
+				"the session was aborted before the question was posted",
+			);
 		}
 
 		// Get issue tracker
@@ -131,10 +155,9 @@ export class AskUserQuestionHandler {
 			this.logger.error(
 				`No issue tracker found for organization ${organizationId}`,
 			);
-			return {
-				answered: false,
-				message: "Issue tracker not available",
-			};
+			return this.notAnswered(
+				"no issue tracker is available for this organization, so the question could not be posted",
+			);
 		}
 
 		// Check for existing pending question for this session
@@ -144,7 +167,7 @@ export class AskUserQuestionHandler {
 			);
 			this.cancelPendingQuestion(
 				linearAgentSessionId,
-				"Replaced by new question",
+				"it was replaced by a newer question on the same session",
 			);
 		}
 
@@ -182,10 +205,9 @@ export class AskUserQuestionHandler {
 		} catch (error) {
 			const errorMessage = (error as Error).message || String(error);
 			this.logger.error(`Failed to post elicitation: ${errorMessage}`);
-			return {
-				answered: false,
-				message: `Failed to present question to user: ${errorMessage}`,
-			};
+			return this.notAnswered(
+				`the elicitation could not be posted to Linear (${errorMessage})`,
+			);
 		}
 
 		// Create promise to wait for user response
@@ -197,10 +219,11 @@ export class AskUserQuestionHandler {
 					`Question cancelled for session ${linearAgentSessionId}`,
 				);
 				this.pendingQuestions.delete(linearAgentSessionId);
-				resolve({
-					answered: false,
-					message: "Operation was cancelled",
-				});
+				resolve(
+					this.notAnswered(
+						"the session was cancelled while the question was open",
+					),
+				);
 			};
 			signal.addEventListener("abort", abortHandler, { once: true });
 
@@ -281,10 +304,7 @@ export class AskUserQuestionHandler {
 			this.logger.debug(
 				`Cancelling pending question for session ${linearAgentSessionId}: ${reason}`,
 			);
-			pendingQuestion.resolve({
-				answered: false,
-				message: reason,
-			});
+			pendingQuestion.resolve(this.notAnswered(reason));
 		}
 	}
 

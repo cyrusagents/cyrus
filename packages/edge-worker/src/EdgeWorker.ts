@@ -4907,10 +4907,11 @@ ${taskSection}`;
 			this.logger.warn(
 				"Cannot handle AskUserQuestion response without agentActivity",
 			);
-			// Resolve with a denial to unblock the waiting promise
+			// Unblock the waiting promise. Note this is a cancellation, not a
+			// denial: nobody saw the question, so the result must not read as one.
 			this.askUserQuestionHandler.cancelPendingQuestion(
 				agentSessionId,
-				"No agent activity in webhook",
+				"the webhook carried no agent activity, so no response could be read",
 			);
 			return;
 		}
