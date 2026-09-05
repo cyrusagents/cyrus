@@ -647,6 +647,11 @@
 		"issueUpdateTrigger": {
 			"type": "boolean"
 		},
+		"maxConcurrentSessions": {
+			"type": "integer",
+			"exclusiveMinimum": 0,
+			"maximum": 9007199254740991
+		},
 		"slackThreadFollowing": {
 			"type": "boolean"
 		},

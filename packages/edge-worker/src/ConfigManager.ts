@@ -56,6 +56,7 @@ const RELOAD_MERGED_KEYS = [
 	"strictMcpConfig",
 	"defaultDisallowedTools",
 	"issueUpdateTrigger",
+	"maxConcurrentSessions",
 	"slackThreadFollowing",
 	"prReviewTrigger",
 	"userAccessControl",
@@ -358,6 +359,9 @@ export class ConfigManager extends EventEmitter {
 				// otherwise keep current or default to true
 				issueUpdateTrigger:
 					parsedConfig.issueUpdateTrigger ?? this.config.issueUpdateTrigger,
+				maxConcurrentSessions:
+					parsedConfig.maxConcurrentSessions ??
+					this.config.maxConcurrentSessions,
 				// Slack thread following: use parsed value if explicitly set,
 				// otherwise keep current or default to true
 				slackThreadFollowing:

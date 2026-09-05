@@ -526,6 +526,19 @@ export const EdgeConfigSchema = z.object({
 	issueUpdateTrigger: z.boolean().optional(),
 
 	/**
+	 * Maximum number of agent runner sessions allowed to execute concurrently
+	 * across all repositories and platforms. Additional session starts wait in
+	 * FIFO order for a free slot and begin automatically as running sessions
+	 * finish. Omit for unlimited (the historical behavior).
+	 *
+	 * Use this on hosts where an unbounded burst of webhook-driven sessions
+	 * can exhaust memory or CPU. Hot-reloads with the config file: raising the
+	 * limit admits queued sessions immediately; lowering it applies as
+	 * running sessions finish.
+	 */
+	maxConcurrentSessions: z.number().int().positive().optional(),
+
+	/**
 	 * Whether Cyrus follows along with all subsequent replies in a Slack thread
 	 * it has been @mentioned in (treating each reply as a follow-up prompt).
 	 * When false, Cyrus only responds to explicit @mentions. Defaults to true if

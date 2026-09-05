@@ -165,6 +165,7 @@ import {
 	RepositoryRouter,
 	type RepositoryRouterDeps,
 } from "./RepositoryRouter.js";
+import { capRunnerStarts, SessionSemaphore } from "./RunnerConcurrency.js";
 import {
 	RunnerConfigBuilder,
 	resolveIssueMcpConfigPath,
@@ -243,6 +244,8 @@ export class EdgeWorker extends EventEmitter {
 	// Extracted service modules
 	private attachmentService: AttachmentService;
 	private runnerSelectionService: RunnerSelectionService;
+	/** Global cap on concurrently executing runner sessions (see maxConcurrentSessions). */
+	private runnerSlots: SessionSemaphore;
 	private toolPermissionResolver: ToolPermissionResolver;
 	private mcpConfigService: McpConfigService;
 	private runnerConfigBuilder: RunnerConfigBuilder;
@@ -567,6 +570,10 @@ export class EdgeWorker extends EventEmitter {
 			this.config.linearWorkspaces || {},
 		);
 		this.runnerSelectionService = new RunnerSelectionService(this.config);
+		this.runnerSlots = new SessionSemaphore(
+			this.config.maxConcurrentSessions ?? Number.POSITIVE_INFINITY,
+			(message) => this.logger.info(message),
+		);
 		this.toolPermissionResolver = new ToolPermissionResolver(
 			this.config,
 			this.logger,
@@ -663,6 +670,9 @@ export class EdgeWorker extends EventEmitter {
 				this.configManager.setConfig(changes.newConfig);
 				this.runnerSelectionService.setConfig(changes.newConfig);
 				this.toolPermissionResolver.setConfig(changes.newConfig);
+				this.runnerSlots.setLimit(
+					changes.newConfig.maxConcurrentSessions ?? Number.POSITIVE_INFINITY,
+				);
 			},
 		);
 		this.configManager.startConfigWatcher();
@@ -5453,8 +5463,23 @@ ${taskSection}`;
 
 	/**
 	 * Instantiate the appropriate runner for the given type.
+	 *
+	 * Every runner is wrapped so its `start()`/`startStreaming()` hold a
+	 * global concurrency slot for the session's lifetime — this is the single
+	 * choke point that makes `maxConcurrentSessions` cover Linear, GitHub,
+	 * GitLab, and chat sessions alike.
 	 */
 	private createRunnerForType(
+		runnerType: RunnerType,
+		config: AgentRunnerConfig,
+	): IAgentRunner {
+		return capRunnerStarts(
+			this.buildRunnerForType(runnerType, config),
+			this.runnerSlots,
+		);
+	}
+
+	private buildRunnerForType(
 		runnerType: RunnerType,
 		config: AgentRunnerConfig,
 	): IAgentRunner {
