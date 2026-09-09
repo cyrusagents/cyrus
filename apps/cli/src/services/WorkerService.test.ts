@@ -124,6 +124,7 @@ describe("WorkerService", () => {
 			issueUpdateTrigger: false,
 			slackThreadFollowing: false,
 			prReviewTrigger: false,
+			singleSessionPerIssue: true,
 			userAccessControl: { allowedUsers: ["usr_1"] },
 			promptDefaults: { debugger: { allowedTools: ["Read"] } },
 			sandbox: { enabled: false },

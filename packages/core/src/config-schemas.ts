@@ -542,6 +542,14 @@ export const EdgeConfigSchema = z.object({
 	prReviewTrigger: z.boolean().optional(),
 
 	/**
+	 * Whether only one agent session may be live per issue. When enabled, a
+	 * Linear-triggered start on an issue that already has a live session
+	 * forwards its prompt to that session instead of starting a second runner
+	 * in the same worktree. Defaults to false if not specified.
+	 */
+	singleSessionPerIssue: z.boolean().optional(),
+
+	/**
 	 * Global user access control settings.
 	 * Applied to all repositories unless overridden.
 	 */

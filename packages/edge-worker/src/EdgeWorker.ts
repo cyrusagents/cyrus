@@ -4328,6 +4328,110 @@ ${taskSection}`;
 	}
 
 	/**
+	 * Find a live agent session on the same issue, for the opt-in
+	 * `singleSessionPerIssue` guard.
+	 *
+	 * A delegation and an @mention landing within seconds of each other start
+	 * two runners against one issue, and every repository the issue routes to
+	 * gives them the same worktree — so the two agents write the same files and
+	 * mutate the same git index. The GitHub path already notices the collision
+	 * (see `getActiveSessionsByBranchName`) and proceeds with a warning; the
+	 * Linear path reuses the worktree silently.
+	 *
+	 * Returns null when the option is off, when nothing is live on the issue, or
+	 * when the only live session is the one being started.
+	 *
+	 * @param issueId The issue the incoming start is for
+	 * @param incomingSessionId The Linear agent session id of the incoming start
+	 */
+	private findLiveSessionForIssue(
+		issueId: string,
+		incomingSessionId: string,
+	): CyrusAgentSession | null {
+		if (this.config.singleSessionPerIssue !== true) {
+			return null;
+		}
+
+		const liveSessions = this.agentSessionManager
+			.getActiveSessionsByIssueId(issueId)
+			.filter((session) => session.id !== incomingSessionId);
+
+		return liveSessions[0] ?? null;
+	}
+
+	/**
+	 * Forward an incoming Linear prompt to the session already working on the
+	 * issue instead of starting a second runner for it.
+	 *
+	 * Nothing is refused and nothing is queued: the prompt reaches the live
+	 * agent through the same resume/steer path a mid-session comment takes, the
+	 * incoming session says where its request went, and it is completed rather
+	 * than left spinning without a runner.
+	 *
+	 * Returns false when the live session cannot be resolved to a repository, in
+	 * which case the caller starts a runner as it would with the guard off — a
+	 * missing mapping must not swallow the prompt.
+	 *
+	 * @param liveSession The session already working on the issue
+	 * @param incomingSessionId The Linear agent session id of the incoming start
+	 * @param issueIdentifier Human-readable issue identifier, for the thought
+	 * @param linearWorkspaceId Workspace id of the incoming session
+	 * @param promptBody The prompt text to forward
+	 * @param logContext Context string for logging
+	 */
+	private async forwardPromptToLiveSession(
+		liveSession: CyrusAgentSession,
+		incomingSessionId: string,
+		issueIdentifier: string,
+		linearWorkspaceId: string,
+		promptBody: string,
+		logContext: string,
+	): Promise<boolean> {
+		const log = this.logger.withContext({ sessionId: incomingSessionId });
+
+		const repositoryId = this.sessionRepositories.get(liveSession.id);
+		const repository = repositoryId
+			? this.repositories.get(repositoryId)
+			: undefined;
+		if (!repository) {
+			log.warn(
+				`singleSessionPerIssue: live session ${liveSession.id} on ${issueIdentifier} has no repository mapping, starting a runner instead of forwarding (${logContext})`,
+			);
+			return false;
+		}
+
+		log.info(
+			`singleSessionPerIssue: forwarding prompt to live session ${liveSession.id} on ${issueIdentifier} (${logContext})`,
+		);
+
+		await this.handlePromptWithStreamingCheck(
+			liveSession,
+			repository,
+			liveSession.id,
+			this.agentSessionManager,
+			promptBody,
+			"", // No attachment manifest: the forwarded body is the prompt as posted
+			false, // Not a new session
+			[], // No additional allowed directories
+			logContext,
+			requireLinearWorkspaceId(repository),
+		);
+
+		await this.activityPoster.postThoughtActivity(
+			incomingSessionId,
+			linearWorkspaceId,
+			`Forwarded to the session already working on ${issueIdentifier} (${liveSession.id}).`,
+		);
+
+		await this.agentSessionManager.createResponseActivity(
+			incomingSessionId,
+			`Another session is already working on ${issueIdentifier}. Your request was forwarded to it.`,
+		);
+
+		return true;
+	}
+
+	/**
 	 * Handle agent session created webhook
 	 * Can happen due to being 'delegated' or @ mentioned in a new thread
 	 * @param webhook The agent session created webhook
@@ -4476,6 +4580,30 @@ ${taskSection}`;
 				`Session parked: issue ${agentSession.issue!.identifier} is blocked by ${blockResult.blockingIdentifiers.join(", ")}`,
 			);
 			return;
+		}
+
+		// Opt-in per-issue exclusion: when another session is already live on this
+		// issue, forward this prompt to it rather than starting a second runner
+		// against the same worktree. Off by default; parked sessions untouched.
+		const startedIssue = agentSession.issue!;
+		const liveSession = this.findLiveSessionForIssue(
+			startedIssue.id,
+			agentSession.id,
+		);
+		if (liveSession) {
+			const forwarded = await this.forwardPromptToLiveSession(
+				liveSession,
+				agentSession.id,
+				startedIssue.identifier,
+				linearWorkspaceId,
+				commentBody?.trim() ||
+					startedIssue.description?.trim() ||
+					startedIssue.title,
+				"delegation",
+			);
+			if (forwarded) {
+				return;
+			}
 		}
 
 		// Initialize agent runner using shared logic (pass full repositories array)
@@ -4973,6 +5101,26 @@ ${taskSection}`;
 		let fullIssue: Issue | null = null;
 
 		if (!session) {
+			// Opt-in per-issue exclusion: an @mention that would open a second
+			// session on an issue already being worked forwards its prompt to the
+			// live session instead. The continuation branch below is untouched —
+			// a prompt on an already-live session is already the desired
+			// behaviour.
+			const liveSession = this.findLiveSessionForIssue(issue.id, sessionId);
+			if (liveSession) {
+				const forwarded = await this.forwardPromptToLiveSession(
+					liveSession,
+					sessionId,
+					issue.identifier,
+					linearWorkspaceId,
+					webhook.agentActivity.content.body,
+					"mention",
+				);
+				if (forwarded) {
+					return;
+				}
+			}
+
 			this.logger.debug(
 				`No existing session found for agent activity session ${sessionId}, creating new session`,
 			);

@@ -58,6 +58,7 @@ const RELOAD_MERGED_KEYS = [
 	"issueUpdateTrigger",
 	"slackThreadFollowing",
 	"prReviewTrigger",
+	"singleSessionPerIssue",
 	"userAccessControl",
 	"sandbox",
 ] as const satisfies readonly (keyof EdgeConfig)[];
@@ -366,6 +367,11 @@ export class ConfigManager extends EventEmitter {
 				// otherwise keep current or default to true
 				prReviewTrigger:
 					parsedConfig.prReviewTrigger ?? this.config.prReviewTrigger,
+				// Single session per issue: use parsed value if explicitly set,
+				// otherwise keep current or default to false
+				singleSessionPerIssue:
+					parsedConfig.singleSessionPerIssue ??
+					this.config.singleSessionPerIssue,
 				userAccessControl:
 					parsedConfig.userAccessControl ?? this.config.userAccessControl,
 				stripeCustomerId:
