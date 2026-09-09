@@ -490,6 +490,17 @@ export const EdgeConfigSchema = z.object({
 	slackMcpConfigs: z.array(z.string()).optional(),
 
 	/**
+	 * Filesystem paths to custom-integration MCP config JSON files for Zulip
+	 * @mention chat sessions. Same repo-agnostic semantics as
+	 * `slackMcpConfigs`.
+	 *
+	 * There is deliberately no `zulipAllowedTools`: chat sessions share one
+	 * tool policy, and `slackAllowedTools` already sets it for every chat
+	 * platform (see `ToolPermissionResolver.buildChatAllowedTools`).
+	 */
+	zulipMcpConfigs: z.array(z.string()).optional(),
+
+	/**
 	 * Filesystem paths to custom-integration MCP config JSON files for
 	 * Linear-triggered agent sessions. NOT a blanket override — this list
 	 * is only consulted when the routed repo does NOT have its own

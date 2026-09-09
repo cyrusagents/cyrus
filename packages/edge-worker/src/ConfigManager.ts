@@ -51,6 +51,7 @@ const RELOAD_MERGED_KEYS = [
 	"slackAllowedTools",
 	"githubAllowedTools",
 	"slackMcpConfigs",
+	"zulipMcpConfigs",
 	"linearMcpConfigs",
 	"githubMcpConfigs",
 	"strictMcpConfig",
@@ -345,6 +346,8 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.githubAllowedTools || this.config.githubAllowedTools,
 				slackMcpConfigs:
 					parsedConfig.slackMcpConfigs || this.config.slackMcpConfigs,
+				zulipMcpConfigs:
+					parsedConfig.zulipMcpConfigs || this.config.zulipMcpConfigs,
 				linearMcpConfigs:
 					parsedConfig.linearMcpConfigs || this.config.linearMcpConfigs,
 				githubMcpConfigs:
