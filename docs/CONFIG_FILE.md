@@ -268,13 +268,13 @@ Routes issues to different AI modes based on Linear labels and optionally config
 
 **Tool Presets:**
 
-- **`"readOnly"`**: Only tools that read/view content (17 tools)
-   - `Read`, `Glob`, `Grep`, `WebFetch`, `WebSearch`, `TaskCreate`, `TaskUpdate`, `TaskGet`, `TaskList`, `Task`, `Skill`, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `Monitor`, `TaskOutput`, `EnterPlanMode`, `ExitPlanMode`
+- **`"readOnly"`**: Only tools that read/view content (14 tools)
+   - `Read`, `WebFetch`, `WebSearch`, `TaskCreate`, `TaskUpdate`, `TaskGet`, `TaskList`, `Task`, `ListAgents`, `Skill`, `Monitor`, `LSP`, `TaskOutput`, `ToolSearch`
 
-- **`"safe"`**: All tools except Bash (32 tools)
-   - All readOnly tools plus: `Edit`, `Write`, `NotebookEdit`, `AskUserQuestion`, `SendMessage`, `EnterWorktree`, `ExitWorktree`, `CronCreate`, `CronDelete`, `CronList`, `RemoteTrigger`, `ScheduleWakeup`, `TaskStop`, `TeamCreate`, `TeamDelete`
+- **`"safe"`**: All tools except Bash (30 tools)
+   - All readOnly tools plus: `Edit`, `Write`, `NotebookEdit`, `SendMessage`, `PushNotification`, `EnterWorktree`, `ExitWorktree`, `CronCreate`, `CronDelete`, `CronList`, `ScheduleWakeup`, `RemoteTrigger`, `TaskStop`, `DesignSync`, `Workflow`, `ReportFindings`
 
-- **`"all"`**: All available tools including Bash (33 tools)
+- **`"all"`**: All available tools including Bash (31 tools)
    - All safe tools plus: `Bash`
 
 - **Custom array**: Specify exact tools needed, e.g., `["Read", "Edit", "Task"]`

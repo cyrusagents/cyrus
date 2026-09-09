@@ -24,6 +24,7 @@ import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
 import { appendCloudRuntimeAddendum } from "./prompts/cloudRuntimePromptAddendum.js";
 import { appendFailureModeAddendum } from "./prompts/failureModePromptAddendum.js";
+import { appendGitHubCliMediaAddendum } from "./prompts/githubCliMediaPromptAddendum.js";
 
 /**
  * Subset of McpConfigService consumed by RunnerConfigBuilder.
@@ -297,7 +298,11 @@ export class RunnerConfigBuilder {
 			cyrusHome: input.cyrusHome,
 			autoMemoryDirectory,
 			appendSystemPrompt: appendCloudRuntimeAddendum(
-				appendBrowserUseAddendum(appendFailureModeAddendum(input.systemPrompt)),
+				appendGitHubCliMediaAddendum(
+					appendBrowserUseAddendum(
+						appendFailureModeAddendum(input.systemPrompt),
+					),
+				),
 			),
 			...(mcpConfig ? { mcpConfig } : {}),
 			...(mcpConfigPath ? { mcpConfigPath } : {}),
@@ -445,7 +450,11 @@ export class RunnerConfigBuilder {
 			mcpConfig,
 			strictMcpConfig: input.strictMcpConfig ?? true,
 			appendSystemPrompt: appendCloudRuntimeAddendum(
-				appendBrowserUseAddendum(appendFailureModeAddendum(input.systemPrompt)),
+				appendGitHubCliMediaAddendum(
+					appendBrowserUseAddendum(
+						appendFailureModeAddendum(input.systemPrompt),
+					),
+				),
 			),
 			// Priority order: label override > repository config > global default
 			model: finalModel,

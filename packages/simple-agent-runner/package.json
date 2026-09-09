@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-simple-agent-runner",
-	"version": "0.2.70",
+	"version": "0.2.71",
 	"description": "Simple agent runner for enumerated responses",
 	"repository": {
 		"type": "git",
@@ -21,14 +21,14 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.3.250",
+		"@anthropic-ai/claude-agent-sdk": "0.3.263",
 		"cyrus-claude-runner": "workspace:*",
 		"cyrus-core": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
 		"typescript": "^5.3.3",
-		"vitest": "^4.1.10"
+		"vitest": "^4.1.11"
 	},
 	"publishConfig": {
 		"access": "public"

@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-gitlab-event-transport",
-	"version": "0.2.70",
+	"version": "0.2.71",
 	"description": "GitLab event transport for receiving and verifying forwarded GitLab webhooks",
 	"repository": {
 		"type": "git",
@@ -22,12 +22,12 @@
 	},
 	"dependencies": {
 		"cyrus-core": "workspace:*",
-		"fastify": "^5.11.2"
+		"fastify": "^5.12.1"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
 		"typescript": "^5.3.3",
-		"vitest": "^4.1.10"
+		"vitest": "^4.1.11"
 	},
 	"publishConfig": {
 		"access": "public"

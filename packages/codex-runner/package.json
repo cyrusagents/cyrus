@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-codex-runner",
-	"version": "0.2.70",
+	"version": "0.2.71",
 	"description": "Codex CLI process wrapper for Cyrus",
 	"repository": {
 		"type": "git",
@@ -21,15 +21,15 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@openai/codex": "^0.144.4",
-		"@openai/codex-sdk": "^0.144.4",
+		"@openai/codex": "^0.153.3",
+		"@openai/codex-sdk": "^0.153.3",
 		"cyrus-core": "workspace:*",
 		"cyrus-simple-agent-runner": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
 		"typescript": "^5.3.3",
-		"vitest": "^4.1.10"
+		"vitest": "^4.1.11"
 	},
 	"publishConfig": {
 		"access": "public"

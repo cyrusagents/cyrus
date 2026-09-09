@@ -629,6 +629,12 @@
 				"type": "string"
 			}
 		},
+		"zulipMcpConfigs": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
 		"linearMcpConfigs": {
 			"type": "array",
 			"items": {

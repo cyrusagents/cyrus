@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const GPT56_MINIMUM_CODEX_VERSION = [0, 144, 0] as const;
+const GPT6_ASTRA_MINIMUM_CODEX_VERSION = [0, 153, 1] as const;
 
 function parseVersion(version: string): [number, number, number] {
 	const [major, minor, patch] = version.split(".").map(Number);
@@ -23,7 +23,7 @@ function compareVersions(
 }
 
 describe("bundled Codex runtime", () => {
-	it("meets the minimum version required by GPT-5.6", () => {
+	it("meets the minimum version required by GPT-6 Astra", () => {
 		const packageJsonPath = require.resolve("@openai/codex/package.json");
 		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
 			version: string;
@@ -32,7 +32,7 @@ describe("bundled Codex runtime", () => {
 		expect(
 			compareVersions(
 				parseVersion(packageJson.version),
-				GPT56_MINIMUM_CODEX_VERSION,
+				GPT6_ASTRA_MINIMUM_CODEX_VERSION,
 			),
 		).toBeGreaterThanOrEqual(0);
 	});

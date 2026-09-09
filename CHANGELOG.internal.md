@@ -4,6 +4,11 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.71] - 2026-09-04
+
+### Changed
+- Recorded, after the fact, why #1426 removed the `linear_agent_session_create` and `linear_agent_session_create_on_comment` cyrus-tools: they allowed concurrent child sessions to be started on the same issue. That removal also silently dropped the only runtime caller of `GlobalSessionRegistry.setParentSession`, breaking parent resumption. `EdgeWorker.linkChildSessionToParentIssueSession` now derives the child-to-parent session link from Linear's issue hierarchy on `AgentSessionEvent/created` (and after repository selection), so the removed tools stay removed. ([#1454](https://github.com/cyrusagents/cyrus/pull/1454))
+
 ### Fixed
 - The release workflow's npm registry visibility check now waits up to 10 minutes per package instead of 60 seconds. The v0.2.70 release run aborted mid-graph because npm's publish processing exceeded the old 12×5s window even though the publish itself succeeded; the new deadline matches npm's own "may take a few minutes" guidance. ([CYPACK-1478](https://linear.app/ceedar/issue/CYPACK-1478/if-a-mcp-server-has-no-enabled-tools-will-it-not-be-allowed-as-an-mcp), [#1442](https://github.com/cyrusagents/cyrus/pull/1442))
 

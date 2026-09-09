@@ -397,7 +397,7 @@ export const EdgeConfigSchema = z.object({
 	/** Default Gemini model to use across all repositories (e.g., "gemini-2.5-pro") */
 	geminiDefaultModel: z.string().optional(),
 
-	/** Default Codex model to use across all repositories (e.g., "gpt-5.5", "gpt-5.4", "gpt-5.3-codex") */
+	/** Default Codex model to use across all repositories (e.g., "gpt-6-astra", "gpt-5.5", "gpt-5.3-codex") */
 	codexDefaultModel: z.string().optional(),
 
 	/** Default Cursor model to use across all repositories (e.g., "composer-2", "gpt-5.4") */
@@ -488,6 +488,17 @@ export const EdgeConfigSchema = z.object({
 	 * `--mcp-config` mechanism.
 	 */
 	slackMcpConfigs: z.array(z.string()).optional(),
+
+	/**
+	 * Filesystem paths to custom-integration MCP config JSON files for Zulip
+	 * @mention chat sessions. Same repo-agnostic semantics as
+	 * `slackMcpConfigs`.
+	 *
+	 * There is deliberately no `zulipAllowedTools`: chat sessions share one
+	 * tool policy, and `slackAllowedTools` already sets it for every chat
+	 * platform (see `ToolPermissionResolver.buildChatAllowedTools`).
+	 */
+	zulipMcpConfigs: z.array(z.string()).optional(),
 
 	/**
 	 * Filesystem paths to custom-integration MCP config JSON files for

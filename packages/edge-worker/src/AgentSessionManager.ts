@@ -397,23 +397,34 @@ export class AgentSessionManager extends EventEmitter {
 		// Post a thought AFTER the response so Linear's agent panel returns
 		// to its working state and the user can see what the session is
 		// waiting on.
-		if (resultMessage.subtype === "success") {
-			const pendingWork = this.getRunnerPendingWork(sessionId);
-			if (pendingWork) {
-				const thoughtBody = formatPendingWorkThought(pendingWork);
-				if (thoughtBody) {
-					await this.createThoughtActivity(sessionId, thoughtBody);
-					log.info(
-						`Posted pending-work thought (${pendingWork.sessionCrons.length} crons, ${pendingWork.backgroundTasks.length} background tasks)`,
-					);
-				}
+		const pendingWork =
+			resultMessage.subtype === "success"
+				? this.getRunnerPendingWork(sessionId)
+				: null;
+		if (pendingWork) {
+			const thoughtBody = formatPendingWorkThought(pendingWork);
+			if (thoughtBody) {
+				await this.createThoughtActivity(sessionId, thoughtBody);
+				log.info(
+					`Posted pending-work thought (${pendingWork.sessionCrons.length} crons, ${pendingWork.backgroundTasks.length} background tasks)`,
+				);
 			}
 		}
 
-		// Handle child session completion
+		// Handle child session completion. A session held open for pending
+		// work is not done yet: the wakeup or background task will stream more
+		// messages in, ending in another result. Resuming the parent now would
+		// hand it a non-final result and resume it again later, so defer the
+		// callback to the result that actually ends the session.
 		const parentSessionId = this.getParentSessionId?.(sessionId);
 		if (parentSessionId && this.resumeParentSession) {
-			await this.handleChildSessionCompletion(sessionId, resultMessage);
+			if (pendingWork) {
+				log.info(
+					`Child session has pending work; deferring parent ${parentSessionId} resume until the session finishes`,
+				);
+			} else {
+				await this.handleChildSessionCompletion(sessionId, resultMessage);
+			}
 		}
 
 		log.info(`Session completed (subtype: ${resultMessage.subtype})`);

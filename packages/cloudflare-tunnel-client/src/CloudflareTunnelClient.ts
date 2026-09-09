@@ -100,7 +100,9 @@ export class CloudflareTunnelClient extends EventEmitter {
 			});
 
 			// Wait for tunnel URL to be available (with timeout)
-			await this.waitForTunnelToConnect(30000); // 30 second timeout
+			// 120s: slow DNS resolvers (e.g. dead IPv6 nameservers ahead of the
+			// working one) can delay the first connection past 30s
+			await this.waitForTunnelToConnect(120000);
 		} catch (error) {
 			this.emit("error", error as Error);
 			throw error;
