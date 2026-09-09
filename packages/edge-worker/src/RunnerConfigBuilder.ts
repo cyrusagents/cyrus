@@ -175,6 +175,17 @@ export interface IssueRunnerConfigInput {
 	sandboxSettings?: SandboxSettings;
 	/** CA cert path for MITM TLS termination — passed via child process env */
 	egressCaCertPath?: string;
+	/**
+	 * GitHub App installation token matched to the session repository's org
+	 * (from the cyrus-hosted-pushed token store). When set, it's exposed to
+	 * the session ONLY as `CYRUS_GH_TOKEN` — the droplet's gh wrapper maps
+	 * it to `GH_TOKEN` inside the gh process. We deliberately do NOT set
+	 * `GH_TOKEN` itself: customers set their own `GH_TOKEN` (e.g. for
+	 * private npm registries on GitHub Packages) and clobbering it would
+	 * break their installs. Bare `gh` with no env var is covered by the
+	 * `gh auth login` the github-tokens push handler performs.
+	 */
+	githubToken?: string;
 }
 
 export function resolveIssueMcpConfigPath(
@@ -496,6 +507,20 @@ export class RunnerConfigBuilder {
 			onMessage: input.onMessage,
 			onError: input.onError,
 		};
+
+		// Expose the org-matched GitHub App installation token to the session
+		// env. Merged on top of any sandbox additionalEnv (CA cert vars) so
+		// both survive. Only set when a token store entry matched the repo's
+		// org — sessions without a match see zero env change. CYRUS_GH_TOKEN
+		// only — never GH_TOKEN, which customers set themselves (e.g. private
+		// npm registries on GitHub Packages); the droplet's gh wrapper maps
+		// CYRUS_GH_TOKEN to GH_TOKEN inside the gh process.
+		if (input.githubToken) {
+			config.additionalEnv = {
+				...config.additionalEnv,
+				CYRUS_GH_TOKEN: input.githubToken,
+			};
+		}
 
 		// Cursor runner uses @cursor/sdk. Pass through API key, the same
 		// sandboxSettings shape Claude consumes (the runner translates it to
