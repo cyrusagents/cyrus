@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- New optional `maxConcurrentSessions` setting in `~/.cyrus/config.json` caps how many agent sessions run at once across all repositories and platforms. Extra session starts wait in order for a free slot and begin automatically as running sessions finish. Omit it for the previous unlimited behavior. The value hot-reloads with the config file: raising it admits queued sessions immediately, and lowering it takes effect as running sessions finish. ([#1445](https://github.com/cyrusagents/cyrus/pull/1445), [#1469](https://github.com/cyrusagents/cyrus/pull/1469))
 - Zulip is now a supported chat platform. @mention the bot in a Zulip topic (or DM it) and Cyrus answers in that topic, with 👀/✅ reactions marking receipt and completion. Set `ZULIP_SITE`, `ZULIP_BOT_EMAIL`, `ZULIP_API_KEY` and `ZULIP_WEBHOOK_TOKEN` to enable it; see [docs/ZULIP.md](./docs/ZULIP.md). ([#1468](https://github.com/cyrusagents/cyrus/pull/1468))
 
 ### Changed

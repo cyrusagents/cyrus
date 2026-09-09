@@ -128,6 +128,7 @@ describe("WorkerService", () => {
 			userAccessControl: { allowedUsers: ["usr_1"] },
 			promptDefaults: { debugger: { allowedTools: ["Read"] } },
 			sandbox: { enabled: false },
+			maxConcurrentSessions: 3,
 		});
 
 		// Fixture-completeness tripwire: adding a field to EdgeConfigSchema
