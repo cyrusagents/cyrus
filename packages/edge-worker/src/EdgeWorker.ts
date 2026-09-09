@@ -140,12 +140,18 @@ import {
 	SlackEventTransport,
 	type SlackWebhookEvent,
 } from "cyrus-slack-event-transport";
+import {
+	ZulipEventTransport,
+	type ZulipWebhookEvent,
+} from "cyrus-zulip-event-transport";
 import { Sessions, streamableHttp } from "fastify-mcp";
 import { ActivityPoster } from "./ActivityPoster.js";
 import { AgentSessionManager } from "./AgentSessionManager.js";
 import { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
 import { AttachmentService } from "./AttachmentService.js";
+import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import { LiveChatRepositoryProvider } from "./ChatRepositoryProvider.js";
+import type { ChatSessionHandlerDeps } from "./ChatSessionHandler.js";
 import { ChatSessionHandler } from "./ChatSessionHandler.js";
 import { ConfigManager, type RepositoryChanges } from "./ConfigManager.js";
 import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
@@ -181,6 +187,7 @@ import { LinearActivitySink } from "./sinks/LinearActivitySink.js";
 import { ToolPermissionResolver } from "./ToolPermissionResolver.js";
 import type { AgentSessionData, EdgeWorkerEvents } from "./types.js";
 import { UserAccessControl } from "./UserAccessControl.js";
+import { ZulipChatAdapter } from "./ZulipChatAdapter.js";
 
 export declare interface EdgeWorker {
 	on<K extends keyof EdgeWorkerEvents>(
@@ -217,6 +224,9 @@ export class EdgeWorker extends EventEmitter {
 	private gitHubAppTokenProvider: GitHubAppTokenProvider | null = null; // Self-hosted GitHub App token minting
 	private gitLabEventTransport: GitLabEventTransport | null = null; // GitLab event transport for forwarded GitLab webhooks
 	private slackEventTransport: SlackEventTransport | null = null;
+	private zulipEventTransport: ZulipEventTransport | null = null;
+	private zulipChatSessionHandler: ChatSessionHandler<ZulipWebhookEvent> | null =
+		null;
 	private chatSessionHandler: ChatSessionHandler<SlackWebhookEvent> | null =
 		null;
 	private gitHubCommentService: GitHubCommentService; // Service for posting comments back to GitHub PRs
@@ -316,6 +326,7 @@ export class EdgeWorker extends EventEmitter {
 		return {
 			...config,
 			slackMcpConfigs: resolveList(config.slackMcpConfigs),
+			zulipMcpConfigs: resolveList(config.zulipMcpConfigs),
 			linearMcpConfigs: resolveList(config.linearMcpConfigs),
 			githubMcpConfigs: resolveList(config.githubMcpConfigs),
 		};
@@ -845,6 +856,7 @@ export class EdgeWorker extends EventEmitter {
 		this.registerGitHubEventTransport();
 		this.registerGitLabEventTransport();
 		this.registerSlackEventTransport();
+		this.registerZulipEventTransport();
 
 		// 3. Create and register ConfigUpdater (both platforms)
 		this.configUpdater = new ConfigUpdater(
@@ -1065,6 +1077,142 @@ export class EdgeWorker extends EventEmitter {
 	}
 
 	/**
+	 * Build the EdgeWorker-side dependencies every chat platform handler needs.
+	 *
+	 * Only the MCP config override list differs per platform, so it is the one
+	 * parameter — everything else (runner factory, skills resolution, webhook
+	 * accounting, state persistence) is identical across chat platforms and
+	 * would otherwise be copied per registration.
+	 */
+	private buildChatSessionHandlerDeps(
+		chatRepositoryProvider: ChatRepositoryProvider,
+		getPlatformMcpConfigOverrides: () => readonly string[] | undefined,
+	): ChatSessionHandlerDeps {
+		return {
+			cyrusHome: this.cyrusHome,
+			chatRepositoryProvider,
+			runnerConfigBuilder: this.runnerConfigBuilder,
+			createRunner: (config, chatRunnerType) => {
+				const runnerType =
+					chatRunnerType ?? this.runnerSelectionService.getDefaultRunner();
+				return this.createRunnerForType(runnerType, {
+					...config,
+					model: this.getDefaultModelForRunner(runnerType),
+					fallbackModel: this.getDefaultFallbackModelForRunner(runnerType),
+				});
+			},
+			getPlatformMcpConfigOverrides,
+			getStrictMcpConfig: () => this.config.strictMcpConfig,
+			resolveSkillsConfig: async ({ repository, repositoryPaths }) => {
+				const plugins = await this.skillsPluginResolver.resolve();
+				const skills = await this.skillsPluginResolver.discoverSkillNames(
+					plugins,
+					{
+						repositoryId: repository?.id,
+						repoPaths: repositoryPaths,
+					},
+				);
+				return { plugins, skills };
+			},
+			getOpenCodeGlobalConfig: () => this.config.opencode?.config,
+			getOpenCodeGlobalStateScope: () => this.config.opencode?.stateScope,
+			onWebhookStart: () => {
+				this.activeWebhookCount++;
+			},
+			onWebhookEnd: () => {
+				this.activeWebhookCount--;
+			},
+			onStateChange: () => this.savePersistedState(),
+			onClaudeError: (error) => this.handleClaudeError(error),
+		};
+	}
+
+	/**
+	 * Every chat platform handler that is actually registered.
+	 *
+	 * Slack is always registered; Zulip only when it is configured. Aggregate
+	 * queries (busy check, runner enumeration, session enumeration) go through
+	 * here so adding a chat platform does not mean hunting down every call site.
+	 */
+	private get activeChatSessionHandlers(): Array<
+		| ChatSessionHandler<SlackWebhookEvent>
+		| ChatSessionHandler<ZulipWebhookEvent>
+	> {
+		return [this.chatSessionHandler, this.zulipChatSessionHandler].filter(
+			(handler) => handler !== null,
+		);
+	}
+
+	/**
+	 * Register the Zulip event transport, if Zulip is configured.
+	 *
+	 * Unlike Slack, this is conditional: a Zulip outgoing webhook has no URL
+	 * verification handshake to answer during onboarding, so there is nothing
+	 * to gain from mounting the route before credentials exist. All four
+	 * values are required — the site, bot email and API key are how replies
+	 * get posted, and the token is the only thing authenticating an inbound
+	 * request.
+	 */
+	private registerZulipEventTransport(): void {
+		const site = process.env.ZULIP_SITE?.trim();
+		const botEmail = process.env.ZULIP_BOT_EMAIL?.trim();
+		const apiKey = process.env.ZULIP_API_KEY?.trim();
+		const token = process.env.ZULIP_WEBHOOK_TOKEN?.trim();
+
+		if (!site || !botEmail || !apiKey || !token) {
+			return;
+		}
+
+		const chatRepositoryProvider = new LiveChatRepositoryProvider(
+			this.repositories,
+			() => this.config.linearWorkspaces || {},
+		);
+
+		const zulipAdapter = new ZulipChatAdapter(
+			chatRepositoryProvider,
+			this.logger,
+			{
+				repositoryRoutingContext:
+					this.promptBuilder.generateRoutingContextForAllWorkspaces(),
+			},
+		);
+
+		this.zulipChatSessionHandler = new ChatSessionHandler(
+			zulipAdapter,
+			this.buildChatSessionHandlerDeps(
+				chatRepositoryProvider,
+				() => this.config.zulipMcpConfigs,
+			),
+			this.logger,
+		);
+
+		this.zulipEventTransport = new ZulipEventTransport(
+			{
+				fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
+				token,
+				credentials: { site, botEmail, apiKey },
+			},
+			this.logger,
+		);
+
+		this.zulipEventTransport.on("event", (event: ZulipWebhookEvent) => {
+			this.zulipChatSessionHandler!.handleEvent(event).catch((error) => {
+				this.logger.error(
+					"Failed to handle Zulip webhook",
+					error instanceof Error ? error : new Error(String(error)),
+				);
+			});
+		});
+		this.zulipEventTransport.on("error", (error: Error) => {
+			this.handleError(error);
+		});
+
+		this.zulipEventTransport.register();
+
+		this.logger.info("Zulip event transport registered");
+	}
+
+	/**
 	 * Register the Slack event transport for receiving forwarded Slack webhooks from CYHOST.
 	 * This creates a /slack-webhook endpoint that handles @mention events from Slack.
 	 */
@@ -1102,45 +1250,12 @@ export class EdgeWorker extends EventEmitter {
 
 		this.chatSessionHandler = new ChatSessionHandler(
 			slackAdapter,
-			{
-				cyrusHome: this.cyrusHome,
+			this.buildChatSessionHandlerDeps(
 				chatRepositoryProvider,
-				runnerConfigBuilder: this.runnerConfigBuilder,
-				createRunner: (config, chatRunnerType) => {
-					const runnerType =
-						chatRunnerType ?? this.runnerSelectionService.getDefaultRunner();
-					return this.createRunnerForType(runnerType, {
-						...config,
-						model: this.getDefaultModelForRunner(runnerType),
-						fallbackModel: this.getDefaultFallbackModelForRunner(runnerType),
-					});
-				},
 				// Live read so hot-reloaded config (`setConfig`) picks up new
 				// per-platform MCP paths without rebuilding the handler.
-				getPlatformMcpConfigOverrides: () => this.config.slackMcpConfigs,
-				getStrictMcpConfig: () => this.config.strictMcpConfig,
-				resolveSkillsConfig: async ({ repository, repositoryPaths }) => {
-					const plugins = await this.skillsPluginResolver.resolve();
-					const skills = await this.skillsPluginResolver.discoverSkillNames(
-						plugins,
-						{
-							repositoryId: repository?.id,
-							repoPaths: repositoryPaths,
-						},
-					);
-					return { plugins, skills };
-				},
-				getOpenCodeGlobalConfig: () => this.config.opencode?.config,
-				getOpenCodeGlobalStateScope: () => this.config.opencode?.stateScope,
-				onWebhookStart: () => {
-					this.activeWebhookCount++;
-				},
-				onWebhookEnd: () => {
-					this.activeWebhookCount--;
-				},
-				onStateChange: () => this.savePersistedState(),
-				onClaudeError: (error) => this.handleClaudeError(error),
-			},
+				() => this.config.slackMcpConfigs,
+			),
 			this.logger,
 		);
 
@@ -2611,7 +2726,11 @@ ${taskSection}`;
 		}
 
 		// Busy if any chat platform runner is actively running
-		if (this.chatSessionHandler?.isAnyRunnerBusy()) {
+		if (
+			this.activeChatSessionHandlers.some((handler) =>
+				handler.isAnyRunnerBusy(),
+			)
+		) {
 			return "busy";
 		}
 
@@ -2705,8 +2824,8 @@ ${taskSection}`;
 		const agentRunners: IAgentRunner[] = [
 			...this.agentSessionManager.getAllAgentRunners(),
 		];
-		if (this.chatSessionHandler) {
-			agentRunners.push(...this.chatSessionHandler.getAllRunners());
+		for (const handler of this.activeChatSessionHandlers) {
+			agentRunners.push(...handler.getAllRunners());
 		}
 
 		// Kill all agent processes with null checking
@@ -5933,7 +6052,9 @@ ${taskSection}`;
 	private getAllKnownSessions(): CyrusAgentSession[] {
 		return [
 			...this.agentSessionManager.getAllSessions(),
-			...(this.chatSessionHandler?.getAllChatSessions() ?? []),
+			...this.activeChatSessionHandlers.flatMap((handler) =>
+				handler.getAllChatSessions(),
+			),
 		];
 	}
 

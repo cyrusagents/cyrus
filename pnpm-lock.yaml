@@ -355,6 +355,9 @@ importers:
       cyrus-slack-event-transport:
         specifier: workspace:*
         version: link:../slack-event-transport
+      cyrus-zulip-event-transport:
+        specifier: workspace:*
+        version: link:../zulip-event-transport
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
@@ -583,6 +586,25 @@ importers:
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
+
+  packages/zulip-event-transport:
+    dependencies:
+      cyrus-core:
+        specifier: workspace:*
+        version: link:../core
+      fastify:
+        specifier: ^5.12.1
+        version: 5.12.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.39
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.10)(@vitest/ui@4.1.10)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
 
 packages:
 
