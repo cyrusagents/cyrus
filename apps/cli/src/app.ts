@@ -14,6 +14,13 @@ import { RefreshTokenCommand } from "./commands/RefreshTokenCommand.js";
 import { SelfAddRepoCommand } from "./commands/SelfAddRepoCommand.js";
 import { SelfAuthCommand } from "./commands/SelfAuthCommand.js";
 import { StartCommand } from "./commands/StartCommand.js";
+import {
+	AddUserCommand,
+	type AddUserOptions,
+	CheckUsersCommand,
+	ListUsersCommand,
+	RemoveUserCommand,
+} from "./commands/UserCommands.js";
 import { createErrorReporter } from "./services/createErrorReporter.js";
 
 // Get the directory of the current module for reading package.json
@@ -163,6 +170,116 @@ program
 			await new SelfAddRepoCommand(app).execute(args);
 		},
 	);
+
+// Per-Linear-user credentials (multi-user self-host)
+program
+	.command("add-user")
+	.description(
+		"Map a Linear user to their own Claude credential and GitHub token so sessions they trigger run as them. Secrets come from a hidden prompt, a file or an env var name — never from the command line.",
+	)
+	.option("--linear-email <email>", "Linear email to resolve the user ID")
+	.option("--linear-user-id <id>", "Linear user ID (skips email lookup)")
+	.option("--name <name>", "Display name (defaults to the Linear name)")
+	.option(
+		"--git-name <name>",
+		"Git author/committer name (defaults to the GitHub profile name)",
+	)
+	.option(
+		"--git-email <email>",
+		"Git author/committer email (defaults to the GitHub noreply address)",
+	)
+	.option(
+		"--claude-token-file <path>",
+		"Read the Claude OAuth token / API key from a file",
+	)
+	.option(
+		"--claude-token-env <VAR>",
+		"Reference an env var (set in ~/.cyrus/.env) instead of storing a file",
+	)
+	.option(
+		"--claude-kind <kind>",
+		"Force the credential type: oauth | api-key (auto-detected from the prefix)",
+	)
+	.option(
+		"--github-token-file <path>",
+		"Read the GitHub personal access token from a file",
+	)
+	.option(
+		"--github-token-env <VAR>",
+		"Reference an env var instead of storing a file",
+	)
+	.option("--skip-claude-check", "Skip the live one-turn Claude verification")
+	.option(
+		"--skip-github-check",
+		"Skip verifying the GitHub token against api.github.com",
+	)
+	.option(
+		"--workspace <id|slug|name>",
+		"Linear workspace to look the user up in (when several are configured)",
+	)
+	.option("--force", "Replace an existing mapping for this user")
+	.action(async (cmdOpts: AddUserOptions) => {
+		const opts = program.opts();
+		const app = new Application(
+			opts.cyrusHome,
+			opts.envFile,
+			packageJson.version,
+			errorReporter,
+		);
+		await new AddUserCommand(app).execute([], cmdOpts);
+	});
+
+program
+	.command("list-users")
+	.description(
+		"List Linear users mapped to their own credentials (references and fingerprints only)",
+	)
+	.action(async () => {
+		const opts = program.opts();
+		const app = new Application(
+			opts.cyrusHome,
+			opts.envFile,
+			packageJson.version,
+			errorReporter,
+		);
+		await new ListUsersCommand(app).execute();
+	});
+
+program
+	.command("check-users")
+	.description(
+		"Verify every mapped user's credential references resolve; --live also calls GitHub and Claude",
+	)
+	.option(
+		"--live",
+		"Also verify each token against GitHub and with a one-turn Claude round trip",
+	)
+	.action(async (cmdOpts: { live?: boolean }) => {
+		const opts = program.opts();
+		const app = new Application(
+			opts.cyrusHome,
+			opts.envFile,
+			packageJson.version,
+			errorReporter,
+		);
+		await new CheckUsersCommand(app).execute([], cmdOpts);
+	});
+
+program
+	.command("remove-user <linear-user-id-or-email>")
+	.description(
+		"Remove a mapped Linear user and delete their stored secret files",
+	)
+	.action(async (target: string) => {
+		const opts = program.opts();
+		const app = new Application(
+			opts.cyrusHome,
+			opts.envFile,
+			packageJson.version,
+			errorReporter,
+		);
+		await new RemoveUserCommand(app).execute([target]);
+	});
 
 // Parse and execute
 (async () => {

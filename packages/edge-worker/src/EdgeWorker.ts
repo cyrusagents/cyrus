@@ -41,8 +41,10 @@ import type {
 	IssueUnassignedWebhook,
 	IssueUpdateWebhook,
 	RepositoryConfig,
+	ResolvedPrompterCredentials,
 	RunnerType,
 	SerializableEdgeWorkerState,
+	SessionPrompter,
 	SessionStartMessage,
 	StopSignalMessage,
 	UnassignMessage,
@@ -160,6 +162,10 @@ import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
+import {
+	PrompterCredentialError,
+	PrompterCredentialService,
+} from "./PrompterCredentialService.js";
 import type {
 	IssueContextResult,
 	PromptAssembly,
@@ -173,6 +179,7 @@ import {
 } from "./RepositoryRouter.js";
 import { capRunnerStarts, SessionSemaphore } from "./RunnerConcurrency.js";
 import {
+	PrompterRunnerUnsupportedError,
 	RunnerConfigBuilder,
 	resolveIssueMcpConfigPath,
 } from "./RunnerConfigBuilder.js";
@@ -250,6 +257,8 @@ export class EdgeWorker extends EventEmitter {
 	private askUserQuestionHandler: AskUserQuestionHandler;
 	/** User access control for whitelisting/blacklisting Linear users */
 	private userAccessControl: UserAccessControl;
+	/** Per-prompter credential resolution (multi-user self-host, CYPACK-1502) */
+	private prompterCredentialService: PrompterCredentialService;
 	private logger: ILogger;
 	// Extracted service modules
 	private attachmentService: AttachmentService;
@@ -310,6 +319,8 @@ export class EdgeWorker extends EventEmitter {
 			baseBranchOverrides?: Map<string, string>;
 			routingMethod?: string;
 			blockingIssueIds: string[];
+			/** Per-prompter credential pin decided when the session was parked */
+			prompter?: SessionPrompter;
 		}
 	>();
 
@@ -574,6 +585,22 @@ export class EdgeWorker extends EventEmitter {
 			repoAccessConfigs,
 		);
 
+		// Per-prompter credentials: active only when linearUsers has entries.
+		this.prompterCredentialService = new PrompterCredentialService(
+			{
+				linearUsers: config.linearUsers,
+				prompterCredentialPolicy: config.prompterCredentialPolicy,
+			},
+			this.cyrusHome,
+			this.logger,
+		);
+		if (this.prompterCredentialService.isEnabled()) {
+			this.prompterCredentialService.ensureHelper();
+			this.logger.info(
+				`Per-prompter credentials active for ${Object.keys(config.linearUsers ?? {}).length} mapped Linear user(s)`,
+			);
+		}
+
 		// Initialize extracted service modules
 		this.attachmentService = new AttachmentService(
 			this.logger,
@@ -662,6 +689,12 @@ export class EdgeWorker extends EventEmitter {
 		this.configManager.on(
 			"configChanged",
 			async (changes: RepositoryChanges) => {
+				// Hot-reload the per-prompter mapping (cyrus add-user / remove-user
+				// rewrite config.json while the worker runs).
+				this.prompterCredentialService.updateConfig({
+					linearUsers: changes.newConfig.linearUsers,
+					prompterCredentialPolicy: changes.newConfig.prompterCredentialPolicy,
+				});
 				const strictMcpConfigChanged =
 					(this.config.strictMcpConfig ?? true) !==
 					(changes.newConfig.strictMcpConfig ?? true);
@@ -4145,6 +4178,7 @@ ${taskSection}`;
 					parked.commentBody,
 					parked.baseBranchOverrides,
 					parked.routingMethod,
+					parked.prompter,
 				);
 			} catch (error) {
 				this.logger.error(
@@ -4209,6 +4243,7 @@ ${taskSection}`;
 				parked.commentBody,
 				parked.baseBranchOverrides,
 				parked.routingMethod,
+				parked.prompter,
 			);
 		} catch (error) {
 			this.logger.error(
@@ -4572,6 +4607,21 @@ ${taskSection}`;
 			linearWorkspaceId,
 		);
 
+		// Per-prompter credentials: decide whose credentials this session runs
+		// with BEFORE any worktree or runner exists, so a rejected prompter has
+		// no side effects. Sub-issues consult the parent link established above.
+		const prompterDecision = await this.decidePrompterForNewSession(
+			webhook,
+			linearWorkspaceId,
+		);
+		if (!prompterDecision.ok) {
+			log.info(
+				`Session refused by per-prompter credential policy for ${agentSession.issue?.identifier ?? agentSession.id}`,
+			);
+			return;
+		}
+		const prompter = prompterDecision.prompter;
+
 		// Check for blocked-by dependencies before starting work
 		const blockResult = await this.checkBlockedByDependencies(
 			agentSession,
@@ -4589,6 +4639,7 @@ ${taskSection}`;
 				baseBranchOverrides,
 				routingMethod,
 				blockingIssueIds: blockResult.blockingIssueIds,
+				prompter,
 			});
 
 			// Post acknowledgment to the Linear agent session
@@ -4616,10 +4667,176 @@ ${taskSection}`;
 			commentBody,
 			baseBranchOverrides,
 			routingMethod,
+			prompter,
 		);
 	}
 
+	// ========================================================================
+	// Per-prompter credentials (CYPACK-1502)
+	// ========================================================================
+
 	/**
+	 * Decide which mapped Linear user's credentials a NEW session runs with
+	 * and announce it on the session. Returns `{ ok: false }` after posting
+	 * the refusal when policy rejects the trigger. No-op (`{ ok: true }`
+	 * without a prompter) when `linearUsers` is not configured.
+	 */
+	private async decidePrompterForNewSession(
+		webhook: AgentSessionCreatedWebhook | AgentSessionPromptedWebhook,
+		linearWorkspaceId: string,
+	): Promise<{ ok: true; prompter?: SessionPrompter } | { ok: false }> {
+		const service = this.prompterCredentialService;
+		if (!service.isEnabled()) return { ok: true };
+
+		const sessionId = webhook.agentSession.id;
+		const prompter =
+			PrompterCredentialService.prompterFromCreatedWebhook(webhook);
+		const isNonHuman = PrompterCredentialService.isNonHumanCreator(
+			webhook,
+			prompter,
+		);
+		const parentSessionId =
+			this.globalSessionRegistry.getParentSessionId(sessionId);
+		const parentSession = parentSessionId
+			? this.agentSessionManager.getSession(parentSessionId)
+			: undefined;
+
+		const decision = service.decideForNewSession({
+			prompter,
+			isNonHuman,
+			parentSession,
+		});
+		if (!decision) return { ok: true };
+
+		if (decision.action === "reject") {
+			this.logger.warn(
+				`Per-prompter credentials: refusing session ${sessionId} (${decision.reason}) for Linear user ${prompter?.linearUserId ?? "none"}`,
+			);
+			await this.postPrompterResponse(
+				sessionId,
+				linearWorkspaceId,
+				decision.message,
+			);
+			return { ok: false };
+		}
+
+		const pin = PrompterCredentialService.pinFromDecision(decision, prompter);
+
+		// Fail fast on an unreadable/empty/expired mapping so no worktree is
+		// created for a session that cannot run. (Secrets are re-read again at
+		// runner build time, so rotation between now and then is still honoured.)
+		const problem = service.validatePin(pin);
+		if (problem) {
+			this.logger.warn(
+				`Per-prompter credentials: refusing session ${sessionId}: ${problem}`,
+			);
+			await this.postPrompterResponse(sessionId, linearWorkspaceId, problem);
+			return { ok: false };
+		}
+
+		await this.activityPoster.postThoughtActivity(
+			sessionId,
+			linearWorkspaceId,
+			service.describePin(pin),
+		);
+		return { ok: true, prompter: pin };
+	}
+
+	/**
+	 * Apply the follow-up policy when an EXISTING session receives a prompt
+	 * from a (possibly different) human. Mutates `session.prompter` when the
+	 * session gets pinned. Returns false after posting the refusal when the
+	 * prompt must not be applied.
+	 */
+	private async applyPrompterFollowUpPolicy(
+		session: CyrusAgentSession,
+		webhook: AgentSessionPromptedWebhook,
+		commentUser:
+			| { id?: string; name?: string; email?: string }
+			| null
+			| undefined,
+		linearWorkspaceId: string,
+	): Promise<boolean> {
+		const service = this.prompterCredentialService;
+		if (!service.isEnabled()) return true;
+
+		const prompter = PrompterCredentialService.prompterFromPromptedWebhook(
+			webhook,
+			commentUser,
+		);
+		const decision = service.decideForFollowUp({ session, prompter });
+		if (!decision) return true;
+
+		switch (decision.action) {
+			case "continue":
+				if (decision.note) {
+					await this.activityPoster.postThoughtActivity(
+						session.id,
+						linearWorkspaceId,
+						decision.note,
+					);
+				}
+				return true;
+			case "reject":
+				this.logger.warn(
+					`Per-prompter credentials: refusing follow-up on session ${session.id} from Linear user ${prompter?.linearUserId ?? "none"}`,
+				);
+				await this.postPrompterResponse(
+					session.id,
+					linearWorkspaceId,
+					decision.message,
+				);
+				return false;
+			case "pin": {
+				session.prompter = {
+					linearUserId: decision.linearUserId,
+					name: prompter?.name,
+					email: prompter?.email,
+					credentialUserId: decision.linearUserId,
+					source: "prompter",
+				};
+				await this.activityPoster.postThoughtActivity(
+					session.id,
+					linearWorkspaceId,
+					service.describePin(session.prompter),
+				);
+				return true;
+			}
+			case "decide-new": {
+				// Session predates the mapping and the prompter is unmapped: same
+				// rules as a brand-new session (parent inheritance, then policy).
+				const result = await this.decidePrompterForNewSession(
+					webhook,
+					linearWorkspaceId,
+				);
+				if (!result.ok) return false;
+				if (result.prompter) session.prompter = result.prompter;
+				return true;
+			}
+		}
+	}
+
+	/**
+	 * Post a session-ending response for a per-prompter credential refusal.
+	 * Goes through the issue tracker directly because the refusal may happen
+	 * before any CyrusAgentSession exists.
+	 */
+	private async postPrompterResponse(
+		sessionId: string,
+		linearWorkspaceId: string,
+		body: string,
+	): Promise<void> {
+		const issueTracker = this.issueTrackers.get(linearWorkspaceId);
+		if (!issueTracker) return;
+		await this.postActivityDirect(
+			issueTracker,
+			{
+				agentSessionId: sessionId,
+				content: { type: "response", body },
+			},
+			"per-prompter credential refusal",
+		);
+	}
 
 	/**
 	 * Initialize and start agent runner for an agent session
@@ -4641,6 +4858,8 @@ ${taskSection}`;
 		commentBody?: string | null,
 		baseBranchOverrides?: Map<string, string>,
 		routingMethod?: string,
+		/** Per-prompter credential pin decided by `decidePrompterForNewSession` */
+		prompter?: SessionPrompter,
 	): Promise<void> {
 		const sessionId = agentSession.id;
 		const { issue } = agentSession;
@@ -4707,6 +4926,12 @@ ${taskSection}`;
 			attachmentsDir: _attachmentsDir,
 			allowedDirectories,
 		} = sessionData;
+
+		// Pin the per-prompter credential decision on the session so restarts,
+		// resumes and follow-ups keep using the same credentials.
+		if (prompter) {
+			session.prompter = prompter;
+		}
 
 		// Fetch labels early (needed for system prompt and runner selection)
 		const labels = await this.fetchIssueLabels(fullIssue);
@@ -5006,6 +5231,14 @@ ${taskSection}`;
 			webhook.organizationId,
 		);
 
+		// First runner initialization for this session: decide the per-prompter
+		// credential pin now (the created webhook returned before doing so).
+		const prompterDecision = await this.decidePrompterForNewSession(
+			webhook,
+			webhook.organizationId,
+		);
+		if (!prompterDecision.ok) return;
+
 		// Initialize agent runner with the selected repository (wrapped in array)
 		// routingMethod="user-selected" will be included in the combined routing activity
 		// Use organizationId from webhook as the Linear-native workspace ID source
@@ -5017,6 +5250,7 @@ ${taskSection}`;
 			commentBody,
 			undefined,
 			"user-selected",
+			prompterDecision.prompter,
 		);
 	}
 
@@ -5114,6 +5348,14 @@ ${taskSection}`;
 				false,
 			);
 
+			// Per-prompter credentials: decide before any worktree exists. The
+			// session creator is the prompter here (same as the created path).
+			const prompterDecision = await this.decidePrompterForNewSession(
+				webhook,
+				linearWorkspaceId,
+			);
+			if (!prompterDecision.ok) return;
+
 			// Create the session using the shared method with all repositories
 			const sessionData = await this.createCyrusAgentSession(
 				sessionId,
@@ -5126,6 +5368,9 @@ ${taskSection}`;
 			// Destructure session data for new session
 			fullIssue = sessionData.fullIssue;
 			session = sessionData.session;
+			if (prompterDecision.prompter) {
+				session.prompter = prompterDecision.prompter;
+			}
 
 			this.logger.debug(`Created new session ${sessionId} (prompted webhook)`);
 
@@ -5204,6 +5449,10 @@ ${taskSection}`;
 		let attachmentManifest = "";
 		let commentAuthor: string | undefined;
 		let commentTimestamp: string | undefined;
+		let commentUser:
+			| { id?: string; name?: string; email?: string }
+			| null
+			| undefined;
 
 		if (!commentId) {
 			this.logger.warn("No comment ID provided for attachment handling");
@@ -5217,6 +5466,13 @@ ${taskSection}`;
 			// Extract comment metadata for multi-player context
 			if (comment) {
 				const user = await comment.user;
+				commentUser = user
+					? {
+							id: user.id,
+							name: user.displayName || user.name,
+							email: user.email,
+						}
+					: null;
 				commentAuthor =
 					user?.displayName || user?.name || user?.email || "Unknown";
 				commentTimestamp = comment.createdAt
@@ -5255,6 +5511,21 @@ ${taskSection}`;
 		}
 
 		const promptBody = webhook.agentActivity.content.body;
+
+		// Per-prompter credentials: a follow-up from a different human is
+		// governed by prompterCredentialPolicy.followUpByOtherUser (pin by
+		// default — visible note; reject — refuse). New sessions were decided
+		// above, before the worktree was created.
+		if (!isNewSession) {
+			const allowed = await this.applyPrompterFollowUpPolicy(
+				session,
+				webhook,
+				commentUser,
+				linearWorkspaceId,
+			);
+			if (!allowed) return;
+			await this.savePersistedState();
+		}
 
 		// Use centralized streaming check and routing logic
 		try {
@@ -6815,51 +7086,85 @@ ${input.userComment}
 				resolvedSkillContext,
 			);
 
-		const result = this.runnerConfigBuilder.buildIssueConfig({
+		// Per-prompter credentials (CYPACK-1502): re-resolve the pinned user's
+		// secrets on EVERY runner build (new session and resume) so rotated
+		// tokens are picked up, and refuse instead of falling back to the host.
+		const prompterCredentials = await this.resolvePrompterCredentialsForRunner(
 			session,
-			repository,
 			sessionId,
-			systemPrompt,
-			allowedTools,
-			allowedDirectories,
-			disallowedTools,
-			resumeSessionId,
-			labels,
-			issueDescription,
-			maxTurns,
-			// Per-platform MCP config paths — GitHub + GitLab share the
-			// `githubMcpConfigs` knob (single-repo PR contexts both); Linear
-			// gets `linearMcpConfigs`. Not a blanket override: the builder
-			// uses `repository.mcpConfigPath` when this repo has its own
-			// `allowedTools` override (so the repo's permission rules and
-			// MCP server set travel as a unit), and only falls through to
-			// this list when the repo inherits the platform allow-list.
-			platformMcpConfigOverrides:
-				sessionPlatform === "linear"
-					? this.config.linearMcpConfigs
-					: this.config.githubMcpConfigs,
-			strictMcpConfig: this.config.strictMcpConfig,
 			linearWorkspaceId,
-			cyrusHome: this.cyrusHome,
-			logger: log,
-			plugins,
-			opencodeGlobalConfig: this.config.opencode?.config,
-			opencodeGlobalStateScope: this.config.opencode?.stateScope,
-			skills: allowedSkillNames,
-			sandboxSettings: this.sdkSandboxSettings ?? undefined,
-			egressCaCertPath: this.egressCaCertPath ?? undefined,
-			onMessage: (message: SDKMessage) => {
-				this.handleClaudeMessage(sessionId, message, repository.id);
-			},
-			onError: (error: Error) => this.handleClaudeError(error),
-			createAskUserQuestionCallback: (sid, wid) =>
-				this.createAskUserQuestionCallback(sid, wid)!,
-			requireLinearWorkspaceId,
-		});
+			sessionPlatform,
+		);
+
+		let result: { config: AgentRunnerConfig; runnerType: RunnerType };
+		try {
+			result = this.runnerConfigBuilder.buildIssueConfig({
+				session,
+				repository,
+				sessionId,
+				systemPrompt,
+				allowedTools,
+				allowedDirectories,
+				disallowedTools,
+				resumeSessionId,
+				labels,
+				issueDescription,
+				maxTurns,
+				prompterCredentials,
+				// Per-platform MCP config paths — GitHub + GitLab share the
+				// `githubMcpConfigs` knob (single-repo PR contexts both); Linear
+				// gets `linearMcpConfigs`. Not a blanket override: the builder
+				// uses `repository.mcpConfigPath` when this repo has its own
+				// `allowedTools` override (so the repo's permission rules and
+				// MCP server set travel as a unit), and only falls through to
+				// this list when the repo inherits the platform allow-list.
+				platformMcpConfigOverrides:
+					sessionPlatform === "linear"
+						? this.config.linearMcpConfigs
+						: this.config.githubMcpConfigs,
+				strictMcpConfig: this.config.strictMcpConfig,
+				linearWorkspaceId,
+				cyrusHome: this.cyrusHome,
+				logger: log,
+				plugins,
+				opencodeGlobalConfig: this.config.opencode?.config,
+				opencodeGlobalStateScope: this.config.opencode?.stateScope,
+				skills: allowedSkillNames,
+				sandboxSettings: this.sdkSandboxSettings ?? undefined,
+				egressCaCertPath: this.egressCaCertPath ?? undefined,
+				onMessage: (message: SDKMessage) => {
+					this.handleClaudeMessage(sessionId, message, repository.id);
+				},
+				onError: (error: Error) => this.handleClaudeError(error),
+				createAskUserQuestionCallback: (sid, wid) =>
+					this.createAskUserQuestionCallback(sid, wid)!,
+				requireLinearWorkspaceId,
+			});
+		} catch (error) {
+			if (error instanceof PrompterRunnerUnsupportedError) {
+				// The session is pinned to a human but the selected runner cannot
+				// isolate credentials. Refuse visibly rather than run as the host.
+				if (linearWorkspaceId) {
+					await this.postPrompterResponse(
+						sessionId,
+						linearWorkspaceId,
+						error.message,
+					);
+				}
+			}
+			throw error;
+		}
 
 		// Attach pre-warmed session if available (only for Claude runner).
-		// Skipped entirely when warm sessions are not enabled.
-		if (result.runnerType === "claude" && this.isWarmSessionsEnabled()) {
+		// Skipped entirely when warm sessions are not enabled, and never for
+		// prompter-bound sessions: a warm process was spawned with the HOST
+		// environment, so attaching it would run the session on the wrong
+		// credentials.
+		if (
+			result.runnerType === "claude" &&
+			this.isWarmSessionsEnabled() &&
+			!prompterCredentials
+		) {
 			const warmSession = this.warmInstances.get(sessionId);
 			if (warmSession) {
 				this.warmInstances.delete(sessionId);
@@ -6868,9 +7173,89 @@ ${input.userComment}
 				).warmSession = warmSession;
 				log.debug("Attaching pre-warmed session to runner config");
 			}
+		} else if (prompterCredentials && this.warmInstances.has(sessionId)) {
+			// Discard a pre-warmed process that carries host credentials.
+			this.warmInstances.delete(sessionId);
+			log.debug("Discarded pre-warmed session: per-prompter credentials apply");
 		}
 
 		return result;
+	}
+
+	/**
+	 * Resolve the per-prompter credentials for a runner build, applying the
+	 * backstop policy for sessions that carry no pin (sessions that predate
+	 * the mapping, parent resumes, GitHub/GitLab-triggered sessions).
+	 *
+	 * Returns undefined when the feature is off or host credentials apply.
+	 * Posts a refusal to Linear and throws when the session must not run.
+	 */
+	private async resolvePrompterCredentialsForRunner(
+		session: CyrusAgentSession,
+		sessionId: string,
+		linearWorkspaceId: string | undefined,
+		sessionPlatform: "linear" | "github" | "gitlab",
+	): Promise<ResolvedPrompterCredentials | undefined> {
+		const service = this.prompterCredentialService;
+		if (!service.isEnabled()) return undefined;
+
+		const refuse = async (message: string): Promise<never> => {
+			if (linearWorkspaceId && sessionPlatform === "linear") {
+				await this.postPrompterResponse(sessionId, linearWorkspaceId, message);
+			}
+			this.logger.warn(
+				`Per-prompter credentials: refusing runner for session ${sessionId}: ${message}`,
+			);
+			throw new PrompterCredentialError(
+				message,
+				session.prompter?.credentialUserId,
+			);
+		};
+
+		if (!session.prompter) {
+			const policy = service.policy;
+			if (sessionPlatform !== "linear") {
+				if (policy.externalPlatformSessions === "reject") {
+					await refuse(
+						`This ${sessionPlatform}-triggered session has no Linear user to map credentials from and prompterCredentialPolicy.externalPlatformSessions is \`reject\`.`,
+					);
+				}
+				this.logger.info(
+					`Session ${sessionId} (${sessionPlatform}) runs with host credentials: no Linear prompter (externalPlatformSessions=host)`,
+				);
+				return undefined;
+			}
+			// A Linear session without a pin: it predates the mapping or was
+			// resumed without a triggering human (e.g. parent resume). Apply the
+			// non-human policy — never silently use the host's credentials.
+			if (policy.nonHumanTrigger === "reject") {
+				await refuse(
+					"This session has no per-user credential pin (it was started before linearUsers was configured, or was resumed without a triggering human) and prompterCredentialPolicy.nonHumanTrigger is `reject`. Start a new session from a mapped Linear user, or set nonHumanTrigger to `host` to allow the host's credentials.",
+				);
+			}
+			session.prompter = {
+				linearUserId: "",
+				source: "host",
+				hostReason: "session has no credential pin; nonHumanTrigger=host",
+			};
+			if (linearWorkspaceId) {
+				await this.activityPoster.postThoughtActivity(
+					sessionId,
+					linearWorkspaceId,
+					service.describePin(session.prompter),
+				);
+			}
+			return undefined;
+		}
+
+		try {
+			return service.resolveForSession(session);
+		} catch (error) {
+			if (error instanceof PrompterCredentialError) {
+				await refuse(error.message);
+			}
+			throw error;
+		}
 	}
 
 	/**

@@ -33,7 +33,8 @@ export type RPCCommand =
 	| "promptSession"
 	| "stopSession"
 	| "listAgentSessions"
-	| "terminateIssue";
+	| "terminateIssue"
+	| "createUser";
 
 /**
  * JSON-RPC 2.0 request ID type
@@ -164,6 +165,30 @@ export interface AssignIssueData {
 export interface CreateCommentParams {
 	issueId: string;
 	body: string;
+	/**
+	 * Act as this CLI user (created via `createUser`) instead of the default
+	 * user. Lets test drives simulate several humans on one issue.
+	 */
+	asUserId?: string;
+}
+
+/**
+ * Create user command parameters. Adds a second/third human to the in-memory
+ * workspace so `startSession` / `promptSession` / `createComment` can act as
+ * different Linear users (multi-prompter test drives).
+ */
+export interface CreateUserParams {
+	/** Stable ID to use (defaults to `user-<slug>` derived from the name) */
+	id?: string;
+	name: string;
+	email?: string;
+}
+
+/**
+ * Create user command response data
+ */
+export interface CreateUserData {
+	user: { id: string; name: string; email: string };
 }
 
 /**
@@ -179,6 +204,12 @@ export interface CreateCommentData {
 export interface StartSessionParams {
 	issueId: string;
 	externalLink?: string;
+	/**
+	 * CLI user who "delegates/mentions" the agent. Becomes the synthetic
+	 * webhook's `agentSession.creator` — the prompter for per-user
+	 * credential resolution. Defaults to the workspace's default user.
+	 */
+	asUserId?: string;
 }
 
 /**
@@ -235,6 +266,13 @@ export interface ViewSessionData {
 export interface PromptSessionParams {
 	sessionId: string;
 	message: string;
+	/**
+	 * CLI user who sends the follow-up prompt. The comment behind the
+	 * synthetic `prompted` webhook is authored by this user, so the
+	 * EdgeWorker sees a different human than the session creator when the
+	 * two differ (follow-up-by-other-user test drives).
+	 */
+	asUserId?: string;
 }
 
 /**
@@ -439,6 +477,9 @@ export class CLIRPCServer {
 					requestId,
 				);
 
+			case "createUser":
+				return this.handleCreateUser(params as CreateUserParams, requestId);
+
 			default:
 				return {
 					jsonrpc: "2.0",
@@ -621,7 +662,7 @@ export class CLIRPCServer {
 		params: CreateCommentParams,
 		requestId: RPCRequestId,
 	): Promise<RPCResponse<CreateCommentData>> {
-		const { issueId, body } = params;
+		const { issueId, body, asUserId } = params;
 
 		if (!issueId || !body) {
 			return {
@@ -642,6 +683,7 @@ export class CLIRPCServer {
 			const comment = await this.config.issueTracker.createComment(
 				issueId,
 				input,
+				asUserId,
 			);
 
 			return {
@@ -671,7 +713,7 @@ export class CLIRPCServer {
 		params: StartSessionParams,
 		requestId: RPCRequestId,
 	): Promise<RPCResponse<StartSessionData>> {
-		const { issueId, externalLink } = params;
+		const { issueId, externalLink, asUserId } = params;
 
 		if (!issueId) {
 			return {
@@ -690,8 +732,10 @@ export class CLIRPCServer {
 				...(externalLink && { externalLink }),
 			};
 
-			const result =
-				await this.config.issueTracker.createAgentSessionOnIssue(input);
+			const result = await this.config.issueTracker.createAgentSessionOnIssue(
+				input,
+				asUserId,
+			);
 
 			// Extract session from LinearFetch result
 			const agentSessionPayload = await result;
@@ -844,7 +888,7 @@ export class CLIRPCServer {
 		params: PromptSessionParams,
 		requestId: RPCRequestId,
 	): Promise<RPCResponse<PromptSessionData>> {
-		const { sessionId, message } = params;
+		const { sessionId, message, asUserId } = params;
 
 		if (!sessionId || !message) {
 			return {
@@ -860,7 +904,11 @@ export class CLIRPCServer {
 
 		try {
 			// Prompt the session - this creates a comment and emits a prompted event
-			await this.config.issueTracker.promptAgentSession(sessionId, message);
+			await this.config.issueTracker.promptAgentSession(
+				sessionId,
+				message,
+				asUserId,
+			);
 
 			return {
 				jsonrpc: "2.0",
@@ -877,6 +925,48 @@ export class CLIRPCServer {
 					code: RPCErrorCodes.SERVER_ERROR,
 					message:
 						error instanceof Error ? error.message : "Failed to prompt session",
+				},
+				id: requestId,
+			};
+		}
+	}
+
+	/**
+	 * Handle createUser command - add a human to the in-memory workspace
+	 */
+	private async handleCreateUser(
+		params: CreateUserParams,
+		requestId: RPCRequestId,
+	): Promise<RPCResponse<CreateUserData>> {
+		const { id, name, email } = params;
+
+		if (!name) {
+			return {
+				jsonrpc: "2.0",
+				error: {
+					code: RPCErrorCodes.INVALID_PARAMS,
+					message: "Missing required parameter: name is required",
+				},
+				id: requestId,
+			};
+		}
+
+		try {
+			const user = this.config.issueTracker.createUser({ id, name, email });
+			return {
+				jsonrpc: "2.0",
+				result: {
+					user: { id: user.id, name: user.name, email: user.email },
+				},
+				id: requestId,
+			};
+		} catch (error) {
+			return {
+				jsonrpc: "2.0",
+				error: {
+					code: RPCErrorCodes.SERVER_ERROR,
+					message:
+						error instanceof Error ? error.message : "Failed to create user",
 				},
 				id: requestId,
 			};

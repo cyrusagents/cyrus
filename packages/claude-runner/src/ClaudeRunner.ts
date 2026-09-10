@@ -38,6 +38,7 @@ import {
 } from "./sandbox-requirements.js";
 import {
 	buildBaseSessionEnv,
+	buildOmitEnv,
 	normalizeMcpHttpTransport,
 } from "./session-env.js";
 import type {
@@ -678,6 +679,10 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 						// See: CYPACK-1108.
 						...this.repositoryEnv,
 						...this.config.additionalEnv,
+						// Per-session credential isolation: host vars listed in omitEnv
+						// (e.g. ANTHROPIC_API_KEY when a per-prompter OAuth token is in
+						// use) are unset so they cannot win over additionalEnv.
+						...buildOmitEnv(this.config.omitEnv),
 						// When logging at DEBUG level, enable the SDK's own debug output so
 						// --debug-to-stderr and DEBUG=1 propagate to the Claude subprocess.
 						// Explicitly set or unset to override any leaked value from process.env.

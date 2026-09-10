@@ -62,6 +62,8 @@ const RELOAD_MERGED_KEYS = [
 	"prReviewTrigger",
 	"userAccessControl",
 	"sandbox",
+	"linearUsers",
+	"prompterCredentialPolicy",
 ] as const satisfies readonly (keyof EdgeConfig)[];
 
 /**
@@ -381,6 +383,13 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.global_setup_script ?? this.config.global_setup_script,
 				// Sandbox / egress proxy config
 				sandbox: parsedConfig.sandbox ?? this.config.sandbox,
+				// Per-prompter credential mapping (refs only) and policy. `??` so a
+				// transient parse of a half-written file cannot drop the mapping;
+				// `cyrus remove-user` rewrites the block, so removals still apply.
+				linearUsers: parsedConfig.linearUsers ?? this.config.linearUsers,
+				prompterCredentialPolicy:
+					parsedConfig.prompterCredentialPolicy ??
+					this.config.prompterCredentialPolicy,
 			};
 
 			// Basic validation

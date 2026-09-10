@@ -11,6 +11,7 @@ import type {
 	AgentSessionStatus,
 	AgentSessionType,
 } from "./issue-tracker/types.js";
+import type { SessionPrompter } from "./prompter-credentials.js";
 
 export interface IssueMinimal {
 	id: string;
@@ -89,6 +90,13 @@ export interface CyrusAgentSession {
 	/** Repository contexts for this session (always array, never undefined) */
 	repositories: RepositoryContext[];
 	workspace: Workspace;
+	/**
+	 * The human this session runs on behalf of when per-prompter credentials
+	 * (`EdgeConfig.linearUsers`) are configured: who triggered it and which
+	 * mapped user's credentials it is pinned to. Persisted so restarts,
+	 * resumes and follow-up prompts keep using the same credentials.
+	 */
+	prompter?: SessionPrompter;
 	// NOTE: Only one of these will be populated
 	claudeSessionId?: string; // Claude-specific session ID (assigned once it initializes)
 	geminiSessionId?: string; // Gemini-specific session ID (assigned once it initializes)

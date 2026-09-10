@@ -22,6 +22,7 @@ interface CreateCommentParams {
 	issueId: string;
 	body: string;
 	mentionAgent?: boolean;
+	asUserId?: string;
 }
 
 export function createCreateCommentCommand(): Command {
@@ -32,11 +33,16 @@ export function createCreateCommentCommand(): Command {
 		.requiredOption("-i, --issue-id <id>", "Issue ID to comment on")
 		.requiredOption("-b, --body <text>", "Comment body text")
 		.option("-m, --mention-agent", "Mention the agent in the comment", false)
+		.option(
+			"-u, --as-user <userId>",
+			"Author the comment as this user (see create-user)",
+		)
 		.action(
 			async (options: {
 				issueId: string;
 				body: string;
 				mentionAgent: boolean;
+				asUser?: string;
 			}) => {
 				printRpcUrl();
 
@@ -44,6 +50,7 @@ export function createCreateCommentCommand(): Command {
 					issueId: options.issueId,
 					body: options.body,
 					mentionAgent: options.mentionAgent,
+					...(options.asUser && { asUserId: options.asUser }),
 				};
 
 				try {
