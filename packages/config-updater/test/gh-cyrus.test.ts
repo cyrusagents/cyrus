@@ -133,6 +133,84 @@ exit 0
 		expect(stdout).toContain("GH_TOKEN=ghs_org_a");
 	});
 
+	it("uses a repo view positional target instead of cwd or the session token", () => {
+		saveTokens([
+			{ organization: "OrgA", token: "ghs_org_a" },
+			{ organization: "OrgB", token: "ghs_org_b" },
+		]);
+		const cwd = makeRepo("repo-a", "https://github.com/OrgA/repo-a.git");
+		for (const args of [
+			["repo", "view", "OrgB/repo-b"],
+			["repo", "view", "https://github.com/OrgB/repo-b"],
+			["repo", "view", "--branch", "OrgA/feature", "OrgB/repo-b"],
+			["repo", "view", "-bOrgA/feature", "OrgB/repo-b"],
+			["repo", "view", "--json", "nameWithOwner", "--", "OrgB/repo-b"],
+		]) {
+			const result = runGhCyrus(args, {
+				cwd,
+				env: { CYRUS_GH_TOKEN: "ghs_org_a" },
+			});
+			expect(result.stdout, args.join(" ")).toContain("GH_TOKEN=ghs_org_b");
+			expect(result.stdout).toContain(`ARGS=${args.join(" ")}`);
+		}
+	});
+
+	it("does not treat option values or unrelated command text as repository targets", () => {
+		saveTokens([
+			{ organization: "OrgA", token: "ghs_org_a" },
+			{ organization: "OrgB", token: "ghs_org_b" },
+		]);
+		const cwd = makeRepo("repo-a", "https://github.com/OrgA/repo-a.git");
+		for (const args of [
+			["repo", "view", "--branch", "OrgB/feature"],
+			["repo", "view", "--branch=OrgB/feature"],
+			["pr", "create", "--title", "OrgB/repo-b"],
+		]) {
+			expect(runGhCyrus(args, { cwd }).stdout, args.join(" ")).toContain(
+				"GH_TOKEN=ghs_org_a",
+			);
+		}
+	});
+
+	it("resolves clone and fork sources without reading their option values or git arguments as targets", () => {
+		saveTokens([
+			{ organization: "OrgA", token: "ghs_org_a" },
+			{ organization: "OrgB", token: "ghs_org_b" },
+		]);
+		const cwd = makeRepo("repo-a", "https://github.com/OrgA/repo-a.git");
+		for (const args of [
+			["repo", "clone", "OrgB/repo-b", "OrgA/destination"],
+			["repo", "clone", "--upstream-remote-name", "OrgA/remote", "OrgB/repo-b"],
+			["repo", "fork", "--org", "OrgA", "OrgB/repo-b"],
+		]) {
+			expect(runGhCyrus(args, { cwd }).stdout, args.join(" ")).toContain(
+				"GH_TOKEN=ghs_org_b",
+			);
+		}
+		expect(
+			runGhCyrus(["repo", "fork", "--", "--reference", "OrgB/local"], { cwd })
+				.stdout,
+		).toContain("GH_TOKEN=ghs_org_a");
+	});
+
+	it("honors GH_REPO before cwd but after an explicit repository", () => {
+		saveTokens([
+			{ organization: "OrgA", token: "ghs_org_a" },
+			{ organization: "OrgB", token: "ghs_org_b" },
+		]);
+		const cwd = makeRepo("repo-a", "https://github.com/OrgA/repo-a.git");
+		const opts = { cwd, env: { GH_REPO: "OrgB/repo-b" } };
+		expect(runGhCyrus(["pr", "list"], opts).stdout).toContain(
+			"GH_TOKEN=ghs_org_b",
+		);
+		expect(runGhCyrus(["repo", "view", "OrgA/repo-a"], opts).stdout).toContain(
+			"GH_TOKEN=ghs_org_a",
+		);
+		expect(runGhCyrus(["pr", "list", "-ROrgA/repo-a"], opts).stdout).toContain(
+			"GH_TOKEN=ghs_org_a",
+		);
+	});
+
 	it("falls back to CYRUS_GH_TOKEN outside a repo", () => {
 		saveTokens([
 			{ organization: "OrgA", token: "ghs_org_a" },

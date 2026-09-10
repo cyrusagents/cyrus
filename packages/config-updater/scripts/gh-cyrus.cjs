@@ -11,7 +11,8 @@
  *
  * Resolution order for the target org:
  *   1. An explicit `-R` / `--repo` argument (strongest signal).
- *   2. The cwd's `remote.origin.url` (how gh itself infers "the current
+ *   2. A positional repository for `repo view`, `clone`, or `fork`.
+ *   3. GH_REPO, then the cwd's `remote.origin.url` (how gh infers "the current
  *      repository").
  * Then the token, from `<cyrusHome>/github-tokens.json` (pushed by
  * cyrus-hosted):
@@ -65,25 +66,61 @@ function ownerFromArgs(args) {
 		if (arg.startsWith("-R=")) {
 			return ownerFromRepoRef(arg.slice("-R=".length));
 		}
+		if (arg.startsWith("-R") && arg.length > 2) {
+			return ownerFromRepoRef(arg.slice(2));
+		}
+	}
+	return ownerFromPositionalRepo(args);
+}
+
+/** Parse only commands whose first positional argument is a repository.
+ * Do not scan arbitrary argument text: branch names, titles, and clone
+ * destinations can all look like OWNER/REPO without selecting a repository.
+ */
+function ownerFromPositionalRepo(args) {
+	if (args[0] !== "repo") return "";
+	const valueFlags = {
+		view: new Set([
+			"--branch",
+			"-b",
+			"--json",
+			"--jq",
+			"-q",
+			"--template",
+			"-t",
+		]),
+		clone: new Set(["--upstream-remote-name", "-u"]),
+		fork: new Set(["--fork-name", "--org", "--remote-name"]),
+	}[args[1]];
+	if (!valueFlags) return "";
+	for (let i = 2; i < args.length; i++) {
+		const arg = args[i];
+		if (arg === "--") {
+			// clone/fork forward everything after -- as git flags.
+			return args[1] === "view" ? ownerFromRepoRef(args[i + 1]) : "";
+		}
+		if (valueFlags.has(arg)) {
+			i++;
+			continue;
+		}
+		if (arg.startsWith("-")) continue;
+		return ownerFromRepoRef(arg);
 	}
 	return "";
 }
 
 /** Owner of the cwd's origin remote, or "" when not in a GitHub repo. */
 function ownerFromCwd() {
-	const result = spawnSync(
-		"git",
-		["config", "--get", "remote.origin.url"],
-		{ encoding: "utf8" },
-	);
+	const result = spawnSync("git", ["config", "--get", "remote.origin.url"], {
+		encoding: "utf8",
+	});
 	if (result.status !== 0) return "";
 	return ownerFromRepoRef((result.stdout || "").trim());
 }
 
 /** Non-expired tokens from the Cyrus token store file. */
 function loadValidTokens() {
-	const cyrusHome =
-		process.env.CYRUS_HOME || path.join(os.homedir(), ".cyrus");
+	const cyrusHome = process.env.CYRUS_HOME || path.join(os.homedir(), ".cyrus");
 	const tokensFile = path.join(cyrusHome, "github-tokens.json");
 	let tokens = [];
 	try {
@@ -94,15 +131,17 @@ function loadValidTokens() {
 	}
 	const now = Date.now();
 	return tokens.filter((t) => {
-		if (!t || typeof t.token !== "string" || t.token.length === 0)
-			return false;
+		if (!t || typeof t.token !== "string" || t.token.length === 0) return false;
 		const expiresAt = Date.parse(t.expiresAt);
 		return !Number.isNaN(expiresAt) && expiresAt > now;
 	});
 }
 
 function resolveToken(args) {
-	const owner = ownerFromArgs(args) || ownerFromCwd();
+	const owner =
+		ownerFromArgs(args) ||
+		ownerFromRepoRef(process.env.GH_REPO) ||
+		ownerFromCwd();
 	const valid = loadValidTokens();
 
 	if (owner) {
