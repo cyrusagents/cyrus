@@ -63,8 +63,11 @@ export const availableTools = [
 	"TaskOutput",
 	"TaskStop",
 
-	// Tool discovery
+	// Tool and MCP resource discovery
 	"ToolSearch",
+	"ListMcpResourcesTool",
+	"ReadMcpResourceDirTool",
+	"ReadMcpResourceTool",
 
 	// Design sync
 	"DesignSync",
@@ -98,6 +101,9 @@ export const readOnlyTools: ToolName[] = [
 	"LSP",
 	"TaskOutput",
 	"ToolSearch",
+	"ListMcpResourcesTool",
+	"ReadMcpResourceDirTool",
+	"ReadMcpResourceTool",
 ];
 
 /**
