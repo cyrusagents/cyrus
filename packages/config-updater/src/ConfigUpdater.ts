@@ -5,6 +5,7 @@ import { handleConfigureMcp } from "./handlers/configureMcp.js";
 import { handleCyrusConfig } from "./handlers/cyrusConfig.js";
 import { handleCyrusEnv } from "./handlers/cyrusEnv.js";
 import { handleGitHubTokens } from "./handlers/githubTokens.js";
+import { handleGitProviderTokens } from "./handlers/gitProviderTokens.js";
 import {
 	handleRepository,
 	handleRepositoryDelete,
@@ -25,6 +26,7 @@ import type {
 	DeleteRepositoryPayload,
 	DeleteSkillPayload,
 	GitHubTokensPayload,
+	GitProviderTokensPayload,
 	ListSkillsPayload,
 	RepositoryPayload,
 	TestMcpPayload,
@@ -74,6 +76,10 @@ export class ConfigUpdater {
 		this.registerRoute(
 			"/api/update/github-tokens",
 			this.handleGitHubTokensRoute,
+		);
+		this.registerRoute(
+			"/api/update/git-provider-tokens",
+			this.handleGitProviderTokensRoute,
 		);
 		this.registerRoute("/api/check-gh", this.handleCheckGhRoute);
 		this.registerRoute("/api/check-glab", this.handleCheckGlabRoute);
@@ -254,6 +260,15 @@ export class ConfigUpdater {
 		payload: GitHubTokensPayload,
 	): Promise<ApiResponse> {
 		return handleGitHubTokens(payload, this.cyrusHome);
+	}
+
+	/**
+	 * Handle provider-neutral git tokens push
+	 */
+	private async handleGitProviderTokensRoute(
+		payload: GitProviderTokensPayload,
+	): Promise<ApiResponse> {
+		return handleGitProviderTokens(payload, this.cyrusHome);
 	}
 
 	/**

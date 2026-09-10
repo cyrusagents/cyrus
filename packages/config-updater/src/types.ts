@@ -126,6 +126,29 @@ export const GitHubTokensPayloadSchema = z.object({
 export type GitHubTokensPayload = z.infer<typeof GitHubTokensPayloadSchema>;
 
 /**
+ * Provider-neutral git credential payload. GitHub entries may be short-lived
+ * App installation tokens; GitLab entries may be OAuth, PAT, project, or bot
+ * tokens. A null expiresAt represents a long-lived/revoked-by-provider token.
+ */
+export const GitProviderTokensPayloadSchema = z.object({
+	tokens: z.array(
+		z.object({
+			provider: z.enum(["github", "gitlab"]),
+			host: z.string().min(1),
+			namespace: z.string().nullable().optional().default(null),
+			connectionId: z.string().nullable().optional().default(null),
+			token: z.string().min(1),
+			expiresAt: z.string().nullable().optional().default(null),
+			username: z.string().nullable().optional().default(null),
+		}),
+	),
+});
+
+export type GitProviderTokensPayload = z.infer<
+	typeof GitProviderTokensPayloadSchema
+>;
+
+/**
  * Error response to send back to cyrus-hosted
  */
 export interface ErrorResponse {

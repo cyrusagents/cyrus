@@ -104,4 +104,27 @@ describe("RunnerConfigBuilder GitHub token session env (CYHOST-913)", () => {
 		expect(env.NODE_EXTRA_CA_CERTS).toBe("/tmp/ca.pem");
 		expect(env.GIT_SSL_CAINFO).toBe("/tmp/ca.pem");
 	});
+
+	it("exposes ONLY CYRUS_GITLAB_TOKEN when a gitlabToken is provided", () => {
+		const { config } = buildIssueConfig({ gitlabToken: "glpat_repo_token" });
+
+		expect(config.additionalEnv).toEqual({
+			CYRUS_GITLAB_TOKEN: "glpat_repo_token",
+		});
+		expect(
+			(config.additionalEnv as Record<string, string>).GITLAB_TOKEN,
+		).toBeUndefined();
+	});
+
+	it("can expose GitHub and GitLab Cyrus-specific tokens together", () => {
+		const { config } = buildIssueConfig({
+			githubToken: "ghs_org_token",
+			gitlabToken: "glpat_repo_token",
+		});
+
+		expect(config.additionalEnv).toEqual({
+			CYRUS_GH_TOKEN: "ghs_org_token",
+			CYRUS_GITLAB_TOKEN: "glpat_repo_token",
+		});
+	});
 });
