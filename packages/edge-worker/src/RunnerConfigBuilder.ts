@@ -20,7 +20,10 @@ import type {
 	RunnerType,
 } from "cyrus-core";
 import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
-import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
+import {
+	buildPrMarkerHook,
+	type DetectedPullRequest,
+} from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
 import { appendCloudRuntimeAddendum } from "./prompts/cloudRuntimePromptAddendum.js";
 import { appendFailureModeAddendum } from "./prompts/failureModePromptAddendum.js";
@@ -151,6 +154,16 @@ export interface IssueRunnerConfigInput {
 	logger: ILogger;
 	onMessage: (message: SDKMessage) => void | Promise<void>;
 	onError: (error: Error) => void;
+	/**
+	 * Invoked when a Bash tool call creates or edits a PR/MR (detected by the
+	 * PR-marker hook). EdgeWorker uses this to link the PR to the Linear issue
+	 * as a first-class attachment and to pin it on the agent session, so the
+	 * PR shows up front and center in Linear's session thread and Reviews.
+	 */
+	onPullRequestDetected?: (
+		pr: DetectedPullRequest,
+		cwd: string,
+	) => Promise<void>;
 	/** Factory to create AskUserQuestion callback (Claude runner only) */
 	createAskUserQuestionCallback?: (
 		sessionId: string,
@@ -342,7 +355,11 @@ export class RunnerConfigBuilder {
 		// Configure hooks: PostToolUse for screenshot tools + PR-marker enforcement,
 		// plus the Stop hook that blocks the session when work is unshipped.
 		const screenshotHooks = this.buildScreenshotHooks(log);
-		const prMarkerHook = buildPrMarkerHook(log);
+		const prMarkerHook = buildPrMarkerHook(
+			log,
+			undefined,
+			input.onPullRequestDetected,
+		);
 		const intentToAddHook = buildIntentToAddHook(log);
 		const stopHook = this.buildStopHook(log);
 		const hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> = {

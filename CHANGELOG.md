@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Sessions now work directly on a pull request referenced on the issue. If an issue links an open PR for the routed repository — as a link/attachment, a PR embed in the description, or a plain PR URL — the session checks out that PR's head branch instead of creating a new branch, so its pushes update the existing PR. Closed and cross-fork PRs are ignored; private repos need a `GH_TOKEN`/`GITHUB_TOKEN` in the environment for the lookup. ([#1457](https://github.com/cyrusagents/cyrus/pull/1457))
+- Sessions now pick up existing remote branches. When a Linear issue's branch name matches a branch that already exists on the remote (for example a PR branch pushed outside Cyrus), the session checks out that branch and continues the work on it — instead of creating a fresh branch of the same name that shadowed the remote one and caused push conflicts. ([#1457](https://github.com/cyrusagents/cyrus/pull/1457))
+
 ### Added
 - New optional `maxConcurrentSessions` setting in `~/.cyrus/config.json` caps how many agent sessions run at once across all repositories and platforms. Extra session starts wait in order for a free slot and begin automatically as running sessions finish. Omit it for the previous unlimited behavior. The value hot-reloads with the config file: raising it admits queued sessions immediately, and lowering it takes effect as running sessions finish. ([#1445](https://github.com/cyrusagents/cyrus/pull/1445), [#1469](https://github.com/cyrusagents/cyrus/pull/1469))
 - Zulip is now a supported chat platform. @mention the bot in a Zulip topic (or DM it) and Cyrus answers in that topic, with 👀/✅ reactions marking receipt and completion. Set `ZULIP_SITE`, `ZULIP_BOT_EMAIL`, `ZULIP_API_KEY` and `ZULIP_WEBHOOK_TOKEN` to enable it; see [docs/ZULIP.md](./docs/ZULIP.md). ([#1468](https://github.com/cyrusagents/cyrus/pull/1468))
@@ -19,6 +23,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Every agent session now explains how to attach local images and videos to GitHub issues, pull requests, and comments with GitHub CLI v2.99.0 or newer, independently of optional browser tooling. ([CYPACK-1490](https://linear.app/ceedar/issue/CYPACK-1490/add-this-to-the-system-prompt), [#1453](https://github.com/cyrusagents/cyrus/pull/1453))
+- Pull requests created by Cyrus now show up front and center in Linear, matching Linear's own coding agent: the PR is linked to the issue as a first-class attachment the moment it's created (giving the issue its Diff tab and a review page in Linear's Reviews, when the workspace's GitHub integration has code access), and the PR is pinned on the agent session header. In the session timeline, simple `git push` and `gh pr create` / `glab mr create` / `gt submit` commands now render as dedicated "Git Push \<branch\>" and "Create PR \<title\>" activity rows instead of generic Bash rows. See `docs/LINEAR_PR_REVIEWS.md` for the full mechanism and workspace setup. ([#1457](https://github.com/cyrusagents/cyrus/pull/1457))
 
 ### Fixed
 - Cloudflare tunnel startup now waits up to 120 seconds (previously 30) before giving up, so Cyrus starts reliably on hosts with slow DNS or slow first-time tunnel establishment. ([#1458](https://github.com/cyrusagents/cyrus/pull/1458))

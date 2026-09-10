@@ -707,6 +707,44 @@ export interface IIssueTrackerService {
 		input: AgentActivityCreateInput,
 	): Promise<AgentActivityPayload>;
 
+	/**
+	 * Link a pull request to an issue as a first-class PR attachment.
+	 *
+	 * On Linear this calls the `attachmentLinkGitHubPR` mutation, which makes
+	 * the PR appear on the issue (and, with the GitHub integration's code
+	 * access enabled, in Linear's Reviews/diff view) exactly like PRs created
+	 * by Linear's own coding agent.
+	 *
+	 * Optional: trackers without a PR-attachment concept simply omit it.
+	 *
+	 * @param issueId - Issue UUID or identifier (e.g. 'ABC-123')
+	 * @param url - Canonical web URL of the pull request
+	 * @param title - Optional attachment title (defaults to the PR title)
+	 */
+	linkPullRequestToIssue?(
+		issueId: string,
+		url: string,
+		title?: string,
+	): Promise<void>;
+
+	/**
+	 * Pin an external URL (label + link) on an agent session, shown in the
+	 * session header. On Linear this is `agentSessionUpdate` with
+	 * `addedExternalUrls`, which only the OAuth application that owns the
+	 * session may set — i.e. exactly the credential this service holds.
+	 *
+	 * Optional: trackers without agent-session external links omit it.
+	 *
+	 * @param agentSessionId - The tracker's agent session ID
+	 * @param label - Short label for the link (e.g. 'PR #16')
+	 * @param url - The URL to pin
+	 */
+	addAgentSessionExternalUrl?(
+		agentSessionId: string,
+		label: string,
+		url: string,
+	): Promise<void>;
+
 	// ========================================================================
 	// FILE OPERATIONS
 	// ========================================================================

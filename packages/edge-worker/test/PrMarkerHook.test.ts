@@ -8,6 +8,7 @@ import {
 	appendMarker,
 	buildPrMarkerHook,
 	CYRUS_PR_MARKER,
+	type DetectedPullRequest,
 	GitHubPrMarkerProvider,
 	GitLabMrMarkerProvider,
 	type PrMarkerProvider,
@@ -176,5 +177,95 @@ describe("buildPrMarkerHook", () => {
 		).resolves.toBeUndefined();
 
 		expect(warn).toHaveBeenCalledWith(expect.stringContaining("boom"));
+	});
+});
+
+describe("buildPrMarkerHook — PR detection callback", () => {
+	const detectedPr: DetectedPullRequest = {
+		provider: "github",
+		number: 16,
+		title: "A Brief Tour of the Turning House (SPE-57)",
+		url: "https://github.com/specstoryai/adventure/pull/16",
+		isDraft: false,
+		headBranch: "cylocal/spe-57-a-brief-tour-of-the-turning-house",
+	};
+
+	function providerReturning(pr: DetectedPullRequest | null): PrMarkerProvider {
+		return {
+			name: "github",
+			matches: (cmd) => /\bgh pr create\b/.test(cmd),
+			ensureMarker: () => {},
+			readPullRequest: () => pr,
+		};
+	}
+
+	it("invokes onPullRequestDetected with the provider's PR info and cwd", async () => {
+		const onPr = vi.fn().mockResolvedValue(undefined);
+		const hook = buildPrMarkerHook(
+			silentLogger,
+			[providerReturning(detectedPr)],
+			onPr,
+		);
+
+		await runHook(
+			hook.PostToolUse![0],
+			makeHookInput("gh pr create --title x", "/work/repo"),
+		);
+
+		expect(onPr).toHaveBeenCalledTimes(1);
+		expect(onPr).toHaveBeenCalledWith(detectedPr, "/work/repo");
+	});
+
+	it("does not invoke the callback when the provider finds no PR", async () => {
+		const onPr = vi.fn();
+		const hook = buildPrMarkerHook(
+			silentLogger,
+			[providerReturning(null)],
+			onPr,
+		);
+
+		await runHook(hook.PostToolUse![0], makeHookInput("gh pr create"));
+
+		expect(onPr).not.toHaveBeenCalled();
+	});
+
+	it("does not invoke the callback for providers without readPullRequest", async () => {
+		const onPr = vi.fn();
+		const provider: PrMarkerProvider = {
+			name: "github",
+			matches: () => true,
+			ensureMarker: () => {},
+		};
+		const hook = buildPrMarkerHook(silentLogger, [provider], onPr);
+
+		await runHook(hook.PostToolUse![0], makeHookInput("gh pr create"));
+
+		expect(onPr).not.toHaveBeenCalled();
+	});
+
+	it("does not invoke the callback when the command matches no provider", async () => {
+		const onPr = vi.fn();
+		const hook = buildPrMarkerHook(
+			silentLogger,
+			[providerReturning(detectedPr)],
+			onPr,
+		);
+
+		await runHook(hook.PostToolUse![0], makeHookInput("ls -la"));
+
+		expect(onPr).not.toHaveBeenCalled();
+	});
+
+	it("swallows callback errors so the session is not interrupted", async () => {
+		const warn = vi.fn();
+		const log: ILogger = { ...silentLogger, warn } as unknown as ILogger;
+		const onPr = vi.fn().mockRejectedValue(new Error("link failed"));
+		const hook = buildPrMarkerHook(log, [providerReturning(detectedPr)], onPr);
+
+		await expect(
+			runHook(hook.PostToolUse![0], makeHookInput("gh pr create")),
+		).resolves.toBeUndefined();
+
+		expect(warn).toHaveBeenCalledWith(expect.stringContaining("link failed"));
 	});
 });

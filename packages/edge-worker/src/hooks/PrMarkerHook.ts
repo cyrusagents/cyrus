@@ -14,6 +14,25 @@ import type { ILogger } from "cyrus-core";
 export const CYRUS_PR_MARKER = "<!-- generated-by-cyrus -->";
 
 /**
+ * A PR/MR detected on the branch checked out in the session worktree,
+ * read back from the forge right after a PR-mutating command ran.
+ */
+export interface DetectedPullRequest {
+	/** Which forge provider detected it ("github", "gitlab"). */
+	provider: string;
+	/** PR/MR number on the forge. */
+	number: number;
+	/** PR/MR title. */
+	title: string;
+	/** Canonical web URL of the PR/MR. */
+	url: string;
+	/** Whether the PR is currently a draft. */
+	isDraft: boolean;
+	/** Source branch of the PR/MR. */
+	headBranch: string;
+}
+
+/**
  * Provider-specific knowledge about how to detect PR/MR mutating commands and
  * how to read/write the description on the underlying forge. Adding support
  * for a new forge means adding a new provider — no changes to the hook itself.
@@ -29,6 +48,12 @@ export interface PrMarkerProvider {
 	 * be a no-op when no PR/MR exists yet, or when the marker is already there.
 	 */
 	ensureMarker(cwd: string, log: ILogger): void;
+	/**
+	 * Read back the PR/MR for the branch checked out at `cwd`, if one exists.
+	 * Optional: providers without it simply never feed the
+	 * `onPullRequestDetected` callback.
+	 */
+	readPullRequest?(cwd: string, log: ILogger): DetectedPullRequest | null;
 }
 
 /**
@@ -108,6 +133,41 @@ export class GitHubPrMarkerProvider implements PrMarkerProvider {
 			`[PrMarkerHook] Appended Cyrus marker to GitHub PR #${payload.number}`,
 		);
 	}
+
+	readPullRequest(cwd: string, _log: ILogger): DetectedPullRequest | null {
+		try {
+			const json = execFileSync(
+				"gh",
+				["pr", "view", "--json", "number,title,url,isDraft,headRefName"],
+				{
+					cwd,
+					encoding: "utf8",
+					stdio: ["ignore", "pipe", "ignore"],
+				},
+			);
+			const payload = JSON.parse(json) as {
+				number?: number;
+				title?: string;
+				url?: string;
+				isDraft?: boolean;
+				headRefName?: string;
+			};
+			if (typeof payload.number !== "number" || !payload.url) {
+				return null;
+			}
+			return {
+				provider: this.name,
+				number: payload.number,
+				title: payload.title ?? "",
+				url: payload.url,
+				isDraft: payload.isDraft ?? false,
+				headBranch: payload.headRefName ?? "",
+			};
+		} catch {
+			// No PR yet, gh unauthenticated, or not a GitHub repo.
+			return null;
+		}
+	}
 }
 
 /**
@@ -179,6 +239,10 @@ export function buildPrMarkerHook(
 		new GitHubPrMarkerProvider(),
 		new GitLabMrMarkerProvider(),
 	],
+	onPullRequestDetected?: (
+		pr: DetectedPullRequest,
+		cwd: string,
+	) => Promise<void>,
 ): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
 	return {
 		PostToolUse: [
@@ -202,6 +266,24 @@ export function buildPrMarkerHook(
 									(err as Error).message
 								}`,
 							);
+						}
+						// Surface the PR to the caller (EdgeWorker links it to the
+						// Linear issue + agent session). Failures are logged and
+						// swallowed — the coding session must never be interrupted
+						// by presentation-layer plumbing.
+						if (onPullRequestDetected && provider.readPullRequest) {
+							try {
+								const pr = provider.readPullRequest(post.cwd, log);
+								if (pr) {
+									await onPullRequestDetected(pr, post.cwd);
+								}
+							} catch (err) {
+								log.warn(
+									`[PrMarkerHook] onPullRequestDetected failed: ${
+										(err as Error).message
+									}`,
+								);
+							}
 						}
 						return {};
 					},

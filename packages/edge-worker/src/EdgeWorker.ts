@@ -220,6 +220,8 @@ export class EdgeWorker extends EventEmitter {
 	private lastStopTimeBySession: Map<string, number> = new Map(); // Maps session ID to timestamp of last stop signal (for double-stop detection)
 	private warmInstances: Map<string, WarmQuery> = new Map(); // Pre-warmed Claude sessions keyed by agentSessionId
 	private issueTrackers: Map<string, IIssueTrackerService> = new Map(); // one issue tracker per Linear workspace (keyed by linearWorkspaceId)
+	/** `${sessionId}:${prUrl}` pairs already linked to their issue/session — prevents duplicate attach calls on `gh pr edit` re-detections. */
+	private linkedPullRequests: Set<string> = new Set();
 	private linearEventTransport: LinearEventTransport | null = null; // Single event transport for webhook delivery
 	private gitHubEventTransport: GitHubEventTransport | null = null; // GitHub event transport for forwarded GitHub webhooks
 	private gitHubAppTokenProvider: GitHubAppTokenProvider | null = null; // Self-hosted GitHub App token minting
@@ -6852,6 +6854,50 @@ ${input.userComment}
 				this.handleClaudeMessage(sessionId, message, repository.id);
 			},
 			onError: (error: Error) => this.handleClaudeError(error),
+			// Make Cyrus-created PRs first-class in Linear: attach the PR to the
+			// issue (Diff tab + Reviews, same as Linear's own coding agent) and
+			// pin it on the agent session header. Fired by the PR-marker hook
+			// whenever a `gh pr create`/`gh pr edit`/`gt submit` Bash call runs.
+			onPullRequestDetected: async (pr) => {
+				const issueId = session.issueContext?.issueId ?? session.issueId;
+				if (!linearWorkspaceId || !issueId) {
+					return;
+				}
+				const tracker = this.issueTrackers.get(linearWorkspaceId);
+				if (!tracker) {
+					return;
+				}
+				const dedupeKey = `${sessionId}:${pr.url}`;
+				if (this.linkedPullRequests.has(dedupeKey)) {
+					return;
+				}
+				this.linkedPullRequests.add(dedupeKey);
+				try {
+					await tracker.linkPullRequestToIssue?.(
+						issueId,
+						pr.url,
+						pr.title || undefined,
+					);
+					if (session.externalSessionId) {
+						await tracker.addAgentSessionExternalUrl?.(
+							session.externalSessionId,
+							`PR #${pr.number}`,
+							pr.url,
+						);
+					}
+					log.info(
+						`Linked PR #${pr.number} (${pr.url}) to issue ${issueId} and agent session`,
+					);
+				} catch (error) {
+					// Allow a retry on the next PR-mutating command.
+					this.linkedPullRequests.delete(dedupeKey);
+					log.warn(
+						`Failed to link PR #${pr.number} to issue ${issueId}: ${
+							error instanceof Error ? error.message : String(error)
+						}`,
+					);
+				}
+			},
 			createAskUserQuestionCallback: (sid, wid) =>
 				this.createAskUserQuestionCallback(sid, wid)!,
 			requireLinearWorkspaceId,

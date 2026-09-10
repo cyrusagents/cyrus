@@ -820,6 +820,63 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 		return await this.linearClient.createAgentActivity(input);
 	}
 
+	/**
+	 * Link a GitHub pull request to an issue as a first-class PR attachment
+	 * (the same kind Linear's GitHub integration creates from branch names).
+	 * With code access enabled on the repo, the attachment gives the issue its
+	 * Diff view and the PR a review page in Linear.
+	 */
+	async linkPullRequestToIssue(
+		issueId: string,
+		url: string,
+		title?: string,
+	): Promise<void> {
+		await this.linearClient.attachmentLinkGitHubPR(
+			issueId,
+			url,
+			title ? { title } : undefined,
+		);
+	}
+
+	/**
+	 * Pin an external URL on an agent session header via `agentSessionUpdate`
+	 * with `addedExternalUrls` (additive — does not clobber existing links).
+	 *
+	 * Uses a raw GraphQL request because the pinned @linear/sdk version does
+	 * not yet expose `addedExternalUrls` on `AgentSessionUpdateInput`. Only
+	 * the OAuth application that owns the session may set these, which is the
+	 * credential this service holds.
+	 */
+	async addAgentSessionExternalUrl(
+		agentSessionId: string,
+		label: string,
+		url: string,
+	): Promise<void> {
+		const graphQLClient = (
+			this.linearClient as unknown as {
+				client: {
+					rawRequest: (
+						query: string,
+						variables: Record<string, unknown>,
+					) => Promise<unknown>;
+				};
+			}
+		).client;
+
+		const mutation = `
+			mutation AgentSessionAddExternalUrl($id: String!, $input: AgentSessionUpdateInput!) {
+				agentSessionUpdate(id: $id, input: $input) {
+					success
+				}
+			}
+		`;
+
+		await graphQLClient.rawRequest(mutation, {
+			id: agentSessionId,
+			input: { addedExternalUrls: [{ label, url }] },
+		});
+	}
+
 	// ========================================================================
 	// FILE OPERATIONS
 	// ========================================================================
