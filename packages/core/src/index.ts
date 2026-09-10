@@ -278,6 +278,8 @@ export type {
 	SessionPrompter,
 } from "./prompter-credentials.js";
 export {
+	ALTERNATIVE_AUTH_ENV_KEYS,
+	collectEnvRefNames,
 	credentialFingerprint,
 	decideFollowUpPrompt,
 	decideSessionCredentialUser,

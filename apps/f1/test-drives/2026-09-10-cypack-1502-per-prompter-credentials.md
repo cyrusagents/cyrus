@@ -163,8 +163,8 @@ CYRUS_PROMPTER_NAME                -> Bob Builder
   rotation picked up on resume, secret-free errors, host opt-in, follow-up
   policies, parent inheritance, pre-validation.
 - `packages/edge-worker/test/RunnerConfigBuilder.prompter-credentials.test.ts` —
-  env/omitEnv injection for Claude, env overlay for OpenCode, refusal for
-  Codex/Cursor/Gemini, coexistence with sandbox CA env.
+  env/omitEnv injection for Claude, refusal for
+  OpenCode/Codex/Cursor/Gemini, coexistence with sandbox CA env.
 - `packages/config-updater/test/handlers/cyrusConfig.test.ts` — hosted config
   pushes preserve `linearUsers` / `prompterCredentialPolicy`.
 - `apps/cli/src/services/UserCredentialService.test.ts` — 0600/0700 storage,
@@ -184,6 +184,4 @@ CYRUS_PROMPTER_NAME                -> Bob Builder
    the human. Documented as a platform limitation, not verified against a live
    Linear workspace in this drive (F1 is in-memory).
 
-The harness is ready: once two tokens exist, `cyrus add-user` for each, then
-re-run Run 1 with `--as-user` per person and check `gh api user` / the PR author
-in the resulting session output.
+Use the [two-real-user checklist](../../../docs/PROMPTER_CREDENTIAL_VERIFICATION.md) for exact account, token, repository and review prerequisites. The historical drive above did not prove two-account provider success.

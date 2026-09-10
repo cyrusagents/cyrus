@@ -70,6 +70,7 @@ function build(
 	runnerType: RunnerType,
 	extra: {
 		prompterCredentials?: ResolvedPrompterCredentials;
+		omitEnv?: string[];
 		egressCaCertPath?: string;
 		sandboxSettings?: Record<string, unknown>;
 	} = {},
@@ -128,23 +129,33 @@ describe("RunnerConfigBuilder per-prompter credentials", () => {
 		expect(config.additionalEnv?.GH_TOKEN).toBe("github_pat_ada_placeholder");
 	});
 
-	it("gives OpenCode an env overlay that unsets host Claude credentials", () => {
-		const { config } = build("opencode", { prompterCredentials: ADA }) as {
-			config: { env?: Record<string, string | undefined> };
-		};
-		expect(config.env?.GH_TOKEN).toBe("github_pat_ada_placeholder");
-		expect(config.env).toHaveProperty("ANTHROPIC_API_KEY", undefined);
+	it("strips other users' env-referenced secrets from host-credential Claude sessions", () => {
+		const { config } = build("claude", {
+			omitEnv: ["BOB_GH_TOKEN", "BOB_CLAUDE_TOKEN"],
+		}) as { config: { additionalEnv?: unknown; omitEnv?: string[] } };
+		expect(config.additionalEnv).toBeUndefined();
+		expect(config.omitEnv).toEqual(["BOB_GH_TOKEN", "BOB_CLAUDE_TOKEN"]);
 	});
 
 	it.each([
+		"opencode",
 		"codex",
 		"cursor",
 		"gemini",
 	] as const)("refuses a prompter-bound session on the %s runner instead of using host credentials", (runnerType) => {
+		// Only the Claude runner consumes a per-session credential env; other
+		// runners authenticate through their own stored provider credentials,
+		// so env injection would not prove which credential paid for the run.
 		expect(() => build(runnerType, { prompterCredentials: ADA })).toThrow(
 			PrompterRunnerUnsupportedError,
 		);
-		// Without a pin the same runner still builds normally.
+		// A host session on such a runner is refused only while other users'
+		// secrets would have to be stripped from its env.
+		expect(() => build(runnerType, { omitEnv: ["BOB_GH_TOKEN"] })).toThrow(
+			/cannot strip other mapped users/,
+		);
+		// Without a pin and nothing to strip, the same runner still builds.
 		expect(() => build(runnerType)).not.toThrow();
+		expect(() => build(runnerType, { omitEnv: [] })).not.toThrow();
 	});
 });

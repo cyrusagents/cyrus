@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EdgeConfigSchema } from "../src/config-schemas.js";
 import {
+	collectEnvRefNames,
 	credentialFingerprint,
 	decideFollowUpPrompt,
 	decideSessionCredentialUser,
@@ -141,9 +142,26 @@ describe("resolveLinearUserCredentials", () => {
 		expect(claudeCredentialKind).toBe("oauthToken");
 		expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe(ADA_CLAUDE);
 		expect(env.ANTHROPIC_API_KEY).toBeUndefined();
-		expect(omitEnv).toEqual(["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]);
+		// Host Claude credentials of another kind AND alternative provider /
+		// enterprise-auth switches are stripped; no duplicates.
+		expect(omitEnv.slice(0, 2)).toEqual([
+			"ANTHROPIC_API_KEY",
+			"ANTHROPIC_AUTH_TOKEN",
+		]);
+		expect(omitEnv).toEqual(
+			expect.arrayContaining([
+				"CLAUDE_CODE_USE_BEDROCK",
+				"CLAUDE_CODE_USE_VERTEX",
+				"GH_ENTERPRISE_TOKEN",
+				"GITHUB_ENTERPRISE_TOKEN",
+			]),
+		);
+		expect(new Set(omitEnv).size).toBe(omitEnv.length);
+		expect(omitEnv).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
 		expect(env.GH_TOKEN).toBe(ADA_GITHUB);
-		expect(env.GITHUB_TOKEN).toBeUndefined();
+		// GITHUB_TOKEN is overridden too, so Octokit/scripts act as the user,
+		// never as the host.
+		expect(env.GITHUB_TOKEN).toBe(ADA_GITHUB);
 		expect(env[PROMPTER_ENV.GITHUB_TOKEN]).toBe(ADA_GITHUB);
 		expect(env[PROMPTER_ENV.GITHUB_LOGIN]).toBe("ada");
 		expect(env[PROMPTER_ENV.LINEAR_USER_ID]).toBe(ADA);
@@ -183,12 +201,48 @@ describe("resolveLinearUserCredentials", () => {
 		if (!result.ok) return;
 		expect(result.credentials.claudeCredentialKind).toBe("apiKey");
 		expect(result.credentials.env.ANTHROPIC_API_KEY).toBe(BOB_CLAUDE);
-		expect(result.credentials.omitEnv).toEqual([
+		expect(result.credentials.omitEnv.slice(0, 2)).toEqual([
 			"CLAUDE_CODE_OAUTH_TOKEN",
 			"ANTHROPIC_AUTH_TOKEN",
 		]);
+		expect(result.credentials.omitEnv).not.toContain("ANTHROPIC_API_KEY");
 		expect(result.credentials.env.GIT_CONFIG_COUNT).toBe("2");
 		expect(result.credentials.env.GIT_AUTHOR_NAME).toBeUndefined();
+	});
+
+	it("strips other users' env-referenced secrets and never a var it sets itself", () => {
+		const users = {
+			[ADA]: {
+				claude: { oauthToken: { env: "ADA_CLAUDE_TOKEN" } },
+				github: { token: { env: "ADA_GH_TOKEN" } },
+			},
+			[BOB]: {
+				claude: { apiKey: { file: "/secrets/bob-claude" } },
+				github: { token: { env: "BOB_GH_TOKEN" } },
+			},
+		};
+		expect(collectEnvRefNames(users)).toEqual([
+			"ADA_CLAUDE_TOKEN",
+			"ADA_GH_TOKEN",
+			"BOB_GH_TOKEN",
+		]);
+		expect(collectEnvRefNames(undefined)).toEqual([]);
+		const result = resolveLinearUserCredentials(ADA, users[ADA], {
+			gitCredentialHelperPath: helper,
+			env: { ADA_CLAUDE_TOKEN: ADA_CLAUDE, ADA_GH_TOKEN: ADA_GITHUB },
+			additionalOmitEnv: collectEnvRefNames(users),
+		});
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		// Bob's variable is stripped from Ada's session; Ada's own ref names
+		// are stripped as well (the canonical vars carry her values).
+		expect(result.credentials.omitEnv).toEqual(
+			expect.arrayContaining(["BOB_GH_TOKEN", "ADA_CLAUDE_TOKEN"]),
+		);
+		expect(result.credentials.env.CLAUDE_CODE_OAUTH_TOKEN).toBe(ADA_CLAUDE);
+		expect(new Set(result.credentials.omitEnv).size).toBe(
+			result.credentials.omitEnv.length,
+		);
 	});
 
 	it("two users resolve to different, non-overlapping credentials", () => {
@@ -292,7 +346,7 @@ describe("decideSessionCredentialUser", () => {
 		expect(d.action).toBe("host");
 	});
 
-	it("sub-issues inherit the parent session's mapped user before policy applies", () => {
+	it("only NON-HUMAN sub-issue triggers inherit the parent session's mapped user", () => {
 		expect(
 			decideSessionCredentialUser({
 				linearUsers,
@@ -301,14 +355,31 @@ describe("decideSessionCredentialUser", () => {
 				parentCredentialUserId: ADA,
 			}),
 		).toEqual({ action: "use-user", linearUserId: ADA, source: "parent" });
-		// Unmapped human with a mapped parent also inherits (traceable to source issue).
 		expect(
 			decideSessionCredentialUser({
 				linearUsers,
-				prompter: { linearUserId: BOB },
+				prompter: undefined,
+				isNonHuman: true,
 				parentCredentialUserId: ADA,
 			}),
-		).toEqual({ action: "use-user", linearUserId: ADA, source: "parent" });
+		).toMatchObject({ action: "reject", reason: "non-human" });
+		// An UNMAPPED HUMAN triggering a child of a mapped user's issue must not
+		// borrow the parent's credentials — unmappedPrompter policy applies.
+		expect(
+			decideSessionCredentialUser({
+				linearUsers,
+				prompter: { linearUserId: BOB, name: "Bob" },
+				parentCredentialUserId: ADA,
+			}),
+		).toMatchObject({ action: "reject", reason: "not-mapped" });
+		expect(
+			decideSessionCredentialUser({
+				linearUsers,
+				policy: { unmappedPrompter: "host" },
+				prompter: { linearUserId: BOB, name: "Bob" },
+				parentCredentialUserId: ADA,
+			}),
+		).toMatchObject({ action: "host" });
 	});
 
 	it("rejects non-human triggers without a parent mapping by default", () => {
@@ -364,6 +435,29 @@ describe("decideFollowUpPrompt", () => {
 			prompter: { linearUserId: BOB, name: "Bob" },
 		});
 		expect(d).toMatchObject({ action: "reject" });
+	});
+
+	it("never assumes an unknown sender is the pinned user", () => {
+		// No activity user and no comment author in the payload.
+		const rejected = decideFollowUpPrompt({
+			linearUsers,
+			policy: { followUpByOtherUser: "reject" },
+			sessionPrompter: pinnedToAda,
+			prompter: undefined,
+		});
+		expect(rejected.action).toBe("reject");
+		if (rejected.action !== "reject") return;
+		expect(rejected.message).toContain("could not determine who sent");
+
+		const pinned = decideFollowUpPrompt({
+			linearUsers,
+			sessionPrompter: pinnedToAda,
+			prompter: undefined,
+		});
+		expect(pinned.action).toBe("continue");
+		if (pinned.action !== "continue") return;
+		expect(pinned.note).toContain("could not be determined");
+		expect(pinned.note).toContain("Ada");
 	});
 
 	it("pins an unpinned session to a mapped prompter, else defers to new-session policy", () => {

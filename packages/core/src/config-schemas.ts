@@ -113,21 +113,22 @@ export const LinearUserConfigSchema = z.object({
 
 /**
  * What happens when per-prompter credential resolution cannot pin a session
- * to a mapped Linear user. Only consulted when `linearUsers` has entries.
+ * to a mapped Linear user. Existing user pins remain enforced after removal.
  *
  * - `unmappedPrompter`: a human triggered the session but has no
- *   `linearUsers` entry (or the entry is incomplete/unreadable).
+ *   `linearUsers` entry. Incomplete/unreadable entries always refuse.
  *   `reject` (default) ends the session with an explanatory activity;
  *   `host` explicitly opts in to running with the host machine's
  *   credentials and posts an activity saying so.
  * - `nonHumanTrigger`: the Linear session has no human creator (for
- *   example Cyrus delegating a sub-issue to itself). Sub-issues inherit the
- *   parent session's mapped user first; this policy applies only when no
- *   parent mapping exists. Same values/default as `unmappedPrompter`.
+ *   example Cyrus delegating a sub-issue to itself). An identified Cyrus app
+ *   trigger with a known parent session inherits that parent's user first.
+ *   Unknown authors cannot inherit. Same values/default as `unmappedPrompter`.
  * - `externalPlatformSessions`: sessions that do not originate from a
- *   Linear human at all (Slack/Zulip chat, GitHub/GitLab PR triggers) have
+ *   Linear human at all (GitHub/GitLab PR triggers) have
  *   no Linear user to map. `host` (default) keeps today's behavior for those
- *   surfaces; `reject` refuses them while the mapping is active.
+ *   surfaces; `reject` refuses them while the mapping is active. Slack/Zulip
+ *   chat currently always uses the host and does not implement this policy.
  * - `followUpByOtherUser`: a mapped session receives a prompt from a
  *   different Linear user. `pin` (default) keeps the session on the original
  *   user's credentials and posts a visible note; `reject` refuses the prompt

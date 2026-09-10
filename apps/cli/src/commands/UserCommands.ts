@@ -17,6 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ClaudeRunner } from "cyrus-claude-runner";
 import {
+	ALTERNATIVE_AUTH_ENV_KEYS,
 	credentialFingerprint,
 	type EdgeConfig,
 	type LinearUserConfig,
@@ -108,7 +109,7 @@ export async function verifyClaudeCredentialLive(
 			allowedTools: [],
 			strictMcpConfig: true,
 			additionalEnv: env,
-			omitEnv,
+			omitEnv: [...omitEnv, ...ALTERNATIVE_AUTH_ENV_KEYS],
 		});
 		await runner.start("Reply with the single word OK.");
 		const result = runner

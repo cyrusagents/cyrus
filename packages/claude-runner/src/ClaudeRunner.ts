@@ -669,7 +669,11 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// load file based settings, to maintain more backwards compatibility,
 					// particularly with CLAUDE.md files, settings files, and custom slash commands,
 					// see: https://docs.claude.com/en/docs/claude-code/sdk/migration-guide#settings-sources-no-longer-loaded-by-default
-					settingSources: ["user", "project", "local"],
+					// File settings can re-inject env credentials after the SDK's
+					// env overlay. A filtered session must not load those sources.
+					settingSources: this.config.omitEnv?.length
+						? []
+						: ["user", "project", "local"],
 					env: {
 						...buildBaseSessionEnv(),
 						// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally NOT set while

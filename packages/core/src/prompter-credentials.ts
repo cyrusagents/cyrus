@@ -235,6 +235,62 @@ export interface ResolveLinearUserOptions {
 	rewriteSshRemotes?: boolean;
 	/** Env to read `{ env }` refs from (defaults to `process.env`). */
 	env?: NodeJS.ProcessEnv;
+	/**
+	 * Extra host env var names to strip from the child (typically every env
+	 * var referenced by ANY mapped user, see {@link collectEnvRefNames}).
+	 */
+	additionalOmitEnv?: readonly string[];
+}
+
+/**
+ * Host env vars that would silently route model or GitHub calls somewhere
+ * other than the mapped user's credentials. Always stripped from a
+ * prompter-bound session.
+ */
+export const ALTERNATIVE_AUTH_ENV_KEYS = [
+	"CLAUDE_CODE_USE_BEDROCK",
+	"CLAUDE_CODE_USE_MANTLE",
+	"CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
+	"CLAUDE_CODE_OAUTH_SCOPES",
+	"ANTHROPIC_AWS_API_KEY",
+	"ANTHROPIC_AWS_BASE_URL",
+	"ANTHROPIC_AWS_WORKSPACE_ID",
+	"ANTHROPIC_CUSTOM_HEADERS",
+	"CLAUDE_CODE_USE_VERTEX",
+	"CLAUDE_CODE_USE_FOUNDRY",
+	"ANTHROPIC_AUTH_TOKEN",
+	"ANTHROPIC_BASE_URL",
+	"ANTHROPIC_FOUNDRY_API_KEY",
+	"ANTHROPIC_FOUNDRY_BASE_URL",
+	"ANTHROPIC_FOUNDRY_RESOURCE",
+	"CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR",
+	"CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR",
+	"GH_HOST",
+	"CYRUS_GH_TOKEN",
+	"GH_ENTERPRISE_TOKEN",
+	"GITHUB_ENTERPRISE_TOKEN",
+] as const;
+
+/**
+ * Names of every env var referenced by any mapped user's credential refs.
+ * Used to keep one user's `{ env }` secret out of another user's session
+ * (and out of host-credential sessions) — process.env is otherwise
+ * inherited wholesale by the agent child process.
+ */
+export function collectEnvRefNames(
+	linearUsers: Record<string, LinearUserConfig> | undefined,
+): string[] {
+	const names = new Set<string>();
+	for (const user of Object.values(linearUsers ?? {})) {
+		for (const ref of [
+			user.claude?.oauthToken,
+			user.claude?.apiKey,
+			user.github?.token,
+		]) {
+			if (ref && "env" in ref) names.add(ref.env);
+		}
+	}
+	return [...names].sort();
 }
 
 /**
@@ -314,12 +370,25 @@ export function resolveLinearUserCredentials(
 	}
 
 	// gh CLI honours GH_TOKEN over GITHUB_TOKEN and over `gh auth` state, so
-	// `gh pr create` opens the PR as this human. GITHUB_TOKEN is deliberately
-	// left alone — customers set it for package registries.
+	// `gh pr create` opens the PR as this human. GITHUB_TOKEN is overridden
+	// too: Octokit, Actions-style scripts and most SDKs read it, and leaving
+	// the host's value in place would let those act as the host. A registry
+	// login that relied on the host GITHUB_TOKEN must use its own variable.
 	env.GH_TOKEN = github.value;
+	env.GITHUB_TOKEN = github.value;
 	env[PROMPTER_ENV.GITHUB_TOKEN] = github.value;
 	if (user.github.login) {
 		env[PROMPTER_ENV.GITHUB_LOGIN] = user.github.login;
+	}
+	// Alternative provider/auth switches that would route the model call or
+	// GitHub call away from this user's credentials are stripped as well.
+	for (const key of ALTERNATIVE_AUTH_ENV_KEYS) {
+		if (!(key in env) && !omitEnv.includes(key)) omitEnv.push(key);
+	}
+	// Every env var any mapped user references (other users' secrets held in
+	// ~/.cyrus/.env) must not be inherited by this session either.
+	for (const key of options.additionalOmitEnv ?? []) {
+		if (!(key in env) && !omitEnv.includes(key)) omitEnv.push(key);
 	}
 
 	// Per-session git config via GIT_CONFIG_* env (git >= 2.31). These entries
@@ -423,10 +492,14 @@ export interface SessionCredentialDecisionInput {
  * Decide whose credentials a NEW Linear session should run with. Pure — the
  * caller reads secrets afterwards with {@link resolveLinearUserCredentials}.
  *
- * Order: mapped prompter → parent session's mapped user (sub-issues created
- * by a mapped session inherit it, keeping work traceable to the source
- * issue) → operator policy (`reject` by default; `host` is an explicit,
- * visible opt-in — never silent).
+ * Order for a HUMAN trigger: mapped → use them; unmapped → operator policy
+ * (`reject` by default; `host` is an explicit, visible opt-in — never
+ * silent). A parent session's user is never borrowed by a human.
+ *
+ * A NON-HUMAN trigger inherits the parent session's user only when the
+ * creator is explicitly identified as Cyrus and the parent link is known.
+ * This is the supported delegation provenance;
+ * otherwise `nonHumanTrigger` policy applies.
  */
 export function decideSessionCredentialUser(
 	input: SessionCredentialDecisionInput,
@@ -444,7 +517,12 @@ export function decideSessionCredentialUser(
 		};
 	}
 
-	if (input.parentCredentialUserId && isMapped(input.parentCredentialUserId)) {
+	if (
+		prompter &&
+		input.isNonHuman === true &&
+		input.parentCredentialUserId &&
+		isMapped(input.parentCredentialUserId)
+	) {
 		return {
 			action: "use-user",
 			linearUserId: input.parentCredentialUserId,
@@ -529,11 +607,28 @@ export function decideFollowUpPrompt(
 		return { action: "decide-new" };
 	}
 
-	if (!prompter || prompter.linearUserId === pinned) {
+	const pinnedName = input.linearUsers[pinned]?.displayName || pinned;
+
+	// Unknown sender (payload carried no activity user and no comment author):
+	// never assume it was the pinned user. Fail closed under `reject`; under
+	// `pin` continue on the pinned credentials and say the sender is unknown.
+	if (!prompter) {
+		if (policy.followUpByOtherUser === "reject") {
+			return {
+				action: "reject",
+				message: `Cyrus could not determine who sent this prompt (the Linear payload carried no author) and prompterCredentialPolicy.followUpByOtherUser is \`reject\`, so it was not applied to the session pinned to ${pinnedName}'s credentials. Re-send the prompt from your own Linear account or start a new session.`,
+			};
+		}
+		return {
+			action: "continue",
+			note: `Prompt applied to a session pinned to ${pinnedName}'s credentials; the sender's Linear identity could not be determined from the payload (prompterCredentialPolicy.followUpByOtherUser=pin). Commits, pushes and PRs continue to be attributed to ${pinnedName}.`,
+		};
+	}
+
+	if (prompter.linearUserId === pinned) {
 		return { action: "continue" };
 	}
 
-	const pinnedName = input.linearUsers[pinned]?.displayName || pinned;
 	const who = prompter.name || prompter.email || prompter.linearUserId;
 	if (policy.followUpByOtherUser === "reject") {
 		return {

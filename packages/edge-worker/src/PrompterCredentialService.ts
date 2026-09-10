@@ -19,6 +19,7 @@ import {
 	type AgentSessionCreatedWebhook,
 	type AgentSessionPromptedWebhook,
 	type CyrusAgentSession,
+	collectEnvRefNames,
 	decideFollowUpPrompt,
 	decideSessionCredentialUser,
 	ensurePrompterGitCredentialHelper,
@@ -59,6 +60,7 @@ export class PrompterCredentialError extends Error {
 export class PrompterCredentialService {
 	private config: PrompterCredentialServiceConfig;
 	private helperPath: string | null = null;
+	private readonly credentialEnvNames = new Set<string>();
 
 	constructor(
 		config: PrompterCredentialServiceConfig,
@@ -66,11 +68,17 @@ export class PrompterCredentialService {
 		private readonly logger: ILogger,
 	) {
 		this.config = config;
+		for (const name of collectEnvRefNames(config.linearUsers)) {
+			this.credentialEnvNames.add(name);
+		}
 	}
 
 	/** Hot-reload entry point (ConfigManager `configChanged`). */
 	updateConfig(config: PrompterCredentialServiceConfig): void {
 		this.config = config;
+		for (const name of collectEnvRefNames(config.linearUsers)) {
+			this.credentialEnvNames.add(name);
+		}
 	}
 
 	/** True when at least one Linear user is mapped. */
@@ -111,8 +119,10 @@ export class PrompterCredentialService {
 
 	/**
 	 * The human who sent a follow-up prompt: Linear puts the author on the
-	 * activity (`agentActivity.userId`). Falls back to the session creator
-	 * only when the activity carries no user (older payloads).
+	 * activity (`agentActivity.userId`); the fetched comment author is the
+	 * second source. When neither is present the sender is UNKNOWN and this
+	 * returns undefined — it never assumes the session creator sent it, so a
+	 * legacy payload cannot impersonate the pinned user.
 	 */
 	static prompterFromPromptedWebhook(
 		webhook: AgentSessionPromptedWebhook,
@@ -138,7 +148,7 @@ export class PrompterCredentialService {
 				email: commentUser.email,
 			};
 		}
-		return PrompterCredentialService.prompterFromCreatedWebhook(webhook);
+		return undefined;
 	}
 
 	/**
@@ -219,7 +229,9 @@ export class PrompterCredentialService {
 		session: CyrusAgentSession;
 		prompter: PrompterIdentity | undefined;
 	}): FollowUpDecision | null {
-		if (!this.isEnabled()) return null;
+		// A session that already carries a pin is governed by it even if the
+		// mapping has since been emptied (fail closed — see resolveForSession).
+		if (!this.isEnabled() && !input.session.prompter) return null;
 		return decideFollowUpPrompt({
 			linearUsers: this.linearUsers,
 			policy: this.config.prompterCredentialPolicy,
@@ -241,7 +253,11 @@ export class PrompterCredentialService {
 		session: CyrusAgentSession,
 	): ResolvedPrompterCredentials | undefined {
 		const pin = session.prompter;
-		if (!pin || !this.isEnabled()) return undefined;
+		// No pin: nothing to resolve (the caller applies the backstop policy
+		// when the feature is on). A pin ALWAYS resolves — independent of how
+		// many users are currently mapped — so removing the last mapped user
+		// turns that user's sessions into refusals, never into host sessions.
+		if (!pin) return undefined;
 		if (pin.source === "host" || !pin.credentialUserId) {
 			this.logger.info(
 				`Session ${session.id} runs with host credentials (${pin.hostReason ?? "operator policy"})`,
@@ -251,7 +267,10 @@ export class PrompterCredentialService {
 		const result = resolveLinearUserCredentials(
 			pin.credentialUserId,
 			this.linearUsers[pin.credentialUserId],
-			{ gitCredentialHelperPath: this.ensureHelper() },
+			{
+				gitCredentialHelperPath: this.ensureHelper(),
+				additionalOmitEnv: this.allEnvRefNames(),
+			},
 		);
 		if (!result.ok) {
 			throw new PrompterCredentialError(
@@ -279,6 +298,16 @@ export class PrompterCredentialService {
 		);
 		if (result.ok) return null;
 		return `Cannot run this session under ${this.displayNameFor(pin.credentialUserId)}'s credentials: ${result.message}. Fix the mapping with \`cyrus add-user\` / \`cyrus check-users\`, then start a new session.`;
+	}
+
+	/**
+	 * Env reference names seen since startup, including removed mappings whose
+	 * values may still exist in process.env until the operator restarts Cyrus.
+	 * Stripped from every session's child env (pinned or host) so one user's
+	 * secret in `~/.cyrus/.env` is never visible to another user's agent.
+	 */
+	allEnvRefNames(): string[] {
+		return [...this.credentialEnvNames].sort();
 	}
 
 	/** Install the git credential helper once per process (idempotent on disk). */

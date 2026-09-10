@@ -185,6 +185,13 @@ export interface IssueRunnerConfigInput {
 	 * host's credentials instead.
 	 */
 	prompterCredentials?: ResolvedPrompterCredentials;
+	/**
+	 * Host env var names to strip from the child process even when the
+	 * session runs with host credentials (other mapped users' `{ env }`
+	 * secrets). Honoured by the Claude runner; runners that cannot strip env
+	 * are refused when this is non-empty.
+	 */
+	omitEnv?: readonly string[];
 }
 
 /**
@@ -193,9 +200,14 @@ export interface IssueRunnerConfigInput {
  * Linear activity instead of falling back to host credentials.
  */
 export class PrompterRunnerUnsupportedError extends Error {
-	constructor(public readonly runnerType: RunnerType) {
+	constructor(
+		public readonly runnerType: RunnerType,
+		reason: "credentials" | "omit-env" = "credentials",
+	) {
 		super(
-			`The ${runnerType} runner does not support per-user credentials; this session was requested by a mapped Linear user and will not run with the host's credentials. Use the Claude runner (or set prompterCredentialPolicy) for this issue.`,
+			reason === "credentials"
+				? `The ${runnerType} runner does not support per-user credentials (only the Claude runner injects a per-session credential environment and strips the host's); this session was requested by a mapped Linear user and will not run with the host's credentials. Use the Claude runner for this issue.`
+				: `The ${runnerType} runner cannot strip other mapped users' env-referenced secrets from its child process, so it is refused while linearUsers references env vars. Store those users' secrets as files (\`cyrus add-user\` default) or use the Claude runner.`,
 		);
 		this.name = "PrompterRunnerUnsupportedError";
 	}
@@ -529,7 +541,12 @@ export class RunnerConfigBuilder {
 		// no per-session env seam, so a prompter-bound session is refused
 		// rather than silently run with the host's credentials.
 		if (input.prompterCredentials) {
-			if (runnerType !== "claude" && runnerType !== "opencode") {
+			// Claude only. OpenCode/Codex/Cursor/Gemini authenticate through
+			// their own stored provider credentials (e.g. OpenCode's auth store)
+			// and do not consume a Claude Code OAuth token from the environment,
+			// so env injection there would not prove which credential paid for
+			// the run. Refuse rather than guess.
+			if (runnerType !== "claude") {
 				throw new PrompterRunnerUnsupportedError(runnerType);
 			}
 			const existingEnv =
@@ -542,17 +559,16 @@ export class RunnerConfigBuilder {
 				...((config.omitEnv as string[] | undefined) ?? []),
 				...input.prompterCredentials.omitEnv,
 			];
-			if (runnerType === "opencode") {
-				const unset = Object.fromEntries(
-					input.prompterCredentials.omitEnv.map((key) => [key, undefined]),
-				);
-				config.env = {
-					...((config.env as Record<string, string | undefined> | undefined) ??
-						{}),
-					...input.prompterCredentials.env,
-					...unset,
-				};
+		} else if (input.omitEnv && input.omitEnv.length > 0) {
+			// Host-credential session while a mapping exists: keep other users'
+			// env-referenced secrets out of the child process.
+			if (runnerType !== "claude") {
+				throw new PrompterRunnerUnsupportedError(runnerType, "omit-env");
 			}
+			config.omitEnv = [
+				...((config.omitEnv as string[] | undefined) ?? []),
+				...input.omitEnv,
+			];
 		}
 
 		// Cursor runner uses @cursor/sdk. Pass through API key, the same

@@ -96,21 +96,70 @@ function session(prompter?: CyrusAgentSession["prompter"]): CyrusAgentSession {
 }
 
 describe("PrompterCredentialService", () => {
-	it("is disabled without mapped users and then changes nothing", () => {
+	it("is disabled without mapped users for NEW sessions, but an existing pin still fails closed", () => {
 		const svc = new PrompterCredentialService({}, home, silentLogger);
 		expect(svc.isEnabled()).toBe(false);
 		expect(
 			svc.decideForNewSession({ prompter: undefined, isNonHuman: true }),
 		).toBeNull();
+		expect(svc.resolveForSession(session(undefined))).toBeUndefined();
 		expect(
-			svc.resolveForSession(
-				session({
-					linearUserId: ADA,
-					credentialUserId: ADA,
-					source: "prompter",
-				}),
+			svc.decideForFollowUp({
+				session: session(undefined),
+				prompter: { linearUserId: BOB },
+			}),
+		).toBeNull();
+		// A session pinned to a user whose mapping is gone must refuse, not
+		// silently run with host credentials.
+		const pinned = session({
+			linearUserId: ADA,
+			credentialUserId: ADA,
+			source: "prompter",
+		});
+		expect(() => svc.resolveForSession(pinned)).toThrow(
+			PrompterCredentialError,
+		);
+		expect(svc.validatePin(pinned.prompter as never)).toContain(
+			"no entry in linearUsers",
+		);
+		expect(
+			svc.decideForFollowUp({
+				session: pinned,
+				prompter: { linearUserId: BOB },
+			}),
+		).not.toBeNull();
+	});
+
+	it("removing the last mapped user (config reload) turns that user's sessions into refusals", () => {
+		const svc = service();
+		const pin = {
+			linearUserId: ADA,
+			credentialUserId: ADA,
+			source: "prompter" as const,
+		};
+		expect(svc.resolveForSession(session(pin))?.env.GH_TOKEN).toBe(
+			"github_pat_ada_placeholder",
+		);
+		svc.updateConfig({ linearUsers: {} }); // last user removed
+		expect(svc.isEnabled()).toBe(false);
+		expect(() => svc.resolveForSession(session(pin))).toThrow(
+			/no entry in linearUsers/,
+		);
+	});
+
+	it("does not fall back to the session creator when a prompt carries no author", () => {
+		expect(
+			PrompterCredentialService.prompterFromPromptedWebhook(
+				promptedWebhook(ADA, undefined),
+				null,
 			),
 		).toBeUndefined();
+		expect(
+			PrompterCredentialService.prompterFromPromptedWebhook(
+				promptedWebhook(ADA, undefined),
+				{ id: BOB, name: "Bob" },
+			),
+		).toEqual({ linearUserId: BOB, name: "Bob", email: undefined });
 	});
 
 	it("extracts the prompter from created and prompted webhooks", () => {
@@ -308,5 +357,7 @@ describe("PrompterCredentialService", () => {
 		const svc = service();
 		svc.updateConfig({ linearUsers: {} });
 		expect(svc.isEnabled()).toBe(false);
+		// Removed mappings may leave secrets in process.env until restart.
+		expect(svc.allEnvRefNames()).toContain("PCS_TEST_ADA_CLAUDE");
 	});
 });

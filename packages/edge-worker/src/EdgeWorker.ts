@@ -40,6 +40,7 @@ import type {
 	IssueStateChangeMessage,
 	IssueUnassignedWebhook,
 	IssueUpdateWebhook,
+	PrompterIdentity,
 	RepositoryConfig,
 	ResolvedPrompterCredentials,
 	RunnerType,
@@ -1138,8 +1139,13 @@ export class EdgeWorker extends EventEmitter {
 			createRunner: (config, chatRunnerType) => {
 				const runnerType =
 					chatRunnerType ?? this.runnerSelectionService.getDefaultRunner();
+				const omitEnv = this.prompterCredentialService.allEnvRefNames();
+				if (omitEnv.length > 0 && runnerType !== "claude") {
+					throw new PrompterRunnerUnsupportedError(runnerType, "omit-env");
+				}
 				return this.createRunnerForType(runnerType, {
 					...config,
+					omitEnv: [...(config.omitEnv ?? []), ...omitEnv],
 					model: this.getDefaultModelForRunner(runnerType),
 					fallbackModel: this.getDefaultFallbackModelForRunner(runnerType),
 				});
@@ -4684,17 +4690,28 @@ ${taskSection}`;
 	private async decidePrompterForNewSession(
 		webhook: AgentSessionCreatedWebhook | AgentSessionPromptedWebhook,
 		linearWorkspaceId: string,
+		/**
+		 * Evaluate this identity instead of the webhook's session creator —
+		 * used for follow-ups on legacy (unpinned) sessions, where the sender
+		 * of the current prompt is who must be judged.
+		 */
+		override?: {
+			prompter: PrompterIdentity | undefined;
+			isNonHuman: boolean;
+		},
 	): Promise<{ ok: true; prompter?: SessionPrompter } | { ok: false }> {
 		const service = this.prompterCredentialService;
 		if (!service.isEnabled()) return { ok: true };
 
 		const sessionId = webhook.agentSession.id;
-		const prompter =
-			PrompterCredentialService.prompterFromCreatedWebhook(webhook);
-		const isNonHuman = PrompterCredentialService.isNonHumanCreator(
-			webhook,
-			prompter,
-		);
+		const prompter = override
+			? override.prompter
+			: webhook.action === "prompted"
+				? PrompterCredentialService.prompterFromPromptedWebhook(webhook)
+				: PrompterCredentialService.prompterFromCreatedWebhook(webhook);
+		const isNonHuman =
+			(override?.isNonHuman ?? false) ||
+			PrompterCredentialService.isNonHumanCreator(webhook, prompter);
 		const parentSessionId =
 			this.globalSessionRegistry.getParentSessionId(sessionId);
 		const parentSession = parentSessionId
@@ -4722,7 +4739,7 @@ ${taskSection}`;
 
 		const pin = PrompterCredentialService.pinFromDecision(decision, prompter);
 
-		// Fail fast on an unreadable/empty/expired mapping so no worktree is
+		// Fail fast on an unreadable/empty mapping so no worktree is
 		// created for a session that cannot run. (Secrets are re-read again at
 		// runner build time, so rotation between now and then is still honoured.)
 		const problem = service.validatePin(pin);
@@ -4758,12 +4775,23 @@ ${taskSection}`;
 		linearWorkspaceId: string,
 	): Promise<boolean> {
 		const service = this.prompterCredentialService;
-		if (!service.isEnabled()) return true;
 
+		// Identity of the CURRENT sender only (activity user / comment author);
+		// undefined when the payload carries neither. The session creator is
+		// never assumed to be the sender. The service returns null only when
+		// the feature is off AND the session carries no pin.
 		const prompter = PrompterCredentialService.prompterFromPromptedWebhook(
 			webhook,
 			commentUser,
 		);
+		// Also guard streaming input: it can bypass a fresh runner build.
+		if (session.prompter?.credentialUserId) {
+			const problem = service.validatePin(session.prompter);
+			if (problem) {
+				await this.postPrompterResponse(session.id, linearWorkspaceId, problem);
+				return false;
+			}
+		}
 		const decision = service.decideForFollowUp({ session, prompter });
 		if (!decision) return true;
 
@@ -4803,11 +4831,14 @@ ${taskSection}`;
 				return true;
 			}
 			case "decide-new": {
-				// Session predates the mapping and the prompter is unmapped: same
-				// rules as a brand-new session (parent inheritance, then policy).
+				// Session predates the mapping and the CURRENT sender is unmapped:
+				// evaluate that sender (not the original session creator) with the
+				// new-session rules — unmapped human → policy (reject by default),
+				// unknown sender → non-human policy.
 				const result = await this.decidePrompterForNewSession(
 					webhook,
 					linearWorkspaceId,
+					{ prompter, isNonHuman: !prompter },
 				);
 				if (!result.ok) return false;
 				if (result.prompter) session.prompter = result.prompter;
@@ -5349,7 +5380,7 @@ ${taskSection}`;
 			);
 
 			// Per-prompter credentials: decide before any worktree exists. The
-			// session creator is the prompter here (same as the created path).
+			// current prompt sender is the prompter, even if the session was lost.
 			const prompterDecision = await this.decidePrompterForNewSession(
 				webhook,
 				linearWorkspaceId,
@@ -7096,9 +7127,16 @@ ${input.userComment}
 			sessionPlatform,
 		);
 
+		// Sessions that run with host credentials while a mapping exists must
+		// still not inherit other users' `{ env }` secrets from process.env.
+		const hostSessionOmitEnv = !prompterCredentials
+			? this.prompterCredentialService.allEnvRefNames()
+			: undefined;
+
 		let result: { config: AgentRunnerConfig; runnerType: RunnerType };
 		try {
 			result = this.runnerConfigBuilder.buildIssueConfig({
+				omitEnv: hostSessionOmitEnv,
 				session,
 				repository,
 				sessionId,
@@ -7163,7 +7201,8 @@ ${input.userComment}
 		if (
 			result.runnerType === "claude" &&
 			this.isWarmSessionsEnabled() &&
-			!prompterCredentials
+			!prompterCredentials &&
+			!hostSessionOmitEnv?.length
 		) {
 			const warmSession = this.warmInstances.get(sessionId);
 			if (warmSession) {
@@ -7173,8 +7212,9 @@ ${input.userComment}
 				).warmSession = warmSession;
 				log.debug("Attaching pre-warmed session to runner config");
 			}
-		} else if (prompterCredentials && this.warmInstances.has(sessionId)) {
-			// Discard a pre-warmed process that carries host credentials.
+		} else if (this.warmInstances.has(sessionId)) {
+			// Close a pre-warmed process that carries an unfiltered host environment.
+			this.warmInstances.get(sessionId)?.close();
 			this.warmInstances.delete(sessionId);
 			log.debug("Discarded pre-warmed session: per-prompter credentials apply");
 		}
@@ -7197,7 +7237,14 @@ ${input.userComment}
 		sessionPlatform: "linear" | "github" | "gitlab",
 	): Promise<ResolvedPrompterCredentials | undefined> {
 		const service = this.prompterCredentialService;
-		if (!service.isEnabled()) return undefined;
+		// A session that carries a user pin is ALWAYS resolved against the
+		// current mapping — even when the mapping is now empty — so removing
+		// the last mapped user (config reload) makes that user's sessions
+		// refuse, never fall through to host credentials. Only pin-less
+		// sessions short-circuit when the feature is off.
+		if (!service.isEnabled() && !session.prompter?.credentialUserId) {
+			return undefined;
+		}
 
 		const refuse = async (message: string): Promise<never> => {
 			if (linearWorkspaceId && sessionPlatform === "linear") {
@@ -7470,11 +7517,21 @@ ${input.userComment}
 	 * Gated by `isWarmSessionsEnabled()` — callers should check before invoking.
 	 */
 	private async warmupRecentSessions(count = 30): Promise<void> {
+		if (
+			this.prompterCredentialService.isEnabled() ||
+			this.prompterCredentialService.allEnvRefNames().length > 0
+		)
+			return;
 		const allSessions = this.agentSessionManager.getAllSessions();
 
 		// Only warm Claude sessions that have a persisted session ID and a workspace path
 		const candidates = allSessions
-			.filter((s) => s.claudeSessionId && s.workspace?.path)
+			.filter(
+				(s) =>
+					s.claudeSessionId &&
+					s.workspace?.path &&
+					!s.prompter?.credentialUserId,
+			)
 			.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
 			.slice(0, count);
 
