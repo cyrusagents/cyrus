@@ -42,11 +42,14 @@ describe("config", () => {
 				"TaskOutput",
 				"TaskStop",
 				"ToolSearch",
+				"ListMcpResourcesTool",
+				"ReadMcpResourceDirTool",
+				"ReadMcpResourceTool",
 				"DesignSync",
 				"Workflow",
 				"ReportFindings",
 			]);
-			expect(availableTools).toHaveLength(31);
+			expect(availableTools).toHaveLength(34);
 		});
 
 		it("should define read-only tools", () => {
@@ -65,8 +68,11 @@ describe("config", () => {
 				"LSP",
 				"TaskOutput",
 				"ToolSearch",
+				"ListMcpResourcesTool",
+				"ReadMcpResourceDirTool",
+				"ReadMcpResourceTool",
 			]);
-			expect(readOnlyTools).toHaveLength(14);
+			expect(readOnlyTools).toHaveLength(17);
 		});
 
 		it("should define write tools", () => {
