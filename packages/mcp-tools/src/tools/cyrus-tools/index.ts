@@ -7,6 +7,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { registerImageTools } from "../image-tools/index.js";
 import { registerSoraTools } from "../sora-tools/index.js";
+import { registerGetAgentSessionTool } from "./get-agent-session.js";
 import {
 	type FailureModesHttpClient,
 	type ResolveSessionFromCwd,
@@ -121,6 +122,7 @@ export function createCyrusToolsServer(
 		name: "cyrus-tools",
 		version: "1.0.0",
 	});
+	registerGetAgentSessionTool(server, linearClient);
 
 	server.registerTool(
 		"linear_upload_file",
