@@ -1,8 +1,8 @@
 # Test Drive CYPACK-1506: Read Linear agent session contents
 
 **Date**: 2026-09-10
-**Goal**: Validate the separate `get_agent_session` MCP tool through F1, the EdgeWorker MCP endpoint, and the Linear SDK.
-**Test Repo**: `/tmp/f1-cypack-1506-final`
+**Goal**: Validate the separate `get_agent_session_contents` MCP tool through F1, the EdgeWorker MCP endpoint, and the Linear SDK.
+**Test Repo**: `/tmp/f1-cypack-1506-contents`
 **Server Port**: `3600`
 
 ## Verification results
@@ -13,10 +13,10 @@
 
 ### EdgeWorker
 - [x] Created an isolated worktree and ran Claude Sonnet.
-- [x] Agent discovered `mcp__cyrus-tools__get_agent_session` with ToolSearch.
+- [x] Agent discovered `mcp__cyrus-tools__get_agent_session_contents` with ToolSearch.
 - [x] Agent called the tool with `first: 2`, then followed the returned cursor.
 - [x] Both calls returned actual F1 session activities through the Linear SDK.
-- [x] Agent posted a final response confirming successful calls and `F1_GET_AGENT_SESSION_OK`.
+- [x] Agent posted a final response confirming successful calls and `F1_GET_AGENT_SESSION_CONTENTS_OK`.
 - [x] Session stop and server shutdown completed cleanly.
 
 ### Renderer and MCP
@@ -32,8 +32,8 @@ F1's CLI tracker does not normally expose a Linear client. The committed test-on
 
 ```bash
 pnpm build
-apps/f1/f1 init-test-repo --path /tmp/f1-cypack-1506-final
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-cypack-1506-final \
+apps/f1/f1 init-test-repo --path /tmp/f1-cypack-1506-contents
+CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-cypack-1506-contents \
   bun run apps/f1/test-drives/assets/cypack-1506-server.mjs
 ```
 
@@ -44,10 +44,10 @@ apps/f1/f1 ping
 apps/f1/f1 status
 apps/f1/f1 create-issue --labels primary \
   --title 'CYPACK-1506 read session contents' \
-  --description 'Use mcp__cyrus-tools__get_agent_session with sessionId session-1 and first 2. Report its status and returned activity contents. If pageInfo.hasNextPage is true, call again with after set to pageInfo.endCursor and first 2. Do not edit files or use other Linear tools. Finish with F1_GET_AGENT_SESSION_OK only if both calls succeed.'
+  --description 'Use mcp__cyrus-tools__get_agent_session_contents with sessionId session-1 and first 2. Report its status and returned activity contents. If pageInfo.hasNextPage is true, call again with after set to pageInfo.endCursor and first 2. Do not edit files or use other Linear tools. Finish with F1_GET_AGENT_SESSION_CONTENTS_OK only if both calls succeed.'
 apps/f1/f1 start-session --issue-id issue-1
 apps/f1/f1 view-session --session-id session-1 --limit 4 --offset 0
-apps/f1/f1 view-session --session-id session-1 --search F1_GET_AGENT_SESSION_OK
+apps/f1/f1 view-session --session-id session-1 --search F1_GET_AGENT_SESSION_CONTENTS_OK
 bun run apps/f1/test-drives/assets/cypack-1506-verify.mjs
 apps/f1/f1 stop-session --session-id session-1
 # Ctrl+C in the server terminal.
@@ -79,3 +79,7 @@ Direct MCP verifier output:
 The first fixture run exposed a case-sensitive GraphQL operation-name mismatch in the test bridge; corrected it and repeated the drive in a fresh repository. The final drive passed. F1 retains an `active` tracker status after a successful runner turn, so completion was verified via the final response and successful runner result, followed by explicit session stop.
 
 The separate MCP/SDK tests additionally exercise all six activity types, action parameters/results, JSON scalar decoding for plans and signal metadata, empty sessions, input bounds, and errors from either API request.
+
+### Rename verification
+
+Repeated the F1 drive after renaming the tool to `get_agent_session_contents`. The agent discovered the renamed tool, successfully retrieved two pages, and posted `F1_GET_AGENT_SESSION_CONTENTS_OK`. The direct MCP verifier passed as well; the existing `linear_get_agent_session` metadata tool remains available.

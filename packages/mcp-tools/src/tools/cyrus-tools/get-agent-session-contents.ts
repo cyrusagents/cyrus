@@ -3,12 +3,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 /** Read the conversation recorded in Linear, independently of local runner state. */
-export function registerGetAgentSessionTool(
+export function registerGetAgentSessionContentsTool(
 	server: McpServer,
 	linearClient: LinearClient,
 ): void {
 	server.registerTool(
-		"get_agent_session",
+		"get_agent_session_contents",
 		{
 			description:
 				"Read a Linear agent session's contents: status, summary, plan, and a page of activities including user prompts, thoughts, actions/tool results, responses, and errors. Uses the Linear API, so the session need not be running locally. Activities retain Linear's createdAt ordering. To read the full session, pass pageInfo.endCursor as after while pageInfo.hasNextPage is true. For metadata and related issue/user details only, use linear_get_agent_session.",

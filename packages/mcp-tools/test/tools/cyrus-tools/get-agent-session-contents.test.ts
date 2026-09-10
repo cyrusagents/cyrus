@@ -81,7 +81,7 @@ function parse(result: Awaited<ReturnType<Client["callTool"]>>) {
 	return JSON.parse(content[0]!.text);
 }
 
-describe("get_agent_session over MCP with the Linear SDK", () => {
+describe("get_agent_session_contents over MCP with the Linear SDK", () => {
 	let client: Client;
 	let server: ReturnType<typeof createCyrusToolsServer>;
 	let request: MockInstance<LinearClient["client"]["request"]>;
@@ -124,9 +124,10 @@ describe("get_agent_session over MCP with the Linear SDK", () => {
 
 	it("exposes a separate read-only tool and retains the metadata tool", async () => {
 		const { tools } = await client.listTools();
+		expect(tools.some((tool) => tool.name === "get_agent_session")).toBe(false);
 		expect(
-			tools.find((tool) => tool.name === "get_agent_session")?.annotations
-				?.readOnlyHint,
+			tools.find((tool) => tool.name === "get_agent_session_contents")
+				?.annotations?.readOnlyHint,
 		).toBe(true);
 		expect(
 			tools.find((tool) => tool.name === "linear_get_agent_session")
@@ -141,7 +142,7 @@ describe("get_agent_session over MCP with the Linear SDK", () => {
 
 	it("returns complete content for every activity type and session metadata", async () => {
 		const result = await client.callTool({
-			name: "get_agent_session",
+			name: "get_agent_session_contents",
 			arguments: { sessionId },
 		});
 		expect(result.isError).not.toBe(true);
@@ -192,7 +193,7 @@ describe("get_agent_session over MCP with the Linear SDK", () => {
 		});
 		const result = parse(
 			await client.callTool({
-				name: "get_agent_session",
+				name: "get_agent_session_contents",
 				arguments: { sessionId, first: 1, after: "previous" },
 			}),
 		);
@@ -236,7 +237,7 @@ describe("get_agent_session over MCP with the Linear SDK", () => {
 		});
 		const result = parse(
 			await client.callTool({
-				name: "get_agent_session",
+				name: "get_agent_session_contents",
 				arguments: { sessionId },
 			}),
 		);
@@ -273,7 +274,7 @@ describe("get_agent_session over MCP with the Linear SDK", () => {
 		"10",
 	])("rejects invalid page size %s before contacting Linear", async (first) => {
 		const result = await client.callTool({
-			name: "get_agent_session",
+			name: "get_agent_session_contents",
 			arguments: { sessionId, first },
 		});
 		expect(result.isError).toBe(true);
@@ -288,7 +289,7 @@ describe("get_agent_session over MCP with the Linear SDK", () => {
 		if (stage === "activities") respond({ data: { agentSession: session } });
 		request.mockRejectedValueOnce(new Error("Access denied"));
 		const result = await client.callTool({
-			name: "get_agent_session",
+			name: "get_agent_session_contents",
 			arguments: { sessionId },
 		});
 		expect(result.isError).toBe(true);
@@ -301,7 +302,7 @@ describe("get_agent_session over MCP with the Linear SDK", () => {
 			new Error(`Agent session ${sessionId} not found`),
 		);
 		const result = await client.callTool({
-			name: "get_agent_session",
+			name: "get_agent_session_contents",
 			arguments: { sessionId },
 		});
 		expect(result.isError).toBe(true);

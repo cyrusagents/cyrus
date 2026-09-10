@@ -24,10 +24,10 @@ await client.connect(
 );
 try {
 	const { tools } = await client.listTools();
-	assert(tools.some((tool) => tool.name === "get_agent_session"));
+	assert(tools.some((tool) => tool.name === "get_agent_session_contents"));
 	assert(tools.some((tool) => tool.name === "linear_get_agent_session"));
 	const call = async (args) =>
-		client.callTool({ name: "get_agent_session", arguments: args });
+		client.callTool({ name: "get_agent_session_contents", arguments: args });
 	const decode = (result) => JSON.parse(result.content[0].text);
 	const first = decode(await call({ sessionId: "session-1", first: 2 }));
 	assert(first.success);
