@@ -18,7 +18,7 @@
  *   CYRUS_PORT=3600 CYRUS_REPO_PATH=/path/to/repo bun run server.ts
  */
 
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getAllTools } from "cyrus-claude-runner";
@@ -38,6 +38,11 @@ import { bold, cyan, dim, gray, green, success } from "./src/utils/colors.js";
 
 const CYRUS_PORT = Number.parseInt(process.env.CYRUS_PORT || "3600", 10);
 const CYRUS_REPO_PATH = process.env.CYRUS_REPO_PATH || process.cwd();
+// Optional JSON file whose top-level keys are merged over the generated
+// EdgeWorker config (e.g. `linearUsers` / `prompterCredentialPolicy` for
+// per-prompter credential test drives). Secrets stay in the referenced
+// files/env vars — the overrides file only carries references.
+const CYRUS_F1_CONFIG_OVERRIDES = process.env.CYRUS_F1_CONFIG_OVERRIDES;
 const CYRUS_HOME = join(tmpdir(), `cyrus-f1-${Date.now()}`);
 const DEFAULT_REPOS_BASE_DIR = getDefaultReposDir(CYRUS_HOME);
 const DEFAULT_WORKTREES_BASE_DIR = getDefaultWorktreesDir(CYRUS_HOME);
@@ -232,6 +237,19 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 		}),
 	};
 
+	if (CYRUS_F1_CONFIG_OVERRIDES) {
+		if (!existsSync(CYRUS_F1_CONFIG_OVERRIDES)) {
+			console.error(
+				`❌ CYRUS_F1_CONFIG_OVERRIDES does not exist: ${CYRUS_F1_CONFIG_OVERRIDES}`,
+			);
+			process.exit(1);
+		}
+		const overrides = JSON.parse(
+			readFileSync(CYRUS_F1_CONFIG_OVERRIDES, "utf-8"),
+		) as Partial<EdgeWorkerConfig>;
+		return { ...config, ...overrides };
+	}
+
 	return config;
 }
 
@@ -259,6 +277,9 @@ function displayConnectionInfo(): void {
 	console.log(`  ${cyan("Platform:")}  ${bold("cli")}`);
 	console.log(`  ${cyan("Cyrus Home:")} ${dim(CYRUS_HOME)}`);
 	console.log(`  ${cyan("Repository:")} ${dim(CYRUS_REPO_PATH)}`);
+	if (CYRUS_F1_CONFIG_OVERRIDES) {
+		console.log(`  ${cyan("Overrides:")}  ${dim(CYRUS_F1_CONFIG_OVERRIDES)}`);
+	}
 	if (MULTI_REPO_MODE) {
 		console.log(
 			`  ${cyan("Multi-Repo:")} ${bold("enabled")} (${dim(CYRUS_REPO_PATH_2 || "")})`,

@@ -1018,6 +1018,146 @@
 			},
 			"required": ["httpProxyPort", "socksProxyPort"],
 			"additionalProperties": false
+		},
+		"linearUsers": {
+			"type": "object",
+			"propertyNames": {
+				"type": "string"
+			},
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"displayName": {
+						"type": "string"
+					},
+					"email": {
+						"type": "string"
+					},
+					"claude": {
+						"type": "object",
+						"properties": {
+							"oauthToken": {
+								"anyOf": [
+									{
+										"type": "object",
+										"properties": {
+											"env": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["env"],
+										"additionalProperties": false
+									},
+									{
+										"type": "object",
+										"properties": {
+											"file": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["file"],
+										"additionalProperties": false
+									}
+								]
+							},
+							"apiKey": {
+								"anyOf": [
+									{
+										"type": "object",
+										"properties": {
+											"env": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["env"],
+										"additionalProperties": false
+									},
+									{
+										"type": "object",
+										"properties": {
+											"file": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["file"],
+										"additionalProperties": false
+									}
+								]
+							}
+						},
+						"additionalProperties": false
+					},
+					"github": {
+						"type": "object",
+						"properties": {
+							"token": {
+								"anyOf": [
+									{
+										"type": "object",
+										"properties": {
+											"env": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["env"],
+										"additionalProperties": false
+									},
+									{
+										"type": "object",
+										"properties": {
+											"file": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["file"],
+										"additionalProperties": false
+									}
+								]
+							},
+							"login": {
+								"type": "string"
+							},
+							"gitAuthorName": {
+								"type": "string"
+							},
+							"gitAuthorEmail": {
+								"type": "string"
+							}
+						},
+						"required": ["token"],
+						"additionalProperties": false
+					}
+				},
+				"additionalProperties": false
+			}
+		},
+		"prompterCredentialPolicy": {
+			"type": "object",
+			"properties": {
+				"unmappedPrompter": {
+					"type": "string",
+					"enum": ["reject", "host"]
+				},
+				"nonHumanTrigger": {
+					"type": "string",
+					"enum": ["reject", "host"]
+				},
+				"externalPlatformSessions": {
+					"type": "string",
+					"enum": ["host", "reject"]
+				},
+				"followUpByOtherUser": {
+					"type": "string",
+					"enum": ["pin", "reject"]
+				}
+			},
+			"additionalProperties": false
 		}
 	},
 	"required": ["repositories"],

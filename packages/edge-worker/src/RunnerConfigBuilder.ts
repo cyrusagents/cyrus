@@ -17,6 +17,7 @@ import type {
 	OnAskUserQuestion,
 	OpenCodeConfigOverrides,
 	RepositoryConfig,
+	ResolvedPrompterCredentials,
 	RunnerType,
 } from "cyrus-core";
 import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
@@ -175,6 +176,41 @@ export interface IssueRunnerConfigInput {
 	sandboxSettings?: SandboxSettings;
 	/** CA cert path for MITM TLS termination — passed via child process env */
 	egressCaCertPath?: string;
+	/**
+	 * Per-prompter credentials resolved for this session (multi-user
+	 * self-host, CYPACK-1502). `env` is layered on top of any sandbox env so
+	 * both survive; `omitEnv` strips host-level Claude credentials of another
+	 * kind. Only runners that honour a per-session environment may receive
+	 * this — the builder throws for runners that would silently run with the
+	 * host's credentials instead.
+	 */
+	prompterCredentials?: ResolvedPrompterCredentials;
+	/**
+	 * Host env var names to strip from the child process even when the
+	 * session runs with host credentials (other mapped users' `{ env }`
+	 * secrets). Honoured by the Claude runner; runners that cannot strip env
+	 * are refused when this is non-empty.
+	 */
+	omitEnv?: readonly string[];
+}
+
+/**
+ * Thrown when a prompter-bound session is routed to a runner that cannot
+ * isolate credentials per session. EdgeWorker turns this into a visible
+ * Linear activity instead of falling back to host credentials.
+ */
+export class PrompterRunnerUnsupportedError extends Error {
+	constructor(
+		public readonly runnerType: RunnerType,
+		reason: "credentials" | "omit-env" = "credentials",
+	) {
+		super(
+			reason === "credentials"
+				? `The ${runnerType} runner does not support per-user credentials (only the Claude runner injects a per-session credential environment and strips the host's); this session was requested by a mapped Linear user and will not run with the host's credentials. Use the Claude runner for this issue.`
+				: `The ${runnerType} runner cannot strip other mapped users' env-referenced secrets from its child process, so it is refused while linearUsers references env vars. Store those users' secrets as files (\`cyrus add-user\` default) or use the Claude runner.`,
+		);
+		this.name = "PrompterRunnerUnsupportedError";
+	}
 }
 
 export function resolveIssueMcpConfigPath(
@@ -496,6 +532,44 @@ export class RunnerConfigBuilder {
 			onMessage: input.onMessage,
 			onError: input.onError,
 		};
+
+		// Per-prompter credentials (CYPACK-1502): layer the user's env over any
+		// sandbox env (CA cert vars) so both survive, and strip host-level
+		// Claude credentials of another kind. Claude honours additionalEnv /
+		// omitEnv; OpenCode takes an `env` overlay where `undefined` unsets.
+		// Codex, Cursor and Gemini spawn with the host's process.env and have
+		// no per-session env seam, so a prompter-bound session is refused
+		// rather than silently run with the host's credentials.
+		if (input.prompterCredentials) {
+			// Claude only. OpenCode/Codex/Cursor/Gemini authenticate through
+			// their own stored provider credentials (e.g. OpenCode's auth store)
+			// and do not consume a Claude Code OAuth token from the environment,
+			// so env injection there would not prove which credential paid for
+			// the run. Refuse rather than guess.
+			if (runnerType !== "claude") {
+				throw new PrompterRunnerUnsupportedError(runnerType);
+			}
+			const existingEnv =
+				(config.additionalEnv as Record<string, string> | undefined) ?? {};
+			config.additionalEnv = {
+				...existingEnv,
+				...input.prompterCredentials.env,
+			};
+			config.omitEnv = [
+				...((config.omitEnv as string[] | undefined) ?? []),
+				...input.prompterCredentials.omitEnv,
+			];
+		} else if (input.omitEnv && input.omitEnv.length > 0) {
+			// Host-credential session while a mapping exists: keep other users'
+			// env-referenced secrets out of the child process.
+			if (runnerType !== "claude") {
+				throw new PrompterRunnerUnsupportedError(runnerType, "omit-env");
+			}
+			config.omitEnv = [
+				...((config.omitEnv as string[] | undefined) ?? []),
+				...input.omitEnv,
+			];
+		}
 
 		// Cursor runner uses @cursor/sdk. Pass through API key, the same
 		// sandboxSettings shape Claude consumes (the runner translates it to

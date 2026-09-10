@@ -129,6 +129,14 @@ describe("WorkerService", () => {
 			promptDefaults: { debugger: { allowedTools: ["Read"] } },
 			sandbox: { enabled: false },
 			maxConcurrentSessions: 3,
+			linearUsers: {
+				"linear-user-1": {
+					displayName: "Ada",
+					claude: { oauthToken: { env: "ADA_CLAUDE_TOKEN" } },
+					github: { token: { file: "~/.cyrus/user-credentials/ada/github" } },
+				},
+			},
+			prompterCredentialPolicy: { unmappedPrompter: "reject" },
 		});
 
 		// Fixture-completeness tripwire: adding a field to EdgeConfigSchema

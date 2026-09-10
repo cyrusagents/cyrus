@@ -505,6 +505,19 @@ export interface AgentRunnerConfig {
 	/** Cyrus home directory (required) */
 	cyrusHome: string;
 	/**
+	 * Additional environment variables for the agent child process, merged on
+	 * top of the inherited process env. Used for per-session credentials
+	 * (per-prompter Claude/GitHub tokens, git identity) and sandbox CA cert
+	 * paths. Consumed by the Claude, Gemini and OpenCode runners.
+	 */
+	additionalEnv?: Record<string, string>;
+	/**
+	 * Host environment variable names that must NOT be inherited by the agent
+	 * child process (applied after `additionalEnv`). Used to keep a host-level
+	 * `ANTHROPIC_API_KEY` from overriding a per-prompter OAuth token.
+	 */
+	omitEnv?: string[];
+	/**
 	 * Custom directory path for Claude's auto-memory storage. Forwarded to the
 	 * Claude SDK as settings.autoMemoryDirectory. When unset, the SDK falls
 	 * back to its default (~/.claude/projects/<sanitized-cwd>/memory/). Chat

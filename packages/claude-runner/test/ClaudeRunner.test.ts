@@ -142,6 +142,32 @@ describe("ClaudeRunner", () => {
 			});
 		});
 
+		it("keeps filtered credentials out of the SDK env and disables file settings that could restore them", async () => {
+			vi.stubEnv("ANTHROPIC_API_KEY", "host-placeholder");
+			vi.stubEnv("OTHER_USER_CLAUDE", "other-placeholder");
+			try {
+				mockQuery.mockImplementation(async function* () {});
+				const isolated = new ClaudeRunner({
+					...defaultConfig,
+					additionalEnv: {
+						CLAUDE_CODE_OAUTH_TOKEN: "mapped-placeholder",
+						GITHUB_TOKEN: "mapped-gh",
+					},
+					omitEnv: ["ANTHROPIC_API_KEY", "OTHER_USER_CLAUDE"],
+				});
+				await isolated.start("Check credentials");
+				const options = mockQuery.mock.calls.at(-1)![0].options;
+				expect(options.settingSources).toEqual([]);
+				expect(options.env.CLAUDE_CODE_OAUTH_TOKEN).toBe("mapped-placeholder");
+				expect(options.env.GITHUB_TOKEN).toBe("mapped-gh");
+				expect(options.env.ANTHROPIC_API_KEY).toBeUndefined();
+				expect(options.env.OTHER_USER_CLAUDE).toBeUndefined();
+				expect(process.env.ANTHROPIC_API_KEY).toBe("host-placeholder");
+			} finally {
+				vi.unstubAllEnvs();
+			}
+		});
+
 		it("should allow ambient MCP configuration when strict mode is disabled", async () => {
 			const nonStrictRunner = new ClaudeRunner({
 				...defaultConfig,

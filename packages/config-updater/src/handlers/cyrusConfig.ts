@@ -8,6 +8,15 @@ import {
 } from "../types.js";
 
 /**
+ * Top-level config keys that are owned by the self-host box (never emitted
+ * by cyrus-hosted) and must survive a wholesale config push.
+ */
+export const LOCALLY_OWNED_KEYS = [
+	"linearUsers",
+	"prompterCredentialPolicy",
+] as const satisfies readonly (keyof EdgeConfig)[];
+
+/**
  * Handle Cyrus configuration update
  * Updates the ~/.cyrus/config.json file with the provided configuration
  *
@@ -83,6 +92,18 @@ export async function handleCyrusConfig(
 			...normalizedEdgeConfig,
 			repositories,
 		};
+
+		// Per-prompter credential mapping (CYPACK-1502) is provisioned on this
+		// box with `cyrus add-user` and its secret references never leave it.
+		// cyrus-hosted does not know about it and its pushes replace this file
+		// wholesale, so carry the local block forward whenever the payload omits
+		// it. A payload that explicitly carries the key still wins.
+		const existing = readCyrusConfig(cyrusHome) as Partial<EdgeConfig>;
+		for (const key of LOCALLY_OWNED_KEYS) {
+			if (config[key] === undefined && existing[key] !== undefined) {
+				(config as Record<string, unknown>)[key] = existing[key];
+			}
+		}
 
 		// Backup existing config if requested
 		if (backupConfig && existsSync(configPath)) {

@@ -73,14 +73,19 @@ export type {
 } from "./CyrusAgentSession.js";
 // Configuration types
 export type {
+	CredentialRef,
 	EdgeConfig,
 	EdgeConfigPayload,
 	EdgeWorkerConfig,
+	LinearUserClaudeCredentials,
+	LinearUserConfig,
+	LinearUserGitHubCredentials,
 	LinearWorkspaceConfig,
 	NetworkPolicy,
 	OAuthCallbackHandler,
 	OpenCodeConfigOverrides,
 	OpenCodeStateScope,
+	PrompterCredentialPolicy,
 	RepoSetupHookEvent,
 	RepoSetupHookEventHandler,
 	RepoSetupHookStatus,
@@ -92,13 +97,18 @@ export type {
 	UserIdentifier,
 } from "./config-types.js";
 export {
+	CredentialRefSchema,
 	EdgeConfigPayloadSchema,
 	// Zod schemas for runtime validation
 	EdgeConfigSchema,
+	LinearUserClaudeCredentialsSchema,
+	LinearUserConfigSchema,
+	LinearUserGitHubCredentialsSchema,
 	LinearWorkspaceConfigSchema,
 	migrateEdgeConfig,
 	NetworkPolicySchema,
 	OpenCodeConfigSchema,
+	PrompterCredentialPolicySchema,
 	RepositoryConfigPayloadSchema,
 	RepositoryConfigSchema,
 	RunnerTypeSchema,
@@ -256,6 +266,33 @@ export {
 	PERSISTENCE_VERSION,
 	PersistenceManager,
 } from "./PersistenceManager.js";
+// Per-prompter credentials (multi-user self-host, CYPACK-1502)
+export type {
+	FollowUpDecision,
+	LinearUserCredentialResolution,
+	PrompterCredentialFailureReason,
+	PrompterDecision,
+	PrompterIdentity,
+	ResolvedPrompterCredentialPolicy,
+	ResolvedPrompterCredentials,
+	SessionPrompter,
+} from "./prompter-credentials.js";
+export {
+	ALTERNATIVE_AUTH_ENV_KEYS,
+	collectEnvRefNames,
+	credentialFingerprint,
+	decideFollowUpPrompt,
+	decideSessionCredentialUser,
+	describeCredentialRef,
+	ensurePrompterGitCredentialHelper,
+	getPrompterGitCredentialHelperPath,
+	isPrompterCredentialsEnabled,
+	PROMPTER_ENV,
+	PROMPTER_GIT_CREDENTIAL_HELPER_FILENAME,
+	readCredentialRef,
+	resolveLinearUserCredentials,
+	resolvePrompterCredentialPolicy,
+} from "./prompter-credentials.js";
 export { StreamingPrompt } from "./StreamingPrompt.js";
 export type {
 	WebhookIpValidatorOptions,

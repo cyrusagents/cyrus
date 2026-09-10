@@ -58,6 +58,89 @@ export const UserAccessControlConfigSchema = z.object({
 	blockMessage: z.string().optional(),
 });
 
+/**
+ * Reference to a secret held OUTSIDE config.json. Exactly one of:
+ * - `env`: name of an environment variable (typically set in `~/.cyrus/.env`)
+ * - `file`: path to a file containing the secret (owner-only permissions;
+ *   `~/` prefix is expanded). Trailing whitespace/newlines are trimmed.
+ *
+ * Secrets themselves are never stored in config.json.
+ */
+export const CredentialRefSchema = z.union([
+	z.object({ env: z.string().min(1) }).strict(),
+	z.object({ file: z.string().min(1) }).strict(),
+]);
+
+/**
+ * Claude credential for a mapped Linear user. Exactly one of the two kinds
+ * should be set; `oauthToken` (from `claude setup-token`) is the expected
+ * shape for subscription-backed accounts, `apiKey` for console API keys.
+ */
+export const LinearUserClaudeCredentialsSchema = z.object({
+	oauthToken: CredentialRefSchema.optional(),
+	apiKey: CredentialRefSchema.optional(),
+});
+
+/**
+ * GitHub credential + identity for a mapped Linear user.
+ */
+export const LinearUserGitHubCredentialsSchema = z.object({
+	/** Fine-grained (or classic) personal access token for this human. */
+	token: CredentialRefSchema,
+	/** GitHub login verified against the token at provisioning time. */
+	login: z.string().optional(),
+	/** Git author/committer name used for commits made in this user's sessions. */
+	gitAuthorName: z.string().optional(),
+	/** Git author/committer email used for commits made in this user's sessions. */
+	gitAuthorEmail: z.string().optional(),
+});
+
+/**
+ * Per-Linear-user execution credentials and identities. Keyed by Linear user
+ * ID in `EdgeConfig.linearUsers`. When the person who triggers a session
+ * (the assigner/mentioner for a new session, the commenter for a follow-up)
+ * is mapped here, the session runs with THEIR Claude credential and THEIR
+ * GitHub token/identity instead of the host's.
+ */
+export const LinearUserConfigSchema = z.object({
+	/** Display name (informational; used in Linear activities and logs). */
+	displayName: z.string().optional(),
+	/** Linear email (informational; used to re-resolve the user ID). */
+	email: z.string().optional(),
+	claude: LinearUserClaudeCredentialsSchema.optional(),
+	github: LinearUserGitHubCredentialsSchema.optional(),
+});
+
+/**
+ * What happens when per-prompter credential resolution cannot pin a session
+ * to a mapped Linear user. Existing user pins remain enforced after removal.
+ *
+ * - `unmappedPrompter`: a human triggered the session but has no
+ *   `linearUsers` entry. Incomplete/unreadable entries always refuse.
+ *   `reject` (default) ends the session with an explanatory activity;
+ *   `host` explicitly opts in to running with the host machine's
+ *   credentials and posts an activity saying so.
+ * - `nonHumanTrigger`: the Linear session has no human creator (for
+ *   example Cyrus delegating a sub-issue to itself). An identified Cyrus app
+ *   trigger with a known parent session inherits that parent's user first.
+ *   Unknown authors cannot inherit. Same values/default as `unmappedPrompter`.
+ * - `externalPlatformSessions`: sessions that do not originate from a
+ *   Linear human at all (GitHub/GitLab PR triggers) have
+ *   no Linear user to map. `host` (default) keeps today's behavior for those
+ *   surfaces; `reject` refuses them while the mapping is active. Slack/Zulip
+ *   chat currently always uses the host and does not implement this policy.
+ * - `followUpByOtherUser`: a mapped session receives a prompt from a
+ *   different Linear user. `pin` (default) keeps the session on the original
+ *   user's credentials and posts a visible note; `reject` refuses the prompt
+ *   and asks for a new session.
+ */
+export const PrompterCredentialPolicySchema = z.object({
+	unmappedPrompter: z.enum(["reject", "host"]).optional(),
+	nonHumanTrigger: z.enum(["reject", "host"]).optional(),
+	externalPlatformSessions: z.enum(["host", "reject"]).optional(),
+	followUpByOtherUser: z.enum(["pin", "reject"]).optional(),
+});
+
 export type JsonValue =
 	| string
 	| number
@@ -580,6 +663,20 @@ export const EdgeConfigSchema = z.object({
 	 * all agent network traffic through it for inspection and filtering.
 	 */
 	sandbox: SandboxConfigSchema.optional(),
+
+	/**
+	 * Per-Linear-user execution credentials keyed by Linear user ID. When
+	 * present (non-empty), each Linear-triggered session runs with the
+	 * triggering human's Claude credential, GitHub token and Git identity
+	 * (see `LinearUserConfigSchema`). Values hold credential REFERENCES only;
+	 * secrets live in `~/.cyrus/.env` or owner-only files. Managed locally by
+	 * `cyrus add-user` / `remove-user`; preserved across cyrus-hosted config
+	 * pushes (hosted never emits this key).
+	 */
+	linearUsers: z.record(z.string(), LinearUserConfigSchema).optional(),
+
+	/** Fallback/refusal policy for per-prompter credential resolution. */
+	prompterCredentialPolicy: PrompterCredentialPolicySchema.optional(),
 });
 
 /**
@@ -695,6 +792,17 @@ export type UserAccessControlConfig = z.infer<
 	typeof UserAccessControlConfigSchema
 >;
 export type LinearWorkspaceConfig = z.infer<typeof LinearWorkspaceConfigSchema>;
+export type CredentialRef = z.infer<typeof CredentialRefSchema>;
+export type LinearUserConfig = z.infer<typeof LinearUserConfigSchema>;
+export type LinearUserClaudeCredentials = z.infer<
+	typeof LinearUserClaudeCredentialsSchema
+>;
+export type LinearUserGitHubCredentials = z.infer<
+	typeof LinearUserGitHubCredentialsSchema
+>;
+export type PrompterCredentialPolicy = z.infer<
+	typeof PrompterCredentialPolicySchema
+>;
 export type OpenCodeConfigOverrides = z.infer<typeof OpenCodeConfigSchema>;
 export type RepositoryConfig = z.infer<typeof RepositoryConfigSchema>;
 export type EdgeConfig = z.infer<typeof EdgeConfigSchema>;

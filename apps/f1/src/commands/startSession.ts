@@ -21,6 +21,7 @@ interface StartSessionResult {
 
 interface StartSessionParams {
 	issueId: string;
+	asUserId?: string;
 }
 
 export function createStartSessionCommand(): Command {
@@ -29,11 +30,16 @@ export function createStartSessionCommand(): Command {
 	cmd
 		.description("Start an agent session on an issue")
 		.requiredOption("-i, --issue-id <id>", "Issue ID to start session on")
-		.action(async (options: { issueId: string }) => {
+		.option(
+			"-u, --as-user <userId>",
+			"Act as this user (see create-user) — becomes the session creator/prompter",
+		)
+		.action(async (options: { issueId: string; asUser?: string }) => {
 			printRpcUrl();
 
 			const params: StartSessionParams = {
 				issueId: options.issueId,
+				...(options.asUser && { asUserId: options.asUser }),
 			};
 
 			try {
