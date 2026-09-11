@@ -7311,7 +7311,7 @@ ${input.userComment}
 			// non-human policy — never silently use shared instance credentials.
 			if (policy.nonHumanTrigger === "reject") {
 				await refuse(
-					"This session has no per-user credential pin (it was started before linearUsers was configured, or was resumed without a triggering human) and prompterCredentialPolicy.nonHumanTrigger is `reject`. Start a new session from a mapped Linear user, or set nonHumanTrigger to `shared` to allow shared instance credentials.",
+					"This session has no assigned credential owner (it was started before personal credentials were configured, or was resumed without a triggering human) and prompterCredentialPolicy.nonHumanTrigger is `reject`. Start a new session from a mapped Linear user, or set nonHumanTrigger to `shared` to allow shared instance credentials.",
 				);
 			}
 			session.prompter = {
