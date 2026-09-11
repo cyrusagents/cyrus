@@ -462,7 +462,7 @@ export function resolvePrompterCredentialPolicy(
 	return {
 		unmappedPrompter: policy?.unmappedPrompter ?? "reject",
 		nonHumanTrigger: policy?.nonHumanTrigger ?? "reject",
-		externalPlatformSessions: policy?.externalPlatformSessions ?? "host",
+		externalPlatformSessions: policy?.externalPlatformSessions ?? "shared",
 		followUpByOtherUser: policy?.followUpByOtherUser ?? "pin",
 	};
 }
@@ -493,7 +493,7 @@ export interface SessionCredentialDecisionInput {
  * caller reads secrets afterwards with {@link resolveLinearUserCredentials}.
  *
  * Order for a HUMAN trigger: mapped → use them; unmapped → operator policy
- * (`reject` by default; `host` is an explicit, visible opt-in — never
+ * (`reject` by default; `shared` is an explicit, visible opt-in — never
  * silent). A parent session's user is never borrowed by a human.
  *
  * A NON-HUMAN trigger inherits the parent session's user only when the
@@ -532,10 +532,10 @@ export function decideSessionCredentialUser(
 
 	if (human) {
 		const who = prompter.name || prompter.email || prompter.linearUserId;
-		if (policy.unmappedPrompter === "host") {
+		if (policy.unmappedPrompter === "shared") {
 			return {
 				action: "host",
-				reason: `${who} is not in linearUsers; prompterCredentialPolicy.unmappedPrompter=host`,
+				reason: `${who} has no personal credentials configured; the operator allows shared instance credentials`,
 			};
 		}
 		return {
@@ -545,18 +545,18 @@ export function decideSessionCredentialUser(
 		};
 	}
 
-	if (policy.nonHumanTrigger === "host") {
+	if (policy.nonHumanTrigger === "shared") {
 		return {
 			action: "host",
 			reason:
-				"session has no human creator; prompterCredentialPolicy.nonHumanTrigger=host",
+				"session has no human creator; the operator allows shared instance credentials",
 		};
 	}
 	return {
 		action: "reject",
 		reason: "non-human",
 		message:
-			"This session was not started by a mapped human and has no parent session to inherit credentials from, so Cyrus will not run it with the host's credentials. Re-trigger it from a mapped Linear user or set prompterCredentialPolicy.nonHumanTrigger.",
+			"This session was not started by a mapped human and has no parent session to inherit credentials from, so Cyrus will not run it with shared instance credentials. Re-trigger it from a mapped Linear user or set prompterCredentialPolicy.nonHumanTrigger.",
 	};
 }
 
@@ -596,7 +596,7 @@ export function decideFollowUpPrompt(
 	if (input.sessionPrompter?.source === "host") {
 		return {
 			action: "continue",
-			note: `This session runs with the host machine's credentials (${input.sessionPrompter.hostReason ?? "operator policy"}); the prompt was applied without changing that.`,
+			note: `This session runs with shared instance credentials (${input.sessionPrompter.hostReason ?? "operator policy"}); the prompt was applied without changing that.`,
 		};
 	}
 

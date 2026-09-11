@@ -211,7 +211,7 @@ export class PrompterCredentialService {
 	/** Secret-free thought text announcing which credentials a session uses. */
 	describePin(pin: SessionPrompter): string {
 		if (pin.source === "host" || !pin.credentialUserId) {
-			return `Running with the host machine's credentials (${pin.hostReason ?? "operator policy"}). Commits, pushes and PRs from this session will be attributed to the host's GitHub identity.`;
+			return `Running with shared instance credentials (${pin.hostReason ?? "operator policy"}). Commits, pushes and PRs from this session will be attributed to the shared GitHub account.`;
 		}
 		const who = this.displayNameFor(pin.credentialUserId);
 		const inherited =
@@ -244,7 +244,7 @@ export class PrompterCredentialService {
 	 * Resolve the secrets for a session pinned to a mapped user. Called on
 	 * EVERY runner build (new + resume) so rotation is picked up. Returns
 	 * `undefined` when the session is not pinned (host credentials apply —
-	 * only reachable through an explicit `host` policy or a session that
+	 * only reachable through an explicit `shared` policy or a session that
 	 * predates the mapping) or the feature is off.
 	 *
 	 * @throws PrompterCredentialError when the pin can no longer be resolved.

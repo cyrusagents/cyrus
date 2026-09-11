@@ -7268,22 +7268,23 @@ ${input.userComment}
 					);
 				}
 				this.logger.info(
-					`Session ${sessionId} (${sessionPlatform}) runs with host credentials: no Linear prompter (externalPlatformSessions=host)`,
+					`Session ${sessionId} (${sessionPlatform}) runs with shared instance credentials: no Linear prompter (externalPlatformSessions=shared)`,
 				);
 				return undefined;
 			}
 			// A Linear session without a pin: it predates the mapping or was
 			// resumed without a triggering human (e.g. parent resume). Apply the
-			// non-human policy — never silently use the host's credentials.
+			// non-human policy — never silently use shared instance credentials.
 			if (policy.nonHumanTrigger === "reject") {
 				await refuse(
-					"This session has no per-user credential pin (it was started before linearUsers was configured, or was resumed without a triggering human) and prompterCredentialPolicy.nonHumanTrigger is `reject`. Start a new session from a mapped Linear user, or set nonHumanTrigger to `host` to allow the host's credentials.",
+					"This session has no per-user credential pin (it was started before linearUsers was configured, or was resumed without a triggering human) and prompterCredentialPolicy.nonHumanTrigger is `reject`. Start a new session from a mapped Linear user, or set nonHumanTrigger to `shared` to allow shared instance credentials.",
 				);
 			}
 			session.prompter = {
 				linearUserId: "",
 				source: "host",
-				hostReason: "session has no credential pin; nonHumanTrigger=host",
+				hostReason:
+					"session has no assigned credential owner; the operator allows shared instance credentials",
 			};
 			if (linearWorkspaceId) {
 				await this.activityPoster.postThoughtActivity(

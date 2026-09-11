@@ -1142,15 +1142,15 @@
 			"properties": {
 				"unmappedPrompter": {
 					"type": "string",
-					"enum": ["reject", "host"]
+					"enum": ["reject", "shared"]
 				},
 				"nonHumanTrigger": {
 					"type": "string",
-					"enum": ["reject", "host"]
+					"enum": ["reject", "shared"]
 				},
 				"externalPlatformSessions": {
 					"type": "string",
-					"enum": ["host", "reject"]
+					"enum": ["shared", "reject"]
 				},
 				"followUpByOtherUser": {
 					"type": "string",

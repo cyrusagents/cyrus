@@ -9,7 +9,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { EdgeConfigSchema } from "../src/config-schemas.js";
+import {
+	EdgeConfigSchema,
+	PrompterCredentialPolicySchema,
+} from "../src/config-schemas.js";
 import {
 	collectEnvRefNames,
 	credentialFingerprint,
@@ -340,7 +343,7 @@ describe("decideSessionCredentialUser", () => {
 	it("only uses host credentials when the operator opted in explicitly", () => {
 		const d = decideSessionCredentialUser({
 			linearUsers,
-			policy: { unmappedPrompter: "host" },
+			policy: { unmappedPrompter: "shared" },
 			prompter: { linearUserId: BOB, name: "Bob" },
 		});
 		expect(d.action).toBe("host");
@@ -375,7 +378,7 @@ describe("decideSessionCredentialUser", () => {
 		expect(
 			decideSessionCredentialUser({
 				linearUsers,
-				policy: { unmappedPrompter: "host" },
+				policy: { unmappedPrompter: "shared" },
 				prompter: { linearUserId: BOB, name: "Bob" },
 				parentCredentialUserId: ADA,
 			}),
@@ -388,7 +391,7 @@ describe("decideSessionCredentialUser", () => {
 		expect(
 			decideSessionCredentialUser({
 				linearUsers,
-				policy: { nonHumanTrigger: "host" },
+				policy: { nonHumanTrigger: "shared" },
 			}).action,
 		).toBe("host");
 	});
@@ -473,9 +476,22 @@ describe("decideFollowUpPrompt", () => {
 		expect(resolvePrompterCredentialPolicy()).toEqual({
 			unmappedPrompter: "reject",
 			nonHumanTrigger: "reject",
-			externalPlatformSessions: "host",
+			externalPlatformSessions: "shared",
 			followUpByOtherUser: "pin",
 		});
+	});
+
+	it.each([
+		"unmappedPrompter",
+		"nonHumanTrigger",
+		"externalPlatformSessions",
+	])("accepts shared and rejects the retired host config value for %s", (key) => {
+		expect(
+			PrompterCredentialPolicySchema.safeParse({ [key]: "shared" }).success,
+		).toBe(true);
+		expect(
+			PrompterCredentialPolicySchema.safeParse({ [key]: "host" }).success,
+		).toBe(false);
 	});
 });
 

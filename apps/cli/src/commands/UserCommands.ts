@@ -389,7 +389,7 @@ export class ListUsersCommand extends BaseCommand {
 		}
 		const policy = config?.prompterCredentialPolicy ?? {};
 		console.log(
-			`\nPolicy: unmappedPrompter=${policy.unmappedPrompter ?? "reject"} nonHumanTrigger=${policy.nonHumanTrigger ?? "reject"} externalPlatformSessions=${policy.externalPlatformSessions ?? "host"} followUpByOtherUser=${policy.followUpByOtherUser ?? "pin"}`,
+			`\nPolicy: unmappedPrompter=${policy.unmappedPrompter ?? "reject"} nonHumanTrigger=${policy.nonHumanTrigger ?? "reject"} externalPlatformSessions=${policy.externalPlatformSessions ?? "shared"} followUpByOtherUser=${policy.followUpByOtherUser ?? "pin"}`,
 		);
 	}
 }

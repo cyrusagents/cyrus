@@ -118,7 +118,7 @@ export const LinearUserConfigSchema = z.object({
  * - `unmappedPrompter`: a human triggered the session but has no
  *   `linearUsers` entry. Incomplete/unreadable entries always refuse.
  *   `reject` (default) ends the session with an explanatory activity;
- *   `host` explicitly opts in to running with the host machine's
+ *   `shared` explicitly opts in to running with shared instance
  *   credentials and posts an activity saying so.
  * - `nonHumanTrigger`: the Linear session has no human creator (for
  *   example Cyrus delegating a sub-issue to itself). An identified Cyrus app
@@ -126,7 +126,7 @@ export const LinearUserConfigSchema = z.object({
  *   Unknown authors cannot inherit. Same values/default as `unmappedPrompter`.
  * - `externalPlatformSessions`: sessions that do not originate from a
  *   Linear human at all (GitHub/GitLab PR triggers) have
- *   no Linear user to map. `host` (default) keeps today's behavior for those
+ *   no Linear user to map. `shared` (default) keeps today's behavior for those
  *   surfaces; `reject` refuses them while the mapping is active. Slack/Zulip
  *   chat currently always uses the host and does not implement this policy.
  * - `followUpByOtherUser`: a mapped session receives a prompt from a
@@ -135,9 +135,9 @@ export const LinearUserConfigSchema = z.object({
  *   and asks for a new session.
  */
 export const PrompterCredentialPolicySchema = z.object({
-	unmappedPrompter: z.enum(["reject", "host"]).optional(),
-	nonHumanTrigger: z.enum(["reject", "host"]).optional(),
-	externalPlatformSessions: z.enum(["host", "reject"]).optional(),
+	unmappedPrompter: z.enum(["reject", "shared"]).optional(),
+	nonHumanTrigger: z.enum(["reject", "shared"]).optional(),
+	externalPlatformSessions: z.enum(["shared", "reject"]).optional(),
 	followUpByOtherUser: z.enum(["pin", "reject"]).optional(),
 });
 

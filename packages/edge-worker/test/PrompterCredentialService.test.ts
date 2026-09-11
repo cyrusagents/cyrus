@@ -278,7 +278,7 @@ describe("PrompterCredentialService", () => {
 	});
 
 	it("honours an explicit host opt-in and keeps host sessions on host credentials", () => {
-		const svc = service({ policy: { unmappedPrompter: "host" } });
+		const svc = service({ policy: { unmappedPrompter: "shared" } });
 		const decision = svc.decideForNewSession({
 			prompter: { linearUserId: "lin-zoe", name: "Zoe" },
 			isNonHuman: false,
@@ -289,7 +289,7 @@ describe("PrompterCredentialService", () => {
 		});
 		expect(pin.source).toBe("host");
 		expect(svc.resolveForSession(session(pin))).toBeUndefined();
-		expect(svc.describePin(pin)).toContain("host machine's credentials");
+		expect(svc.describePin(pin)).toContain("shared instance credentials");
 		// A later prompt from Ada does not switch the session to Ada.
 		const follow = svc.decideForFollowUp({
 			session: session(pin),
