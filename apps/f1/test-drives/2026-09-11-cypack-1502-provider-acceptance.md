@@ -1,7 +1,8 @@
 # CYPACK-1502 real-credential acceptance, September 11
 
 **Status: partial positive evidence; PR authorship, human-triggered Linear sessions,
-and review/no-bypass acceptance remain blocked or pending. No merge or deployment.**
+and review/no-bypass acceptance remain blocked or pending. Real Linear refusal
+activity attribution was verified after an unmapped account triggered both issues. No merge or deployment.**
 
 ## Isolated setup and OAuth
 
@@ -102,6 +103,27 @@ sandbox isolation is made. F1 activities included timestamps,
 thought/action/response records, and working pagination. F1 uses an in-memory
 tracker: its final activities are not evidence of real Linear authorship.
 
+## Real Linear negative-path observation
+
+At 19:23 UTC both TEST-404 and TEST-405 were created as agent sessions by
+`connor@atcyrus.com` (`67a670bb-4d83-46ed-b98b-88bb2089d95d`), which is a different
+Linear account from the requested `connorturland` mapping. Both repository-selection
+replies also came from that unmapped account. The worker refused both sessions
+before creating any worktree or runner. It did not borrow either mapped user's
+credentials.
+
+The Linear API independently confirmed both session creators and that the refusal
+response activities were authored by **Cyrus CYPACK-1502 Test**, app user
+`9e5beb85-a23a-4d76-b627-742e52f4232f`:
+
+- TEST-404: session `34530b38-c3a7-40d0-80f9-a3c9038b3699`, response at 19:23:32.397 UTC.
+- TEST-405: session `4f00a35d-ee5c-4e05-a6b6-cacccdce5216`, response at 19:23:43.808 UTC.
+
+TEST-team routing now selects the designated repository automatically. Connor was
+asked whether to retry from `connorturland` or replace his mapping with the actual
+`connor@atcyrus.com` UUID. The mapping was not changed without that clarification.
+Positive human sessions and completed-work Linear attribution remain pending.
+
 ## Runtime fixes and validation
 
 - Credential CLI commands now shut down their Application after success. A live
@@ -130,7 +152,7 @@ tracker: its final activities are not evidence of real Linear authorship.
    to **Cyrus CYPACK-1502 Test**, ideally within the same minute. These issues were
    created in Todo with the safe draft-PR prompts. Creation by the app is not a
    substitute for delegation by each human. Human-session/final-app activity
-   attribution remains pending.
+   attribution for completed work remains pending.
 4. Once draft PRs exist and review rules are enforceable, the humans test their
    own self-approval restriction and another human's review. Do not merge.
 
