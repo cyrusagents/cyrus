@@ -1,13 +1,12 @@
 # Two-real-user acceptance: CYPACK-1502
 
-Status: **partial positive evidence, acceptance incomplete**. The
-[September 11 provider drive](../apps/f1/test-drives/2026-09-11-cypack-1502-provider-acceptance.md)
-verified two distinct Claude tokens (same underlying account), concurrent F1
-Claude/GitHub identities, and two successful authenticated Git pushes. Both
-actual draft-PR requests returned 403 for missing effective Pull requests write
-permission; review enforcement and human-triggered Linear attribution remain
-unverified. Placeholder-token 401s and account admin metadata are not positive
-PR/authorship evidence.
+Status: **positive two-user execution and PR attribution verified; review
+acceptance incomplete**. The [September 11 provider drive](../apps/f1/test-drives/2026-09-11-cypack-1502-provider-acceptance.md)
+records successful real Linear sessions, Claude results, authenticated pushes,
+and distinct draft-PR authors (Connoropolous / CyrusLimited). Both Claude tokens
+belong to the same underlying account. Concurrent real-provider execution was
+verified in F1; the real Linear runs were sequential. Required-review/no-bypass
+behavior remains unverified because the test repository lacks enforced rules.
 Run this checklist on a disposable self-host test instance, using the runtime
 from [PR #1472](https://github.com/cyrusagents/cyrus/pull/1472). Do not merge PRs
 or deploy production during this verification.

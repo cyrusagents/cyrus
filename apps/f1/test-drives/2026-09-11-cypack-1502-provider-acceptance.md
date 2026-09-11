@@ -1,8 +1,11 @@
 # CYPACK-1502 real-credential acceptance, September 11
 
-**Status: partial positive evidence; PR authorship, human-triggered Linear sessions,
-and review/no-bypass acceptance remain blocked or pending. Real Linear refusal
-activity attribution was verified after an unmapped account triggered both issues. No merge or deployment.**
+**Status: two real Linear users completed Claude runs, authenticated pushes, and
+draft PRs under their respective GitHub accounts. Required review/no-bypass
+acceptance remains unverified. No merge or deployment.**
+
+The earlier 403s and unmapped-account refusals below are historical observations.
+The successful real-session results supersede the PR-permission blocker.
 
 ## Isolated setup and OAuth
 
@@ -128,7 +131,45 @@ copies, then provisioned `67a670bb-4d83-46ed-b98b-88bb2089d95d` with Connoropolo
 and user A’s Claude credential. Both live checks passed, the worker reloaded the
 configuration, and its status endpoint returned 200. The `cyrusops1` mapping was
 verified unchanged. Both mappings hold file references with mode 0600.
-Positive human sessions and completed-work Linear attribution remain pending.
+Positive human sessions were still pending at that point; their later results follow.
+
+## Successful real Linear sessions
+
+After the original foreground worker stopped, the test listener was restarted as
+a detached process at 19:36 UTC. Both local and existing public tunnel status
+endpoints returned 200. A dedicated PM2 attempt encountered sandbox process
+monitoring restrictions and was stopped; the internal Cyrus process was untouched.
+
+Fresh human assignments then produced these independently verified results:
+
+| Issue / human | Linear session | Claude run (UTC) | Draft PR / GitHub author | Commit |
+| --- | --- | --- | --- | --- |
+| TEST-404 / connor@atcyrus.com | a6ceb5f3-e461-4805-8220-1d12db4a8a83 | 19:38:41–19:39:19 | [#11](https://github.com/CyrusAgentTesting/test/pull/11) / Connoropolous | d3d7c35be95517c1dac646f95cc216293a72e56e |
+| TEST-405 / cyrusops1 | cdca5786-e92a-47b0-8c69-d1a0d29a83a4 | 19:41:27–19:42:33 | [#12](https://github.com/CyrusAgentTesting/test/pull/12) / CyrusLimited | 385b3c65c7e2721b3b0c316d98dccef79cba529e |
+
+Both sessions returned successful Claude results. Their persisted credential-user
+IDs match the respective human creator IDs. GitHub API reads with the mapped PATs
+confirmed both PRs are open drafts against main, not merged, and authored by the
+expected distinct accounts. Commit author/committer names, noreply emails and
+linked GitHub accounts also match. Each commit changes one evidence text file.
+Session transcripts contain successful Git pushes and draft-PR commands.
+
+The final Linear comments were independently confirmed as **Cyrus CYPACK-1502
+Test**, app user `9e5beb85-a23a-4d76-b627-742e52f4232f`, at 19:39:20.137 and
+19:42:33.363 UTC. The child sessions' broad claims that acceptance is complete
+apply only to their assigned text-file/PR task; they do not prove review rules or
+subscription isolation. These real sessions ran sequentially; concurrency was
+verified separately with real-provider F1 sessions above.
+
+Both worktrees encountered an existing fixture setup-hook failure: its OS-package
+installation check expected root/apt-get. Cyrus continued and completed the text
+file tasks. No OS packages were installed or setup-hook changes made. This was
+not a clean repository-setup pass. A scan of 20 protected provider log files found
+no matches for either mapped token value or its first 16 characters.
+
+At reinspection after both PRs existed, the browser still showed no rulesets and
+no classic branch protections, plus the private-repository GitHub Team notice.
+No self-approval attempt, cross-user approval, bypass or merge has been performed.
 
 ## Runtime fixes and validation
 
@@ -144,24 +185,21 @@ Positive human sessions and completed-work Linear attribution remain pending.
 
 ## Required next interaction
 
-1. Each PAT owner enables **Pull requests: read/write**, retaining Contents:
-   read/write and any needed organization approval. If values change, replace
-   the shared files with one token each and request a fresh protected copy.
-   [GitHub's create-PR permission requirement](https://docs.github.com/en/rest/pulls/pulls#create-a-pull-request).
-2. A repository administrator provides an enforceable main-branch review rule
-   with no test-user bypass. The current private/free configuration cannot
-   supply this proof. A plan/visibility/repository decision belongs to its owner;
-   none was made by the agent.
+1. A repository administrator provides an enforceable main-branch review rule
+   requiring human review with no test-user bypass. The private repository still
+   displays the GitHub Team enforcement notice. The account owner must decide
+   how to provide enforceable rules; no plan/visibility/repository change was made.
    [GitHub ruleset availability](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets).
-3. In real Linear, connor@atcyrus.com starts a fresh test-app session on [TEST-404](https://linear.app/cyrusagenttesting/issue/TEST-404)
-   and cyrusops1 delegates [TEST-405](https://linear.app/cyrusagenttesting/issue/TEST-405)
-   to **Cyrus CYPACK-1502 Test**, ideally within the same minute. These issues were
-   created in Todo with the safe draft-PR prompts. Creation by the app is not a
-   substitute for delegation by each human. Human-session/final-app activity
-   attribution for completed work remains pending.
-4. Once draft PRs exist and review rules are enforceable, the humans test their
-   own self-approval restriction and another human's review. Do not merge.
+2. With enforceable rules in place, the humans use PR #11 and PR #12 to verify
+   self-approval refusal and another human's normal review. Mark drafts ready
+   only for this review test. Do not merge or use bypass.
+3. If simultaneous real-Linear sessions are required in addition to the existing
+   concurrent real-provider F1 proof, trigger a fresh pair together. The observed
+   real Linear runs were sequential. Separate subscriptions/billing remain
+   outside this same-account-token test; no provider account receipt was observed.
 
-The two provider-probe branches remain for retry/evidence. F1 sessions and server
-were stopped after inspection. The isolated real-webhook worker remains available
-for the requested human delegations; no production worker configuration changed.
+The prior PAT PR-write blocker is resolved by actual successful draft-PR creation;
+no additional token provisioning is needed for those completed runs. Keep PRs
+and evidence branches available for the review test. F1 sessions/servers are
+stopped; the isolated detached test worker remains available. No production
+worker configuration changed.

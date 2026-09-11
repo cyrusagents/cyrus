@@ -218,7 +218,7 @@ export class PrompterCredentialService {
 			pin.source === "parent"
 				? " (inherited from the parent issue's session)"
 				: "";
-		return `Running as ${who}${inherited}: this session uses ${who}'s Claude credential, GitHub token and Git identity from linearUsers. Commits, pushes and PRs will be attributed to ${who}.`;
+		return `Running as ${who}${inherited}. This session uses their Claude access and GitHub account. Commits, pushes and pull requests will be attributed to ${who}.`;
 	}
 
 	/**
