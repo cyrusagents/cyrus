@@ -227,6 +227,7 @@ program
 			errorReporter,
 		);
 		await new AddUserCommand(app).execute([], cmdOpts);
+		await app.shutdown();
 	});
 
 program
@@ -243,6 +244,7 @@ program
 			errorReporter,
 		);
 		await new ListUsersCommand(app).execute();
+		await app.shutdown();
 	});
 
 program
@@ -263,6 +265,7 @@ program
 			errorReporter,
 		);
 		await new CheckUsersCommand(app).execute([], cmdOpts);
+		await app.shutdown();
 	});
 
 program
@@ -279,6 +282,7 @@ program
 			errorReporter,
 		);
 		await new RemoveUserCommand(app).execute([target]);
+		await app.shutdown();
 	});
 
 // Parse and execute

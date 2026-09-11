@@ -65,6 +65,27 @@ describe("PersistenceManager atomic writes", () => {
 		expect(loaded).toEqual(sampleState);
 	});
 
+	it("serializes concurrent saves and retains the last requested snapshot", async () => {
+		const states = Array.from({ length: 20 }, (_, index) => ({
+			issueRepositoryCache: { [`issue-${index}`]: ["repo".repeat(index + 1)] },
+		}));
+		const results = await Promise.allSettled(
+			states.map((state) => manager.saveEdgeWorkerState(state)),
+		);
+		expect(results.every((result) => result.status === "fulfilled")).toBe(true);
+		expect(await manager.loadEdgeWorkerState()).toEqual(states.at(-1));
+		expect(logger.error).not.toHaveBeenCalled();
+	});
+
+	it("allows another save after a failed write", async () => {
+		await rm(dir, { recursive: true });
+		await writeFile(dir, "blocks directory creation");
+		await expect(manager.saveEdgeWorkerState(sampleState)).rejects.toThrow();
+		await rm(dir);
+		await manager.saveEdgeWorkerState(sampleState);
+		expect(await manager.loadEdgeWorkerState()).toEqual(sampleState);
+	});
+
 	it("leaves no temp file behind after a save", async () => {
 		await manager.saveEdgeWorkerState(sampleState);
 		await manager.saveEdgeWorkerState(sampleState);

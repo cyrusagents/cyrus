@@ -1,8 +1,13 @@
 # Two-real-user acceptance: CYPACK-1502
 
-Status: **prepared, not completed against two real provider accounts**. F1 and
-unit tests exercise local policy and environment selection; placeholder-token
-401 responses do not establish successful per-user model execution or PR authorship.
+Status: **partial positive evidence, acceptance incomplete**. The
+[September 11 provider drive](../apps/f1/test-drives/2026-09-11-cypack-1502-provider-acceptance.md)
+verified two distinct Claude tokens (same underlying account), concurrent F1
+Claude/GitHub identities, and two successful authenticated Git pushes. Both
+actual draft-PR requests returned 403 for missing effective Pull requests write
+permission; review enforcement and human-triggered Linear attribution remain
+unverified. Placeholder-token 401s and account admin metadata are not positive
+PR/authorship evidence.
 Run this checklist on a disposable self-host test instance, using the runtime
 from [PR #1472](https://github.com/cyrusagents/cyrus/pull/1472). Do not merge PRs
 or deploy production during this verification.
