@@ -25,6 +25,7 @@ import {
 	ensurePrompterGitCredentialHelper,
 	type FollowUpDecision,
 	type ILogger,
+	type IssueUpdateWebhook,
 	isPrompterCredentialsEnabled,
 	type LinearUserConfig,
 	type PrompterCredentialPolicy,
@@ -149,6 +150,19 @@ export class PrompterCredentialService {
 			};
 		}
 		return undefined;
+	}
+
+	/** Only the current webhook actor identifies the editor; never the issue creator. */
+	static prompterFromIssueUpdateWebhook(
+		webhook: IssueUpdateWebhook,
+	): PrompterIdentity | undefined {
+		const actor = webhook.actor;
+		if (!actor?.id || actor.type !== "user") return undefined;
+		return {
+			linearUserId: actor.id,
+			name: "name" in actor ? actor.name : undefined,
+			email: "email" in actor ? actor.email : undefined,
+		};
 	}
 
 	/**

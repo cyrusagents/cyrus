@@ -340,10 +340,13 @@ describe("decideSessionCredentialUser", () => {
 		expect(d.message).toContain("cyrus add-user");
 	});
 
-	it("only uses host credentials when the operator opted in explicitly", () => {
+	it.each([
+		"host",
+		"shared",
+	] as const)("uses shared credentials when the operator opts in with %s", (value) => {
 		const d = decideSessionCredentialUser({
 			linearUsers,
-			policy: { unmappedPrompter: "shared" },
+			policy: { unmappedPrompter: value },
 			prompter: { linearUserId: BOB, name: "Bob" },
 		});
 		expect(d.action).toBe("host");
@@ -485,13 +488,19 @@ describe("decideFollowUpPrompt", () => {
 		"unmappedPrompter",
 		"nonHumanTrigger",
 		"externalPlatformSessions",
-	])("accepts shared and rejects the retired host config value for %s", (key) => {
+	] as const)("accepts shared and normalizes the legacy host config value for %s", (key) => {
 		expect(
 			PrompterCredentialPolicySchema.safeParse({ [key]: "shared" }).success,
 		).toBe(true);
 		expect(
 			PrompterCredentialPolicySchema.safeParse({ [key]: "host" }).success,
-		).toBe(false);
+		).toBe(true);
+		expect(resolvePrompterCredentialPolicy({ [key]: "host" })[key]).toBe(
+			"shared",
+		);
+		expect(resolvePrompterCredentialPolicy({ [key]: "shared" })[key]).toBe(
+			"shared",
+		);
 	});
 });
 

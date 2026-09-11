@@ -3876,74 +3876,77 @@ ${taskSection}`;
 			return;
 		}
 
-		// Process attachments from the updated description if description changed
-		let attachmentManifest = "";
-		if ("description" in updatedFrom && issueData.description) {
-			const firstSession = sessions[0];
-			if (!firstSession) {
-				this.logger.debug(`No sessions found for issue ${issueIdentifier}`);
-				return;
-			}
-			const workspaceFolderName = basename(firstSession.workspace.path);
-			const attachmentsDir = join(
-				this.cyrusHome,
-				workspaceFolderName,
-				"attachments",
-			);
-
-			try {
-				// Ensure directory exists
-				await mkdir(attachmentsDir, { recursive: true });
-
-				// Count existing attachments
-				const existingFiles = await readdir(attachmentsDir).catch(() => []);
-				const existingAttachmentCount = existingFiles.filter(
-					(file) => file.startsWith("attachment_") || file.startsWith("image_"),
-				).length;
-
-				// Download attachments from the new description
-				// Use organizationId from webhook as the Linear-native workspace ID source
-				const linearToken = this.getLinearTokenForWorkspace(
-					webhook.organizationId,
-				);
-				const downloadResult = await this.downloadCommentAttachments(
-					issueData.description,
-					attachmentsDir,
-					linearToken,
-					existingAttachmentCount,
+		const buildPrompt = async (
+			targetSession: CyrusAgentSession,
+		): Promise<string> => {
+			// Process attachments from the updated description if description changed
+			let attachmentManifest = "";
+			if ("description" in updatedFrom && issueData.description) {
+				const firstSession = targetSession;
+				const workspaceFolderName = basename(firstSession.workspace.path);
+				const attachmentsDir = join(
+					this.cyrusHome,
+					workspaceFolderName,
+					"attachments",
 				);
 
-				if (downloadResult.totalNewAttachments > 0) {
-					attachmentManifest =
-						this.generateNewAttachmentManifest(downloadResult);
-					this.logger.debug(
-						`Downloaded ${downloadResult.totalNewAttachments} attachments from updated description`,
+				try {
+					// Ensure directory exists
+					await mkdir(attachmentsDir, { recursive: true });
+
+					// Count existing attachments
+					const existingFiles = await readdir(attachmentsDir).catch(() => []);
+					const existingAttachmentCount = existingFiles.filter(
+						(file) =>
+							file.startsWith("attachment_") || file.startsWith("image_"),
+					).length;
+
+					// Download attachments from the new description
+					// Use organizationId from webhook as the Linear-native workspace ID source
+					const linearToken = this.getLinearTokenForWorkspace(
+						webhook.organizationId,
+					);
+					const downloadResult = await this.downloadCommentAttachments(
+						issueData.description,
+						attachmentsDir,
+						linearToken,
+						existingAttachmentCount,
+					);
+
+					if (downloadResult.totalNewAttachments > 0) {
+						attachmentManifest =
+							this.generateNewAttachmentManifest(downloadResult);
+						this.logger.debug(
+							`Downloaded ${downloadResult.totalNewAttachments} attachments from updated description`,
+						);
+					}
+				} catch (error) {
+					this.logger.error(
+						"Failed to process attachments from updated description:",
+						error,
 					);
 				}
-			} catch (error) {
-				this.logger.error(
-					"Failed to process attachments from updated description:",
-					error,
-				);
 			}
-		}
 
-		// Build the XML-formatted prompt showing old vs new values
-		const promptBody = this.buildIssueUpdatePrompt(
-			issueIdentifier,
-			issueData,
-			updatedFrom,
-		);
+			// Build the XML-formatted prompt showing old vs new values
+			const promptBody = this.buildIssueUpdatePrompt(
+				issueIdentifier,
+				issueData,
+				updatedFrom,
+			);
 
-		// CYPACK-954: Issue update events are ONLY delivered to the first running
-		// session (by most-recently-updated) that supports streaming input.
-		// If no such session exists, the event is silently ignored.
+			// CYPACK-954: Issue update events are ONLY delivered to the first running
+			// session (by most-recently-updated) that supports streaming input.
+			// If no such session exists, the event is silently ignored.
 
-		// Combine prompt body with attachment manifest
-		let fullPrompt = promptBody;
-		if (attachmentManifest) {
-			fullPrompt = `${promptBody}\n\n${attachmentManifest}`;
-		}
+			// Combine prompt body with attachment manifest
+			let fullPrompt = promptBody;
+			if (attachmentManifest) {
+				fullPrompt = `${promptBody}\n\n${attachmentManifest}`;
+			}
+
+			return fullPrompt;
+		};
 
 		// Sort by updatedAt descending so the most recent session is first
 		const sortedSessions = [...sessions].sort(
@@ -3961,8 +3964,21 @@ ${taskSection}`;
 				existingRunner?.supportsStreamingInput &&
 				existingRunner.addStreamMessage
 			) {
+				// Gate issue edits by their current actor before downloading attachments
+				// or delivering anything to the running agent. A refusal must not
+				// redirect the edit to another session with a different owner.
+				if (
+					!(await this.applyPrompterFollowUpPolicy(
+						session,
+						webhook,
+						undefined,
+						webhook.organizationId,
+					))
+				)
+					return;
 				// Best-effort; a steer-only backend may reject when no turn is active.
 				try {
+					const fullPrompt = await buildPrompt(session);
 					existingRunner.addStreamMessage(fullPrompt);
 					delivered = true;
 					this.logger.debug(
@@ -4767,7 +4783,7 @@ ${taskSection}`;
 	 */
 	private async applyPrompterFollowUpPolicy(
 		session: CyrusAgentSession,
-		webhook: AgentSessionPromptedWebhook,
+		webhook: AgentSessionPromptedWebhook | IssueUpdateWebhook,
 		commentUser:
 			| { id?: string; name?: string; email?: string }
 			| null
@@ -4776,14 +4792,17 @@ ${taskSection}`;
 	): Promise<boolean> {
 		const service = this.prompterCredentialService;
 
-		// Identity of the CURRENT sender only (activity user / comment author);
-		// undefined when the payload carries neither. The session creator is
+		// Identity of the CURRENT sender only (activity user / comment author /
+		// issue-update actor); undefined when that identity is unavailable. The session creator is
 		// never assumed to be the sender. The service returns null only when
 		// the feature is off AND the session carries no pin.
-		const prompter = PrompterCredentialService.prompterFromPromptedWebhook(
-			webhook,
-			commentUser,
-		);
+		const prompter =
+			"data" in webhook
+				? PrompterCredentialService.prompterFromIssueUpdateWebhook(webhook)
+				: PrompterCredentialService.prompterFromPromptedWebhook(
+						webhook,
+						commentUser,
+					);
 		// Also guard streaming input: it can bypass a fresh runner build.
 		if (session.prompter?.credentialUserId) {
 			const problem = service.validatePin(session.prompter);
@@ -4794,6 +4813,20 @@ ${taskSection}`;
 		}
 		const decision = service.decideForFollowUp({ session, prompter });
 		if (!decision) return true;
+
+		// A running process cannot adopt new credentials. This also covers
+		// sessions that predate enablement when an issue edit arrives mid-turn.
+		if (
+			(decision.action === "pin" || decision.action === "decide-new") &&
+			session.agentRunner?.isRunning()
+		) {
+			await this.postPrompterResponse(
+				session.id,
+				linearWorkspaceId,
+				"This running session has no assigned credential owner, so this input was not applied. Stop it and start a new session from your own Linear account to use your configured credentials.",
+			);
+			return false;
+		}
 
 		switch (decision.action) {
 			case "continue":
@@ -4831,6 +4864,7 @@ ${taskSection}`;
 				return true;
 			}
 			case "decide-new": {
+				if ("data" in webhook) return false;
 				// Session predates the mapping and the CURRENT sender is unmapped:
 				// evaluate that sender (not the original session creator) with the
 				// new-session rules — unmapped human → policy (reject by default),

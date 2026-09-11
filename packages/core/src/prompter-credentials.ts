@@ -453,16 +453,29 @@ export function resolveLinearUserCredentials(
 // Policy
 // ============================================================================
 
-export type ResolvedPrompterCredentialPolicy =
-	Required<PrompterCredentialPolicy>;
+export type ResolvedPrompterCredentialPolicy = {
+	[K in keyof Required<PrompterCredentialPolicy>]: Exclude<
+		Required<PrompterCredentialPolicy>[K],
+		"host"
+	>;
+};
 
 export function resolvePrompterCredentialPolicy(
 	policy?: PrompterCredentialPolicy,
 ): ResolvedPrompterCredentialPolicy {
 	return {
-		unmappedPrompter: policy?.unmappedPrompter ?? "reject",
-		nonHumanTrigger: policy?.nonHumanTrigger ?? "reject",
-		externalPlatformSessions: policy?.externalPlatformSessions ?? "shared",
+		unmappedPrompter:
+			policy?.unmappedPrompter === "host"
+				? "shared"
+				: (policy?.unmappedPrompter ?? "reject"),
+		nonHumanTrigger:
+			policy?.nonHumanTrigger === "host"
+				? "shared"
+				: (policy?.nonHumanTrigger ?? "reject"),
+		externalPlatformSessions:
+			policy?.externalPlatformSessions === "host"
+				? "shared"
+				: (policy?.externalPlatformSessions ?? "shared"),
 		followUpByOtherUser: policy?.followUpByOtherUser ?? "pin",
 	};
 }

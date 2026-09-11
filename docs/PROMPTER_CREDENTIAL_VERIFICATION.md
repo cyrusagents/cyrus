@@ -154,6 +154,8 @@ Use the disposable instance only; restore each fixture before the next case.
 | Case | Action | Required result |
 | --- | --- | --- |
 | Unmapped human | A third unmapped user triggers a new issue, including a child of A's issue | Refusal, no runner/worktree; never inherit A |
+| Live issue edits | While A runs, A and B separately edit title/description; use fixtures for missing/non-user actors under both reject and pin | Same-user input delivered; other/unknown actors visibly refused before input or attachment download under reject; under pin, visible notice and A remains credential owner |
+| Legacy active session | Enable mapping while an unpinned session is running, then send a prompt or issue edit | Visible refusal, no input delivery and no credential reassignment; start a new session |
 | Unknown author | Use F1/unit payload fixtures with no activity/comment author | Reject under strict follow-up policy; never substitute creator |
 | Delegation | Identified Cyrus app triggers a child with a known parent session | Inherit that parent's pin; no parent or unknown creator refuses |
 | Unreadable | Move A's credential file aside, trigger a fresh issue, then restore it | Reference-only error before worktree creation |

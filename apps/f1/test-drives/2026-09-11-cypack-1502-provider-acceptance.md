@@ -203,3 +203,32 @@ no additional token provisioning is needed for those completed runs. Keep PRs
 and evidence branches available for the review test. F1 sessions/servers are
 stopped; the isolated detached test worker remains available. No production
 worker configuration changed.
+
+
+## Follow-through: streaming ownership and shared-credential terminology
+
+This is **automated regression evidence**, separate from the real-provider runs
+above. The issue-update handler previously streamed title/description edits
+without checking the current editor. A new active-runner matrix reproduced eight
+failures: other/missing actors received no refusal under `reject`, and `pin`
+omitted the ownership notice. The handler now uses the same follow-up policy
+before attachment processing and input delivery.
+
+- Title and description updates are covered for same-user, other-user, missing
+  actor and integration actor under both `reject` and `pin` (16 cases). Fixtures
+  deliberately retain the credential owner's issue creator/assignee fields, so
+  those cannot mask a missing or different current actor.
+- Strict refusals assert a response activity addressed to the active session,
+  zero `addStreamMessage` calls and zero attachment downloads. Pinning accepts
+  input with an ownership notice and retains the original credential user.
+- Three additional cases cover last-user removal, a running session without a
+  credential owner, and preventing a refusal from redirecting the update to a
+  different active session. Idle sessions still are not resumed by issue edits.
+- Config accepts both `"shared"` and the earlier `"host"` alias for all three
+  fallback settings. Resolution and CLI policy output normalize to `"shared"`;
+  existing persisted shared-session ownership is unchanged.
+- Full monorepo suite: **1,961 passed, 2 skipped** (core 174, edge worker 883,
+  CLI 119). Build and typecheck passed; lint passed with 12 existing warnings.
+  The public guide compiles as MDX. This does not establish a new real-Linear UI observation
+  for the streaming cases, separate Claude subscription isolation or GitHub
+  required-review/no-bypass enforcement.

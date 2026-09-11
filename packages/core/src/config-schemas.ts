@@ -134,10 +134,11 @@ export const LinearUserConfigSchema = z.object({
  *   user's credentials and posts a visible note; `reject` refuses the prompt
  *   and asks for a new session.
  */
+// `host` remains accepted for existing configs; resolution normalizes it to `shared`.
 export const PrompterCredentialPolicySchema = z.object({
-	unmappedPrompter: z.enum(["reject", "shared"]).optional(),
-	nonHumanTrigger: z.enum(["reject", "shared"]).optional(),
-	externalPlatformSessions: z.enum(["shared", "reject"]).optional(),
+	unmappedPrompter: z.enum(["reject", "shared", "host"]).optional(),
+	nonHumanTrigger: z.enum(["reject", "shared", "host"]).optional(),
+	externalPlatformSessions: z.enum(["shared", "reject", "host"]).optional(),
 	followUpByOtherUser: z.enum(["pin", "reject"]).optional(),
 });
 

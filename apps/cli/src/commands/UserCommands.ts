@@ -22,6 +22,7 @@ import {
 	type EdgeConfig,
 	type LinearUserConfig,
 	readCredentialRef,
+	resolvePrompterCredentialPolicy,
 } from "cyrus-core";
 import {
 	CLAUDE_API_KEY_FILE,
@@ -387,7 +388,9 @@ export class ListUsersCommand extends BaseCommand {
 				);
 			}
 		}
-		const policy = config?.prompterCredentialPolicy ?? {};
+		const policy = resolvePrompterCredentialPolicy(
+			config?.prompterCredentialPolicy,
+		);
 		console.log(
 			`\nPolicy: unmappedPrompter=${policy.unmappedPrompter ?? "reject"} nonHumanTrigger=${policy.nonHumanTrigger ?? "reject"} externalPlatformSessions=${policy.externalPlatformSessions ?? "shared"} followUpByOtherUser=${policy.followUpByOtherUser ?? "pin"}`,
 		);
