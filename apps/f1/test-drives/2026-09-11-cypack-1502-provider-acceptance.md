@@ -26,6 +26,8 @@ Claude/Haiku, strict MCP configuration, a small file/Bash tool allowance, disabl
 warm sessions, and `reject` for all four prompter policies. Slack/Zulip are absent.
 Per-user credentials in config are file references, not literal tokens.
 
+Initial provisioning (before the account correction below):
+
 | Linear user | Resolved UUID | GitHub actor | Claude fingerprint | PAT fingerprint |
 | --- | --- | --- | --- | --- |
 | connorturland | 7349aee3-be31-489a-9ae2-81f5d9487efc | Connoropolous | 0dea99a6 | 931b4d62 |
@@ -119,9 +121,13 @@ response activities were authored by **Cyrus CYPACK-1502 Test**, app user
 - TEST-404: session `34530b38-c3a7-40d0-80f9-a3c9038b3699`, response at 19:23:32.397 UTC.
 - TEST-405: session `4f00a35d-ee5c-4e05-a6b6-cacccdce5216`, response at 19:23:43.808 UTC.
 
-TEST-team routing now selects the designated repository automatically. Connor was
-asked whether to retry from `connorturland` or replace his mapping with the actual
-`connor@atcyrus.com` UUID. The mapping was not changed without that clarification.
+TEST-team routing now selects the designated repository automatically. At 19:29 UTC
+Connor explicitly requested replacement with the actual `connor@atcyrus.com` UUID.
+At 19:30 UTC the CLI removed the old `connorturland` mapping and its stored secret
+copies, then provisioned `67a670bb-4d83-46ed-b98b-88bb2089d95d` with Connoropolous
+and user A’s Claude credential. Both live checks passed, the worker reloaded the
+configuration, and its status endpoint returned 200. The `cyrusops1` mapping was
+verified unchanged. Both mappings hold file references with mode 0600.
 Positive human sessions and completed-work Linear attribution remain pending.
 
 ## Runtime fixes and validation
@@ -147,7 +153,7 @@ Positive human sessions and completed-work Linear attribution remain pending.
    supply this proof. A plan/visibility/repository decision belongs to its owner;
    none was made by the agent.
    [GitHub ruleset availability](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets).
-3. In real Linear, connorturland delegates [TEST-404](https://linear.app/cyrusagenttesting/issue/TEST-404)
+3. In real Linear, connor@atcyrus.com starts a fresh test-app session on [TEST-404](https://linear.app/cyrusagenttesting/issue/TEST-404)
    and cyrusops1 delegates [TEST-405](https://linear.app/cyrusagenttesting/issue/TEST-405)
    to **Cyrus CYPACK-1502 Test**, ideally within the same minute. These issues were
    created in Todo with the safe draft-PR prompts. Creation by the app is not a
