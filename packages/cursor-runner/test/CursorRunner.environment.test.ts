@@ -25,12 +25,15 @@ it("isolates concurrent Cursor tool environments, preserves auth, resumes and st
 			join(dir, "sdk.mjs"),
 			`
    import { execFileSync } from 'node:child_process';
-   import { writeFileSync } from 'node:fs';
+   import { writeFileSync, readFileSync } from 'node:fs';
    import { join } from 'node:path';
    function agent(options, resumed) {
     const cwd = options.local.cwd[0];
     const child = JSON.parse(execFileSync(process.execPath, ['-e', "process.stdout.write(JSON.stringify({gh:process.env.GH_TOKEN,github:process.env.GITHUB_TOKEN,author:process.env.GIT_AUTHOR_NAME,other:process.env.OTHER_USER_TOKEN,claude:process.env.CLAUDE_CODE_OAUTH_TOKEN,cursor:process.env.CURSOR_API_KEY}))"], { encoding: 'utf8' }));
-    writeFileSync(join(cwd, 'captured.json'), JSON.stringify({ child, apiKey: options.apiKey, resumed }));
+    const agentId = resumed || 'agent-' + child.gh;
+    if (resumed && readFileSync(join(cwd, 'session-id'), 'utf8') !== resumed) throw new Error('Unknown fixture session');
+    writeFileSync(join(cwd, 'session-id'), agentId);
+    writeFileSync(join(cwd, resumed ? 'captured-resumed.json' : 'captured.json'), JSON.stringify({ child, apiKey: options.apiKey, resumed }));
     let cancel;
     const stopped = new Promise(resolve => { cancel = resolve; });
     return { agentId: resumed || 'agent-' + child.gh, async [Symbol.asyncDispose]() { writeFileSync(join(cwd, 'closed'), 'yes'); }, async send(prompt) {
@@ -53,21 +56,24 @@ it("isolates concurrent Cursor tool environments, preserves auth, resumes and st
    import { join } from 'node:path';
    const dir = ${JSON.stringify(dir)};
    const make = (user, extra = {}) => {
-    const workingDirectory = join(dir, user); mkdirSync(workingDirectory);
+    const workingDirectory = join(dir, user); mkdirSync(workingDirectory, { recursive: true });
     return new CursorRunner({ cyrusHome: workingDirectory, workingDirectory,
      additionalEnv: { GH_TOKEN: user, GITHUB_TOKEN: user, GIT_AUTHOR_NAME: user },
      omitEnv: ['OTHER_USER_TOKEN'], ...extra });
    };
-   const a = make('ada'), b = make('bob', { resumeSessionId: 'agent-resume-bob' });
+   const a = make('ada'), b = make('bob');
    let messages = 0, completed = 0;
    a.on('message', () => messages++); a.on('complete', () => completed++);
    const sessions = await Promise.all([a.start('test'), b.start('test')]);
+   const resume = make('ada', { resumeSessionId: sessions[0].sessionId });
+   let resumeCompleted = 0; resume.on('complete', () => resumeCompleted++);
+   const resumedSession = await resume.start('test');
    const c = make('cancel'); const stopping = c.start('stop');
    while (!existsSync(join(dir, 'cancel', 'captured.json'))) await new Promise(resolve => setTimeout(resolve, 10));
    c.stop(); await stopping;
-   const d = make('failure'); let errors = 0;
+   const d = make('failure'); let errors = 0, errorCompleted = 0; d.on('complete', () => errorCompleted++);
    d.on('error', () => errors++); await d.start('fail');
-   writeFileSync(join(dir, 'result.json'), JSON.stringify({ sessions, messages, completed, errors,
+   writeFileSync(join(dir, 'result.json'), JSON.stringify({ sessions, resumedSession, resumeCompleted, messages, completed, errors, errorCompleted, stoppedRunning: c.isRunning(), failedRunning: d.isRunning(),
     failed: d.getMessages().at(-1).is_error,
     parent: { gh: process.env.GH_TOKEN, other: process.env.OTHER_USER_TOKEN },
    }));
@@ -102,7 +108,7 @@ it("isolates concurrent Cursor tool environments, preserves auth, resumes and st
 					claude: "existing-claude-placeholder",
 				},
 				apiKey: "model-placeholder",
-				resumed: user === "bob" ? "agent-resume-bob" : null,
+				resumed: null,
 			});
 		}
 		const result = JSON.parse(readFileSync(join(dir, "result.json"), "utf8"));
@@ -117,13 +123,29 @@ it("isolates concurrent Cursor tool environments, preserves auth, resumes and st
 			]),
 		).toEqual([
 			["agent-ada", false],
-			["agent-resume-bob", false],
+			["agent-bob", false],
 		]);
 		expect(result.messages).toBeGreaterThan(0);
 		expect(result.completed).toBe(1);
 		for (const user of ["ada", "bob", "cancel", "failure"]) {
 			expect(readFileSync(join(dir, user, "closed"), "utf8")).toBe("yes");
 		}
+		expect(result.resumedSession).toMatchObject({
+			sessionId: "agent-ada",
+			isRunning: false,
+		});
+		expect(result.resumeCompleted).toBe(1);
+		expect(
+			JSON.parse(
+				readFileSync(join(dir, "ada", "captured-resumed.json"), "utf8"),
+			),
+		).toMatchObject({
+			resumed: "agent-ada",
+			child: { gh: "ada", github: "ada" },
+		});
+		expect(result.stoppedRunning).toBe(false);
+		expect(result.failedRunning).toBe(false);
+		expect(result.errorCompleted).toBe(1);
 		expect(result.errors).toBe(1);
 		expect(result.failed).toBe(true);
 		expect(readFileSync(join(dir, "cancel", "canceled"), "utf8")).toBe("yes");

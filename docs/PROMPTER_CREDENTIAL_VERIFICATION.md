@@ -14,13 +14,18 @@ or deploy production during this verification.
 ## Runner scope
 
 Personal GitHub identity is wired for Claude, Codex, Cursor, Gemini and OpenCode.
-The provider evidence above covers Claude only. See the
-[progressive-runner F1 report](../apps/f1/test-drives/2026-09-11-cypack-1502-progressive-runners.md)
-for the newer automated runner and F1 checks. Automated runner environment tests
-use offline fixtures; they are not successful provider authentication or PR proof
-for the other runners. Before claiming a runner's full acceptance, provision its
-normal model authentication on the isolated test instance, select that runner,
-and repeat both users' push/draft-PR/commit checks below. Do not supply a personal
+The [live non-Claude follow-through](../apps/f1/test-drives/2026-09-12-cypack-1502-live-nonclaude.md)
+adds real model calls, GitHub pushes and draft PRs for both users through Gemini
+and OpenCode, plus live-provider F1 checks. Codex authenticates and returns model
+responses but its shell sandbox cannot start inside the current outer Mac sandbox.
+Cursor's available key is invalid; only its error completion was exercised live.
+Successful Cursor start/stop/resume coverage remains offline pending a valid key.
+OpenCode 1.17.7 failed concurrent first-start initialization with `database is locked`;
+after one sequential initialization, both concurrent F1 runs passed. The
+[earlier progressive-runner report](../apps/f1/test-drives/2026-09-11-cypack-1502-progressive-runners.md)
+records the separate offline subprocess and mock F1 checks. None of these replace
+real-Linear webhook or required-review/no-bypass acceptance for the new runners.
+Do not supply a personal
 Claude token to OpenCode as a substitute for its own supported authentication.
 `cyrus add-user --github-only` provisions personal GitHub identity while retaining
 existing model authentication. Distinct model subscriptions remain a separate
