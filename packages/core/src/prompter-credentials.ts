@@ -71,7 +71,7 @@ export type PrompterCredentialFailureReason =
 export interface ResolvedPrompterCredentials {
 	linearUserId: string;
 	displayName: string;
-	claudeCredentialKind: "oauthToken" | "apiKey";
+	claudeCredentialKind?: "oauthToken" | "apiKey";
 	github: {
 		login?: string;
 		gitAuthorName?: string;
@@ -82,7 +82,7 @@ export interface ResolvedPrompterCredentials {
 	/** Host environment variables that must NOT leak into the child process. */
 	omitEnv: string[];
 	/** Short, non-reversible fingerprints for evidence/logging. */
-	fingerprints: { claude: string; github: string };
+	fingerprints: { claude?: string; github: string };
 }
 
 export type LinearUserCredentialResolution =
@@ -225,6 +225,8 @@ export function credentialFingerprint(secret: string): string {
 // ============================================================================
 
 export interface ResolveLinearUserOptions {
+	/** Resolve personal Claude authentication only for the Claude runner. Defaults to true. */
+	includeClaude?: boolean;
 	/** Absolute path of the installed git credential helper script. */
 	gitCredentialHelperPath: string;
 	/**
@@ -295,9 +297,8 @@ export function collectEnvRefNames(
 
 /**
  * Resolve a mapped Linear user's config entry into per-session credentials.
- * A user is only "fully mapped" when BOTH a Claude credential and a GitHub
- * token resolve — anything less falls back to the operator's
- * `unmappedPrompter` policy rather than silently mixing host credentials in.
+ * GitHub credentials are required. A personal Claude credential is optional;
+ * when configured for a Claude run, it must resolve without shared fallback.
  */
 export function resolveLinearUserCredentials(
 	linearUserId: string,
@@ -313,21 +314,20 @@ export function resolveLinearUserCredentials(
 		};
 	}
 
-	// --- Claude ---------------------------------------------------------------
-	const claudeRef = user.claude?.oauthToken ?? user.claude?.apiKey;
-	const claudeKind: ResolvedPrompterCredentials["claudeCredentialKind"] = user
-		.claude?.oauthToken
-		? "oauthToken"
-		: "apiKey";
-	if (!claudeRef) {
-		return {
-			ok: false,
-			reason: "missing-claude",
-			message: `${displayName} has no Claude credential reference (claude.oauthToken or claude.apiKey)`,
-		};
-	}
-	const claude = readCredentialRef(claudeRef, options.env);
-	if ("error" in claude) {
+	// Personal model authentication is optional and only consumed by Claude.
+	const claudeRef =
+		options.includeClaude !== false
+			? (user.claude?.oauthToken ?? user.claude?.apiKey)
+			: undefined;
+	const claudeKind = claudeRef
+		? user.claude?.oauthToken
+			? "oauthToken"
+			: "apiKey"
+		: undefined;
+	const claude = claudeRef
+		? readCredentialRef(claudeRef, options.env)
+		: undefined;
+	if (claude && "error" in claude) {
 		return {
 			ok: false,
 			reason: "unreadable",
@@ -359,13 +359,12 @@ export function resolveLinearUserCredentials(
 	};
 	const omitEnv: string[] = [];
 
-	if (claudeKind === "oauthToken") {
-		env.CLAUDE_CODE_OAUTH_TOKEN = claude.value;
-	} else {
-		env.ANTHROPIC_API_KEY = claude.value;
+	if (claude) {
+		if (claudeKind === "oauthToken") env.CLAUDE_CODE_OAUTH_TOKEN = claude.value;
+		else env.ANTHROPIC_API_KEY = claude.value;
 	}
 	// Never let a host-level credential of another kind win over the user's.
-	for (const key of CLAUDE_AUTH_ENV_KEYS) {
+	for (const key of claude ? CLAUDE_AUTH_ENV_KEYS : []) {
 		if (!(key in env)) omitEnv.push(key);
 	}
 
@@ -383,6 +382,16 @@ export function resolveLinearUserCredentials(
 	// Alternative provider/auth switches that would route the model call or
 	// GitHub call away from this user's credentials are stripped as well.
 	for (const key of ALTERNATIVE_AUTH_ENV_KEYS) {
+		if (
+			!claude &&
+			![
+				"GH_HOST",
+				"CYRUS_GH_TOKEN",
+				"GH_ENTERPRISE_TOKEN",
+				"GITHUB_ENTERPRISE_TOKEN",
+			].includes(key)
+		)
+			continue;
 		if (!(key in env) && !omitEnv.includes(key)) omitEnv.push(key);
 	}
 	// Every env var any mapped user references (other users' secrets held in
@@ -442,7 +451,7 @@ export function resolveLinearUserCredentials(
 			env,
 			omitEnv,
 			fingerprints: {
-				claude: credentialFingerprint(claude.value),
+				...(claude ? { claude: credentialFingerprint(claude.value) } : {}),
 				github: credentialFingerprint(github.value),
 			},
 		},

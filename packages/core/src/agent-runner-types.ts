@@ -508,7 +508,7 @@ export interface AgentRunnerConfig {
 	 * Additional environment variables for the agent child process, merged on
 	 * top of the inherited process env. Used for per-session credentials
 	 * (per-prompter Claude/GitHub tokens, git identity) and sandbox CA cert
-	 * paths. Consumed by the Claude, Gemini and OpenCode runners.
+	 * paths. Consumed by all runners.
 	 */
 	additionalEnv?: Record<string, string>;
 	/**

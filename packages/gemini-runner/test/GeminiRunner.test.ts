@@ -160,6 +160,41 @@ describe("GeminiRunner", () => {
 		}
 	});
 
+	it("uses personal GitHub credentials at spawn while retaining Gemini auth", async () => {
+		vi.stubEnv("GH_TOKEN", "host-placeholder");
+		vi.stubEnv("GITHUB_TOKEN", "host-placeholder");
+		vi.stubEnv("OTHER_USER_TOKEN", "other-placeholder");
+		vi.stubEnv("GEMINI_API_KEY", "model-placeholder");
+		try {
+			runner = new GeminiRunner({
+				...defaultConfig,
+				additionalEnv: {
+					GH_TOKEN: "ada-placeholder",
+					GITHUB_TOKEN: "ada-placeholder",
+					GIT_AUTHOR_NAME: "Ada",
+				},
+				omitEnv: ["OTHER_USER_TOKEN"],
+			});
+			const pending = runner.start("test");
+			await new Promise((resolve) => setImmediate(resolve));
+			const env = mockSpawn.mock.calls.at(-1)?.[2]?.env;
+			expect(env).toMatchObject({
+				GH_TOKEN: "ada-placeholder",
+				GITHUB_TOKEN: "ada-placeholder",
+				GEMINI_API_KEY: "model-placeholder",
+				GIT_AUTHOR_NAME: "Ada",
+			});
+			expect(env?.OTHER_USER_TOKEN).toBeUndefined();
+			expect(process.env.GH_TOKEN).toBe("host-placeholder");
+			processEmulator.emitEvent(createInitEvent());
+			processEmulator.emitEvent(createResultEvent());
+			processEmulator.emitClose(0);
+			await pending;
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
 	describe("Configuration", () => {
 		it("should create runner with default configuration", () => {
 			expect(runner).toBeInstanceOf(GeminiRunner);

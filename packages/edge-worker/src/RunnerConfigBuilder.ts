@@ -180,37 +180,16 @@ export interface IssueRunnerConfigInput {
 	 * Per-prompter credentials resolved for this session (multi-user
 	 * self-host, CYPACK-1502). `env` is layered on top of any sandbox env so
 	 * both survive; `omitEnv` strips host-level Claude credentials of another
-	 * kind. Only runners that honour a per-session environment may receive
-	 * this — the builder throws for runners that would silently run with the
-	 * host's credentials instead.
+	 * kind when personal Claude authentication is configured. All runners
+	 * receive personal GitHub identity through their per-session environment.
 	 */
 	prompterCredentials?: ResolvedPrompterCredentials;
 	/**
 	 * Host env var names to strip from the child process even when the
 	 * session runs with host credentials (other mapped users' `{ env }`
-	 * secrets). Honoured by the Claude runner; runners that cannot strip env
-	 * are refused when this is non-empty.
+	 * secrets). Honoured by every runner.
 	 */
 	omitEnv?: readonly string[];
-}
-
-/**
- * Thrown when a prompter-bound session is routed to a runner that cannot
- * isolate credentials per session. EdgeWorker turns this into a visible
- * Linear activity instead of falling back to host credentials.
- */
-export class PrompterRunnerUnsupportedError extends Error {
-	constructor(
-		public readonly runnerType: RunnerType,
-		reason: "credentials" | "omit-env" = "credentials",
-	) {
-		super(
-			reason === "credentials"
-				? `The ${runnerType} runner does not support per-user credentials (only the Claude runner injects a per-session credential environment and strips the host's); this session was requested by a mapped Linear user and will not run with the host's credentials. Use the Claude runner for this issue.`
-				: `The ${runnerType} runner cannot strip other mapped users' env-referenced secrets from its child process, so it is refused while linearUsers references env vars. Store those users' secrets as files (\`cyrus add-user\` default) or use the Claude runner.`,
-		);
-		this.name = "PrompterRunnerUnsupportedError";
-	}
 }
 
 export function resolveIssueMcpConfigPath(
@@ -369,6 +348,51 @@ export class RunnerConfigBuilder {
 	 * Issue sessions get full tool sets, runner type selection, model overrides,
 	 * hooks, and runner-specific configuration (Chrome, Cursor, etc.).
 	 */
+	resolveIssueRunnerSelection(
+		session: CyrusAgentSession,
+		labels?: string[],
+		issueDescription?: string,
+	) {
+		// Determine runner type and model override from selectors
+		const runnerSelection = this.runnerSelector.determineRunnerSelection(
+			labels || [],
+			issueDescription,
+		);
+		let runnerType = runnerSelection.runnerType;
+		let modelOverride = runnerSelection.modelOverride;
+		let fallbackModelOverride = runnerSelection.fallbackModelOverride;
+
+		// If the labels have changed, and we are resuming a session. Use the existing runner for the session.
+		if (session.claudeSessionId && runnerType !== "claude") {
+			runnerType = "claude";
+			modelOverride = this.runnerSelector.getDefaultModelForRunner("claude");
+			fallbackModelOverride =
+				this.runnerSelector.getDefaultFallbackModelForRunner("claude");
+		} else if (session.geminiSessionId && runnerType !== "gemini") {
+			runnerType = "gemini";
+			modelOverride = this.runnerSelector.getDefaultModelForRunner("gemini");
+			fallbackModelOverride =
+				this.runnerSelector.getDefaultFallbackModelForRunner("gemini");
+		} else if (session.codexSessionId && runnerType !== "codex") {
+			runnerType = "codex";
+			modelOverride = this.runnerSelector.getDefaultModelForRunner("codex");
+			fallbackModelOverride =
+				this.runnerSelector.getDefaultFallbackModelForRunner("codex");
+		} else if (session.cursorSessionId && runnerType !== "cursor") {
+			runnerType = "cursor";
+			modelOverride = this.runnerSelector.getDefaultModelForRunner("cursor");
+			fallbackModelOverride =
+				this.runnerSelector.getDefaultFallbackModelForRunner("cursor");
+		} else if (session.opencodeSessionId && runnerType !== "opencode") {
+			runnerType = "opencode";
+			modelOverride = this.runnerSelector.getDefaultModelForRunner("opencode");
+			fallbackModelOverride =
+				this.runnerSelector.getDefaultFallbackModelForRunner("opencode");
+		}
+
+		return { runnerType, modelOverride, fallbackModelOverride };
+	}
+
 	buildIssueConfig(input: IssueRunnerConfigInput): {
 		config: AgentRunnerConfig;
 		runnerType: RunnerType;
@@ -390,42 +414,12 @@ export class RunnerConfigBuilder {
 			],
 		};
 
-		// Determine runner type and model override from selectors
-		const runnerSelection = this.runnerSelector.determineRunnerSelection(
-			input.labels || [],
-			input.issueDescription,
-		);
-		let runnerType = runnerSelection.runnerType;
-		let modelOverride = runnerSelection.modelOverride;
-		let fallbackModelOverride = runnerSelection.fallbackModelOverride;
-
-		// If the labels have changed, and we are resuming a session. Use the existing runner for the session.
-		if (input.session.claudeSessionId && runnerType !== "claude") {
-			runnerType = "claude";
-			modelOverride = this.runnerSelector.getDefaultModelForRunner("claude");
-			fallbackModelOverride =
-				this.runnerSelector.getDefaultFallbackModelForRunner("claude");
-		} else if (input.session.geminiSessionId && runnerType !== "gemini") {
-			runnerType = "gemini";
-			modelOverride = this.runnerSelector.getDefaultModelForRunner("gemini");
-			fallbackModelOverride =
-				this.runnerSelector.getDefaultFallbackModelForRunner("gemini");
-		} else if (input.session.codexSessionId && runnerType !== "codex") {
-			runnerType = "codex";
-			modelOverride = this.runnerSelector.getDefaultModelForRunner("codex");
-			fallbackModelOverride =
-				this.runnerSelector.getDefaultFallbackModelForRunner("codex");
-		} else if (input.session.cursorSessionId && runnerType !== "cursor") {
-			runnerType = "cursor";
-			modelOverride = this.runnerSelector.getDefaultModelForRunner("cursor");
-			fallbackModelOverride =
-				this.runnerSelector.getDefaultFallbackModelForRunner("cursor");
-		} else if (input.session.opencodeSessionId && runnerType !== "opencode") {
-			runnerType = "opencode";
-			modelOverride = this.runnerSelector.getDefaultModelForRunner("opencode");
-			fallbackModelOverride =
-				this.runnerSelector.getDefaultFallbackModelForRunner("opencode");
-		}
+		const { runnerType, modelOverride, fallbackModelOverride } =
+			this.resolveIssueRunnerSelection(
+				input.session,
+				input.labels,
+				input.issueDescription,
+			);
 
 		// Log model override if found
 		if (modelOverride) {
@@ -533,42 +527,17 @@ export class RunnerConfigBuilder {
 			onError: input.onError,
 		};
 
-		// Per-prompter credentials (CYPACK-1502): layer the user's env over any
-		// sandbox env (CA cert vars) so both survive, and strip host-level
-		// Claude credentials of another kind. Claude honours additionalEnv /
-		// omitEnv; OpenCode takes an `env` overlay where `undefined` unsets.
-		// Codex, Cursor and Gemini spawn with the host's process.env and have
-		// no per-session env seam, so a prompter-bound session is refused
-		// rather than silently run with the host's credentials.
 		if (input.prompterCredentials) {
-			// Claude only. OpenCode/Codex/Cursor/Gemini authenticate through
-			// their own stored provider credentials (e.g. OpenCode's auth store)
-			// and do not consume a Claude Code OAuth token from the environment,
-			// so env injection there would not prove which credential paid for
-			// the run. Refuse rather than guess.
-			if (runnerType !== "claude") {
-				throw new PrompterRunnerUnsupportedError(runnerType);
-			}
-			const existingEnv =
-				(config.additionalEnv as Record<string, string> | undefined) ?? {};
 			config.additionalEnv = {
-				...existingEnv,
+				...config.additionalEnv,
 				...input.prompterCredentials.env,
 			};
 			config.omitEnv = [
-				...((config.omitEnv as string[] | undefined) ?? []),
+				...(config.omitEnv ?? []),
 				...input.prompterCredentials.omitEnv,
 			];
-		} else if (input.omitEnv && input.omitEnv.length > 0) {
-			// Host-credential session while a mapping exists: keep other users'
-			// env-referenced secrets out of the child process.
-			if (runnerType !== "claude") {
-				throw new PrompterRunnerUnsupportedError(runnerType, "omit-env");
-			}
-			config.omitEnv = [
-				...((config.omitEnv as string[] | undefined) ?? []),
-				...input.omitEnv,
-			];
+		} else if (input.omitEnv?.length) {
+			config.omitEnv = [...(config.omitEnv ?? []), ...input.omitEnv];
 		}
 
 		// Cursor runner uses @cursor/sdk. Pass through API key, the same

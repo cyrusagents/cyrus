@@ -14,6 +14,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
 import type {
 	McpServerConfig as CursorMcpServerConfig,
 	SDKAssistantMessage as CursorSDKAssistantMessage,
@@ -40,6 +41,7 @@ import type {
 	SDKResultMessage,
 	SDKUserMessage,
 } from "cyrus-core";
+import { buildRunnerEnvironment } from "cyrus-core";
 import { CursorMessageFormatter } from "./formatter.js";
 import {
 	buildCyrusPermissionsConfig,
@@ -403,6 +405,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 	readonly supportsStreamingInput = false;
 
 	private config: CursorRunnerConfig;
+	private isolatedWorker: Worker | null = null;
 	private sessionInfo: CursorSessionInfo | null = null;
 	private messages: SDKMessage[] = [];
 	private formatter: IMessageFormatter;
@@ -441,6 +444,9 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 	async start(prompt: string): Promise<CursorSessionInfo> {
 		if (this.isRunning()) {
 			throw new Error("Cursor session already running");
+		}
+		if (this.config.additionalEnv || this.config.omitEnv?.length) {
+			return this.startIsolated(prompt);
 		}
 
 		const initialSessionId = this.config.resumeSessionId || crypto.randomUUID();
@@ -569,6 +575,10 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 				}
 			} catch (error) {
 				caughtError = error;
+			} finally {
+				// Release SDK connections before an isolated worker exits.
+				// Session history remains available through Agent.resume.
+				await agent[Symbol.asyncDispose]();
 			}
 
 			this.finalizeSession(caughtError);
@@ -577,6 +587,81 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		}
 
 		return this.sessionInfo;
+	}
+
+	/** Cursor's local SDK has no environment option. Give each credential-bound
+	 * runner a worker with its own process.env, inherited by its shell tools.
+	 * Never use SHARE_ENV or mutate the parent process's credentials. */
+	private async startIsolated(prompt: string): Promise<CursorSessionInfo> {
+		this.messages = [];
+		this.sessionInfo = {
+			sessionId: this.config.resumeSessionId || null,
+			startedAt: new Date(),
+			isRunning: true,
+		};
+		const config: CursorRunnerConfig = {
+			cyrusHome: this.config.cyrusHome,
+			workingDirectory: this.config.workingDirectory,
+			model: this.config.model,
+			resumeSessionId: this.config.resumeSessionId,
+			cursorApiKey: this.config.cursorApiKey,
+			allowedTools: this.config.allowedTools,
+			disallowedTools: this.config.disallowedTools,
+			allowedDirectories: this.config.allowedDirectories,
+			appendSystemPrompt: this.config.appendSystemPrompt,
+			mcpConfig: mapCyrusMcpToSdk(
+				this.config.mcpConfig,
+			) as CursorRunnerConfig["mcpConfig"],
+			sandboxSettings: this.config.sandboxSettings,
+			egressCaCertPath: this.config.egressCaCertPath,
+		};
+		return new Promise((resolveSession, reject) => {
+			const worker = new Worker(
+				new URL(
+					import.meta.url.endsWith(".ts")
+						? "../dist/cursor-worker.js"
+						: "./cursor-worker.js",
+					import.meta.url,
+				),
+				{
+					env: buildRunnerEnvironment(this.config),
+					workerData: { config, prompt },
+				},
+			);
+			this.isolatedWorker = worker;
+			let finished = false;
+			const fail = (error: Error) => {
+				if (finished) return;
+				finished = true;
+				this.isolatedWorker = null;
+				if (this.sessionInfo) this.sessionInfo.isRunning = false;
+				void worker.terminate();
+				reject(error);
+			};
+			worker.on("error", fail);
+			worker.on("exit", (code) => {
+				if (!finished)
+					fail(new Error(`Cursor worker exited before completion (${code})`));
+			});
+			worker.on("message", (event) => {
+				if (event.type === "message") {
+					const message = event.message as SDKMessage;
+					this.messages.push(message);
+					if (this.sessionInfo && message.session_id)
+						this.sessionInfo.sessionId = message.session_id;
+					this.emit("message", message);
+				} else if (event.type === "error") {
+					if (this.listenerCount("error"))
+						this.emit("error", new Error(event.message));
+				} else if (event.type === "done") {
+					finished = true;
+					this.isolatedWorker = null;
+					this.sessionInfo = event.session;
+					this.emit("complete", this.getMessages());
+					resolveSession(event.session);
+				} else if (event.type === "failed") fail(new Error(event.message));
+			});
+		});
 	}
 
 	async startStreaming(_initialPrompt?: string): Promise<CursorSessionInfo> {
@@ -592,6 +677,10 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 	}
 
 	stop(): void {
+		if (this.isolatedWorker) {
+			this.isolatedWorker.postMessage({ type: "stop" });
+			return;
+		}
 		this.wasStopped = true;
 		const run = this.currentRun;
 		if (run && typeof run.cancel === "function") {

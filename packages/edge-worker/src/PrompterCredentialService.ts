@@ -232,7 +232,7 @@ export class PrompterCredentialService {
 			pin.source === "parent"
 				? " (inherited from the parent issue's session)"
 				: "";
-		return `Running as ${who}${inherited}. This session uses their Claude access and GitHub account. Commits, pushes and pull requests will be attributed to ${who}.`;
+		return `Running as ${who}${inherited}. This session uses their GitHub account. Commits, pushes and pull requests will be attributed to ${who}.`;
 	}
 
 	/**
@@ -265,6 +265,7 @@ export class PrompterCredentialService {
 	 */
 	resolveForSession(
 		session: CyrusAgentSession,
+		includeClaude = true,
 	): ResolvedPrompterCredentials | undefined {
 		const pin = session.prompter;
 		// No pin: nothing to resolve (the caller applies the backstop policy
@@ -284,6 +285,7 @@ export class PrompterCredentialService {
 			{
 				gitCredentialHelperPath: this.ensureHelper(),
 				additionalOmitEnv: this.allEnvRefNames(),
+				includeClaude,
 			},
 		);
 		if (!result.ok) {
@@ -293,14 +295,14 @@ export class PrompterCredentialService {
 			);
 		}
 		this.logger.info(
-			`Session ${session.id} runs as Linear user ${result.credentials.displayName} (claude:${result.credentials.claudeCredentialKind}#${result.credentials.fingerprints.claude} github:${result.credentials.github.login ?? "?"}#${result.credentials.fingerprints.github})`,
+			`Session ${session.id} runs as Linear user ${result.credentials.displayName} (${result.credentials.claudeCredentialKind ? `claude:${result.credentials.claudeCredentialKind}#${result.credentials.fingerprints.claude} ` : "model:existing "}github:${result.credentials.github.login ?? "?"}#${result.credentials.fingerprints.github})`,
 		);
 		return result.credentials;
 	}
 
 	/**
-	 * Check that a pin's secrets are readable RIGHT NOW, before any worktree
-	 * or runner exists. Returns a secret-free problem description, or null.
+	 * Check that a pin's GitHub credential is readable before any worktree
+	 * or runner exists. Personal Claude auth is checked for Claude starts. Returns a secret-free problem description, or null.
 	 * Host pins have nothing to validate.
 	 */
 	validatePin(pin: SessionPrompter): string | null {
@@ -308,7 +310,7 @@ export class PrompterCredentialService {
 		const result = resolveLinearUserCredentials(
 			pin.credentialUserId,
 			this.linearUsers[pin.credentialUserId],
-			{ gitCredentialHelperPath: this.ensureHelper() },
+			{ gitCredentialHelperPath: this.ensureHelper(), includeClaude: false },
 		);
 		if (result.ok) return null;
 		return `Cannot run this session under ${this.displayNameFor(pin.credentialUserId)}'s credentials: ${result.message}. Fix the mapping with \`cyrus add-user\` / \`cyrus check-users\`, then start a new session.`;
@@ -337,6 +339,6 @@ export class PrompterCredentialService {
 	 * "Ada (claude:oauthToken#1a2b3c4d, github:ada#9f8e7d6c)".
 	 */
 	static describe(c: ResolvedPrompterCredentials): string {
-		return `${c.displayName} (claude:${c.claudeCredentialKind}#${c.fingerprints.claude}, github:${c.github.login ?? "token"}#${c.fingerprints.github})`;
+		return `${c.displayName} (${c.claudeCredentialKind ? `claude:${c.claudeCredentialKind}#${c.fingerprints.claude}, ` : "model:existing, "}github:${c.github.login ?? "token"}#${c.fingerprints.github})`;
 	}
 }

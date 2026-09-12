@@ -208,6 +208,10 @@ program
 		"--github-token-env <VAR>",
 		"Reference an env var instead of storing a file",
 	)
+	.option(
+		"--github-only",
+		"Configure personal GitHub identity while keeping existing model authentication",
+	)
 	.option("--skip-claude-check", "Skip the live one-turn Claude verification")
 	.option(
 		"--skip-github-check",

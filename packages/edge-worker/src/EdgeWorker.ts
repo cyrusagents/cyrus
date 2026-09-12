@@ -180,7 +180,6 @@ import {
 } from "./RepositoryRouter.js";
 import { capRunnerStarts, SessionSemaphore } from "./RunnerConcurrency.js";
 import {
-	PrompterRunnerUnsupportedError,
 	RunnerConfigBuilder,
 	resolveIssueMcpConfigPath,
 } from "./RunnerConfigBuilder.js";
@@ -1140,9 +1139,6 @@ export class EdgeWorker extends EventEmitter {
 				const runnerType =
 					chatRunnerType ?? this.runnerSelectionService.getDefaultRunner();
 				const omitEnv = this.prompterCredentialService.allEnvRefNames();
-				if (omitEnv.length > 0 && runnerType !== "claude") {
-					throw new PrompterRunnerUnsupportedError(runnerType, "omit-env");
-				}
 				return this.createRunnerForType(runnerType, {
 					...config,
 					omitEnv: [...(config.omitEnv ?? []), ...omitEnv],
@@ -7159,6 +7155,11 @@ ${input.userComment}
 			sessionId,
 			linearWorkspaceId,
 			sessionPlatform,
+			this.runnerConfigBuilder.resolveIssueRunnerSelection(
+				session,
+				labels,
+				issueDescription,
+			).runnerType === "claude",
 		);
 
 		// Sessions that run with host credentials while a mapping exists must
@@ -7167,65 +7168,49 @@ ${input.userComment}
 			? this.prompterCredentialService.allEnvRefNames()
 			: undefined;
 
-		let result: { config: AgentRunnerConfig; runnerType: RunnerType };
-		try {
-			result = this.runnerConfigBuilder.buildIssueConfig({
-				omitEnv: hostSessionOmitEnv,
-				session,
-				repository,
-				sessionId,
-				systemPrompt,
-				allowedTools,
-				allowedDirectories,
-				disallowedTools,
-				resumeSessionId,
-				labels,
-				issueDescription,
-				maxTurns,
-				prompterCredentials,
-				// Per-platform MCP config paths — GitHub + GitLab share the
-				// `githubMcpConfigs` knob (single-repo PR contexts both); Linear
-				// gets `linearMcpConfigs`. Not a blanket override: the builder
-				// uses `repository.mcpConfigPath` when this repo has its own
-				// `allowedTools` override (so the repo's permission rules and
-				// MCP server set travel as a unit), and only falls through to
-				// this list when the repo inherits the platform allow-list.
-				platformMcpConfigOverrides:
-					sessionPlatform === "linear"
-						? this.config.linearMcpConfigs
-						: this.config.githubMcpConfigs,
-				strictMcpConfig: this.config.strictMcpConfig,
-				linearWorkspaceId,
-				cyrusHome: this.cyrusHome,
-				logger: log,
-				plugins,
-				opencodeGlobalConfig: this.config.opencode?.config,
-				opencodeGlobalStateScope: this.config.opencode?.stateScope,
-				skills: allowedSkillNames,
-				sandboxSettings: this.sdkSandboxSettings ?? undefined,
-				egressCaCertPath: this.egressCaCertPath ?? undefined,
-				onMessage: (message: SDKMessage) => {
-					this.handleClaudeMessage(sessionId, message, repository.id);
-				},
-				onError: (error: Error) => this.handleClaudeError(error),
-				createAskUserQuestionCallback: (sid, wid) =>
-					this.createAskUserQuestionCallback(sid, wid)!,
-				requireLinearWorkspaceId,
-			});
-		} catch (error) {
-			if (error instanceof PrompterRunnerUnsupportedError) {
-				// The session is pinned to a human but the selected runner cannot
-				// isolate credentials. Refuse visibly rather than run as the host.
-				if (linearWorkspaceId) {
-					await this.postPrompterResponse(
-						sessionId,
-						linearWorkspaceId,
-						error.message,
-					);
-				}
-			}
-			throw error;
-		}
+		const result = this.runnerConfigBuilder.buildIssueConfig({
+			omitEnv: hostSessionOmitEnv,
+			session,
+			repository,
+			sessionId,
+			systemPrompt,
+			allowedTools,
+			allowedDirectories,
+			disallowedTools,
+			resumeSessionId,
+			labels,
+			issueDescription,
+			maxTurns,
+			prompterCredentials,
+			// Per-platform MCP config paths — GitHub + GitLab share the
+			// `githubMcpConfigs` knob (single-repo PR contexts both); Linear
+			// gets `linearMcpConfigs`. Not a blanket override: the builder
+			// uses `repository.mcpConfigPath` when this repo has its own
+			// `allowedTools` override (so the repo's permission rules and
+			// MCP server set travel as a unit), and only falls through to
+			// this list when the repo inherits the platform allow-list.
+			platformMcpConfigOverrides:
+				sessionPlatform === "linear"
+					? this.config.linearMcpConfigs
+					: this.config.githubMcpConfigs,
+			strictMcpConfig: this.config.strictMcpConfig,
+			linearWorkspaceId,
+			cyrusHome: this.cyrusHome,
+			logger: log,
+			plugins,
+			opencodeGlobalConfig: this.config.opencode?.config,
+			opencodeGlobalStateScope: this.config.opencode?.stateScope,
+			skills: allowedSkillNames,
+			sandboxSettings: this.sdkSandboxSettings ?? undefined,
+			egressCaCertPath: this.egressCaCertPath ?? undefined,
+			onMessage: (message: SDKMessage) => {
+				this.handleClaudeMessage(sessionId, message, repository.id);
+			},
+			onError: (error: Error) => this.handleClaudeError(error),
+			createAskUserQuestionCallback: (sid, wid) =>
+				this.createAskUserQuestionCallback(sid, wid)!,
+			requireLinearWorkspaceId,
+		});
 
 		// Attach pre-warmed session if available (only for Claude runner).
 		// Skipped entirely when warm sessions are not enabled, and never for
@@ -7269,6 +7254,7 @@ ${input.userComment}
 		sessionId: string,
 		linearWorkspaceId: string | undefined,
 		sessionPlatform: "linear" | "github" | "gitlab",
+		includeClaude = true,
 	): Promise<ResolvedPrompterCredentials | undefined> {
 		const service = this.prompterCredentialService;
 		// A session that carries a user pin is ALWAYS resolved against the
@@ -7331,7 +7317,7 @@ ${input.userComment}
 		}
 
 		try {
-			return service.resolveForSession(session);
+			return service.resolveForSession(session, includeClaude);
 		} catch (error) {
 			if (error instanceof PrompterCredentialError) {
 				await refuse(error.message);

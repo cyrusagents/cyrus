@@ -18,12 +18,14 @@ The setup skill walks you through everything below — automatically.
 
 ## Sharing Cyrus with multiple users
 
-For each person's Claude access, GitHub PR authorship and commit identity, follow
+For personal GitHub PR authorship and commit identity, with optional personal Claude access, follow
 the [per-user credentials guide](https://github.com/cyrusagents/documentation/blob/main/per-user-credentials.mdx).
 It covers `cyrus add-user`, checking and rotating credentials, removing users,
 and choosing whether another person can continue a session.
 
-Per-user credentials support Claude on self-hosted instances. Use the
+Personal GitHub identity supports Claude, Codex, Cursor, Gemini and OpenCode on
+self-hosted instances. Use `cyrus add-user --github-only` to keep existing model
+authentication, or add a personal Claude credential for Claude sessions. Use the
 [verification checklist](./PROMPTER_CREDENTIAL_VERIFICATION.md) to validate your
 setup, including GitHub review controls and the documented isolation limits.
 

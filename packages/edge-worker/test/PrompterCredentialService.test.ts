@@ -273,7 +273,7 @@ describe("PrompterCredentialService", () => {
 			source: "prompter" as const,
 		};
 		expect(() => svc.resolveForSession(session(bobPin))).toThrow(
-			/no Claude credential reference/,
+			/no GitHub token reference/,
 		);
 	});
 
@@ -338,7 +338,7 @@ describe("PrompterCredentialService", () => {
 		});
 	});
 
-	it("validates a pin's secrets before any worktree exists", () => {
+	it("validates GitHub before worktrees and Claude only when its runner needs it", () => {
 		const svc = service();
 		const adaPin = {
 			linearUserId: ADA,
@@ -347,8 +347,14 @@ describe("PrompterCredentialService", () => {
 		};
 		expect(svc.validatePin(adaPin)).toBeNull();
 		delete process.env.PCS_TEST_ADA_CLAUDE;
+		expect(svc.validatePin(adaPin)).toBeNull();
+		expect(() => svc.resolveForSession(session(adaPin), false)).not.toThrow();
+		expect(() => svc.resolveForSession(session(adaPin))).toThrow(
+			/PCS_TEST_ADA_CLAUDE/,
+		);
+		delete process.env.PCS_TEST_ADA_GH;
 		const problem = svc.validatePin(adaPin);
-		expect(problem).toContain("PCS_TEST_ADA_CLAUDE");
+		expect(problem).toContain("PCS_TEST_ADA_GH");
 		expect(problem).toContain("start a new session");
 		expect(svc.validatePin({ linearUserId: "", source: "host" })).toBeNull();
 	});

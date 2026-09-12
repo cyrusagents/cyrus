@@ -10,7 +10,6 @@ import {
 	type IChatToolResolver,
 	type IMcpConfigProvider,
 	type IRunnerSelector,
-	PrompterRunnerUnsupportedError,
 	RunnerConfigBuilder,
 } from "../src/RunnerConfigBuilder.js";
 
@@ -142,20 +141,21 @@ describe("RunnerConfigBuilder per-prompter credentials", () => {
 		"codex",
 		"cursor",
 		"gemini",
-	] as const)("refuses a prompter-bound session on the %s runner instead of using host credentials", (runnerType) => {
-		// Only the Claude runner consumes a per-session credential env; other
-		// runners authenticate through their own stored provider credentials,
-		// so env injection would not prove which credential paid for the run.
-		expect(() => build(runnerType, { prompterCredentials: ADA })).toThrow(
-			PrompterRunnerUnsupportedError,
-		);
-		// A host session on such a runner is refused only while other users'
-		// secrets would have to be stripped from its env.
-		expect(() => build(runnerType, { omitEnv: ["BOB_GH_TOKEN"] })).toThrow(
-			/cannot strip other mapped users/,
-		);
-		// Without a pin and nothing to strip, the same runner still builds.
+	] as const)("applies personal GitHub identity and env filtering to %s without changing model auth", (runnerType) => {
+		const { CLAUDE_CODE_OAUTH_TOKEN: _unused, ...env } = ADA.env;
+		const credentials = {
+			...ADA,
+			env,
+			claudeCredentialKind: undefined,
+			omitEnv: ["OTHER_USER_TOKEN"],
+		};
+		const { config } = build(runnerType, { prompterCredentials: credentials });
+		expect(config.additionalEnv?.GH_TOKEN).toBe("github_pat_ada_placeholder");
+		expect(config.additionalEnv?.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
+		expect(config.omitEnv).toContain("OTHER_USER_TOKEN");
+		expect(
+			build(runnerType, { omitEnv: ["OTHER_USER_TOKEN"] }).config.omitEnv,
+		).toEqual(["OTHER_USER_TOKEN"]);
 		expect(() => build(runnerType)).not.toThrow();
-		expect(() => build(runnerType, { omitEnv: [] })).not.toThrow();
 	});
 });

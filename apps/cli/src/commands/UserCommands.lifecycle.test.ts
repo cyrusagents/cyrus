@@ -10,7 +10,10 @@ import { expect, it } from "vitest";
 // (the repository CI already builds all packages before running tests).
 const execFileAsync = promisify(execFile);
 
-it("credential commands exit after completing when an env file is watched", async () => {
+it.each([
+	false,
+	true,
+])("credential commands complete with GitHub-only=%s", async (githubOnly) => {
 	const home = mkdtempSync(join(tmpdir(), "cyrus-user-cli-"));
 	try {
 		writeFileSync(join(home, ".env"), "CYRUS_SENTRY_DISABLED=true\n");
@@ -41,10 +44,9 @@ it("credential commands exit after completing when an env file is watched", asyn
 			"lifecycle-user",
 			"--name",
 			"Lifecycle Test",
-			"--claude-kind",
-			"oauth",
-			"--claude-token-file",
-			tokenFile,
+			...(githubOnly
+				? ["--github-only"]
+				: ["--claude-kind", "oauth", "--claude-token-file", tokenFile]),
 			"--github-token-file",
 			tokenFile,
 			"--skip-claude-check",
@@ -52,6 +54,16 @@ it("credential commands exit after completing when an env file is watched", asyn
 		]);
 		expect((await run(["list-users"])).stdout).toContain("Lifecycle Test");
 		expect((await run(["check-users"])).stdout).toContain("resolves");
+		if (githubOnly) {
+			expect((await run(["list-users"])).stdout).toContain(
+				"existing model authentication",
+			);
+			expect(
+				JSON.parse(readFileSync(join(home, "config.json"), "utf8")).linearUsers[
+					"lifecycle-user"
+				].claude,
+			).toBeUndefined();
+		}
 		await run(["remove-user", "lifecycle-user"]);
 		expect(
 			JSON.parse(readFileSync(join(home, "config.json"), "utf8")).linearUsers ??

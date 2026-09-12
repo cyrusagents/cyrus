@@ -186,6 +186,64 @@ describe("EdgeWorker per-prompter credentials", () => {
 			"linear",
 		) as Promise<unknown>;
 
+	it.each([
+		"claude",
+		"codex",
+		"cursor",
+		"gemini",
+		"opencode",
+	] as const)("resolves personal Claude auth only when the actual resumed runner is %s", async (runnerType) => {
+		const worker = edgeWorker as any;
+		const pinned = session({
+			linearUserId: ADA,
+			credentialUserId: ADA,
+			source: "prompter",
+		});
+		pinned[`${runnerType}SessionId` as keyof CyrusAgentSession] =
+			"resumed-provider-session" as never;
+		vi.spyOn(worker.skillsPluginResolver, "resolve").mockResolvedValue([]);
+		vi.spyOn(
+			worker.skillsPluginResolver,
+			"discoverSkillNames",
+		).mockResolvedValue([]);
+		vi.spyOn(worker, "resolveSkillRepoPaths").mockReturnValue([]);
+		vi.spyOn(worker, "isWarmSessionsEnabled").mockReturnValue(false);
+		// Deliberately request a different runner: resume must determine which
+		// model credential is consumed, not the current issue's changed label.
+		vi.spyOn(
+			worker.runnerSelectionService,
+			"determineRunnerSelection",
+		).mockReturnValue({
+			runnerType: runnerType === "claude" ? "codex" : "claude",
+		});
+		vi.spyOn(worker.runnerConfigBuilder, "buildIssueConfig").mockReturnValue({
+			runnerType,
+			config: {},
+		});
+		const resolve = vi.spyOn(worker, "resolvePrompterCredentialsForRunner");
+		await worker.buildAgentRunnerConfig(
+			pinned,
+			repository,
+			pinned.id,
+			"test",
+			[],
+			[],
+			[],
+			undefined,
+			[],
+			undefined,
+			undefined,
+			WS,
+		);
+		expect(resolve).toHaveBeenCalledWith(
+			pinned,
+			pinned.id,
+			WS,
+			"linear",
+			runnerType === "claude",
+		);
+	});
+
 	it("resume after the LAST mapped user is removed refuses instead of using host credentials", async () => {
 		const pinned = session({
 			linearUserId: ADA,
@@ -293,7 +351,7 @@ describe("EdgeWorker per-prompter credentials", () => {
 		expect(buildMcp).not.toHaveBeenCalled();
 	});
 
-	it("filters mapped env secrets from host chat runners and refuses runners that cannot filter", () => {
+	it("filters mapped env secrets from every shared chat runner", () => {
 		const worker = edgeWorker as any;
 		const factory = vi.spyOn(worker, "createRunnerForType").mockReturnValue({});
 		const deps = worker.buildChatSessionHandlerDeps({}, () => undefined);
@@ -307,7 +365,18 @@ describe("EdgeWorker per-prompter credentials", () => {
 				]),
 			}),
 		);
-		expect(() => deps.createRunner({}, "opencode")).toThrow("cannot strip");
+		for (const runnerType of ["opencode", "codex", "cursor", "gemini"]) {
+			deps.createRunner({}, runnerType);
+			expect(factory).toHaveBeenLastCalledWith(
+				runnerType,
+				expect.objectContaining({
+					omitEnv: expect.arrayContaining([
+						"EW_TEST_ADA_CLAUDE",
+						"EW_TEST_ADA_GH",
+					]),
+				}),
+			);
+		}
 	});
 
 	it("a pin-less session stays untouched when the feature is off", async () => {

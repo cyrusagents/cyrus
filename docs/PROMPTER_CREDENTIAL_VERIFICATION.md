@@ -11,6 +11,21 @@ Run this checklist on a disposable self-host test instance, using the runtime
 from [PR #1472](https://github.com/cyrusagents/cyrus/pull/1472). Do not merge PRs
 or deploy production during this verification.
 
+## Runner scope
+
+Personal GitHub identity is wired for Claude, Codex, Cursor, Gemini and OpenCode.
+The provider evidence above covers Claude only. See the
+[progressive-runner F1 report](../apps/f1/test-drives/2026-09-11-cypack-1502-progressive-runners.md)
+for the newer automated runner and F1 checks. Automated runner environment tests
+use offline fixtures; they are not successful provider authentication or PR proof
+for the other runners. Before claiming a runner's full acceptance, provision its
+normal model authentication on the isolated test instance, select that runner,
+and repeat both users' push/draft-PR/commit checks below. Do not supply a personal
+Claude token to OpenCode as a substitute for its own supported authentication.
+`cyrus add-user --github-only` provisions personal GitHub identity while retaining
+existing model authentication. Distinct model subscriptions remain a separate
+verification requirement.
+
 ## Required accounts and permissions
 
 - Two consenting engineers A and B, with distinct active Linear IDs in the same
@@ -163,7 +178,7 @@ Use the disposable instance only; restore each fixture before the next case.
 | Rotation | Re-provision A with `--force`, restart A's runner and prompt again | New fingerprint, same verified actor; existing running turns do not switch tokens |
 | Last mapping removed | Remove B; stop A's runner; remove A; prompt A's old session after config reload and after worker restart | Refusal with zero runner starts, never host fallback |
 | Running session removal | Remove A while a test session runs, then send a follow-up | Follow-up refused; stop the running session and revoke provider tokens for immediate revocation |
-| Unsupported runner | Route a mapped session to OpenCode/Codex/Cursor/Gemini | Explicit refusal, no provider run |
+| Runner matrix | Route A and B to each configured runner, including resumes; repeat with GitHub-only mappings | Personal GitHub actor/commit identity for each runner; unchanged model authentication for Codex/Cursor/Gemini/OpenCode and GitHub-only Claude. A configured unreadable Claude credential refuses Claude only. |
 | Config sync | Push normal hosted config omitting local mapping/policy to the test instance | Existing mapping and policy preserved |
 
 ## Evidence record and handoff

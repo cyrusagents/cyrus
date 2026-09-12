@@ -37,6 +37,7 @@ import { CLIPrompts } from "../ui/CLIPrompts.js";
 import { BaseCommand } from "./ICommand.js";
 
 export interface AddUserOptions {
+	githubOnly?: boolean;
 	linearUserId?: string;
 	linearEmail?: string;
 	name?: string;
@@ -243,46 +244,58 @@ export class AddUserCommand extends BaseCommand {
 		}
 
 		// ---- 2. Claude credential -------------------------------------------
-		const claude = await obtainSecret("claude", {
-			file: options.claudeTokenFile,
-			env: options.claudeTokenEnv,
-		});
-		let claudeKind: ClaudeCredentialKind | undefined =
-			options.claudeKind === "oauth"
-				? "oauthToken"
-				: options.claudeKind === "api-key"
-					? "apiKey"
-					: detectClaudeCredentialKind(claude.secret);
-		if (!claudeKind) {
-			const choice = await CLIPrompts.menu(
-				"Could not detect the Claude credential type from its prefix. Which is it?",
-				[
-					"Claude Code OAuth token (from `claude setup-token`)",
-					"Anthropic console API key",
-				],
+		let claude: Awaited<ReturnType<typeof obtainSecret>> | undefined;
+		let claudeKind: ClaudeCredentialKind | undefined;
+		if (
+			options.githubOnly &&
+			(options.claudeTokenFile || options.claudeTokenEnv || options.claudeKind)
+		) {
+			this.exitWithError(
+				"--github-only cannot be combined with Claude credential options.",
 			);
-			claudeKind = choice === 1 ? "apiKey" : "oauthToken";
 		}
-		console.log(
-			`   Claude credential: ${claudeKind === "oauthToken" ? "OAuth token (claude setup-token)" : "API key"} · fingerprint ${credentialFingerprint(claude.secret)}`,
-		);
-		if (!options.skipClaudeCheck) {
+		if (!options.githubOnly) {
+			claude = await obtainSecret("claude", {
+				file: options.claudeTokenFile,
+				env: options.claudeTokenEnv,
+			});
+			claudeKind =
+				options.claudeKind === "oauth"
+					? "oauthToken"
+					: options.claudeKind === "api-key"
+						? "apiKey"
+						: detectClaudeCredentialKind(claude.secret);
+			if (!claudeKind) {
+				const choice = await CLIPrompts.menu(
+					"Could not detect the Claude credential type from its prefix. Which is it?",
+					[
+						"Claude Code OAuth token (from `claude setup-token`)",
+						"Anthropic console API key",
+					],
+				);
+				claudeKind = choice === 1 ? "apiKey" : "oauthToken";
+			}
 			console.log(
-				"   Verifying the Claude credential with a one-turn haiku round trip…",
+				`   Claude credential: ${claudeKind === "oauthToken" ? "OAuth token (claude setup-token)" : "API key"} · fingerprint ${credentialFingerprint(claude.secret)}`,
 			);
-			const check = await verifyClaudeCredentialLive(
-				this.app.cyrusHome,
-				claudeKind,
-				claude.secret,
-			);
-			if (!check.ok) {
-				this.exitWithError(
-					`Claude credential check failed: ${check.error}. Re-run with --skip-claude-check to store it anyway.`,
+			if (!options.skipClaudeCheck) {
+				console.log(
+					"   Verifying the Claude credential with a one-turn haiku round trip…",
+				);
+				const check = await verifyClaudeCredentialLive(
+					this.app.cyrusHome,
+					claudeKind,
+					claude.secret,
+				);
+				if (!check.ok) {
+					this.exitWithError(
+						`Claude credential check failed: ${check.error}. Re-run with --skip-claude-check to store it anyway.`,
+					);
+				}
+				this.logSuccess(
+					`Claude credential works${check.model ? ` (model ${check.model})` : ""}`,
 				);
 			}
-			this.logSuccess(
-				`Claude credential works${check.model ? ` (model ${check.model})` : ""}`,
-			);
 		}
 
 		// ---- 3. GitHub token --------------------------------------------------
@@ -308,15 +321,16 @@ export class AddUserCommand extends BaseCommand {
 			options.gitEmail?.trim() || actor?.email || actor?.noreplyEmail;
 
 		// ---- 4. Store secrets (files) and references (config) ---------------
-		const claudeRef =
-			claude.ref ??
-			this.service.storeSecretFile(
-				linearUserId,
-				claudeKind === "oauthToken"
-					? CLAUDE_OAUTH_TOKEN_FILE
-					: CLAUDE_API_KEY_FILE,
-				claude.secret,
-			);
+		const claudeRef = claude
+			? (claude.ref ??
+				this.service.storeSecretFile(
+					linearUserId,
+					claudeKind === "oauthToken"
+						? CLAUDE_OAUTH_TOKEN_FILE
+						: CLAUDE_API_KEY_FILE,
+					claude.secret,
+				))
+			: undefined;
 		const githubRef =
 			github.ref ??
 			this.service.storeSecretFile(
@@ -328,10 +342,14 @@ export class AddUserCommand extends BaseCommand {
 		const entry: LinearUserConfig = {
 			displayName,
 			...(linearEmail ? { email: linearEmail } : {}),
-			claude:
-				claudeKind === "oauthToken"
-					? { oauthToken: claudeRef }
-					: { apiKey: claudeRef },
+			...(claudeRef
+				? {
+						claude:
+							claudeKind === "oauthToken"
+								? { oauthToken: claudeRef }
+								: { apiKey: claudeRef },
+					}
+				: {}),
 			github: {
 				token: githubRef,
 				...(actor ? { login: actor.login } : {}),
@@ -346,7 +364,7 @@ export class AddUserCommand extends BaseCommand {
 		this.logDivider();
 		this.logSuccess(`Mapped ${displayName} (${linearUserId})`);
 		console.log(
-			`   Claude:  ${"env" in claudeRef ? `env ${claudeRef.env}` : claudeRef.file}`,
+			`   Claude:  ${claudeRef ? ("env" in claudeRef ? `env ${claudeRef.env}` : claudeRef.file) : "existing model authentication"}`,
 		);
 		console.log(
 			`   GitHub:  ${"env" in githubRef ? `env ${githubRef.env}` : githubRef.file}${actor ? ` (@${actor.login})` : ""}`,
@@ -376,7 +394,7 @@ export class ListUsersCommand extends BaseCommand {
 			const info = UserCredentialService.inspectUser(id, users[id]!);
 			console.log(`• ${info.displayName}  (${id})`);
 			console.log(
-				`    Claude:  ${info.claude.kind}  ${info.claude.ref}  ${info.claude.ok ? `✅ #${info.claude.fingerprint}` : `❌ ${info.claude.error}`}`,
+				`    Claude:  ${info.claude.kind === "missing" ? "existing model authentication" : `${info.claude.kind}  ${info.claude.ref}  ${info.claude.ok ? `✅ #${info.claude.fingerprint}` : `❌ ${info.claude.error}`}`}`,
 			);
 			console.log(
 				`    GitHub:  ${info.github.login ? `@${info.github.login}  ` : ""}${info.github.ref}  ${info.github.ok ? `✅ #${info.github.fingerprint}` : `❌ ${info.github.error}`}`,
@@ -417,12 +435,16 @@ export class CheckUsersCommand extends BaseCommand {
 			const info = UserCredentialService.inspectUser(id, entry);
 			console.log(`\n${info.displayName} (${id})`);
 			console.log(
-				`  Claude ${info.claude.ok ? `✅ resolves (#${info.claude.fingerprint})` : `❌ ${info.claude.error}`}`,
+				`  Claude ${info.claude.kind === "missing" ? "existing model authentication" : info.claude.ok ? `✅ resolves (#${info.claude.fingerprint})` : `❌ ${info.claude.error}`}`,
 			);
 			console.log(
 				`  GitHub ${info.github.ok ? `✅ resolves (#${info.github.fingerprint})` : `❌ ${info.github.error}`}`,
 			);
-			if (!info.claude.ok || !info.github.ok) failures++;
+			if (
+				(!info.claude.ok && info.claude.kind !== "missing") ||
+				!info.github.ok
+			)
+				failures++;
 			if (!options.live) continue;
 
 			// Live provider checks — real proof, not just "the reference resolves".

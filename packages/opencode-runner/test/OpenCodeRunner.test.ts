@@ -49,6 +49,53 @@ ${body}
 }
 
 describe("OpenCodeRunner", () => {
+	it("gives concurrent subprocesses distinct GitHub identities and unchanged model auth", async () => {
+		const captures = await Promise.all(
+			["ada", "bob"].map(async (user) => {
+				const dir = makeTempDir();
+				const capture = join(dir, "identity.json");
+				const script = writeFakeOpenCode(
+					dir,
+					`
+    writeFileSync(${JSON.stringify(capture)}, JSON.stringify({
+     gh: process.env.GH_TOKEN, github: process.env.GITHUB_TOKEN,
+     author: process.env.GIT_AUTHOR_NAME, model: process.env.ANTHROPIC_API_KEY,
+     other: process.env.OTHER_USER_TOKEN,
+    }));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    process.stdout.write(${JSON.stringify(fixtureLines())});
+   `,
+				);
+				await new OpenCodeRunner({
+					openCodePath: script,
+					workingDirectory: dir,
+					cyrusHome: dir,
+					env: {
+						GH_TOKEN: "host-placeholder",
+						GITHUB_TOKEN: "host-placeholder",
+						ANTHROPIC_API_KEY: "model-placeholder",
+						OTHER_USER_TOKEN: "other-placeholder",
+					},
+					additionalEnv: {
+						GH_TOKEN: user,
+						GITHUB_TOKEN: user,
+						GIT_AUTHOR_NAME: user,
+					},
+					omitEnv: ["OTHER_USER_TOKEN"],
+				}).start("test");
+				return JSON.parse(readFileSync(capture, "utf8"));
+			}),
+		);
+		expect(captures).toEqual(
+			["ada", "bob"].map((user) => ({
+				gh: user,
+				github: user,
+				author: user,
+				model: "model-placeholder",
+			})),
+		);
+	});
+
 	it("spawns opencode run with JSON output flags and maps replay events to Cyrus messages", async () => {
 		const dir = makeTempDir();
 		const captureFile = join(dir, "capture.json");

@@ -280,6 +280,41 @@ describe("resolveLinearUserCredentials", () => {
 		expect(a.credentials.fingerprints).not.toEqual(b.credentials.fingerprints);
 	});
 
+	it("keeps existing model authentication when Claude is absent or unused", () => {
+		for (const entry of [
+			{ github: { token: { env: "G" } } },
+			{
+				github: { token: { env: "G" } },
+				claude: { oauthToken: { file: join(tmp, "unreadable-claude") } },
+			},
+		]) {
+			const result = resolveLinearUserCredentials(ADA, entry, {
+				gitCredentialHelperPath: helper,
+				env: { G: ADA_GITHUB },
+				includeClaude: false,
+			});
+			expect(result.ok).toBe(true);
+			if (!result.ok) throw new Error(result.message);
+			expect(result.credentials.claudeCredentialKind).toBeUndefined();
+			expect(result.credentials.env.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
+			expect(result.credentials.omitEnv).not.toContain("ANTHROPIC_API_KEY");
+			expect(result.credentials.omitEnv).not.toContain(
+				"CLAUDE_CODE_OAUTH_TOKEN",
+			);
+			expect(result.credentials.env.GH_TOKEN).toBe(ADA_GITHUB);
+		}
+		expect(
+			resolveLinearUserCredentials(
+				ADA,
+				{
+					github: { token: { env: "G" } },
+					claude: { oauthToken: { file: join(tmp, "unreadable-claude") } },
+				},
+				{ gitCredentialHelperPath: helper, env: { G: ADA_GITHUB } },
+			),
+		).toMatchObject({ ok: false, reason: "unreadable" });
+	});
+
 	it("reports incomplete or unreadable mappings without leaking secrets", () => {
 		expect(
 			resolveLinearUserCredentials(ADA, undefined, {
@@ -292,7 +327,7 @@ describe("resolveLinearUserCredentials", () => {
 				{ github: { token: { env: "G" } } },
 				{ gitCredentialHelperPath: helper, env: { G: ADA_GITHUB } },
 			),
-		).toMatchObject({ ok: false, reason: "missing-claude" });
+		).toMatchObject({ ok: true });
 		expect(
 			resolveLinearUserCredentials(
 				ADA,
