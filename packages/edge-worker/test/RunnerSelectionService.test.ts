@@ -122,6 +122,16 @@ describe("RunnerSelectionService", () => {
 		expect(selection.modelOverride).toBe("gpt-5.5");
 	});
 
+	it("maps GPT-6 Astra labels to the Codex runner", () => {
+		const service = new RunnerSelectionService({} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection(["gpt-6-astra"]);
+
+		expect(selection.runnerType).toBe("codex");
+		expect(selection.modelOverride).toBe("gpt-6-astra");
+		expect(selection.fallbackModelOverride).toBe("gpt-5.2-codex");
+	});
+
 	it("lets description selectors override provider/model labels", () => {
 		const service = new RunnerSelectionService({} as EdgeWorkerConfig);
 

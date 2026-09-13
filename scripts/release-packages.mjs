@@ -130,6 +130,10 @@ export const releasePackages = [
 		name: "cyrus-slack-event-transport",
 	},
 	{
+		directory: "packages/zulip-event-transport",
+		name: "cyrus-zulip-event-transport",
+	},
+	{
 		directory: "packages/simple-agent-runner",
 		name: "cyrus-simple-agent-runner",
 	},

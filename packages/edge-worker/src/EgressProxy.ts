@@ -52,8 +52,7 @@ interface ResolvedTransform {
 export class EgressProxy {
 	private httpServer: ReturnType<typeof createHttpServer> | null = null;
 	private socksServer: ReturnType<typeof createNetServer> | null = null;
-	/** Live SOCKS sockets, so {@link stop} can force them shut. */
-	private readonly socksSockets = new Set<Socket>();
+	private openSockets = new Set<Socket>();
 	private httpProxyPort: number;
 	private socksProxyPort: number;
 	private networkPolicy: NetworkPolicy | undefined;
@@ -202,6 +201,14 @@ export class EgressProxy {
 		}
 	}
 
+	/** Track an accepted socket so stop() can force-close it. */
+	private trackSocket(socket: Socket): void {
+		this.openSockets.add(socket);
+		socket.on("close", () => {
+			this.openSockets.delete(socket);
+		});
+	}
+
 	/**
 	 * Stop the egress proxy servers.
 	 */
@@ -226,16 +233,14 @@ export class EgressProxy {
 			);
 		}
 
-		// `close()` stops accepting new connections but resolves only once every
-		// EXISTING one has ended. This proxy's connections are keep-alive HTTP and
-		// long-lived CONNECT/SOCKS tunnels, so waiting on them means waiting on the
-		// remote peer — shutdown could hang indefinitely. Force them shut after
-		// close() is already in flight, so the callbacks above actually fire.
-		this.httpServer?.closeAllConnections?.();
-		for (const socket of this.socksSockets) {
+		// server.close() waits for open connections to drain; a live or hung
+		// tunnel would stall shutdown indefinitely. Force-close everything —
+		// this also covers CONNECT-upgraded sockets, which closeAllConnections
+		// does not reliably reach.
+		for (const socket of this.openSockets) {
 			socket.destroy();
 		}
-		this.socksSockets.clear();
+		this.openSockets.clear();
 
 		await Promise.all(stops);
 		this.isRunning = false;
@@ -517,6 +522,10 @@ export class EgressProxy {
 			this.handleHttpRequest(req, res);
 		});
 
+		this.httpServer.on("connection", (socket: Socket) => {
+			this.trackSocket(socket);
+		});
+
 		// Handle CONNECT method for HTTPS tunneling
 		this.httpServer.on("connect", (req, clientSocket: Socket, head) => {
 			this.handleConnect(req, clientSocket, head);
@@ -677,6 +686,15 @@ export class EgressProxy {
 		clientSocket.on("error", () => {
 			serverSocket.destroy();
 		});
+
+		// 'error' alone is not enough: a clean close on either side must tear
+		// down the other, or a half-open upstream connect leaks the socket.
+		serverSocket.on("close", () => {
+			clientSocket.destroy();
+		});
+		clientSocket.on("close", () => {
+			serverSocket.destroy();
+		});
 	}
 
 	/**
@@ -793,14 +811,7 @@ export class EgressProxy {
 
 	private async startSocksProxy(): Promise<void> {
 		this.socksServer = createNetServer((socket) => {
-			// Tracked so stop() can force them shut. `net.Server` has no
-			// closeAllConnections() counterpart to http.Server's, and close() alone
-			// waits on every live socket — a SOCKS tunnel is long-lived by nature,
-			// so without this teardown blocks until the peer happens to hang up.
-			this.socksSockets.add(socket);
-			socket.once("close", () => {
-				this.socksSockets.delete(socket);
-			});
+			this.trackSocket(socket);
 			this.handleSocksConnection(socket);
 		});
 

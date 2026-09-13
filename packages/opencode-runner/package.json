@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-opencode-runner",
-	"version": "0.2.70",
+	"version": "0.2.71",
 	"description": "OpenCode CLI process wrapper for Cyrus",
 	"repository": {
 		"type": "git",
@@ -27,7 +27,7 @@
 	"devDependencies": {
 		"@types/node": "^20.0.0",
 		"typescript": "^5.3.3",
-		"vitest": "^3.1.4"
+		"vitest": "^4.1.11"
 	},
 	"publishConfig": {
 		"access": "public"

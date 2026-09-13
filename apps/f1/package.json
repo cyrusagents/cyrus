@@ -40,12 +40,12 @@
 		"cyrus-router": "workspace:*",
 		"cyrus-router-executors": "workspace:*",
 		"cyrus-slack-event-transport": "workspace:*",
-		"fastify": "^5.11.2"
+		"fastify": "^5.12.1"
 	},
 	"devDependencies": {
 		"@types/node": "^20.19.43",
 		"typescript": "^5.9.3",
-		"vitest": "^4.1.10",
+		"vitest": "^4.1.11",
 		"cyrus-ai": "workspace:*",
 		"cyrus-operator-protocol": "workspace:*",
 		"cyrus-router-client": "workspace:*"

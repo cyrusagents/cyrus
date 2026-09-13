@@ -66,5 +66,5 @@ export {
 	DEFAULT_BLOCK_MESSAGE,
 	UserAccessControl,
 } from "./UserAccessControl.js";
-
 export { WorktreeIncludeService } from "./WorktreeIncludeService.js";
+export { ZulipChatAdapter } from "./ZulipChatAdapter.js";

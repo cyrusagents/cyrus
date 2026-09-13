@@ -193,7 +193,9 @@ export class SharedApplicationServer {
 			// Start the tunnel
 			this.tunnelClient.startTunnel().catch(reject);
 
-			// Timeout after 30 seconds
+			// Timeout after 120 seconds (slow DNS resolvers can delay cloudflared
+			// connection registration past 30s, e.g. on cloud Macs with dead
+			// IPv6 nameservers ahead of the working resolver)
 			setTimeout(() => {
 				if (connectionCount < requiredConnections) {
 					reject(
@@ -202,7 +204,7 @@ export class SharedApplicationServer {
 						),
 					);
 				}
-			}, 30000);
+			}, 120000);
 		});
 	}
 

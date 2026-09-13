@@ -9,7 +9,7 @@
 
 [![Discord](https://img.shields.io/discord/1443747721910685792?label=Discord&logo=discord&logoColor=white)](https://discord.gg/prrtADHYTt)
 
-Your (Claude Code|Codex|Cursor|Gemini) powered (Linear|GitHub|GitLab|Slack) agent. Cyrus monitors (Linear|GitHub|GitLab|Slack) issues assigned to it, creates isolated Git worktrees for each issue, runs (Claude Code|Codex|Cursor|Gemini) sessions to process them, and streams detailed agent activity updates back to (Linear|GitHub), along with rich interactions like dropdown selects and approvals.
+Your (Claude Code|Codex|Cursor|Gemini|Opencode) powered (Linear|GitHub|GitLab|Slack) agent. Cyrus monitors (Linear|GitHub|GitLab|Slack) issues assigned to it, creates isolated Git worktrees for each issue, runs (Claude Code|Codex|Cursor|Gemini|Opencode) sessions to process them, and streams detailed agent activity updates back to (Linear|GitHub), along with rich interactions like dropdown selects and approvals.
 
 **Note:** Cyrus is a BYOK platform (bring your keys / subscriptions) for tokens.
 
@@ -70,6 +70,7 @@ No installation required. Everything is managed through [app.atcyrus.com](https:
 - **[End-to-End Community Guide](./docs/SELF_HOSTING.md)** - Complete community manual setup
 - **[Git & GitHub Setup](./docs/GIT_GITHUB.md)** - Git and GitHub CLI configuration for PRs
 - **[Git & GitLab Setup](./docs/GIT_GITLAB.md)** - Git and GitLab CLI configuration for MRs
+- **[Zulip Setup](./docs/ZULIP.md)** - Answer @mentions in Zulip topics and DMs
 - **[Configuration Reference](./docs/CONFIG_FILE.md)** - Detailed config.json options
 - **[Cloudflare Tunnel Setup](./docs/CLOUDFLARE_TUNNEL.md)** - Expose your local instance
 - **[Setup Scripts](./docs/SETUP_SCRIPTS.md)** - Repository and global initialization scripts

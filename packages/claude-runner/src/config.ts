@@ -58,7 +58,6 @@ export const availableTools = [
 
 	// Monitoring and task lifecycle
 	"Monitor",
-	"LSP",
 	"RemoteTrigger",
 	"TaskOutput",
 	"TaskStop",
@@ -95,7 +94,6 @@ export const readOnlyTools: ToolName[] = [
 	"ListAgents",
 	"Skill",
 	"Monitor",
-	"LSP",
 	"TaskOutput",
 	"ToolSearch",
 ];

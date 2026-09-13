@@ -118,6 +118,7 @@ describe("WorkerService", () => {
 			slackAllowedTools: ["Read"],
 			githubAllowedTools: ["Bash"],
 			slackMcpConfigs: ["~/slack.json"],
+			zulipMcpConfigs: ["~/zulip.json"],
 			linearMcpConfigs: ["~/linear.json"],
 			githubMcpConfigs: ["~/github.json"],
 			strictMcpConfig: false,
@@ -139,6 +140,7 @@ describe("WorkerService", () => {
 					},
 				},
 			},
+			maxConcurrentSessions: 3,
 		});
 
 		// Fixture-completeness tripwire: adding a field to EdgeConfigSchema

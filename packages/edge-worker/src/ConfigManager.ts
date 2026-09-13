@@ -51,11 +51,13 @@ const RELOAD_MERGED_KEYS = [
 	"slackAllowedTools",
 	"githubAllowedTools",
 	"slackMcpConfigs",
+	"zulipMcpConfigs",
 	"linearMcpConfigs",
 	"githubMcpConfigs",
 	"strictMcpConfig",
 	"defaultDisallowedTools",
 	"issueUpdateTrigger",
+	"maxConcurrentSessions",
 	"slackThreadFollowing",
 	"prReviewTrigger",
 	"userAccessControl",
@@ -358,6 +360,8 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.githubAllowedTools || this.config.githubAllowedTools,
 				slackMcpConfigs:
 					parsedConfig.slackMcpConfigs || this.config.slackMcpConfigs,
+				zulipMcpConfigs:
+					parsedConfig.zulipMcpConfigs || this.config.zulipMcpConfigs,
 				linearMcpConfigs:
 					parsedConfig.linearMcpConfigs || this.config.linearMcpConfigs,
 				githubMcpConfigs:
@@ -371,6 +375,9 @@ export class ConfigManager extends EventEmitter {
 				// otherwise keep current or default to true
 				issueUpdateTrigger:
 					parsedConfig.issueUpdateTrigger ?? this.config.issueUpdateTrigger,
+				maxConcurrentSessions:
+					parsedConfig.maxConcurrentSessions ??
+					this.config.maxConcurrentSessions,
 				// Slack thread following: use parsed value if explicitly set,
 				// otherwise keep current or default to true
 				slackThreadFollowing:
