@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-core",
-	"version": "0.2.71",
+	"version": "0.2.72-test.9",
 	"description": "Core business logic for Cyrus",
 	"repository": {
 		"type": "git",
@@ -23,7 +23,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.3.268",
+		"@anthropic-ai/claude-agent-sdk": "0.3.272",
 		"@linear/sdk": "^64.0.0",
 		"zod": "^4.3.6"
 	},
