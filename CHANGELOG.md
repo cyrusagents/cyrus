@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.72] - 2026-09-15
+
 ### Fixed
 - GitHub CLI commands that view, clone, or fork an explicitly named repository now use that repository's installation token when run from another organization's directory. Repository overrides through `GH_REPO` and attached `-R` arguments are also honored. ([CYHOST-913](https://linear.app/ceedar/issue/CYHOST-913), [#1307](https://github.com/cyrusagents/cyrus/pull/1307))
 
@@ -18,6 +20,59 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 - Patched five newly reported Cyrus CLI dependency advisories by updating the Vitest toolchain and enforcing a safe Hono release, so `pnpm audit` again reports no known vulnerabilities. ([CYPACK-1503](https://linear.app/ceedar/issue/CYPACK-1503/address-open-security-patches-for-cyrus-cli), [#1466](https://github.com/cyrusagents/cyrus/pull/1466))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.72
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.72
+
+#### cyrus-core
+- cyrus-core@0.2.72
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.72
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.72
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.72
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.72
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.72
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.72
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.72
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.72
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.72
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.72
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.72
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.72
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.72
+
+#### cyrus-ai
+- cyrus-ai@0.2.72 ([CYPACK-1519](https://linear.app/ceedar/issue/CYPACK-1519/run-a-release))
 
 ## [0.2.71] - 2026-09-04
 

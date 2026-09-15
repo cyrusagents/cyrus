@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-slack-event-transport",
-	"version": "0.2.71",
+	"version": "0.2.72",
 	"description": "Slack event transport for receiving and verifying forwarded Slack webhooks",
 	"repository": {
 		"type": "git",
