@@ -18,14 +18,14 @@
 		"prompts"
 	],
 	"scripts": {
-		"build": "tsc && npm run copy-prompts",
+		"build": "tsgo && npm run copy-prompts",
 		"copy-prompts": "cp label-prompt-template.md dist/ && cp -r prompts dist/ && rm -rf dist/cyrus-skills-plugin && cp -rL cyrus-skills-plugin dist/cyrus-skills-plugin",
-		"dev": "tsc --watch",
+		"dev": "tsgo --watch",
 		"test": "vitest",
 		"test:run": "vitest run",
 		"test:watch": "vitest --watch",
 		"test:coverage": "vitest --coverage",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
 		"@anthropic-ai/claude-agent-sdk": "0.3.268",
@@ -59,7 +59,7 @@
 		"@types/node-forge": "^1.3.14",
 		"@vitest/coverage-v8": "^4.1.11",
 		"axios": "^1.18.0",
-		"typescript": "^5.3.3",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
 		"vitest": "^4.1.11",
 		"vitest-mock-extended": "^3.1.0"
 	},

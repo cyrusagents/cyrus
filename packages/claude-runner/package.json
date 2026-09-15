@@ -14,11 +14,11 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
+		"build": "tsgo",
+		"dev": "tsgo --watch",
 		"test": "vitest",
 		"test:run": "vitest run",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
 		"@anthropic-ai/claude-agent-sdk": "0.3.268",
@@ -33,7 +33,7 @@
 		"@types/fs-extra": "^11.0.4",
 		"@types/node": "^20.0.0",
 		"tsx": "^4.23.0",
-		"typescript": "^5.3.3",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
 		"vitest": "^4.1.11"
 	},
 	"publishConfig": {

@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Changed
+- Switched builds, type checking, and development watch commands to the native TypeScript compiler, reducing measured local build time by 74% and type-check time by 68%. ([CYPACK-1520](https://linear.app/ceedar/issue/CYPACK-1520))
+
 ### Fixed
 - Release recovery now compares complete uncompressed package archives, retaining mixed-commit protection while allowing an approved first publish packed by a different gzip implementation to resume safely. ([#1483](https://github.com/cyrusagents/cyrus/pull/1483))
 

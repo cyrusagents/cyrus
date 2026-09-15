@@ -9,15 +9,15 @@
 		"f1": "./f1"
 	},
 	"scripts": {
-		"build": "tsc",
+		"build": "tsgo",
 		"start": "bun run dist/src/cli.js",
 		"server": "bun run server.ts",
 		"server:dev": "bun --watch server.ts",
-		"dev": "tsc --watch",
+		"dev": "tsgo --watch",
 		"test": "vitest",
 		"test:run": "vitest run --passWithNoTests",
 		"test:watch": "vitest",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsgo --noEmit",
 		"prepublishOnly": "cd ../.. && pnpm build"
 	},
 	"files": [
@@ -39,7 +39,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
-		"typescript": "^5.3.3",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
 		"vitest": "^4.1.11"
 	},
 	"engines": {

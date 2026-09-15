@@ -14,11 +14,11 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "tsc && node -e \"require('node:fs').copyFileSync('src/permission-check.mjs', 'dist/permission-check.mjs')\"",
-		"dev": "tsc --watch",
+		"build": "tsgo && node -e \"require('node:fs').copyFileSync('src/permission-check.mjs', 'dist/permission-check.mjs')\"",
+		"dev": "tsgo --watch",
 		"test": "node ../../node_modules/.pnpm/node_modules/vitest/vitest.mjs",
 		"test:run": "node ../../node_modules/.pnpm/node_modules/vitest/vitest.mjs run --passWithNoTests",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
 		"@cursor/sdk": "^1.0.19",
@@ -27,7 +27,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
-		"typescript": "^5.3.3",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
 		"vitest": "^4.1.11"
 	},
 	"publishConfig": {

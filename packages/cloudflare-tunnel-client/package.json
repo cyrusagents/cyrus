@@ -20,9 +20,9 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
-		"typecheck": "tsc --noEmit",
+		"build": "tsgo",
+		"dev": "tsgo --watch",
+		"typecheck": "tsgo --noEmit",
 		"test": "vitest",
 		"test:run": "vitest run --passWithNoTests"
 	},
@@ -31,7 +31,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "^20.12.7",
-		"typescript": "^5.4.5",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
 		"vitest": "^4.1.11"
 	},
 	"keywords": [
