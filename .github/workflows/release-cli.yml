@@ -203,7 +203,7 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: npm install --global npm@11.18.0
 
-      - name: Verify and publish packages in dependency order
+      - name: Verify recovered artifacts and publish packages in dependency order
         shell: bash
         run: |
           verify_registry_version() {
@@ -249,21 +249,32 @@ jobs:
           NODE
           }
 
+          verify_published_artifact() {
+            local package_name="$1"
+            local tarball="$2"
+            local registry_tarball=""
+            local registry_integrity=""
+            local packed_integrity=""
+
+            verify_registry_version "$package_name"
+            registry_tarball="$(mktemp "$RUNNER_TEMP/registry-tarball.XXXXXX.tgz")"
+            curl --fail --location --silent --show-error \
+              "$(npm view "${package_name}@${REQUESTED_VERSION}" dist.tarball)" \
+              --output "$registry_tarball"
+            registry_integrity="$(tarball_contents_integrity "$registry_tarball")"
+            packed_integrity="$(tarball_contents_integrity "$tarball")"
+            rm -f "$registry_tarball"
+            if [[ "$registry_integrity" != "$packed_integrity" ]]; then
+              echo "${package_name}@${REQUESTED_VERSION} does not contain the artifact packed by this run; refusing a mixed-commit release." >&2
+              exit 1
+            fi
+          }
+
+          published_packages=()
           while IFS=$'\t' read -r directory package_name; do
             tarball="$RELEASE_ARTIFACTS/${package_name}-${REQUESTED_VERSION}.tgz"
             if npm view "${package_name}@${REQUESTED_VERSION}" version >/dev/null 2>&1; then
-              verify_registry_version "$package_name"
-              registry_tarball="$(mktemp "$RUNNER_TEMP/registry-tarball.XXXXXX.tgz")"
-              curl --fail --location --silent --show-error \
-                "$(npm view "${package_name}@${REQUESTED_VERSION}" dist.tarball)" \
-                --output "$registry_tarball"
-              registry_integrity="$(tarball_contents_integrity "$registry_tarball")"
-              packed_integrity="$(tarball_contents_integrity "$tarball")"
-              rm -f "$registry_tarball"
-              if [[ "$registry_integrity" != "$packed_integrity" ]]; then
-                echo "${package_name}@${REQUESTED_VERSION} does not contain the artifact packed by this run; refusing a mixed-commit release." >&2
-                exit 1
-              fi
+              verify_published_artifact "$package_name" "$tarball"
               echo "Skipping immutable ${package_name}@${REQUESTED_VERSION}; verifying npm tag ${DIST_TAG}."
               continue
             fi
@@ -274,8 +285,20 @@ jobs:
             fi
 
             npm publish "$tarball" --access public --tag "$DIST_TAG"
-            verify_registry_version "$package_name"
+            published_packages+=("$package_name")
           done < <(node scripts/release-packages.mjs list)
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            exit 0
+          fi
+
+          # npm accepts dependency-ordered uploads without waiting for each
+          # prior package to become visible. Verify every fresh upload only
+          # after the complete graph has been submitted, before tagging.
+          for package_name in "${published_packages[@]}"; do
+            tarball="$RELEASE_ARTIFACTS/${package_name}-${REQUESTED_VERSION}.tgz"
+            verify_published_artifact "$package_name" "$tarball"
+          done
 
       - name: Tag the release
         if: ${{ !inputs.dry_run }}

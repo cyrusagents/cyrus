@@ -115,9 +115,14 @@ package using pnpm so `workspace:*` references become exact published versions.
 It inspects each tarball, installs all local release tarballs together so the
 CLI smoke test does not depend on unpublished internal versions, verifies
 `cyrus --version`, and publishes the same inspected artifacts through npm's
-OIDC-capable CLI. npm registry visibility is retried before advancing to the
-next package. After all packages are visible on npm with the requested tag, it
-creates `v<version>` and the matching GitHub release.
+OIDC-capable CLI in dependency order. For a recovery run, an already-published
+artifact is verified before any new package is uploaded. Fresh uploads are all
+submitted first, then the workflow retries registry visibility and compares
+each registry tarball with the inspected artifact before it tags or releases.
+This avoids adding npm propagation delay once per package while retaining the
+no-tag/no-release boundary until the complete graph is visible and verified.
+If npm visibility ultimately fails, more packages may need recovery than with
+per-package polling, but rerunning the same version and tag remains safe.
 
 ## Post-release
 

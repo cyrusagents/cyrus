@@ -147,6 +147,7 @@ describe("trusted Cyrus release workflow", () => {
 	it("recovers safely from partially published npm releases", () => {
 		expect(workflow).toContain("verify_registry_version() {");
 		expect(workflow).toContain("tarball_contents_integrity() {");
+		expect(workflow).toContain("verify_published_artifact() {");
 		expect(workflow).toContain("local deadline=$((SECONDS + 600))");
 		expect(workflow).toContain('if [[ "$SECONDS" -ge "$deadline" ]]');
 		expect(workflow).toContain("sleep 10");
@@ -167,6 +168,28 @@ describe("trusted Cyrus release workflow", () => {
 		);
 		expect(workflow).toContain(
 			`\${package_name}@\${REQUESTED_VERSION} is not consistently visible with npm tag \${DIST_TAG} after 10 minutes.`,
+		);
+	});
+
+	it("defers fresh package visibility checks until every package is submitted", () => {
+		expect(workflow).toContain("published_packages=()");
+		expect(workflow).toContain('published_packages+=("$package_name")');
+		expect(workflow).toContain(
+			`for package_name in "\${published_packages[@]}"; do`,
+		);
+		expect(workflow).toContain(
+			'verify_published_artifact "$package_name" "$tarball"',
+		);
+
+		const publishIndex = workflow.indexOf(
+			'npm publish "$tarball" --access public --tag "$DIST_TAG"',
+		);
+		const deferredVerificationIndex = workflow.lastIndexOf(
+			`for package_name in "\${published_packages[@]}"; do`,
+		);
+		expect(publishIndex).toBeLessThan(deferredVerificationIndex);
+		expect(deferredVerificationIndex).toBeLessThan(
+			workflow.indexOf(`git tag --annotate "v\${REQUESTED_VERSION}"`),
 		);
 	});
 
