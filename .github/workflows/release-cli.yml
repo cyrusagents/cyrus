@@ -233,13 +233,17 @@ jobs:
             return 1
           }
 
-          tarball_integrity() {
+          tarball_contents_integrity() {
             TARBALL_PATH="$1" node <<'NODE'
           const { createHash } = require("node:crypto");
           const { readFileSync } = require("node:fs");
+          const { gunzipSync } = require("node:zlib");
 
+          // pnpm normalizes the tar archive, but gzip output can differ across
+          // platforms. Hash the complete uncompressed tar stream so recovery
+          // compares package contents and tar metadata, not its compression.
           const digest = createHash("sha512")
-            .update(readFileSync(process.env.TARBALL_PATH))
+            .update(gunzipSync(readFileSync(process.env.TARBALL_PATH)))
             .digest("base64");
           process.stdout.write(`sha512-${digest}`);
           NODE
@@ -249,10 +253,15 @@ jobs:
             tarball="$RELEASE_ARTIFACTS/${package_name}-${REQUESTED_VERSION}.tgz"
             if npm view "${package_name}@${REQUESTED_VERSION}" version >/dev/null 2>&1; then
               verify_registry_version "$package_name"
-              registry_integrity="$(npm view "${package_name}@${REQUESTED_VERSION}" dist.integrity)"
-              packed_integrity="$(tarball_integrity "$tarball")"
+              registry_tarball="$(mktemp "$RUNNER_TEMP/registry-tarball.XXXXXX.tgz")"
+              curl --fail --location --silent --show-error \
+                "$(npm view "${package_name}@${REQUESTED_VERSION}" dist.tarball)" \
+                --output "$registry_tarball"
+              registry_integrity="$(tarball_contents_integrity "$registry_tarball")"
+              packed_integrity="$(tarball_contents_integrity "$tarball")"
+              rm -f "$registry_tarball"
               if [[ "$registry_integrity" != "$packed_integrity" ]]; then
-                echo "${package_name}@${REQUESTED_VERSION} does not match the artifact packed by this run; refusing a mixed-commit release." >&2
+                echo "${package_name}@${REQUESTED_VERSION} does not contain the artifact packed by this run; refusing a mixed-commit release." >&2
                 exit 1
               fi
               echo "Skipping immutable ${package_name}@${REQUESTED_VERSION}; verifying npm tag ${DIST_TAG}."
