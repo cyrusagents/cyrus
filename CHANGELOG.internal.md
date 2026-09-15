@@ -5,7 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Added
-- Recorded the CYHOST-909 OAuth gateway F1 protocol attempt, its expired-Claude-login blocker, and the remaining Cloud session proof. No runtime code changed.
+- Recorded the CYHOST-909 OAuth gateway F1 protocol attempt, its expired-Claude-login blocker, and the remaining Cloud session proof. No runtime code changed. ([CYHOST-909](https://linear.app/ceedar/issue/CYHOST-909), [#1484](https://github.com/cyrusagents/cyrus/pull/1484))
 
 ## [0.2.72] - 2026-09-15
 
