@@ -9,7 +9,7 @@ This changelog documents internal development changes, refactors, tooling update
 
 ### Fixed
 - Release recovery now compares complete uncompressed package archives, retaining mixed-commit protection while allowing an approved first publish packed by a different gzip implementation to resume safely. ([#1483](https://github.com/cyrusagents/cyrus/pull/1483))
-- The release workflow now submits fresh packages in dependency order before checking npm visibility and archive integrity as a batch, avoiding registry propagation delays being multiplied across the package graph while retaining the pre-tag verification boundary. ([CYPACK-1521](https://linear.app/ceedar/issue/CYPACK-1521), PR link pending)
+- The release workflow now submits fresh packages in dependency order before checking npm visibility and archive integrity as a batch, avoiding registry propagation delays being multiplied across the package graph while retaining the pre-tag verification boundary. ([CYPACK-1521](https://linear.app/ceedar/issue/CYPACK-1521), [#1486](https://github.com/cyrusagents/cyrus/pull/1486))
 
 ## [0.2.72] - 2026-09-15
 
