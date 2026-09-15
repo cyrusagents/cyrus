@@ -101,13 +101,15 @@ gh workflow run release-cli.yml \
 The workflow refuses non-`main` refs, duplicate live releases, version drift,
 and an existing release tag. If a run stops after publishing only part of the
 package graph, rerun the same version and distribution tag: the workflow skips
-immutable versions only when the published tarball is byte-for-byte identical
-to the artifact packed by the recovery run and already carries that tag, then
-resumes publishing the remaining packages. It will not resume when an existing
-version points at a different distribution tag or has different integrity,
-which prevents one release from combining package artifacts from different
-commits. Dry runs exercise these recovery comparisons and report which missing
-packages a live run would publish. The workflow performs a frozen install and
+immutable versions only when the published tarball's complete uncompressed tar
+archive matches the artifact packed by the recovery run and already carries
+that tag, then resumes publishing the remaining packages. This normalizes gzip
+compression differences without accepting a package whose files, metadata, or
+archive order differs. It will not resume when an existing version points at a
+different distribution tag or has different package contents, which prevents
+one release from combining package artifacts from different commits. Dry runs
+exercise these recovery comparisons and report which missing packages a live
+run would publish. The workflow performs a frozen install and
 audit, runs lint, tests, type checks, and the full build, then packs every
 package using pnpm so `workspace:*` references become exact published versions.
 It inspects each tarball, installs all local release tarballs together so the
