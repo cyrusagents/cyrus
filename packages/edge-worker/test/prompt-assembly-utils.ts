@@ -10,6 +10,20 @@ import { EdgeWorker } from "../src/EdgeWorker.js";
 import type { EdgeWorkerConfig } from "../src/types.js";
 import { TEST_CYRUS_HOME } from "./test-dirs.js";
 
+/** Minimal tracker responses used by prompt assembly; never calls Linear. */
+function createMockIssueTracker() {
+	return {
+		fetchComments: async () => ({ nodes: [] }),
+		fetchComment: async () => null,
+		fetchTeams: async () => ({ nodes: [] }),
+		fetchLabels: async () => ({ nodes: [] }),
+		getClient: () => ({}),
+		client: {
+			rawRequest: async () => ({ data: { comment: { body: "" } } }),
+		},
+	};
+}
+
 /**
  * Create an EdgeWorker instance for testing
  */
@@ -20,16 +34,7 @@ export function createTestWorker(
 	// Create mock IssueTrackerServices for each repository
 	const issueTrackers = new Map();
 	for (const repo of repositories) {
-		// Create a minimal mock IssueTrackerService with required methods
-		const mockIssueTracker = {
-			getComments: () => Promise.resolve([]),
-			getComment: () => Promise.resolve(null),
-			getIssueLabels: () => Promise.resolve([]),
-			getClient: () => ({}),
-			client: {
-				rawRequest: () => Promise.resolve({ data: { comment: { body: "" } } }),
-			},
-		};
+		const mockIssueTracker = createMockIssueTracker();
 		issueTrackers.set(
 			repo.linearWorkspaceId ?? repo.id,
 			mockIssueTracker as any,
@@ -55,12 +60,17 @@ export function createTestWorker(
 		claudeDefaultModel: "sonnet",
 		repositories,
 		linearWorkspaces,
-		issueTrackers,
 		mcpServers: {},
 		// Store default slug so withRepository() can inherit it for dynamically added workspaces
 		_testDefaultWorkspaceSlug: linearWorkspaceSlug,
 	} as EdgeWorkerConfig & { _testDefaultWorkspaceSlug?: string };
-	return new EdgeWorker(config);
+	const worker = new EdgeWorker(config);
+	// The constructor creates its own trackers; issueTrackers is not a config field.
+	// Mutate the shared map so PromptBuilder also receives the test doubles.
+	for (const [workspaceId, tracker] of issueTrackers) {
+		(worker as any).issueTrackers.set(workspaceId, tracker);
+	}
+	return worker;
 }
 
 /**
@@ -185,15 +195,7 @@ export class PromptScenario {
 	private ensureIssueTracker(repo: any) {
 		const workspaceKey = repo.linearWorkspaceId ?? repo.id;
 		if (!(this.worker as any).issueTrackers.has(workspaceKey)) {
-			const mockIssueTracker = {
-				getComments: () => Promise.resolve([]),
-				getComment: () => Promise.resolve(null),
-				getIssueLabels: () => Promise.resolve([]),
-				client: {
-					rawRequest: () =>
-						Promise.resolve({ data: { comment: { body: "" } } }),
-				},
-			};
+			const mockIssueTracker = createMockIssueTracker();
 			(this.worker as any).issueTrackers.set(workspaceKey, mockIssueTracker);
 		}
 		// Ensure the worker has a linearWorkspaces entry for this workspace

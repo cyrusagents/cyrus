@@ -79,3 +79,9 @@ Test repository: `/tmp/cypack-1520-f1-repo`, scaffolded with `apps/f1/f1 init-te
 3. Repeated on port 3601 with `CYRUS_DEFAULT_RUNNER=codex` after `codex login status` confirmed a ChatGPT login. Routing and activity rendering succeeded, but the runner returned `codex app-server exited (code=1, signal=null)` before doing the task. Stopped the session and server.
 
 **Result:** Compiled runtime startup, issue tracking, worktree/session setup, activity rendering, pagination, and stopping passed. Full F1 agent completion did not pass; the two runner failures above remain validation limitations. Unit tests and compiler checks pass independently.
+
+## CI timeout correction
+
+The initial Node 22 CI run timed out after 30 seconds in `prompt-assembly.multi-repo.test.ts` (the user-comment scenario). The prompt-test helper supplied fake trackers through an obsolete `issueTrackers` configuration property. `EdgeWorker` ignored that property and created real Linear clients, so prompt assembly made live requests with the test token. The mock methods also used outdated `getComments` names rather than the current `fetchComments` interface.
+
+The helper now installs its doubles into the shared tracker map after construction and uses the current fetch methods. A regression guard rejects and counts calls to the live tracker in all seven multi-repo scenarios; all seven failed with the original helper and pass with the correction. Full prompt assertions remain intact.
