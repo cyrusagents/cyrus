@@ -106,19 +106,6 @@ jobs:
             exit 1
           fi
 
-          while IFS=$'\t' read -r directory package_name; do
-            if npm view "${package_name}@${REQUESTED_VERSION}" version >/dev/null 2>&1; then
-              if [[ "$DRY_RUN" == "true" ]]; then
-                echo "::warning::${package_name}@${REQUESTED_VERSION} is already published; continuing because this is a dry run."
-              elif [[ "$(npm view "$package_name" "dist-tags.${DIST_TAG}" 2>/dev/null || true)" == "$REQUESTED_VERSION" ]]; then
-                echo "::warning::${package_name}@${REQUESTED_VERSION} is already published with npm tag ${DIST_TAG}; continuing this partial release."
-              else
-                echo "${package_name}@${REQUESTED_VERSION} is already published without npm tag ${DIST_TAG}." >&2
-                exit 1
-              fi
-            fi
-          done < <(node scripts/release-packages.mjs list)
-
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile --strict-peer-dependencies
 
@@ -203,79 +190,9 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: npm install --global npm@11.18.0
 
-      - name: Verify and publish packages in dependency order
+      - name: Publish ordered artifacts and verify the complete registry graph
         shell: bash
-        run: |
-          verify_registry_version() {
-            local package_name="$1"
-            local published=""
-            local tagged=""
-            # npm warns that a fresh publish "may take a few minutes to become
-            # available", so allow up to 10 minutes before declaring failure.
-            local deadline=$((SECONDS + 600))
-            local attempt=0
-
-            while true; do
-              attempt=$((attempt + 1))
-              published="$(npm view "${package_name}@${REQUESTED_VERSION}" version 2>/dev/null || true)"
-              tagged="$(npm view "$package_name" "dist-tags.${DIST_TAG}" 2>/dev/null || true)"
-              if [[ "$published" == "$REQUESTED_VERSION" && "$tagged" == "$REQUESTED_VERSION" ]]; then
-                return 0
-              fi
-              if [[ "$SECONDS" -ge "$deadline" ]]; then
-                break
-              fi
-              echo "Waiting for ${package_name}@${REQUESTED_VERSION} with npm tag ${DIST_TAG} to become visible (attempt ${attempt}, retrying for up to 10 minutes)."
-              sleep 10
-            done
-
-            echo "${package_name}@${REQUESTED_VERSION} is not consistently visible with npm tag ${DIST_TAG} after 10 minutes." >&2
-            return 1
-          }
-
-          tarball_contents_integrity() {
-            TARBALL_PATH="$1" node <<'NODE'
-          const { createHash } = require("node:crypto");
-          const { readFileSync } = require("node:fs");
-          const { gunzipSync } = require("node:zlib");
-
-          // pnpm normalizes the tar archive, but gzip output can differ across
-          // platforms. Hash the complete uncompressed tar stream so recovery
-          // compares package contents and tar metadata, not its compression.
-          const digest = createHash("sha512")
-            .update(gunzipSync(readFileSync(process.env.TARBALL_PATH)))
-            .digest("base64");
-          process.stdout.write(`sha512-${digest}`);
-          NODE
-          }
-
-          while IFS=$'\t' read -r directory package_name; do
-            tarball="$RELEASE_ARTIFACTS/${package_name}-${REQUESTED_VERSION}.tgz"
-            if npm view "${package_name}@${REQUESTED_VERSION}" version >/dev/null 2>&1; then
-              verify_registry_version "$package_name"
-              registry_tarball="$(mktemp "$RUNNER_TEMP/registry-tarball.XXXXXX.tgz")"
-              curl --fail --location --silent --show-error \
-                "$(npm view "${package_name}@${REQUESTED_VERSION}" dist.tarball)" \
-                --output "$registry_tarball"
-              registry_integrity="$(tarball_contents_integrity "$registry_tarball")"
-              packed_integrity="$(tarball_contents_integrity "$tarball")"
-              rm -f "$registry_tarball"
-              if [[ "$registry_integrity" != "$packed_integrity" ]]; then
-                echo "${package_name}@${REQUESTED_VERSION} does not contain the artifact packed by this run; refusing a mixed-commit release." >&2
-                exit 1
-              fi
-              echo "Skipping immutable ${package_name}@${REQUESTED_VERSION}; verifying npm tag ${DIST_TAG}."
-              continue
-            fi
-
-            if [[ "$DRY_RUN" == "true" ]]; then
-              echo "Dry run would publish ${package_name}@${REQUESTED_VERSION} with npm tag ${DIST_TAG}."
-              continue
-            fi
-
-            npm publish "$tarball" --access public --tag "$DIST_TAG"
-            verify_registry_version "$package_name"
-          done < <(node scripts/release-packages.mjs list)
+        run: node scripts/publish-release.mjs
 
       - name: Tag the release
         if: ${{ !inputs.dry_run }}

@@ -115,9 +115,53 @@ package using pnpm so `workspace:*` references become exact published versions.
 It inspects each tarball, installs all local release tarballs together so the
 CLI smoke test does not depend on unpublished internal versions, verifies
 `cyrus --version`, and publishes the same inspected artifacts through npm's
-OIDC-capable CLI. npm registry visibility is retried before advancing to the
-next package. After all packages are visible on npm with the requested tag, it
-creates `v<version>` and the matching GitHub release.
+OIDC-capable CLI in dependency order, using `scripts/publish-release.mjs`.
+
+### Ordered uploads and the final registry gate
+
+The publishing script first reads every exact version. Only an explicit npm
+`E404` counts as missing; transient errors are retried and never authorize a
+publish. Any existing artifacts are checked together before new uploads:
+requested tag, exact package/version, registry `dist.integrity`, and the full
+uncompressed tar stream must match. An existing wrong tag or different artifact
+stops recovery. Gzip compression differences remain allowed.
+
+It then submits all missing artifacts sequentially in dependency order, without
+waiting for each upload to propagate. A failed or timed-out publish is never
+retried blindly: npm may already have accepted it. The final gate must establish
+that the artifact exists and matches; otherwise the run fails.
+
+After uploads, **every artifact, including recovered versions**, must pass the
+final gate before any git tag or GitHub release. A single 10-minute deadline
+covers the entire final phase. Each pass checks packages concurrently and
+rechecks earlier successes, so changing a recovered package's tag cannot escape
+verification. Checks include exact identity and tag, a SHA-512 check of the
+download against registry integrity, and the gzip-normalized comparison with
+the inspected local artifact. A content/integrity mismatch fails immediately;
+missing versions, lagging tags, and transient read/download failures are retried
+with up to 10 seconds between passes. Registry commands are time-limited and
+share the phase deadline.
+
+Preflight and recovery each also have one shared 10-minute deadline. Uploads
+are limited to two minutes per npm command; the job's existing 45-minute limit
+still bounds the entire run. Phase durations are printed in the workflow log.
+These are failure bounds, not expected durations or speedup guarantees.
+
+If the final gate fails, more packages may need recovery than with per-package
+polling. Rerun the same reviewed source/version/tag only after inspecting the
+failure. Dry runs perform preflight and recovery comparisons and list intended
+uploads; they do not publish, require missing versions to appear, tag, or create
+a release. A dry run cannot prove npm writes or real propagation timing.
+
+Behavioral fixtures execute the workflow's publish/tag/release steps with fake
+npm, registry downloads, git, and GitHub commands:
+
+```sh
+pnpm --filter cyrus-ai test:run release-publish.test.ts release-workflow.test.ts
+```
+
+The baseline and synthetic-delay evidence are recorded in
+[`2026-09-15-cypack-1521-release-verification.md`](../f1/test-drives/2026-09-15-cypack-1521-release-verification.md).
 
 ## Post-release
 

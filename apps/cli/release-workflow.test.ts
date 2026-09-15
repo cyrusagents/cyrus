@@ -95,9 +95,7 @@ describe("trusted Cyrus release workflow", () => {
 		expect(workflow).toContain(
 			'ACTUAL_VERSION="$(CYRUS_SENTRY_DISABLED=1 cyrus --version)"',
 		);
-		expect(workflow).toContain(
-			'npm publish "$tarball" --access public --tag "$DIST_TAG"',
-		);
+		expect(workflow).toContain("run: node scripts/publish-release.mjs");
 	});
 
 	it("publishes every public package in dependency order", () => {
@@ -144,32 +142,6 @@ describe("trusted Cyrus release workflow", () => {
 		}
 	});
 
-	it("recovers safely from partially published npm releases", () => {
-		expect(workflow).toContain("verify_registry_version() {");
-		expect(workflow).toContain("tarball_contents_integrity() {");
-		expect(workflow).toContain("local deadline=$((SECONDS + 600))");
-		expect(workflow).toContain('if [[ "$SECONDS" -ge "$deadline" ]]');
-		expect(workflow).toContain("sleep 10");
-		expect(workflow).toContain("dist.tarball");
-		expect(workflow).toContain('createHash("sha512")');
-		expect(workflow).toContain(
-			"gunzipSync(readFileSync(process.env.TARBALL_PATH))",
-		);
-		expect(workflow).toContain("curl --fail --location --silent --show-error");
-		expect(workflow).toContain(
-			`Skipping immutable \${package_name}@\${REQUESTED_VERSION}; verifying npm tag \${DIST_TAG}.`,
-		);
-		expect(workflow).toContain(
-			`\${package_name}@\${REQUESTED_VERSION} does not contain the artifact packed by this run; refusing a mixed-commit release.`,
-		);
-		expect(workflow).toContain(
-			`Dry run would publish \${package_name}@\${REQUESTED_VERSION} with npm tag \${DIST_TAG}.`,
-		);
-		expect(workflow).toContain(
-			`\${package_name}@\${REQUESTED_VERSION} is not consistently visible with npm tag \${DIST_TAG} after 10 minutes.`,
-		);
-	});
-
 	it("preflights package existence before any release work or publishing", () => {
 		expect(workflow).toContain("missing_packages=()");
 		expect(workflow).toContain(
@@ -185,7 +157,7 @@ describe("trusted Cyrus release workflow", () => {
 			workflow.indexOf("Install locked dependencies"),
 		);
 		expect(workflow.indexOf("missing_packages=()")).toBeLessThan(
-			workflow.indexOf('npm publish "$tarball"'),
+			workflow.indexOf("run: node scripts/publish-release.mjs"),
 		);
 	});
 
