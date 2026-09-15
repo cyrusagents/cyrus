@@ -434,6 +434,7 @@ The agent automatically moves issues to the "started" state when assigned. Linea
 8. **Routing Behavior & Self-Describing Prompts**: When changing repository routing behavior (e.g., description-tag syntax, label routing, base branch overrides, multi-repo support), you **must also update the system prompts that describe these capabilities to Cyrus itself**. The product relies on self-describing prompts so that Cyrus can correctly instruct users and create properly-routed sub-issues. Known locations (not exhaustive):
    - `packages/edge-worker/src/PromptBuilder.ts` — Generates the `<repository_routing_context>` XML block included in session system prompts, documenting routing methods and priority order
    - `packages/edge-worker/src/SlackChatAdapter.ts` — Builds the Slack chat system prompt including orchestration notes with repo routing syntax
+   - `packages/edge-worker/src/ZulipChatAdapter.ts` — Same, for the Zulip chat system prompt
    - `packages/edge-worker/src/ActivityPoster.ts` — Posts routing activities to Linear timeline (method display names, formatting)
 
 9. **Adding a new top-level `EdgeWorkerConfig` field**: Adding a property to the `EdgeConfigSchema` Zod schema in `packages/core/src/config-schemas.ts` is **not enough** to make it available at runtime. Two hand-maintained copy sites exist, and both now have guardrails that fail fast when a field is missed (added after `strictMcpConfig` was silently dropped in CYPACK-1478; `slackAllowedTools` & friends were dropped the same way in CYHOST-967):
