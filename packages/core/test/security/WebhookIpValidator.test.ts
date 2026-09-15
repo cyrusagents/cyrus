@@ -11,6 +11,23 @@ import {
 	WebhookIpValidator,
 } from "../../src/security/WebhookIpValidator.js";
 
+// Independent snapshot verified on 2026-09-15 against:
+// https://linear.app/.well-known/appspecific/app.linear.ips.json
+const PUBLISHED_LINEAR_IPS = [
+	"34.134.222.122",
+	"34.140.253.14",
+	"34.186.126.124",
+	"34.38.87.206",
+	"34.48.40.158",
+	"34.60.255.158",
+	"34.62.119.29",
+	"35.196.141.51",
+	"35.222.25.142",
+	"35.231.147.226",
+	"35.236.218.67",
+	"35.243.134.228",
+] as const;
+
 describe("IP utility functions", () => {
 	describe("ipToNumber", () => {
 		it("converts 0.0.0.0 to 0", () => {
@@ -148,8 +165,8 @@ describe("IP utility functions", () => {
 });
 
 describe("Known provider allowlists", () => {
-	it("has 9 Linear webhook IPs", () => {
-		expect(LINEAR_WEBHOOK_IPS).toHaveLength(9);
+	it("matches the published Linear outbound IP set exactly", () => {
+		expect([...LINEAR_WEBHOOK_IPS].sort()).toEqual([...PUBLISHED_LINEAR_IPS]);
 	});
 
 	it("all Linear IPs are valid IPv4", () => {
@@ -218,10 +235,22 @@ describe("WebhookIpValidator", () => {
 			expect(validator.validate("255.255.255.255", "github")).toBe(true);
 		});
 
-		it("allows known Linear IPs", () => {
+		it.each(PUBLISHED_LINEAR_IPS)("allows published Linear IP %s", (ip) => {
 			const validator = new WebhookIpValidator();
-			for (const ip of LINEAR_WEBHOOK_IPS) {
-				expect(validator.validate(ip, "linear")).toBe(true);
+			expect(validator.validate(ip, "linear")).toBe(true);
+			expect(validator.validate(`::ffff:${ip}`, "linear")).toBe(true);
+		});
+
+		it.each(
+			PUBLISHED_LINEAR_IPS,
+		)("rejects adjacent unpublished addresses around %s", (ip) => {
+			const validator = new WebhookIpValidator();
+			const octets = ip.split(".");
+			const lastOctet = Number(octets.pop());
+			for (const offset of [-1, 1]) {
+				const neighbor = `${octets.join(".")}.${lastOctet + offset}`;
+				expect(validator.validate(neighbor, "linear")).toBe(false);
+				expect(validator.validate(`::ffff:${neighbor}`, "linear")).toBe(false);
 			}
 		});
 

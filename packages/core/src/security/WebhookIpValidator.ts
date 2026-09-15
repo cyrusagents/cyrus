@@ -12,7 +12,9 @@ import { createLogger, type ILogger } from "../logging/index.js";
 /**
  * Known webhook source IPs/CIDRs for supported providers.
  *
- * Linear: https://linear.app/developers/webhooks#securing-webhooks
+ * Linear: https://linear.app/docs/security (verified 2026-09-15)
+ * Published set: https://linear.app/.well-known/appspecific/app.linear.ips.json
+ * Plain Linear IPs below match the published /32 entries exactly.
  * GitHub: https://api.github.com/meta (hooks field)
  * GitLab: https://docs.gitlab.com/ee/user/gitlab_com/#ip-range
  */
@@ -26,6 +28,9 @@ export const LINEAR_WEBHOOK_IPS = [
 	"34.134.222.122",
 	"35.222.25.142",
 	"34.60.255.158",
+	"34.186.126.124",
+	"34.48.40.158",
+	"35.236.218.67",
 ] as const;
 
 /**
