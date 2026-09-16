@@ -8,6 +8,7 @@ import {
 } from "../error-reporting/globalReporter.js";
 import type { ILogger, LogContext, LogEventAttributes } from "./ILogger.js";
 import { LogLevel } from "./ILogger.js";
+import { publishLocalLog } from "./LogPublisher.js";
 
 function formatContext(context: LogContext): string {
 	const parts: string[] = [];
@@ -77,6 +78,7 @@ class Logger implements ILogger {
 
 	debug(message: string, ...args: unknown[]): void {
 		if (this.level <= LogLevel.DEBUG) {
+			publishLocalLog("debug", this.component, this.context, message, args);
 			console.log(`${this.formatPrefix(LogLevel.DEBUG)} ${message}`, ...args);
 		}
 		// debug/info are NOT forwarded to Sentry Logs — they're far too high-volume
@@ -86,6 +88,7 @@ class Logger implements ILogger {
 
 	info(message: string, ...args: unknown[]): void {
 		if (this.level <= LogLevel.INFO) {
+			publishLocalLog("info", this.component, this.context, message, args);
 			console.log(`${this.formatPrefix(LogLevel.INFO)} ${message}`, ...args);
 		}
 		// See debug() — info is local-only. Promote to event() if it must ship.
@@ -93,6 +96,7 @@ class Logger implements ILogger {
 
 	warn(message: string, ...args: unknown[]): void {
 		if (this.level <= LogLevel.WARN) {
+			publishLocalLog("warning", this.component, this.context, message, args);
 			console.warn(`${this.formatPrefix(LogLevel.WARN)} ${message}`, ...args);
 		}
 		// All WARN logs forward to Sentry Logs unconditionally so operators see
@@ -103,6 +107,7 @@ class Logger implements ILogger {
 
 	error(message: string, ...args: unknown[]): void {
 		if (this.level <= LogLevel.ERROR) {
+			publishLocalLog("error", this.component, this.context, message, args);
 			console.error(`${this.formatPrefix(LogLevel.ERROR)} ${message}`, ...args);
 		}
 
@@ -122,6 +127,13 @@ class Logger implements ILogger {
 				attributes && Object.keys(attributes).length > 0
 					? ` ${JSON.stringify(attributes)}`
 					: "";
+			publishLocalLog(
+				"info",
+				this.component,
+				this.context,
+				`[event:${name}]${suffix}`,
+				[],
+			);
 			console.log(
 				`${this.formatPrefix(LogLevel.INFO)} [event:${name}]${suffix}`,
 			);

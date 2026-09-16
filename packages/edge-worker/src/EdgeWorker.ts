@@ -188,6 +188,7 @@ import {
 	SkillsPluginResolver,
 } from "./SkillsPluginResolver.js";
 import { SlackChatAdapter } from "./SlackChatAdapter.js";
+import { registerStatusBoard } from "./StatusBoard.js";
 import type { IActivitySink } from "./sinks/IActivitySink.js";
 import { LinearActivitySink } from "./sinks/LinearActivitySink.js";
 import { ToolPermissionResolver } from "./ToolPermissionResolver.js";
@@ -917,6 +918,16 @@ export class EdgeWorker extends EventEmitter {
 		await this.registerCyrusToolsMcpEndpoint();
 		// 4. Register /status endpoint for process activity monitoring
 		this.registerStatusEndpoint();
+		registerStatusBoard(this.sharedApplicationServer.getFastifyInstance(), {
+			getSessions: () => this.getAllKnownSessions(),
+			getEntries: (sessionId) =>
+				this.agentSessionManager.getSessionEntries(sessionId),
+			getStatus: () => this.computeStatus(),
+			getRepositoryName: (id) => this.repositories.get(id)?.name ?? id,
+		});
+		this.logger.info(
+			"Status board available at /board on the application server",
+		);
 
 		// 5. Register /version endpoint for CLI version info
 		this.registerVersionEndpoint();

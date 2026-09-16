@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,initial-scale=1">
+		<title>Cyrus · Tasks & Logs</title>
+		<link rel="stylesheet" href="/board/assets/app.css">
+	</head>
+	<body>
+		<main>
+			<aside class="sidebar" aria-label="Task list">
+				<div class="sidebar-tools">
+					<div class="sidebar-heading">
+						<h1>Tasks <span id="task-count" class="muted"></span></h1>
+						<label class="toggle"
+							><input id="running-only" type="checkbox">Running only</label
+						>
+					</div>
+					<label class="search"
+						><span class="sr-only">Search tasks</span>
+						<input
+							id="task-search"
+							type="search"
+							placeholder="Search tasks…"
+							autocomplete="off"
+						></label
+					>
+				</div>
+				<div class="task-list" id="tasks">
+					<div class="empty">Loading tasks…</div>
+				</div>
+			</aside>
+			<section class="log-pane" aria-label="Live logs">
+				<div class="pane-bar">
+					<div class="breadcrumb">
+						<button type="button" id="clear-task" class="text-button">
+							All tasks
+						</button><span class="separator" aria-hidden="true">›</span
+						><span class="scope" id="scope">Live logs</span>
+					</div>
+					<div class="bar-actions">
+						<div id="connection" class="connection off" role="status">
+							<i class="dot"></i><span>Connecting</span>
+						</div>
+						<button
+							type="button"
+							class="icon-button"
+							id="refresh"
+							title="Refresh now"
+							aria-label="Refresh now"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.7"
+								aria-hidden="true"
+							>
+								<path d="M20 7v5h-5M4 17v-5h5" />
+								<path d="M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" />
+							</svg>
+						</button>
+					</div>
+				</div>
+				<div class="warn" id="warnings" role="status"></div>
+				<div class="log-controls">
+					<label
+						><span class="sr-only">Log source</span
+						><select id="source">
+							<option value="all">All sources</option>
+							<option value="agent">Agent activity</option>
+							<option value="cyrus">Cyrus logs</option>
+						</select></label
+					><label class="toggle"
+						><input id="errors" type="checkbox">Errors only</label
+					><span class="control-spacer"></span
+					><label class="toggle"
+						><input id="wrap" type="checkbox" checked>Wrap lines</label
+					><span id="log-count" class="log-count">0 entries</span
+					><label class="toggle"
+						><input id="follow" type="checkbox" checked>Follow</label
+					><button type="button" class="pause" id="pause">Pause</button>
+				</div>
+				<div class="detail" id="detail"></div>
+				<div class="terminal" id="logs" tabindex="0" aria-label="Log contents">
+					<div class="empty">Connecting to logs…</div>
+				</div>
+			</section>
+		</main>
+		<script type="module" src="/board/assets/app.js"></script>
+	</body>
+</html>

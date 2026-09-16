@@ -67,6 +67,7 @@ No installation required. Everything is managed through [app.atcyrus.com](https:
 
 ## More Documentation
 
+- **[Local Status Board](./docs/STATUS_BOARD.md)** - Live tasks and searchable logs at `/board`, on the same server as `/status`
 - **[End-to-End Community Guide](./docs/SELF_HOSTING.md)** - Complete community manual setup
 - **[Git & GitHub Setup](./docs/GIT_GITHUB.md)** - Git and GitHub CLI configuration for PRs
 - **[Git & GitLab Setup](./docs/GIT_GITLAB.md)** - Git and GitLab CLI configuration for MRs
