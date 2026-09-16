@@ -1,7 +1,7 @@
 # Test Drive: CYPACK-1519 Release v0.2.73
 
 **Date**: 2026-09-16
-**Goal**: Validate the local F1 issue, Codex session, and activity-rendering flow before a potential v0.2.73 publication.
+**Goal**: Prove the local F1 issue, session, worktree, and activity-rendering control path before a potential v0.2.73 publication. This report does not claim full end-to-end runner command execution.
 **Test Repo**: `/private/tmp/f1-release-v0.2.73-W92TXb/repo-codex`
 **F1 Port**: `3601`
 **Reference Issue**: CYPACK-1519 (`run a release`)
@@ -89,24 +89,59 @@ Result: both pagination windows returned the expected ten activities, the
 session stop succeeded, and F1 shut down gracefully after saving EdgeWorker
 state.
 
-## Non-blocking Observations
+## Runner Command-Execution Gate
 
-1. The Codex runner's command sandbox failed before it could inspect the
-   generated test repository. Its final response reported that limitation
-   accurately. It did not prevent the F1 control path from validating issue
-   creation, routing, worktree setup, runner selection, timeline activity
-   rendering, response delivery, pagination, session stop, or graceful
-   shutdown.
-2. The synthetic repository has no `origin`, so its attempted fetch warns and
-   F1 correctly proceeds from its local `main` branch.
+The Codex runner created and received the configured F1 worktree, but every
+read-only local command failed before execution. Its recorded final response
+preserves the exact error:
+
+```text
+sandbox-exec: sandbox_apply: Operation not permitted
+```
+
+The failed reads included `pwd`, `ls`, `git status`, `git remote -v`, and a
+skill-file read. No files were edited.
+
+An independent F1 attempt used the supported Claude runner, with no sandbox
+flags or permission changes, in a fresh repository at
+`/private/tmp/f1-release-v0.2.73-claude-RrTrKE/repo` on port `3602`. It
+created `issue-1` / `DEF-1`, selected the repository, created
+`/tmp/cyrus-f1-1789541621742/worktrees/DEF-1`, and asked the runner to execute
+only `pwd && git status --short`. The runner failed before executing that
+command with the exact recorded error:
+
+```text
+Failed to authenticate. API Error: 401 OAuth access token has expired.
+```
+
+Therefore successful command execution in a configured F1 repository remains
+an open validation gate. It requires an existing supported runner with a
+working normal execution environment; no denied sandbox was bypassed and no
+permissions were expanded.
+
+## Observations
+
+1. The lifecycle/control path still validated issue creation, repository
+   selection, worktree setup, runner selection, timeline activity rendering,
+   response delivery, pagination, explicit session stop, and graceful shutdown.
+2. The synthetic repositories have no `origin`, so their attempted fetches warn
+   and F1 correctly proceeds from their local `main` branch.
 3. `f1 ping` prints `Status: undefined` despite a successful request; this is
    the known CLI/RPC response-field mismatch.
 
 ## Final Retrospective
 
-The F1 release drive passed for the local F1 server, issue creation, session
-and worktree lifecycle, activity rendering, pagination, final response,
-explicit stop, and graceful shutdown. The runner sandbox limitation is
-environment-specific and did not block the end-to-end release validation.
-**v0.2.73 is ready for the remaining release checks, but is not authorized for
-publication.**
+The F1 release drive proves the lifecycle and control path for local F1 server,
+issue creation, session/worktree lifecycle, activity rendering, pagination,
+final response, explicit stop, and graceful shutdown. It is not full
+end-to-end release validation because neither configured runner completed an
+actual command in the F1 repository. The exact remaining gate is successful
+read-only command execution by a supported runner in its normal configured F1
+environment.
+
+The current candidate covers only CYPACK-1520, CYPACK-1518, and CYPACK-1521.
+It excludes #1487 / CYPACK-1522 and consequently does not satisfy the
+CYHOST-913 credential-removal release dependency. If #1487 is separately
+approved and merged before the release scope is approved, this preparation
+must be rebased to that exact main head and repeat the affected validation,
+F1 evidence, source inventory, and final-head checks.
