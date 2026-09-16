@@ -156,3 +156,11 @@ Edge mouse movement over the checkbox and summary produced the same `rgb(248, 24
 Both Activity and Raw provide a floating Hugeicons down-arrow button when the log viewport is more than two pixels above its bottom. Clicking it jumps to the latest output and enables Follow, using the same search-reset behavior as the existing Follow control. Task, source/error filters and pause state are retained. Activity also rechecks its position after content, expansion, wrapping and viewport-size changes; Raw uses the log viewer's scroll callback.
 
 The board build, changed-file Biome checks and 10 existing activity/selection/viewer regressions pass. Local static assets were updated without restarting Cyrus, and `/status` still returns HTTP 200. Browser interaction verification could not be completed in this follow-up: the existing Edge tab's debugger connection timed out, and opening a fresh local-board tab was blocked by the browser. No successful click or visual verification is claimed for this button.
+
+## Linear issue shortcut follow-up
+
+Task cards provide an always-visible Hugeicons external-link arrow beside Linear-style issue identifiers, including archived tasks. Links use Linear's documented `/issue/ENG-123` route with an encoded identifier and open a new tab with `noopener noreferrer`. Chat tasks without a matching identifier do not display a link. Card selection and issue navigation are separate sibling controls, avoiding nested interactive elements and preserving the selected log view when following a link.
+
+Edge verification confirmed links on active and archived cards, visible 16px SVG icons, correct link attributes, no nested buttons and no horizontal overflow. Selecting an archived task still displayed its logs. Clicking its arrow opened a new tab that resolved to the corresponding workspace issue and matching heading; the original task selection remained unchanged. No browser console errors were reported. User issue details and screenshots are not included in the repository.
+
+The board build, changed-file Biome checks and 10 existing activity/selection/viewer regressions pass. The full worker suite has 822 passes, one skip and exactly the same 52 failing names as the Windows baseline. Only static assets were deployed locally; the running worker was not restarted.

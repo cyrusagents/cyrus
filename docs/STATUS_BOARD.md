@@ -10,6 +10,10 @@ The English interface has a task list and a live log pane. The default **Activit
 compact, color-coded assistant, tool, result and Cyrus rows. Tool calls and results appear together
 when explicit IDs identify the same call within the same task and runner session. Older records
 without correlation IDs keep separate result rows. Click a row to expand its recorded input/output.
+Click the arrow beside a task's issue identifier to open that issue in Linear in a new tab.
+This also works for archived tasks and leaves the current log selection unchanged. Tasks without
+a Linear-style issue identifier have no external link. Links use Linear's documented
+[`/issue/ENG-123` route](https://linear.app/docs/get-the-app) and your signed-in Linear account.
 The disclosure arrow uses a bundled [Hugeicons](https://github.com/hugeicons/hugeicons) SVG,
 centered in the row and rotated around its center when expanded; it requires no external request.
 Search matches the full loaded text, including collapsed results; **Errors only** retains the call

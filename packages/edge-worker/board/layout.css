@@ -143,6 +143,46 @@ h1 {
 	width: 3px;
 	background: #555;
 }
+.task-select {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	width: 100%;
+	border: 0;
+	padding: 0;
+	background: transparent;
+}
+.task-select:focus-visible {
+	outline: 2px solid #9280af;
+	outline-offset: -3px;
+}
+.task-identifier {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+.task-issue-link {
+	position: relative;
+	z-index: 2;
+	display: grid;
+	place-items: center;
+	width: 22px;
+	height: 22px;
+	flex: none;
+	border-radius: 4px;
+	color: #96909f;
+	text-decoration: none;
+}
+.task-issue-link:hover,
+.task-issue-link:focus-visible {
+	color: #716081;
+	background: #e5dfee;
+}
+.task-issue-link svg {
+	width: 16px;
+	height: 16px;
+}
 .task-top,
 .task-meta {
 	display: flex;

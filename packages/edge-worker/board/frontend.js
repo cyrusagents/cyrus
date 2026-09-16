@@ -1,4 +1,5 @@
 import "./layout.css";
+import { ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
 import { createLogViewer } from "./log-viewer.jsx";
 
 const $ = (id) => document.getElementById(id);
@@ -66,6 +67,34 @@ function element(tag, cls, text) {
 	if (cls) el.className = cls;
 	if (text !== undefined) el.textContent = text;
 	return el;
+}
+function linearIssueLink(identifier) {
+	if (!/^[a-z0-9]+-\d+$/i.test(identifier || "")) return null;
+	const link = element("a", "task-issue-link");
+	link.href = `https://linear.app/issue/${encodeURIComponent(identifier)}`;
+	link.target = "_blank";
+	link.rel = "noopener noreferrer";
+	link.title = `Open ${identifier} in Linear`;
+	link.setAttribute("aria-label", `${link.title} (new tab)`);
+	const namespace = "http://www.w3.org/2000/svg";
+	const icon = document.createElementNS(namespace, "svg");
+	icon.setAttribute("viewBox", "0 0 24 24");
+	icon.setAttribute("fill", "none");
+	icon.setAttribute("aria-hidden", "true");
+	icon.setAttribute("focusable", "false");
+	for (const [tag, attributes] of ArrowUpRight01Icon) {
+		const shape = document.createElementNS(namespace, tag);
+		for (const [name, value] of Object.entries(attributes)) {
+			if (name !== "key")
+				shape.setAttribute(
+					name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`),
+					String(value),
+				);
+		}
+		icon.append(shape);
+	}
+	link.append(icon);
+	return link;
 }
 function clock(value) {
 	return value
@@ -174,16 +203,26 @@ function renderTasks() {
 		return;
 	}
 	for (const t of tasks) {
-		const b = element("button", `task${selected === t.id ? " selected" : ""}`);
+		const card = element("div", `task${selected === t.id ? " selected" : ""}`);
+		const b = element("button", "task-select");
+		b.type = "button";
 		b.setAttribute("aria-pressed", String(selected === t.id));
+		b.setAttribute(
+			"aria-label",
+			`View logs for ${t.issue || "task"}: ${t.title || "Loading task title"}`,
+		);
 		b.title =
 			t.reason +
 			(t.quiet ? " · No activity for over 2 minutes" : "") +
 			"\nSession " +
 			t.id;
 		const top = element("div", "task-top");
+		const identifier = element("div", "task-identifier");
+		identifier.append(element("span", "issue", t.issue || "Untitled task"));
+		const issueLink = linearIssueLink(t.issue);
+		if (issueLink) identifier.append(issueLink);
 		top.append(
-			element("span", "issue", t.issue || "Untitled task"),
+			identifier,
 			element(
 				"span",
 				"task-time",
@@ -208,7 +247,8 @@ function renderTasks() {
 					: names[t.status] || t.status,
 			),
 		);
-		b.append(
+		card.append(
+			b,
 			top,
 			element("div", "task-title", t.title || "Loading task title"),
 			meta,
@@ -219,7 +259,7 @@ function renderTasks() {
 			renderLogs();
 			loadHistory(t);
 		});
-		$("tasks").append(b);
+		$("tasks").append(card);
 	}
 }
 function renderLogs() {
