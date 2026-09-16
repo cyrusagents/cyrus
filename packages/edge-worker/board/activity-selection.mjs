@@ -33,3 +33,17 @@ export function selectionText(rows, selected) {
 		)
 		.join("\n\n");
 }
+
+export function marqueeSelection(bounds, box, initial = new Set()) {
+	const selected = new Set(initial);
+	for (const row of bounds) {
+		if (
+			row.left < box.right &&
+			row.right > box.left &&
+			row.top < box.bottom &&
+			row.bottom > box.top
+		)
+			selected.add(row.key);
+	}
+	return selected;
+}

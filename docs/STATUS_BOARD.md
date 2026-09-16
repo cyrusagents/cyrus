@@ -13,8 +13,11 @@ without correlation IDs keep separate result rows. Click a row to expand its rec
 Search matches the full loaded text, including collapsed results; **Errors only** retains the call
 beside its failed result. **Wrap details** controls expanded and raw text.
 
-Use the row checkboxes to select multiple entries; Shift-click selects a range. Ctrl/Cmd-click
-on a row also toggles selection. The toolbar checkbox selects all currently visible rows.
+Drag across log rows to draw a selection rectangle. Rows touched by the rectangle are selected;
+hold Ctrl/Cmd or Shift while dragging to add to the selection. Dragging near the list's top or
+bottom edge scrolls it automatically. Expanded detail text retains normal text selection.
+Row checkboxes are also available; Shift-click selects a range and Ctrl/Cmd-click toggles a row.
+The toolbar checkbox selects all currently visible rows.
 Choose **Copy** or press **Ctrl+C / Cmd+C** while the log pane has focus to copy the selection
 in display order, with timestamps and full loaded text, including paired tool results.
 Native text selections and search fields keep their normal copy behavior. Selection stops Follow,

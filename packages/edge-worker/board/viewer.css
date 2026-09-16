@@ -8,7 +8,7 @@
 	gap: 18px;
 	min-height: 48px;
 	flex: none;
-	padding: 8px 22px;
+	padding: 8px var(--board-gutter);
 	border-block: 1px solid #ededee;
 }
 .activity-stats {
@@ -75,7 +75,7 @@
 }
 .activity-timeline {
 	flex: none;
-	padding: 10px 22px 10px 15px;
+	padding: 10px var(--board-gutter);
 	border-bottom: 1px solid #e8e8ec;
 	background: #fdfdfe;
 }
@@ -88,7 +88,7 @@
 .timeline-label {
 	width: 46px;
 	flex: none;
-	text-align: right;
+	text-align: left;
 	color: #93939e;
 	font-size: 10px;
 }
@@ -134,6 +134,7 @@
 	z-index: 1;
 }
 .activity-list {
+	position: relative;
 	flex: 1;
 	min-height: 0;
 	overflow: auto;
@@ -142,17 +143,33 @@
 	overscroll-behavior: contain;
 	overflow-anchor: none;
 }
+.activity-list:focus {
+	outline: none;
+}
+.activity-list.marquee-selecting {
+	user-select: none;
+	cursor: crosshair;
+}
+.selection-marquee {
+	position: absolute;
+	z-index: 2;
+	pointer-events: none;
+	border: 1px solid #9280af;
+	background: #a591c52b;
+}
 .activity-row {
 	border-bottom: 1px solid #f0f0f2;
 }
 .activity-heading {
 	display: flex;
 	align-items: stretch;
+	padding-left: var(--board-gutter);
 }
 .row-select {
 	display: grid;
 	place-items: center;
-	flex: 0 0 30px;
+	flex: 0 0 13px;
+	margin-right: var(--row-gap);
 	cursor: pointer;
 }
 .row-select input,
@@ -195,11 +212,11 @@
 .activity-summary {
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: var(--row-gap);
 	width: 100%;
 	min-width: 0;
 	height: 38px;
-	padding: 0 22px 0 12px;
+	padding: 0 var(--board-gutter) 0 0;
 	text-align: left;
 	background: #fff;
 	border: 0;
@@ -256,6 +273,10 @@
 }
 .activity-issue {
 	flex: none;
+	width: 58px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	color: #9a99a3;
 	font-size: 10px;
 }
@@ -317,7 +338,8 @@
 	color: #be5555;
 }
 .activity-detail {
-	padding: 12px 24px 16px 141px;
+	padding: 12px var(--board-gutter) 16px
+		calc(var(--board-gutter) + var(--detail-leading) + var(--issue-offset, 0px));
 	background: #fafafb;
 	border-top: 1px solid #eeeef2;
 }
@@ -364,7 +386,7 @@
 	.activity-toolbar {
 		flex-wrap: wrap;
 		gap: 8px 12px;
-		padding: 8px 15px;
+		padding: 8px var(--board-gutter);
 	}
 	.activity-search {
 		flex: 1;
@@ -375,14 +397,10 @@
 		font-size: 11px;
 	}
 	.activity-summary {
-		gap: 8px;
-		padding-right: 15px;
+		padding-right: var(--board-gutter);
 	}
 	.activity-time {
 		display: none;
-	}
-	.activity-detail {
-		padding-left: 36px;
 	}
 }
 @media (max-width: 700px) {
@@ -400,7 +418,6 @@
 		display: none;
 	}
 	.activity-summary {
-		gap: 7px;
 		font-size: 11px;
 	}
 	.tool-input {
@@ -575,4 +592,17 @@
 }
 .row-checked .activity-detail {
 	background: #f7f5fb;
+}
+.activity-row.with-issue {
+	--issue-offset: 70px;
+}
+@media (max-width: 1050px) {
+	.activity-row.with-issue {
+		--issue-offset: 66px;
+	}
+}
+@media (max-width: 700px) {
+	.activity-row.with-issue {
+		--issue-offset: 0px;
+	}
 }

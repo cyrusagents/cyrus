@@ -9,6 +9,7 @@ import {
 } from "./activity-model.mjs";
 import { selectionText, selectRows } from "./activity-selection.mjs";
 import { RawLogView } from "./raw-log-viewer.jsx";
+import { useMarquee } from "./use-marquee.jsx";
 import "./viewer.css";
 
 function time(at) {
@@ -43,7 +44,7 @@ function ActivityRow({
 	const { log, output, name, input } = row;
 	return (
 		<div
-			className={`activity-row kind-${log.kind} level-${row.level}${expanded ? " expanded" : ""}${checked ? " row-checked" : ""}`}
+			className={`activity-row kind-${log.kind} level-${row.level}${expanded ? " expanded" : ""}${checked ? " row-checked" : ""}${showIssue ? " with-issue" : ""}`}
 		>
 			<div className="activity-heading">
 				<label
@@ -88,8 +89,14 @@ function ActivityRow({
 					<span className={`activity-badge badge-${log.kind}`}>
 						{rowLabel(row)}
 					</span>
-					{showIssue && log.issue && (
-						<span className="activity-issue">{log.issue}</span>
+					{showIssue && (
+						<span
+							className="activity-issue"
+							aria-hidden={!log.issue}
+							title={log.issue}
+						>
+							{log.issue || ""}
+						</span>
 					)}
 					<span className={`activity-preview${name ? " tool-preview" : ""}`}>
 						{name ? (
@@ -221,6 +228,14 @@ function LogView({
 		copyRequest = useRef(0);
 	const list = useRef(null),
 		rowNodes = useRef(new Map());
+	const marquee = useMarquee({
+		list,
+		rowNodes,
+		selected,
+		setSelected,
+		stopFollowing,
+		scope: `${scope}|${query}|${mode}`,
+	});
 	const rows = useMemo(() => activityRows(logs), [logs]);
 	const stats = useMemo(() => activityStats(logs), [logs]);
 	const visible = useMemo(
@@ -415,8 +430,10 @@ function LogView({
 				<>
 					<Timeline rows={visible} selected={expanded} onSelect={jump} />
 					<section
-						className="activity-list"
+						className={`activity-list${marquee.box ? " marquee-selecting" : ""}`}
 						ref={list}
+						tabIndex={-1}
+						onPointerDown={marquee.onPointerDown}
 						aria-label="Activity entries"
 					>
 						{visible.length ? (
@@ -449,6 +466,18 @@ function LogView({
 									? "No logs match these filters."
 									: "No logs available yet."}
 							</div>
+						)}
+						{marquee.box && (
+							<div
+								className="selection-marquee"
+								aria-hidden="true"
+								style={{
+									left: marquee.box.left,
+									top: marquee.box.top,
+									width: marquee.box.right - marquee.box.left,
+									height: marquee.box.bottom - marquee.box.top,
+								}}
+							/>
 						)}
 					</section>
 				</>

@@ -112,3 +112,13 @@ Activity rows now support checkbox selection, Shift ranges, Ctrl/Cmd-click toggl
 Three new regression tests cover individual/range selection, filtered ranges and expired anchors, and exact full-text serialization with paired results and hidden/unselected rows excluded. The board build and changed-file Biome checks pass. The full worker suite has 821 passing tests, one skip, and the same 52 baseline failures with no changed failing test names.
 
 Edge verification now succeeds, superseding the previous visual-verification limitation: the updated compact layout was inspected, Shift-click selected three rows without expanding them and disabled Follow, button and keyboard copying produced identical full text including paired results, filtered Select All selected only visible rows, and changing filters cleared selection. The page had no horizontal overflow or browser console errors. The user's clipboard was cleared back to its original empty state after verification. Only static assets were updated locally; no agent restart was needed. User log content and screenshots are not included in the repository.
+
+## Drag selection and alignment follow-up
+
+Mouse dragging now draws a selection rectangle over activity rows. Ctrl/Cmd or Shift adds to the current selection; dragging near the list edges scrolls it. Expanded details retain native text selection. Drag completion focuses the list for direct keyboard copying and suppresses the click that would otherwise expand a row.
+
+The toolbar, timeline and row checkboxes now share a responsive gutter. Rows without issue identifiers retain the issue column in the all-task view, and expanded details align with the message column.
+
+Edge checks verified downward and upward rectangle selection of four rows, with no accidental expansion or remaining selection overlay. Ctrl+C immediately after dragging copied four entry headers; an ordinary click still expanded and collapsed details. The clipboard was restored after verification. DOM measurements at a 1912px viewport confirmed the source filter, select-all checkbox, row checkboxes and timeline labels at the same x-coordinate; all message previews and expanded detail text also shared their respective x-coordinate. There was no horizontal overflow or browser console error. Edge autoscrolling is implemented but was not separately exercised in the browser.
+
+The board build and changed-file Biome checks pass. Rectangle intersection and additive selection tests pass alongside selection, activity and raw-viewer regression tests (10 total). The full worker suite has 822 passing tests, one skip and the same 52 failing test names as the Windows baseline. Local deployment replaced only the bundled static assets without restarting the agent.

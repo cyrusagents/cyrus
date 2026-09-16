@@ -1,8 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { activityRows } from "../board/activity-model.mjs";
-import { selectionText, selectRows } from "../board/activity-selection.mjs";
+import {
+	marqueeSelection,
+	selectionText,
+	selectRows,
+} from "../board/activity-selection.mjs";
 
 describe("activity row selection", () => {
+	it("selects intersecting rows by rectangle, supports additive selection, and excludes non-intersections", () => {
+		const bounds = [
+			{ key: "one", left: 0, right: 600, top: 0, bottom: 38 },
+			{ key: "two", left: 0, right: 600, top: 38, bottom: 76 },
+			{ key: "three", left: 0, right: 600, top: 76, bottom: 114 },
+		];
+		const box = { left: 200, right: 350, top: 15, bottom: 60 };
+		expect([...marqueeSelection(bounds, box)]).toEqual(["one", "two"]);
+		expect([...marqueeSelection(bounds, box, new Set(["three"]))]).toEqual([
+			"three",
+			"one",
+			"two",
+		]);
+		expect([
+			...marqueeSelection(bounds, { ...box, left: 601, right: 650 }),
+		]).toEqual([]);
+		expect([
+			...marqueeSelection(bounds, { ...box, top: 114, bottom: 200 }),
+		]).toEqual([]);
+	});
 	const rows = ["one", "two", "three", "four"].map((key) => ({ key }));
 	it("supports individual toggles and Shift ranges in both directions", () => {
 		let selected = selectRows(rows, new Set(), "two", null, false, true);
