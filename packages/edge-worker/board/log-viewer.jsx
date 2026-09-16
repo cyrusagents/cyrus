@@ -3,11 +3,11 @@ import { createRoot } from "react-dom/client";
 import {
 	activityRows,
 	activityStats,
-	formatSpan,
 	rowLabel,
 	visibleRows,
 } from "./activity-model.mjs";
 import { selectionText, selectRows } from "./activity-selection.mjs";
+import { LogOptions } from "./log-options.jsx";
 import { RawLogView } from "./raw-log-viewer.jsx";
 import { useMarquee } from "./use-marquee.jsx";
 import "./viewer.css";
@@ -217,6 +217,14 @@ function LogView({
 	showIssue,
 	stopFollowing,
 	rootElement,
+	source,
+	paused,
+	refreshing,
+	taskDetail,
+	onControlsChange,
+	onPause,
+	onRefresh,
+	onClearTask,
 }) {
 	const [mode, setMode] = useState("activity"),
 		[query, setQuery] = useState(""),
@@ -354,20 +362,6 @@ function LogView({
 						/>
 					</label>
 				)}
-				<div
-					className="activity-stats"
-					title="Statistics for the loaded logs. Span is the time between the first and last recorded entries, including idle gaps."
-				>
-					<span>
-						Span <b>{formatSpan(stats.span)}</b>
-					</span>
-					<span>
-						Calls <b>{stats.calls}</b>
-					</span>
-					<span className={stats.errors ? "has-errors" : ""}>
-						Errors <b>{stats.errors}</b>
-					</span>
-				</div>
 				<fieldset className="view-switch" aria-label="Log view">
 					{["activity", "raw"].map((value) => (
 						<button
@@ -380,15 +374,23 @@ function LogView({
 						</button>
 					))}
 				</fieldset>
-				{mode === "activity" && (
+				<select
+					className="compact-view-switch"
+					aria-label="Log view"
+					value={mode}
+					onChange={(event) => setMode(event.target.value)}
+				>
+					<option value="activity">Activity</option>
+					<option value="raw">Raw</option>
+				</select>
+				{mode === "activity" && selectedCount > 0 && (
 					<div className="selection-actions">
 						<button
 							type="button"
-							disabled={!selectedCount}
 							title="Copy selected rows (Ctrl+C / ⌘C)"
 							onClick={copySelected}
 						>
-							Copy{selectedCount ? ` (${selectedCount})` : " selected"}
+							Copy ({selectedCount})
 						</button>
 						{selectedCount > 0 && (
 							<button
@@ -398,7 +400,8 @@ function LogView({
 									anchor.current = null;
 								}}
 							>
-								Clear
+								<span aria-hidden="true">×</span>
+								<span className="sr-only">Clear selection</span>
 							</button>
 						)}
 					</div>
@@ -420,9 +423,27 @@ function LogView({
 						</span>
 					</label>
 				)}
+				{mode === "raw" && <span className="toolbar-spacer" />}
+				<LogOptions
+					{...{
+						source,
+						errorsOnly,
+						follow,
+						wrap,
+						paused,
+						refreshing,
+						taskDetail,
+						stats,
+						onControlsChange,
+						onPause,
+						onRefresh,
+						onClearTask,
+					}}
+					entries={logs.length}
+				/>
 			</div>
 			{copyStatus && (
-				<div className="copy-status" role="status">
+				<div className="sr-only" role="status">
 					{copyStatus}
 				</div>
 			)}
@@ -497,7 +518,7 @@ function LogView({
 	);
 }
 
-export function createLogViewer(container, onStopFollowing) {
+export function createLogViewer(container, { onStopFollowing, ...actions }) {
 	const root = createRoot(container);
 	let current,
 		signature = "";
@@ -512,6 +533,7 @@ export function createLogViewer(container, onStopFollowing) {
 		root.render(
 			<LogView
 				{...current}
+				{...actions}
 				rootElement={container}
 				stopFollowing={stopFollowing}
 			/>,

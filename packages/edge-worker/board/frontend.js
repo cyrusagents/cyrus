@@ -16,9 +16,31 @@ let latest = null,
 	selected = null,
 	paused = false,
 	connected = false,
-	taskKey = "";
-const viewer = createLogViewer($("logs"), () => {
-	$("follow").checked = false;
+	taskKey = "",
+	refreshing = false;
+const controls = { source: "all", errorsOnly: false, follow: true, wrap: true };
+const viewer = createLogViewer($("logs"), {
+	onStopFollowing: () => {
+		controls.follow = false;
+	},
+	onControlsChange: (patch) => {
+		Object.assign(controls, patch);
+		renderLogs();
+	},
+	onPause: () => {
+		paused = !paused;
+		if (!paused && latest) render(latest);
+		else {
+			renderConnection();
+			renderLogs();
+		}
+	},
+	onRefresh: refresh,
+	onClearTask: () => {
+		selected = null;
+		renderTasks();
+		renderLogs();
+	},
 });
 const history = new Map();
 async function loadHistory(task) {
@@ -84,6 +106,8 @@ function renderConnection() {
 		`connection${stale || !state?.online ? " off" : ""}`;
 	$("connection").lastElementChild.textContent = text;
 	$("connection").title =
+		text +
+		" · " +
 		(stale ? "Waiting for fresh data" : "Live connection") +
 		" · Last collected " +
 		clock(latest?.collectedAt);
@@ -200,26 +224,17 @@ function renderTasks() {
 }
 function renderLogs() {
 	const task = displayed?.tasks?.find((t) => t.id === selected);
-	$("detail").replaceChildren();
-	$("scope").textContent = task
-		? `${task.issue || "Task"} · Logs`
-		: "Live logs";
-	if (task) {
-		$("detail").append(
-			element(
-				"span",
-				"",
-				(task.model || "Unknown model") +
-					" · " +
-					(names[task.status] || task.status) +
-					" · Last activity " +
-					ago(task.lastActivityAt) +
-					(task.archived ? " · Archived · Up to 100 recent entries" : "") +
-					(task.quiet ? " · No activity for over 2 minutes" : ""),
-			),
-		);
-	}
-	const source = $("source").value;
+	const taskDetail = task
+		? `${task.issue || "Task"} · ` +
+			(task.model || "Unknown model") +
+			" · " +
+			(names[task.status] || task.status) +
+			" · Last activity " +
+			ago(task.lastActivityAt) +
+			(task.archived ? " · Archived · Up to 100 recent entries" : "") +
+			(task.quiet ? " · No activity for over 2 minutes" : "")
+		: "";
+	const { source } = controls;
 	const logs = (
 		task?.archived ? history.get(task.id)?.logs || [] : displayed?.logs || []
 	).filter(
@@ -228,49 +243,36 @@ function renderLogs() {
 				(l.sessionId ? l.sessionId === task.id : l.issue === task.issue)) &&
 			(source === "all" || l.source === source),
 	);
-	$("log-count").textContent = `${logs.length} entries`;
 	viewer.update({
 		logs,
-		follow: $("follow").checked,
-		wrap: $("wrap").checked,
-		errorsOnly: $("errors").checked,
+		...controls,
+		paused,
+		refreshing,
+		taskDetail,
 		showIssue: !task,
-		scope: [selected, source, $("errors").checked].join("|"),
+		scope: [selected, source, controls.errorsOnly].join("|"),
 	});
 }
 $("running-only").onchange = renderTasks;
 $("task-search").addEventListener("input", renderTasks);
-$("clear-task").onclick = () => {
-	selected = null;
-	renderTasks();
+async function refresh() {
+	if (refreshing) return;
+	refreshing = true;
 	renderLogs();
-};
-for (const id of ["source", "errors", "wrap"])
-	$(id).addEventListener("input", renderLogs);
-$("follow").onchange = renderLogs;
-$("pause").onclick = () => {
-	paused = !paused;
-	$("pause").textContent = paused ? "Resume" : "Pause";
-	if (!paused && latest) render(latest);
-	else renderConnection();
-};
-$("refresh").onclick = async () => {
-	const b = $("refresh");
-	b.disabled = true;
 	try {
 		const r = await fetch("/board/api/snapshot", { cache: "no-store" });
 		if (!r.ok) throw Error();
 		latest = await r.json();
 		paused = false;
-		$("pause").textContent = "Pause";
 		render(latest);
 	} catch {
 		$("warnings").textContent =
 			"Cannot reach the monitor. Reconnecting automatically.";
 	} finally {
-		b.disabled = false;
+		refreshing = false;
+		renderLogs();
 	}
-};
+}
 const stream = new EventSource("/board/events");
 stream.onopen = () => {
 	connected = true;

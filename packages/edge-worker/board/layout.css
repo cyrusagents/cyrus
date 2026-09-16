@@ -59,6 +59,11 @@ main {
 	align-items: center;
 	gap: 10px;
 }
+.task-heading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
 h1 {
 	font-size: 16px;
 	font-weight: 650;
@@ -215,50 +220,6 @@ h1 {
 	min-width: 0;
 	min-height: 0;
 }
-.pane-bar {
-	min-height: 66px;
-	flex: none;
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: 12px;
-	padding: 10px 22px;
-	border-bottom: 1px solid var(--line);
-}
-.breadcrumb {
-	display: flex;
-	align-items: center;
-	gap: 13px;
-	font-size: 13px;
-	min-width: 0;
-}
-.text-button {
-	border: 0;
-	background: none;
-	padding: 4px 0;
-	color: #888;
-	font-size: 13px;
-	white-space: nowrap;
-}
-.text-button:hover {
-	color: #222;
-}
-.separator {
-	font-size: 17px;
-	color: #bbb;
-}
-.scope {
-	font-weight: 550;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-.bar-actions {
-	display: flex;
-	align-items: center;
-	gap: 15px;
-	flex: none;
-}
 .connection {
 	color: #358570;
 	display: flex;
@@ -276,86 +237,6 @@ h1 {
 	border-radius: 50%;
 	background: currentColor;
 	display: inline-block;
-}
-.icon-button {
-	border: 0;
-	background: none;
-	padding: 7px 4px;
-	color: #999;
-	display: grid;
-	place-items: center;
-}
-.icon-button:hover {
-	color: #222;
-}
-.icon-button svg {
-	width: 16px;
-	height: 16px;
-}
-.log-controls {
-	padding: 9px 22px;
-	display: flex;
-	align-items: center;
-	gap: 14px;
-	flex: none;
-}
-.log-controls .search {
-	max-width: 420px;
-	min-width: 100px;
-	flex: 1;
-}
-.log-controls .search input {
-	background: #f6f6f6;
-	border-color: transparent;
-}
-.log-controls select {
-	border: 0;
-	background: #fff;
-	font-size: 11px;
-	padding: 6px 0;
-	color: #777;
-	max-width: 120px;
-}
-.control-spacer {
-	flex: 1;
-}
-.pause {
-	border: 0;
-	background: none;
-	color: #777;
-	font-size: 11px;
-	white-space: nowrap;
-	padding: 5px 0;
-}
-.pause:hover {
-	color: #222;
-}
-.log-count {
-	font-size: 11px;
-	white-space: nowrap;
-	color: #aaa;
-}
-.detail {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: 12px;
-	padding: 0 22px 13px;
-	color: #999;
-	font-size: 11px;
-	line-height: 1.6;
-	flex: none;
-}
-.detail:empty {
-	display: none;
-}
-.detail a {
-	color: #7b8490;
-	text-decoration: none;
-	white-space: nowrap;
-}
-.detail a:hover {
-	text-decoration: underline;
 }
 .warn {
 	padding: 10px 22px;
@@ -393,19 +274,6 @@ h1 {
 	main {
 		grid-template-columns: 280px minmax(0, 1fr);
 	}
-	.log-controls {
-		gap: 10px;
-		flex-wrap: wrap;
-	}
-	.control-spacer {
-		display: none;
-	}
-	.log-count {
-		margin-left: auto;
-	}
-	.connection span {
-		display: none;
-	}
 }
 @media (max-width: 700px) {
 	.log-pane {
@@ -425,23 +293,8 @@ h1 {
 	.task {
 		padding: 16px 13px;
 	}
-	.pane-bar {
-		padding: 10px 15px;
-	}
-	.log-controls {
-		padding: 12px 15px;
-	}
-	.detail {
-		padding: 0 15px 12px;
-	}
 	.terminal {
 		padding: 0;
-	}
-	.bar-actions {
-		gap: 6px;
-	}
-	.breadcrumb {
-		gap: 9px;
 	}
 }
 @media (max-width: 500px) {
@@ -479,22 +332,5 @@ h1 {
 	}
 	.task-top {
 		margin-bottom: 6px;
-	}
-	.pane-bar {
-		min-height: 48px;
-	}
-	.log-controls {
-		gap: 9px;
-		padding: 10px 14px;
-	}
-	.log-controls .search {
-		min-width: 120px;
-		max-width: none;
-	}
-	.detail {
-		padding-bottom: 9px;
-	}
-	.connection span {
-		display: block;
 	}
 }

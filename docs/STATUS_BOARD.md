@@ -13,6 +13,13 @@ without correlation IDs keep separate result rows. Click a row to expand its rec
 Search matches the full loaded text, including collapsed results; **Errors only** retains the call
 beside its failed result. **Wrap details** controls expanded and raw text.
 
+The log pane uses one compact toolbar with view switching, search and selection controls.
+The **Log options** (`⋯`) menu contains source/error filters, wrapping, Follow, pause, refresh,
+loaded-window statistics and selected-task details. A dot on that menu indicates active filters
+or paused updates. The status dot beside **Tasks** shows the service state on hover.
+There is no breadcrumb: click the selected task again, or choose **Show all tasks** in Log options,
+to return to the combined log stream.
+
 Drag across log rows to draw a selection rectangle. Rows touched by the rectangle are selected;
 hold Ctrl/Cmd or Shift while dragging to add to the selection. Dragging near the list's top or
 bottom edge scrolls it automatically. Expanded detail text retains normal text selection.
