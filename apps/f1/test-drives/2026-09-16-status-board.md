@@ -74,3 +74,18 @@ An additional F1 drive used a fresh disposable repository on port 3600 and a rea
 Validation: 22 board/history/viewer/logger tests pass, including restart, ID deduplication, age-based cleanup, retention limits, redaction, corrupt/unwritable storage, and history-route access control. Full monorepo build and typecheck pass. The worker suite has 812 passing tests, one skip, and the same 52 baseline Windows failures; changed-file Biome checks pass.
 
 The updated local service was also verified in the user's existing Edge tab: both a retained task and an archived task appeared, and selecting the archive loaded its individual log entries. This supersedes the earlier blocked browser check for the local installation. Historical data recovered for that installation was kept outside the repository; automatic recovery of tasks deleted before this archive existed is not claimed.
+
+## Fork installer follow-up
+
+The setup skills previously installed the official npm package, so changing only the skill repository could not reproduce this fork's board. The prerequisites skill now bundles a Node installer and launcher. The tested runtime pin is `11a7f23bf8c71c72409bd39477979623a1e175d5`; this is independent of the setup skills' own revision. Authentication, repository commands and service examples use the verified launcher.
+
+Validation on Windows / Node 24.9.0:
+
+- A fresh installation directory containing a space was populated by fetching the pinned commit from GitHub, installing its frozen lockfile using pnpm 10.33.1, and building the CLI dependency graph. No global Cyrus artifacts were copied into it.
+- `--installation` reported the expected repository and commit, with worker/core resolving to the source workspace packages. The launcher passed through ordinary CLI options and `--version`.
+- The launcher started an actual worker on isolated port 3600 with an empty, separate Cyrus home. `/status`, `/board` and `/board/api/snapshot` succeeded. A console interrupt ran normal state persistence and server shutdown. The production worker on 3456 was not restarted.
+- Reinstalling the immutable pin reused the verified build. A real fetch of a nonexistent ref failed without changing `current.json`.
+- Four Node tests passed: CLI argument forwarding, rejection of an in-tree published-package substitute, missing assets/path escapes, and preservation of the selected runtime on invalid input or concurrent installation. Five modified skills passed the skill validator; installer files passed Biome. Existing board/history/viewer tests remained 20/20 passing.
+- After the launcher smoke test stopped, F1's additional development dependencies were installed in the disposable source release. A real Codex task read README.md and returned `Fresh fork verified.` Its six activities were checked with pagination. Terminal cleanup retained an archived completed task with five log entries and the final result. The test repository stayed clean.
+
+The installer has explicit macOS/Linux execution paths, but this host only exercised Windows. It retains prior release directories and does not automatically migrate existing service commands; the launch skill performs that switch when the worker is idle.

@@ -9,6 +9,8 @@ description: Add one or more Git repositories to Cyrus configuration so it can p
 
 Adds Git repositories to Cyrus so it knows which codebases to work with.
 
+Use `CYRUS_ENTRY` from the prerequisites step. If invoked independently, resolve and verify the fork launcher with `node "<launcher>" --installation` first; install it with the prerequisites skill if missing.
+
 ## Step 1: Check Existing Repositories
 
 ```bash
@@ -33,7 +35,7 @@ Ask the user:
 Run:
 
 ```bash
-cyrus self-add-repo <url>
+node "$CYRUS_ENTRY" self-add-repo <url>
 ```
 
 This clones the repo to `~/.cyrus/repos/` and registers it with the Linear workspace.
@@ -41,7 +43,7 @@ This clones the repo to `~/.cyrus/repos/` and registers it with the Linear works
 If multiple workspaces are configured, ask which workspace to use:
 
 ```bash
-cyrus self-add-repo <url> "<workspace name>"
+node "$CYRUS_ENTRY" self-add-repo <url> "<workspace name>"
 ```
 
 Verify the repo was added:

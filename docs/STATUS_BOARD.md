@@ -4,6 +4,8 @@ Start Cyrus normally, then open [http://127.0.0.1:3456/board](http://127.0.0.1:3
 The board starts and stops with the same application server as `/status` and the webhook endpoints.
 Use your configured server port if it differs from 3456. No second server, command, or port is needed.
 
+For this fork, follow [Fork Installation](./FORK_INSTALLATION.md) and start it with the verified source launcher. Installing the official npm package or only downloading the setup skills does not install the board changes.
+
 The English interface has a task list and a live log pane. Select a task, search tasks or logs,
 filter by source or errors, wrap long lines, pause the display, or follow new entries.
 Search supports highlighting, previous/next match navigation, and matching-line filtering.

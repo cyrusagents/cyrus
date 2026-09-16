@@ -7,6 +7,8 @@ description: Set up Cyrus end-to-end — install prerequisites, configure authen
 
 One-command setup for self-hosted Cyrus. This orchestrator walks you through everything needed to run Claude Code as a background agent from Linear, Slack, and GitHub.
 
+This fork builds **nexmoe/cyrus** from the tested source commit bundled with the prerequisites skill. `skills add` installs these instructions and helper scripts; the prerequisites step installs the actual runtime. Keep its printed `CYRUS_ENTRY` launcher path and pass it to every sub-skill. All Cyrus commands and persistent services must use `node "<CYRUS_ENTRY>"`, including when an official `cyrus` command already exists.
+
 ## CRITICAL Rules
 
 ### Never Read or Write ~/.cyrus/.env Directly
@@ -133,11 +135,7 @@ Ask the user to select one or more:
 
 At least one is required. Store the selection — it determines which integration sub-skills run (Steps 4-6).
 
-### Question 3: Package manager?
-
-Ask: **npm, pnpm, bun, or yarn?**
-
-Store the answer — used by the prerequisites skill.
+The Cyrus source build uses the pnpm version declared by its pinned checkout. Preserve any existing package-manager preference for installing unrelated tools.
 
 ---
 
@@ -145,7 +143,7 @@ Store the answer — used by the prerequisites skill.
 
 **Read** the `cyrus-setup-prerequisites/SKILL.md` sub-skill and follow its instructions.
 
-Pass the user's package manager preference from Step 0.
+Store the verified fork repository, commit and `CYRUS_ENTRY` launcher path returned by this step. Do not skip it just because `which cyrus` succeeds.
 
 ---
 
@@ -211,4 +209,4 @@ Pass the user's package manager preference from Step 0.
 2. **Secrets never enter chat** — Credentials are either scraped via agent-browser or written via clipboard-to-env shell commands the user runs in their terminal.
 3. **Agent writes non-secret config** — Values like `CYRUS_SERVER_PORT` and `LINEAR_DIRECT_WEBHOOKS` are written directly by the agent.
 4. **Browser automation when available** — Uses `agent-browser` for Linear/Slack app creation; falls back to guided manual steps if not installed.
-5. **Package manager aware** — The user's choice is used consistently throughout.
+5. **Verified fork runtime** — Build the pinned source with its locked pnpm toolchain and use the resulting launcher throughout setup and service configuration.

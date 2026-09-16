@@ -22,7 +22,7 @@ Your (Claude Code|Codex|Cursor|Gemini|Opencode) powered (Linear|GitHub|GitLab|Sl
 Zero cost option — host everything yourself with your own Linear OAuth app, GitHub App, and Slack App. An AI-guided setup skill handles the entire onboarding: installing dependencies, configuring auth, creating integration apps, and connecting repositories — so you don't have to follow a manual guide.
 
 ```bash
-npx skills add ceedaragents/cyrus -g
+npx skills add nexmoe/cyrus -g
 ```
 
 Then in any AI coding agent (Claude Code, Codex, Cursor, etc.):
@@ -31,11 +31,23 @@ Then in any AI coding agent (Claude Code, Codex, Cursor, etc.):
 /cyrus-setup
 ```
 
+The skills install the **nexmoe/cyrus fork from a tested source commit**, including `/board` and task history. `skills add` itself only downloads the setup skills; `/cyrus-setup` runs their bundled source installer. The runtime is built with the checkout's pinned pnpm version and frozen lockfile, with no dependency on a global `cyrus-ai` installation.
+
+**Before this PR is merged into `main`, install its skills explicitly:**
+
+```bash
+npx skills add https://github.com/nexmoe/cyrus/tree/feat/integrated-status-board -g
+```
+
+See **[Fork Installation](./docs/FORK_INSTALLATION.md)** for requirements, the verified launcher, updates and source commit verification. The existing npm version number alone does not identify a fork build.
+
 Or follow the **[manual setup guide](./docs/SELF_HOSTING.md)** if you prefer.
 
 ---
 
 ### Pro & Team Plans
+
+This section describes the upstream hosted service and its official npm package. For this fork's modified runtime, use the source installer above.
 
 Configure Cyrus through the dashboard at [app.atcyrus.com](https://app.atcyrus.com).
 

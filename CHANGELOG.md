@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- Open `/board` on the local Cyrus server to see active and archived tasks with searchable logs, including saved output from previous turns. Issue tasks and recent logs survive session cleanup and restarts. The status board starts with Cyrus and shares its existing port, with no separate monitoring service required. ([#1](https://github.com/nexmoe/cyrus/pull/1))
+- Open `/board` on the local Cyrus server to see active and archived tasks with searchable logs, including saved output from previous turns. Issue tasks and recent logs survive session cleanup and restarts. The status board shares Cyrus's existing port. This fork's setup now builds a pinned nexmoe/cyrus source commit and uses a verified launcher throughout setup, so a fresh installation includes these changes. ([#1](https://github.com/nexmoe/cyrus/pull/1))
 
 ### Fixed
 - Linear webhooks from all twelve published outbound IP addresses are now accepted, preventing missed events as Linear rolls out new source addresses. ([CYPACK-1518](https://linear.app/ceedar/issue/CYPACK-1518), [#1481](https://github.com/cyrusagents/cyrus/pull/1481))
