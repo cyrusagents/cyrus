@@ -24,6 +24,7 @@ import {
 	decideSessionCredentialUser,
 	ensurePrompterGitCredentialHelper,
 	type FollowUpDecision,
+	GitHubTokenStore,
 	type ILogger,
 	type IssueUpdateWebhook,
 	isPrompterCredentialsEnabled,
@@ -69,7 +70,10 @@ export class PrompterCredentialService {
 		private readonly logger: ILogger,
 	) {
 		this.config = config;
-		for (const name of collectEnvRefNames(config.linearUsers)) {
+		for (const name of [
+			...collectEnvRefNames(config.linearUsers),
+			...new GitHubTokenStore(this.cyrusHome).personalEnvNames(),
+		]) {
 			this.credentialEnvNames.add(name);
 		}
 	}
@@ -77,7 +81,10 @@ export class PrompterCredentialService {
 	/** Hot-reload entry point (ConfigManager `configChanged`). */
 	updateConfig(config: PrompterCredentialServiceConfig): void {
 		this.config = config;
-		for (const name of collectEnvRefNames(config.linearUsers)) {
+		for (const name of [
+			...collectEnvRefNames(config.linearUsers),
+			...new GitHubTokenStore(this.cyrusHome).personalEnvNames(),
+		]) {
 			this.credentialEnvNames.add(name);
 		}
 	}
@@ -283,6 +290,7 @@ export class PrompterCredentialService {
 			pin.credentialUserId,
 			this.linearUsers[pin.credentialUserId],
 			{
+				cyrusHome: this.cyrusHome,
 				gitCredentialHelperPath: this.ensureHelper(),
 				additionalOmitEnv: this.allEnvRefNames(),
 				includeClaude,
@@ -310,7 +318,11 @@ export class PrompterCredentialService {
 		const result = resolveLinearUserCredentials(
 			pin.credentialUserId,
 			this.linearUsers[pin.credentialUserId],
-			{ gitCredentialHelperPath: this.ensureHelper(), includeClaude: false },
+			{
+				cyrusHome: this.cyrusHome,
+				gitCredentialHelperPath: this.ensureHelper(),
+				includeClaude: false,
+			},
 		);
 		if (result.ok) return null;
 		return `Cannot run this session under ${this.displayNameFor(pin.credentialUserId)}'s credentials: ${result.message}. Fix the mapping with \`cyrus add-user\` / \`cyrus check-users\`, then start a new session.`;
@@ -323,6 +335,8 @@ export class PrompterCredentialService {
 	 * secret in `~/.cyrus/.env` is never visible to another user's agent.
 	 */
 	allEnvRefNames(): string[] {
+		for (const name of new GitHubTokenStore(this.cyrusHome).personalEnvNames())
+			this.credentialEnvNames.add(name);
 		return [...this.credentialEnvNames].sort();
 	}
 

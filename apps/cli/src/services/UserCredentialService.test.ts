@@ -158,11 +158,15 @@ describe("UserCredentialService verification", () => {
 	it("inspects a user entry with secret-free fingerprints", () => {
 		const svc = new UserCredentialService(home);
 		const claudeRef = svc.storeSecretFile("u1", "claude-oauth-token", OAUTH);
-		const info = UserCredentialService.inspectUser("u1", {
-			displayName: "Ada",
-			claude: { oauthToken: claudeRef },
-			github: { token: { env: "NOT_SET_ANYWHERE_XYZ" }, login: "ada" },
-		});
+		const info = UserCredentialService.inspectUser(
+			"u1",
+			{
+				displayName: "Ada",
+				claude: { oauthToken: claudeRef },
+				github: { token: { env: "NOT_SET_ANYWHERE_XYZ" }, login: "ada" },
+			},
+			home,
+		);
 		expect(info.claude.ok).toBe(true);
 		if (info.claude.ok) {
 			expect(info.claude.fingerprint).toHaveLength(8);
@@ -170,7 +174,7 @@ describe("UserCredentialService verification", () => {
 		}
 		expect(info.github.ok).toBe(false);
 		if (!info.github.ok) {
-			expect(info.github.error).toContain("NOT_SET_ANYWHERE_XYZ");
+			expect(info.github.error).toContain("unreadable");
 		}
 	});
 });

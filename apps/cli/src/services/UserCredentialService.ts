@@ -3,9 +3,9 @@
  * credentials for multi-user self-hosted Cyrus (CYPACK-1502).
  *
  * Responsibilities:
- *   - store each user's secrets in owner-only files under
- *     `<cyrusHome>/user-credentials/<linearUserId>/` (0700 dir, 0600 files)
- *   - write ONLY references (`{ file: … }` / `{ env: … }`) into config.json
+ *   - keep personal GitHub entries in the shared github-tokens.json store
+ *   - keep Claude secrets separate in user-credentials/ (0700 dir, 0600 files)
+ *   - write ONLY credential references into config.json
  *   - verify the GitHub token against the GitHub API (actor login/name/email)
  *   - resolve a Linear user by email or ID through the workspace token
  *   - optionally run a real Claude round-trip with the user's credential
@@ -27,8 +27,11 @@ import {
 	type CredentialRef,
 	credentialFingerprint,
 	type EdgeConfig,
+	type GitHubCredentialRef,
+	GitHubTokenStore,
 	type LinearUserConfig,
 	readCredentialRef,
+	readGitHubCredentialRef,
 	resolvePath,
 } from "cyrus-core";
 
@@ -36,7 +39,6 @@ import {
 export const USER_CREDENTIALS_DIR = "user-credentials";
 export const CLAUDE_OAUTH_TOKEN_FILE = "claude-oauth-token";
 export const CLAUDE_API_KEY_FILE = "claude-api-key";
-export const GITHUB_TOKEN_FILE = "github-token";
 
 export type ClaudeCredentialKind = "oauthToken" | "apiKey";
 
@@ -73,11 +75,6 @@ export interface LinearUserLookup {
 	active: boolean;
 }
 
-export interface StoredUserCredentialRefs {
-	claude: { kind: ClaudeCredentialKind; ref: CredentialRef };
-	github: { ref: CredentialRef };
-}
-
 export class UserCredentialService {
 	constructor(private readonly cyrusHome: string) {}
 
@@ -107,8 +104,22 @@ export class UserCredentialService {
 		return { file: path };
 	}
 
+	/** PATs share the installation-token store; Claude stays in separate files. */
+	storeGitHubToken(
+		linearUserId: string,
+		secret: string,
+		envRef?: { env: string },
+	): GitHubCredentialRef {
+		new GitHubTokenStore(this.cyrusHome).setPersonalToken(
+			linearUserId,
+			envRef ?? { token: secret.trim() },
+		);
+		return { store: "github-tokens" };
+	}
+
 	/** Remove every stored secret for a user (no-op when nothing is stored). */
 	removeStoredSecrets(linearUserId: string): boolean {
+		new GitHubTokenStore(this.cyrusHome).removePersonalToken(linearUserId);
 		const dir = this.userDir(linearUserId);
 		if (!existsSync(dir)) return false;
 		rmSync(dir, { recursive: true, force: true });
@@ -259,6 +270,7 @@ export class UserCredentialService {
 	static inspectUser(
 		linearUserId: string,
 		entry: LinearUserConfig,
+		cyrusHome: string,
 	): {
 		linearUserId: string;
 		displayName: string;
@@ -316,7 +328,11 @@ export class UserCredentialService {
 		if (!entry.github?.token) {
 			github = { ref: "—", ok: false, error: "no GitHub token reference" };
 		} else {
-			const read = readCredentialRef(entry.github.token);
+			const read = readGitHubCredentialRef(
+				entry.github.token,
+				linearUserId,
+				cyrusHome,
+			);
 			github =
 				"value" in read
 					? {
@@ -367,6 +383,7 @@ function sanitizeId(id: string): string {
 	return id.replace(/[^A-Za-z0-9._-]/g, "_");
 }
 
-function describeRef(ref: CredentialRef): string {
+function describeRef(ref: CredentialRef | GitHubCredentialRef): string {
+	if ("store" in ref) return "github-tokens.json (personal entry)";
 	return "env" in ref ? `env:${ref.env}` : `file:${ref.file}`;
 }

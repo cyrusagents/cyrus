@@ -1097,25 +1097,40 @@
 							"token": {
 								"anyOf": [
 									{
-										"type": "object",
-										"properties": {
-											"env": {
-												"type": "string",
-												"minLength": 1
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"env": {
+														"type": "string",
+														"minLength": 1
+													}
+												},
+												"required": ["env"],
+												"additionalProperties": false
+											},
+											{
+												"type": "object",
+												"properties": {
+													"file": {
+														"type": "string",
+														"minLength": 1
+													}
+												},
+												"required": ["file"],
+												"additionalProperties": false
 											}
-										},
-										"required": ["env"],
-										"additionalProperties": false
+										]
 									},
 									{
 										"type": "object",
 										"properties": {
-											"file": {
+											"store": {
 												"type": "string",
-												"minLength": 1
+												"const": "github-tokens"
 											}
 										},
-										"required": ["file"],
+										"required": ["store"],
 										"additionalProperties": false
 									}
 								]

@@ -84,9 +84,15 @@ export const LinearUserClaudeCredentialsSchema = z.object({
 /**
  * GitHub credential + identity for a mapped Linear user.
  */
+export const GitHubCredentialRefSchema = z.union([
+	CredentialRefSchema,
+	z.object({ store: z.literal("github-tokens") }).strict(),
+]);
+export type GitHubCredentialRef = z.infer<typeof GitHubCredentialRefSchema>;
+
 export const LinearUserGitHubCredentialsSchema = z.object({
 	/** Fine-grained (or classic) personal access token for this human. */
-	token: CredentialRefSchema,
+	token: GitHubCredentialRefSchema,
 	/** GitHub login verified against the token at provisioning time. */
 	login: z.string().optional(),
 	/** Git author/committer name used for commits made in this user's sessions. */

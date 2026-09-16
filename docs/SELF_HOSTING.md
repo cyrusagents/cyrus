@@ -28,6 +28,8 @@ self-hosted instances. Use `cyrus add-user --github-only` to keep existing model
 authentication, or add a personal Claude credential for Claude sessions. Use the
 [verification checklist](./PROMPTER_CREDENTIAL_VERIFICATION.md) to validate your
 setup, including GitHub review controls and the documented isolation limits.
+Personal PATs share `github-tokens.json` with installation tokens; see the
+[store, migration and recovery contract](./SHARED_GITHUB_TOKEN_STORE.md).
 
 ---
 

@@ -5,6 +5,7 @@ import type {
 	ResolvedPrompterCredentials,
 	RunnerType,
 } from "cyrus-core";
+import { buildRunnerEnvironment } from "cyrus-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -69,6 +70,7 @@ function build(
 	runnerType: RunnerType,
 	extra: {
 		prompterCredentials?: ResolvedPrompterCredentials;
+		githubToken?: string;
 		omitEnv?: string[];
 		egressCaCertPath?: string;
 		sandboxSettings?: Record<string, unknown>;
@@ -116,6 +118,30 @@ describe("RunnerConfigBuilder per-prompter credentials", () => {
 			"ANTHROPIC_API_KEY",
 			"ANTHROPIC_AUTH_TOKEN",
 		]);
+	});
+
+	it.each([
+		"claude",
+		"codex",
+		"cursor",
+		"gemini",
+		"opencode",
+	] as const)("personal selection wins over main's installation-token injection for %s", (runner) => {
+		const { config } = build(runner, {
+			githubToken: "fixture-installation",
+			prompterCredentials: {
+				...ADA,
+				env: { ...ADA.env, CYRUS_GITHUB_USER_ID: "lin-ada" },
+				omitEnv: [...ADA.omitEnv, "CYRUS_GH_TOKEN"],
+			},
+		});
+		const env = buildRunnerEnvironment(config, {
+			GH_TOKEN: "fixture-host",
+			CYRUS_GH_TOKEN: "fixture-host-installation",
+		});
+		expect(env.GH_TOKEN).toBe("github_pat_ada_placeholder");
+		expect(env.CYRUS_GITHUB_USER_ID).toBe("lin-ada");
+		expect(env.CYRUS_GH_TOKEN).toBeUndefined();
 	});
 
 	it("keeps sandbox CA-cert env alongside the prompter env", () => {

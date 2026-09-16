@@ -4,7 +4,7 @@
  * Multi-user self-hosted Cyrus installs map the Linear user who triggers a
  * session to that human's own Claude credential, GitHub token and Git
  * identity. `config.json` only ever holds REFERENCES to those secrets
- * (`{ env: NAME }` or `{ file: PATH }`); this module reads them at session
+ * (shared GitHub store, or Claude env/file); this module reads them at session
  * start, builds the per-session environment and decides what to do when a
  * session cannot be pinned to a mapped user.
  *
@@ -14,20 +14,17 @@
  */
 
 import { createHash } from "node:crypto";
-import {
-	chmodSync,
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
 	CredentialRef,
+	GitHubCredentialRef,
 	LinearUserConfig,
 	PrompterCredentialPolicy,
 } from "./config-schemas.js";
 import { resolvePath } from "./config-types.js";
+import { ensureGitHubScripts } from "./github-scripts.js";
+import { GitHubTokenStore } from "./github-token-store.js";
 
 // ============================================================================
 // Types
@@ -127,46 +124,9 @@ const CLAUDE_AUTH_ENV_KEYS = [
 	"ANTHROPIC_AUTH_TOKEN",
 ] as const;
 
-/** File name of the per-session git credential helper installed under `<cyrusHome>/scripts`. */
+/** Shared with installation-token consumers; selected per process, never globally. */
 export const PROMPTER_GIT_CREDENTIAL_HELPER_FILENAME =
-	"git-credential-cyrus-prompter.cjs";
-
-/**
- * Self-contained git credential helper. Installed by
- * {@link ensurePrompterGitCredentialHelper}; wired into git PER SESSION via
- * `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` env vars, so the
- * host's global git config and `gh auth` state are never mutated.
- *
- * For `get` on github.com it answers with the session's prompter token from
- * the environment. Any other host, or a session without a prompter token,
- * prints nothing and exits 0 so git falls through to other helpers.
- */
-export const PROMPTER_GIT_CREDENTIAL_HELPER_SOURCE = `#!/usr/bin/env node
-/**
- * git-credential-cyrus-prompter — per-session GitHub credentials for Cyrus
- * multi-user installs (CYPACK-1502). Reads the triggering human's token from
- * the session environment (CYRUS_PROMPTER_GITHUB_TOKEN); never touches the
- * host's global git/gh configuration. Managed by Cyrus — do not edit.
- */
-"use strict";
-const fs = require("node:fs");
-function main() {
-	if (process.argv[2] !== "get") return;
-	const token = process.env.CYRUS_PROMPTER_GITHUB_TOKEN;
-	if (!token) return;
-	let input = "";
-	try { input = fs.readFileSync(0, "utf8"); } catch { return; }
-	const attrs = {};
-	for (const line of input.split("\\n")) {
-		const idx = line.indexOf("=");
-		if (idx > 0) attrs[line.slice(0, idx)] = line.slice(idx + 1);
-	}
-	if ((attrs.host || "").toLowerCase() !== "github.com") return;
-	const username = process.env.CYRUS_PROMPTER_GITHUB_LOGIN || "x-access-token";
-	process.stdout.write("username=" + username + "\\npassword=" + token + "\\n");
-}
-main();
-`;
+	"git-credential-cyrus.cjs";
 
 // ============================================================================
 // Credential references
@@ -211,6 +171,46 @@ export function readCredentialRef(
 	}
 }
 
+/** Migrate legacy references once into the shared store. A tombstone always wins.
+ * File inputs become a protected snapshot; originals are deliberately untouched.
+ * Environment inputs retain rotation semantics, with the reference owned by the store.
+ */
+export function readGitHubCredentialRef(
+	ref: GitHubCredentialRef,
+	linearUserId: string,
+	cyrusHome: string,
+	env: NodeJS.ProcessEnv = process.env,
+): { value: string; envName?: string } | { error: string } {
+	try {
+		const store = new GitHubTokenStore(cyrusHome);
+		if (!("store" in ref))
+			store.importPersonalToken(linearUserId, () => {
+				const read = readCredentialRef(ref, env);
+				if ("error" in read) throw new Error(read.error);
+				return "env" in ref ? { env: ref.env } : { token: read.value };
+			});
+		const entry = store.getPersonalEntry(linearUserId);
+		const envName = entry && "env" in entry ? entry.env : undefined;
+		const value =
+			entry && "token" in entry
+				? entry.token.trim()
+				: envName
+					? env[envName]?.trim()
+					: undefined;
+		if (!value || /[\r\n]/.test(value))
+			return {
+				error: envName
+					? `environment variable ${envName} is not set`
+					: "personal GitHub credentials are missing or revoked",
+			};
+		return { value, envName };
+	} catch {
+		return {
+			error: `${"store" in ref ? "github-tokens.json" : describeCredentialRef(ref)}: personal GitHub credentials or the shared token store are unreadable; no shared fallback`,
+		};
+	}
+}
+
 /**
  * Short non-reversible fingerprint of a secret (first 8 hex chars of its
  * SHA-256). Safe for logs, Linear activities and test evidence; lets two
@@ -225,6 +225,7 @@ export function credentialFingerprint(secret: string): string {
 // ============================================================================
 
 export interface ResolveLinearUserOptions {
+	cyrusHome: string;
 	/** Resolve personal Claude authentication only for the Claude runner. Defaults to true. */
 	includeClaude?: boolean;
 	/** Absolute path of the installed git credential helper script. */
@@ -343,7 +344,12 @@ export function resolveLinearUserCredentials(
 			message: `${displayName} has no GitHub token reference (github.token)`,
 		};
 	}
-	const github = readCredentialRef(user.github.token, options.env);
+	const github = readGitHubCredentialRef(
+		user.github.token,
+		linearUserId,
+		options.cyrusHome,
+		options.env,
+	);
 	if ("error" in github) {
 		return {
 			ok: false,
@@ -356,6 +362,9 @@ export function resolveLinearUserCredentials(
 	const env: Record<string, string> = {
 		[PROMPTER_ENV.LINEAR_USER_ID]: linearUserId,
 		[PROMPTER_ENV.NAME]: displayName,
+		CYRUS_HOME: options.cyrusHome,
+		CYRUS_GITHUB_USER_ID: linearUserId,
+		PATH: `${join(options.cyrusHome, "scripts", "bin")}:${options.env?.PATH ?? process.env.PATH ?? ""}`,
 	};
 	const omitEnv: string[] = [];
 
@@ -373,6 +382,8 @@ export function resolveLinearUserCredentials(
 	// too: Octokit, Actions-style scripts and most SDKs read it, and leaving
 	// the host's value in place would let those act as the host. A registry
 	// login that relied on the host GITHUB_TOKEN must use its own variable.
+	// Keep only this user's rotating source variable available to the helper.
+	if (github.envName) env[github.envName] = github.value;
 	env.GH_TOKEN = github.value;
 	env.GITHUB_TOKEN = github.value;
 	env[PROMPTER_ENV.GITHUB_TOKEN] = github.value;
@@ -670,26 +681,11 @@ export function decideFollowUpPrompt(
 
 /**
  * Install (or refresh) the per-session git credential helper at
- * `<cyrusHome>/scripts/git-credential-cyrus-prompter.cjs`. Idempotent.
+ * `<cyrusHome>/scripts/git-credential-cyrus.cjs`. Idempotent.
  * Returns the absolute path.
  */
 export function ensurePrompterGitCredentialHelper(cyrusHome: string): string {
-	const dir = join(cyrusHome, "scripts");
-	const target = join(dir, PROMPTER_GIT_CREDENTIAL_HELPER_FILENAME);
-	mkdirSync(dir, { recursive: true });
-	let current: string | null = null;
-	try {
-		current = readFileSync(target, "utf-8");
-	} catch {
-		current = null;
-	}
-	if (current !== PROMPTER_GIT_CREDENTIAL_HELPER_SOURCE) {
-		writeFileSync(target, PROMPTER_GIT_CREDENTIAL_HELPER_SOURCE, {
-			mode: 0o755,
-		});
-	}
-	chmodSync(target, 0o755);
-	return target;
+	return ensureGitHubScripts(cyrusHome);
 }
 
 /** Default location of the helper without installing it. */

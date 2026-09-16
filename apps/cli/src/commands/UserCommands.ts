@@ -8,8 +8,8 @@
  *
  * Secrets are taken from a masked prompt, a protected file or an env var name —
  * never from a literal command-line argument (shell history) — and are stored
- * as owner-only files under ~/.cyrus/user-credentials/<linearUserId>/.
- * config.json receives references only.
+ * in the shared github-tokens.json store (GitHub) or protected user-credentials
+ * files (Claude). config.json receives references only.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
@@ -22,6 +22,7 @@ import {
 	type EdgeConfig,
 	type LinearUserConfig,
 	readCredentialRef,
+	readGitHubCredentialRef,
 	resolvePrompterCredentialPolicy,
 } from "cyrus-core";
 import {
@@ -29,7 +30,6 @@ import {
 	CLAUDE_OAUTH_TOKEN_FILE,
 	type ClaudeCredentialKind,
 	detectClaudeCredentialKind,
-	GITHUB_TOKEN_FILE,
 	type GitHubActor,
 	UserCredentialService,
 } from "../services/UserCredentialService.js";
@@ -331,13 +331,11 @@ export class AddUserCommand extends BaseCommand {
 					claude.secret,
 				))
 			: undefined;
-		const githubRef =
-			github.ref ??
-			this.service.storeSecretFile(
-				linearUserId,
-				GITHUB_TOKEN_FILE,
-				github.secret,
-			);
+		const githubRef = this.service.storeGitHubToken(
+			linearUserId,
+			github.secret,
+			github.ref,
+		);
 
 		const entry: LinearUserConfig = {
 			displayName,
@@ -367,7 +365,7 @@ export class AddUserCommand extends BaseCommand {
 			`   Claude:  ${claudeRef ? ("env" in claudeRef ? `env ${claudeRef.env}` : claudeRef.file) : "existing model authentication"}`,
 		);
 		console.log(
-			`   GitHub:  ${"env" in githubRef ? `env ${githubRef.env}` : githubRef.file}${actor ? ` (@${actor.login})` : ""}`,
+			`   GitHub:  github-tokens.json (personal entry)${actor ? ` (@${actor.login})` : ""}`,
 		);
 		console.log(
 			`   Git:     ${gitAuthorName} <${gitAuthorEmail ?? "(host default)"}>`,
@@ -391,7 +389,11 @@ export class ListUsersCommand extends BaseCommand {
 		}
 		console.log(`\n${ids.length} mapped Linear user(s):\n`);
 		for (const id of ids) {
-			const info = UserCredentialService.inspectUser(id, users[id]!);
+			const info = UserCredentialService.inspectUser(
+				id,
+				users[id]!,
+				this.app.cyrusHome,
+			);
 			console.log(`• ${info.displayName}  (${id})`);
 			console.log(
 				`    Claude:  ${info.claude.kind === "missing" ? "existing model authentication" : `${info.claude.kind}  ${info.claude.ref}  ${info.claude.ok ? `✅ #${info.claude.fingerprint}` : `❌ ${info.claude.error}`}`}`,
@@ -432,7 +434,11 @@ export class CheckUsersCommand extends BaseCommand {
 		let failures = 0;
 		for (const id of ids) {
 			const entry = users[id]!;
-			const info = UserCredentialService.inspectUser(id, entry);
+			const info = UserCredentialService.inspectUser(
+				id,
+				entry,
+				this.app.cyrusHome,
+			);
 			console.log(`\n${info.displayName} (${id})`);
 			console.log(
 				`  Claude ${info.claude.kind === "missing" ? "existing model authentication" : info.claude.ok ? `✅ resolves (#${info.claude.fingerprint})` : `❌ ${info.claude.error}`}`,
@@ -449,7 +455,12 @@ export class CheckUsersCommand extends BaseCommand {
 
 			// Live provider checks — real proof, not just "the reference resolves".
 			if (info.github.ok && entry.github?.token) {
-				const secret = UserCredentialService.readSecret(entry.github.token);
+				const read = readGitHubCredentialRef(
+					entry.github.token,
+					id,
+					this.app.cyrusHome,
+				);
+				const secret = "value" in read ? read.value : undefined;
 				try {
 					const actor = await UserCredentialService.verifyGitHubToken(
 						secret ?? "",
@@ -520,8 +531,9 @@ export class RemoveUserCommand extends BaseCommand {
 		}
 		const entry = users[id]!;
 		const { config: next } = UserCredentialService.removeUser(config, id);
-		this.app.config.save(next);
+		// Revoke first: if config persistence fails, the old mapping still refuses.
 		const removedFiles = this.service.removeStoredSecrets(id);
+		this.app.config.save(next);
 		this.logSuccess(
 			`Removed ${entry.displayName ?? id} (${id})${removedFiles ? " and deleted the stored secret files" : ""}.`,
 		);

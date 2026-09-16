@@ -13,6 +13,7 @@ import {
 	EdgeConfigSchema,
 	PrompterCredentialPolicySchema,
 } from "../src/config-schemas.js";
+import { GitHubTokenStore } from "../src/github-token-store.js";
 import {
 	collectEnvRefNames,
 	credentialFingerprint,
@@ -136,7 +137,11 @@ describe("resolveLinearUserCredentials", () => {
 					gitAuthorEmail: "ada@example.com",
 				},
 			},
-			{ gitCredentialHelperPath: helper, env: { ADA_GH: ADA_GITHUB } },
+			{
+				cyrusHome: tmp,
+				gitCredentialHelperPath: helper,
+				env: { ADA_GH: ADA_GITHUB },
+			},
 		);
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -195,6 +200,7 @@ describe("resolveLinearUserCredentials", () => {
 				github: { token: { env: "BOB_GH" } },
 			},
 			{
+				cyrusHome: tmp,
 				gitCredentialHelperPath: helper,
 				rewriteSshRemotes: false,
 				env: { BOB_KEY: BOB_CLAUDE, BOB_GH: BOB_GITHUB },
@@ -231,6 +237,7 @@ describe("resolveLinearUserCredentials", () => {
 		]);
 		expect(collectEnvRefNames(undefined)).toEqual([]);
 		const result = resolveLinearUserCredentials(ADA, users[ADA], {
+			cyrusHome: tmp,
 			gitCredentialHelperPath: helper,
 			env: { ADA_CLAUDE_TOKEN: ADA_CLAUDE, ADA_GH_TOKEN: ADA_GITHUB },
 			additionalOmitEnv: collectEnvRefNames(users),
@@ -256,6 +263,7 @@ describe("resolveLinearUserCredentials", () => {
 				github: { token: { env: "A_G" } },
 			},
 			{
+				cyrusHome: tmp,
 				gitCredentialHelperPath: helper,
 				env: { A_C: ADA_CLAUDE, A_G: ADA_GITHUB },
 			},
@@ -267,6 +275,7 @@ describe("resolveLinearUserCredentials", () => {
 				github: { token: { env: "B_G" } },
 			},
 			{
+				cyrusHome: tmp,
 				gitCredentialHelperPath: helper,
 				env: { B_C: BOB_CLAUDE, B_G: BOB_GITHUB },
 			},
@@ -289,6 +298,7 @@ describe("resolveLinearUserCredentials", () => {
 			},
 		]) {
 			const result = resolveLinearUserCredentials(ADA, entry, {
+				cyrusHome: tmp,
 				gitCredentialHelperPath: helper,
 				env: { G: ADA_GITHUB },
 				includeClaude: false,
@@ -310,7 +320,11 @@ describe("resolveLinearUserCredentials", () => {
 					github: { token: { env: "G" } },
 					claude: { oauthToken: { file: join(tmp, "unreadable-claude") } },
 				},
-				{ gitCredentialHelperPath: helper, env: { G: ADA_GITHUB } },
+				{
+					cyrusHome: tmp,
+					gitCredentialHelperPath: helper,
+					env: { G: ADA_GITHUB },
+				},
 			),
 		).toMatchObject({ ok: false, reason: "unreadable" });
 	});
@@ -318,6 +332,7 @@ describe("resolveLinearUserCredentials", () => {
 	it("reports incomplete or unreadable mappings without leaking secrets", () => {
 		expect(
 			resolveLinearUserCredentials(ADA, undefined, {
+				cyrusHome: tmp,
 				gitCredentialHelperPath: helper,
 			}),
 		).toMatchObject({ ok: false, reason: "not-mapped" });
@@ -325,14 +340,22 @@ describe("resolveLinearUserCredentials", () => {
 			resolveLinearUserCredentials(
 				ADA,
 				{ github: { token: { env: "G" } } },
-				{ gitCredentialHelperPath: helper, env: { G: ADA_GITHUB } },
+				{
+					cyrusHome: tmp,
+					gitCredentialHelperPath: helper,
+					env: { G: ADA_GITHUB },
+				},
 			),
 		).toMatchObject({ ok: true });
 		expect(
 			resolveLinearUserCredentials(
 				ADA,
 				{ claude: { oauthToken: { env: "C" } } },
-				{ gitCredentialHelperPath: helper, env: { C: ADA_CLAUDE } },
+				{
+					cyrusHome: tmp,
+					gitCredentialHelperPath: helper,
+					env: { C: ADA_CLAUDE },
+				},
 			),
 		).toMatchObject({ ok: false, reason: "missing-github" });
 		const unreadable = resolveLinearUserCredentials(
@@ -342,7 +365,11 @@ describe("resolveLinearUserCredentials", () => {
 				claude: { oauthToken: { env: "C" } },
 				github: { token: { file: join(tmp, "missing") } },
 			},
-			{ gitCredentialHelperPath: helper, env: { C: ADA_CLAUDE } },
+			{
+				cyrusHome: tmp,
+				gitCredentialHelperPath: helper,
+				env: { C: ADA_CLAUDE },
+			},
 		);
 		expect(unreadable).toMatchObject({ ok: false, reason: "unreadable" });
 		if (unreadable.ok) return;
@@ -545,14 +572,13 @@ describe("git credential helper", () => {
 		expect(statSync(path).mode & 0o111).not.toBe(0);
 		// Idempotent
 		expect(ensurePrompterGitCredentialHelper(tmp)).toBe(path);
-		expect(readFileSync(path, "utf-8")).toContain(
-			"CYRUS_PROMPTER_GITHUB_TOKEN",
-		);
+		expect(readFileSync(path, "utf-8")).toContain("personalToken");
+		new GitHubTokenStore(tmp).setPersonalToken(ADA, { token: ADA_GITHUB });
 
 		const run = (env: Record<string, string>, input: string) =>
 			execFileSync("node", [path, "get"], {
 				input,
-				env: { ...env, PATH: process.env.PATH ?? "" },
+				env: { ...env, CYRUS_HOME: tmp, PATH: process.env.PATH ?? "" },
 				encoding: "utf-8",
 			});
 
@@ -561,10 +587,11 @@ describe("git credential helper", () => {
 				{
 					CYRUS_PROMPTER_GITHUB_TOKEN: ADA_GITHUB,
 					CYRUS_PROMPTER_GITHUB_LOGIN: "ada",
+					CYRUS_GITHUB_USER_ID: ADA,
 				},
 				"protocol=https\nhost=github.com\npath=acme/widgets.git\n",
 			),
-		).toBe(`username=ada\npassword=${ADA_GITHUB}\n`);
+		).toBe(`username=x-access-token\npassword=${ADA_GITHUB}\n`);
 		// Other hosts and sessions without a token fall through silently.
 		expect(
 			run(
@@ -589,6 +616,7 @@ describe("git credential helper", () => {
 				},
 			},
 			{
+				cyrusHome: tmp,
 				gitCredentialHelperPath: helper,
 				env: { C: ADA_CLAUDE, G: ADA_GITHUB },
 			},
@@ -615,7 +643,7 @@ describe("git credential helper", () => {
 			input: "protocol=https\nhost=github.com\npath=acme/widgets.git\n\n",
 			encoding: "utf-8",
 		});
-		expect(filled).toContain("username=ada");
+		expect(filled).toContain("username=x-access-token");
 		expect(filled).toContain(`password=${ADA_GITHUB}`);
 
 		const rewritten = execFileSync(

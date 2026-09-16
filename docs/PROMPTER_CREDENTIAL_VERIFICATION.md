@@ -56,9 +56,10 @@ verification requirement.
   it. A human reviewer with write access verifies review behavior. Neither Cyrus
   nor this checklist merges anything.
 - Standard `gh`, Git >= 2.31, Node/Bun and the built Cyrus CLI. Use direct GitHub
-  HTTPS access: no CYHOST-913 installation-token wrapper, host credential broker,
-  custom model gateway, or operator-managed settings that restore another user's
-  credentials. Team Cloud is outside this proposal.
+  HTTPS access through the shared Cyrus Git/GitHub helpers. Installation-token
+  wrappers are supported; a separate credential broker, custom model gateway, or
+  operator-managed settings must not restore another user's credentials.
+  Team Cloud provisioning remains outside this proposal.
 
 Permission references: [GitHub fine-grained PAT permissions](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens),
 [creating PRs](https://docs.github.com/en/rest/pulls/pulls#create-a-pull-request),
@@ -200,3 +201,16 @@ The remaining operator input is two account-owner-provisioned credentials, expec
 identities and a designated test workspace/repository with the review rule above.
 No one needs to paste tokens into the issue. Stop the test sessions/instance when
 finished; close test PRs without merging and remove only the test mappings.
+
+
+## Shared token store verification
+
+See [schema, migration and recovery](SHARED_GITHUB_TOKEN_STORE.md). Confirm new
+`add-user` entries reference `{ "store": "github-tokens" }`; PAT values live only
+in the protected shared store (or its named environment source). Claude remains
+separate. Refresh installation tokens while two users target the same org/repo;
+check both Git helper and `gh` paths still select their personal accounts. Remove
+one user, then verify even their old environment cannot make the helpers fall
+back to an installation token, another user or host auth. Do not delete the store
+to remove users. Offline concurrency tests and live F1 results are recorded in
+[the shared-store drive](../apps/f1/test-drives/2026-09-16-cypack-1502-shared-store.md).

@@ -132,6 +132,7 @@ export {
 // GitHub App installation token store (multi-org GitHub support)
 export type {
 	GitHubInstallationToken,
+	GitHubPersonalToken,
 	GitHubTokensFile,
 } from "./github-token-store.js";
 export {
@@ -324,8 +325,12 @@ export type {
 	ISimpleAgentRunner,
 	ISimpleAgentRunnerConfig,
 } from "./simple-agent-runner-types.js";
+
 // Platform-agnostic webhook type aliases - exported from issue-tracker
 // These are now defined in issue-tracker/types.ts as aliases to Linear SDK webhook types
 // EdgeWorker and other high-level code should use these generic names via issue-tracker exports
 
+export type { GitHubCredentialRef } from "./config-schemas.js";
+export { ensureGitHubScripts } from "./github-scripts.js";
+export { readGitHubCredentialRef } from "./prompter-credentials.js";
 export { buildRunnerEnvironment } from "./runner-environment.js";

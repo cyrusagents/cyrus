@@ -1,0 +1,15 @@
+#!/usr/bin/env node
+"use strict";
+const fs = require("node:fs");
+const path = require("node:path");
+const own = path.resolve(__dirname);
+const dirs = (process.env.PATH || "").split(path.delimiter).filter(p => path.resolve(p) !== own);
+process.env.PATH = dirs.join(path.delimiter);
+if (!process.env.CYRUS_GH_REAL_BIN) {
+  const bin = dirs.map(p => path.join(p, "gh")).find(p => {
+    try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; }
+  });
+  if (!bin) { console.error("GitHub CLI is not installed on PATH"); process.exit(127); }
+  process.env.CYRUS_GH_REAL_BIN = bin;
+}
+require("../gh-cyrus.cjs");
