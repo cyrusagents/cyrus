@@ -19,7 +19,11 @@ import {
 } from "cyrus-claude-runner";
 import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
 import { CodexRunner } from "cyrus-codex-runner";
-import { ConfigUpdater } from "cyrus-config-updater";
+import {
+	ConfigUpdater,
+	ensureGhTokenResolver,
+	ensureGitHubCredentialHelper,
+} from "cyrus-config-updater";
 import type {
 	AgentActivityCreateInput,
 	AgentEvent,
@@ -59,6 +63,7 @@ import {
 	CLIRPCServer,
 	createLogger,
 	DEFAULT_PROXY_URL,
+	GitHubTokenStore,
 	isAgentSessionCreatedWebhook,
 	isAgentSessionPromptedWebhook,
 	isContentUpdateMessage,
@@ -244,6 +249,8 @@ export class EdgeWorker extends EventEmitter {
 	private persistenceManager: PersistenceManager;
 	private sharedApplicationServer: SharedApplicationServer;
 	private cyrusHome: string;
+	/** Per-org GitHub App installation tokens pushed by cyrus-hosted (lazy file-backed reads) */
+	private githubTokenStore: GitHubTokenStore;
 	private globalSessionRegistry: GlobalSessionRegistry; // Centralized session storage across all repositories
 	private configPath?: string; // Path to config.json file
 	/** @internal - Exposed for testing only */
@@ -350,6 +357,7 @@ export class EdgeWorker extends EventEmitter {
 		super();
 		this.config = EdgeWorker.normalizeConfigPaths(config);
 		this.cyrusHome = config.cyrusHome;
+		this.githubTokenStore = new GitHubTokenStore(this.cyrusHome);
 		this.logger = createLogger({ component: "EdgeWorker" });
 		this.persistenceManager = new PersistenceManager(
 			join(this.cyrusHome, "state"),
@@ -667,6 +675,25 @@ export class EdgeWorker extends EventEmitter {
 	 * Start the edge worker
 	 */
 	async start(): Promise<void> {
+		// If cyrus-hosted has pushed per-org GitHub App tokens previously, make
+		// sure the git credential helper and the per-invocation gh token
+		// resolver are wired up (idempotent). Covers the case where the
+		// process restarted after the helper config was wiped.
+		if (existsSync(this.githubTokenStore.filePath)) {
+			try {
+				ensureGitHubCredentialHelper(this.cyrusHome);
+				ensureGhTokenResolver(this.cyrusHome);
+				this.logger.info(
+					"✅ GitHub auth scripts configured from existing token store",
+				);
+			} catch (error) {
+				this.logger.warn(
+					"Failed to configure GitHub auth scripts on startup (non-fatal):",
+					error instanceof Error ? error : new Error(String(error)),
+				);
+			}
+		}
+
 		// Deploy default skills to cyrusHome if not already present (one-time setup)
 		await this.defaultSkillsDeployer.ensureDeployed();
 
@@ -1360,13 +1387,22 @@ export class EdgeWorker extends EventEmitter {
 	 */
 	/**
 	 * Resolve a GitHub API token from (in priority order):
-	 * 1. Forwarded installation token from CYHOST (cloud/proxy mode)
-	 * 2. Self-minted installation token from GitHub App credentials (self-hosted)
-	 * 3. Personal access token from GITHUB_TOKEN env var (fallback)
+	 * 1. Org-matched installation token from the local token store (pushed by
+	 *    cyrus-hosted via /api/update/github-tokens — multi-org support)
+	 * 2. Forwarded installation token from CYHOST (cloud/proxy mode)
+	 * 3. Self-minted installation token from GitHub App credentials (self-hosted)
+	 * 4. Personal access token from GITHUB_TOKEN env var (fallback)
 	 */
 	private async resolveGitHubToken(
 		event: GitHubWebhookEvent,
+		repository?: RepositoryConfig,
 	): Promise<string | undefined> {
+		if (repository?.githubUrl) {
+			const storedToken = this.githubTokenStore.getTokenForRepoUrl(
+				repository.githubUrl,
+			);
+			if (storedToken) return storedToken;
+		}
 		if (event.installationToken) return event.installationToken;
 		if (this.gitHubAppTokenProvider) {
 			try {
@@ -1455,7 +1491,10 @@ export class EdgeWorker extends EventEmitter {
 			);
 
 			// Add "eyes" reaction to acknowledge receipt (not for pull_request_review — we post a comment instead)
-			const reactionToken = await this.resolveGitHubToken(event);
+			const reactionToken = await this.resolveGitHubToken(
+				event,
+				this.findRepositoryByGitHubUrl(repoFullName) ?? undefined,
+			);
 			if (reactionToken && !isPullRequestReview) {
 				const commentId = extractCommentId(event);
 				if (commentId) {
@@ -1964,7 +2003,7 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 	 */
 	private async fetchPRBranchRefs(
 		event: GitHubCommentWebhookEvent,
-		_repository: RepositoryConfig,
+		repository: RepositoryConfig,
 	): Promise<{ headRef: string; baseRef: string } | null> {
 		if (!isIssueCommentPayload(event.payload)) return null;
 
@@ -1981,8 +2020,8 @@ Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Co
 				"X-GitHub-Api-Version": "2022-11-28",
 			};
 
-			// Resolve GitHub token (installation token > App token > PAT)
-			const token = await this.resolveGitHubToken(event);
+			// Resolve GitHub token (org-matched store token > installation token > App token > PAT)
+			const token = await this.resolveGitHubToken(event, repository);
 			if (token) {
 				headers.Authorization = `Bearer ${token}`;
 			}
@@ -2158,7 +2197,7 @@ ${taskSection}`;
 	private async postGitHubReply(
 		event: GitHubCommentWebhookEvent,
 		runner: IAgentRunner,
-		_repository: RepositoryConfig,
+		repository: RepositoryConfig,
 	): Promise<void> {
 		try {
 			// Get the last assistant message from the runner as the summary
@@ -2194,8 +2233,8 @@ ${taskSection}`;
 				return;
 			}
 
-			// Resolve GitHub token (installation token > App token > PAT)
-			const token = await this.resolveGitHubToken(event);
+			// Resolve GitHub token (org-matched store token > installation token > App token > PAT)
+			const token = await this.resolveGitHubToken(event, repository);
 			if (!token) {
 				this.logger.warn(
 					"Cannot post GitHub reply: no installation token or GITHUB_TOKEN configured",
@@ -7196,6 +7235,14 @@ ${input.userComment}
 			strictMcpConfig: this.config.strictMcpConfig,
 			linearWorkspaceId,
 			cyrusHome: this.cyrusHome,
+			// Org-matched GitHub App installation token (pushed by cyrus-hosted):
+			// exposed to the session as GH_TOKEN / CYRUS_GH_TOKEN so `gh` and
+			// other tools authenticate against this repo's org. Undefined when
+			// no token store entry matches — zero behavior change for self-host
+			// users without the token file.
+			githubToken: repository.githubUrl
+				? this.githubTokenStore.getTokenForRepoUrl(repository.githubUrl)
+				: undefined,
 			logger: log,
 			plugins,
 			opencodeGlobalConfig: this.config.opencode?.config,

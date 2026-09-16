@@ -4,16 +4,16 @@
 		"outDir": "./dist",
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
-		"baseUrl": "../../",
 		"paths": {
-			"cyrus-core": ["packages/core/src"],
-			"cyrus-claude-runner": ["packages/claude-runner/src"],
-			"cyrus-simple-agent-runner": ["packages/simple-agent-runner/src"],
-			"cyrus-config-updater": ["packages/config-updater/src"],
+			"cyrus-core": ["../../packages/core/src"],
+			"cyrus-claude-runner": ["../../packages/claude-runner/src"],
+			"cyrus-simple-agent-runner": ["../../packages/simple-agent-runner/src"],
+			"cyrus-config-updater": ["../../packages/config-updater/src"],
 			"cyrus-edge-worker": [
-				"packages/edge-worker/dist/edge-worker/src/index.d.ts"
+				"../../packages/edge-worker/dist/edge-worker/src/index.d.ts"
 			]
-		}
+		},
+		"rootDir": "."
 	},
 	"include": ["*.ts", "src/**/*.ts"],
 	"exclude": ["node_modules", "dist", "**/*.test.ts"]

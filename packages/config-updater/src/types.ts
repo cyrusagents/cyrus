@@ -103,6 +103,29 @@ export interface CheckGlabData {
 }
 
 /**
+ * GitHub installation tokens push payload schema.
+ * Sent by cyrus-hosted with one short-lived GitHub App installation token
+ * per installation (org or user account) the team has attached.
+ */
+export const GitHubTokensPayloadSchema = z.object({
+	tokens: z.array(
+		z.object({
+			installationId: z.string().min(1),
+			organization: z.string().nullable().optional().default(null),
+			accountType: z
+				.enum(["Organization", "User"])
+				.nullable()
+				.optional()
+				.default(null),
+			token: z.string().min(1),
+			expiresAt: z.string().min(1),
+		}),
+	),
+});
+
+export type GitHubTokensPayload = z.infer<typeof GitHubTokensPayloadSchema>;
+
+/**
  * Error response to send back to cyrus-hosted
  */
 export interface ErrorResponse {

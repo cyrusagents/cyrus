@@ -6,10 +6,37 @@
  * multi-repo base branch determination.
  */
 
-import { describe, expect, it } from "vitest";
+import { LinearIssueTrackerService } from "cyrus-linear-event-transport";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestWorker, scenario } from "./prompt-assembly-utils.js";
 
 describe("Prompt Assembly - Multi-Repo", () => {
+	let liveTrackerCalls = 0;
+
+	beforeEach(() => {
+		liveTrackerCalls = 0;
+		for (const method of [
+			"fetchComments",
+			"fetchTeams",
+			"fetchLabels",
+		] as const) {
+			vi.spyOn(LinearIssueTrackerService.prototype, method).mockImplementation(
+				async () => {
+					liveTrackerCalls++;
+					throw new Error("Unexpected live Linear tracker in prompt test");
+				},
+			);
+		}
+	});
+
+	afterEach(() => {
+		try {
+			expect(liveTrackerCalls).toBe(0);
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
 	describe("fallback prompt with 2 repos", () => {
 		it("should produce per-repo context sections instead of single-repo context", async () => {
 			const repoA = {

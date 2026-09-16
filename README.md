@@ -70,6 +70,7 @@ No installation required. Everything is managed through [app.atcyrus.com](https:
 - **[End-to-End Community Guide](./docs/SELF_HOSTING.md)** - Complete community manual setup
 - **[Git & GitHub Setup](./docs/GIT_GITHUB.md)** - Git and GitHub CLI configuration for PRs
 - **[Git & GitLab Setup](./docs/GIT_GITLAB.md)** - Git and GitLab CLI configuration for MRs
+- **[Zulip Setup](./docs/ZULIP.md)** - Answer @mentions in Zulip topics and DMs
 - **[Configuration Reference](./docs/CONFIG_FILE.md)** - Detailed config.json options
 - **[Cloudflare Tunnel Setup](./docs/CLOUDFLARE_TUNNEL.md)** - Expose your local instance
 - **[Setup Scripts](./docs/SETUP_SCRIPTS.md)** - Repository and global initialization scripts

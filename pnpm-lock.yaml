@@ -35,15 +35,15 @@ importers:
       '@biomejs/biome':
         specifier: ^2.1.3
         version: 2.4.13
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       husky:
         specifier: ^9.1.7
         version: 9.1.7
       lint-staged:
         specifier: ^16.4.0
         version: 16.4.0
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
 
   apps/cli:
     dependencies:
@@ -102,15 +102,15 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       '@vitest/ui':
         specifier: ^4.1.11
         version: 4.1.11(vitest@4.1.11)
       nodemon:
         specifier: ^3.1.14
         version: 3.1.14
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -136,9 +136,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -146,11 +146,11 @@ importers:
   packages/claude-runner:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.263
-        version: 0.3.263(@anthropic-ai/sdk@0.124.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)
+        specifier: 0.3.268
+        version: 0.3.268(@anthropic-ai/sdk@0.125.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)
       '@anthropic-ai/sdk':
-        specifier: ^0.124.0
-        version: 0.124.0(zod@4.3.6)
+        specifier: ^0.125.0
+        version: 0.125.0(zod@4.3.6)
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
@@ -173,12 +173,12 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       tsx:
         specifier: ^4.23.0
         version: 4.23.0
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -192,9 +192,9 @@ importers:
       '@types/node':
         specifier: ^20.12.7
         version: 20.19.39
-      typescript:
-        specifier: ^5.4.5
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -217,9 +217,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -242,9 +242,9 @@ importers:
       '@types/node':
         specifier: ^20.12.7
         version: 20.19.39
-      typescript:
-        specifier: ^5.4.5
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -252,8 +252,8 @@ importers:
   packages/core:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.263
-        version: 0.3.263(@anthropic-ai/sdk@0.124.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)
+        specifier: 0.3.268
+        version: 0.3.268(@anthropic-ai/sdk@0.125.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
@@ -264,15 +264,15 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
       tsx:
         specifier: ^4.23.0
         version: 4.23.0
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -292,9 +292,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -302,8 +302,8 @@ importers:
   packages/edge-worker:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.263
-        version: 0.3.263(@anthropic-ai/sdk@0.124.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)
+        specifier: 0.3.268
+        version: 0.3.268(@anthropic-ai/sdk@0.125.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
@@ -383,15 +383,15 @@ importers:
       '@types/node-forge':
         specifier: ^1.3.14
         version: 1.3.14
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       '@vitest/coverage-v8':
         specifier: ^4.1.11
         version: 4.1.11(vitest@4.1.11)
       axios:
         specifier: ^1.18.0
         version: 1.18.0
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -429,9 +429,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -448,9 +448,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -467,9 +467,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -489,9 +489,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -520,9 +520,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -539,9 +539,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -549,8 +549,8 @@ importers:
   packages/simple-agent-runner:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.263
-        version: 0.3.263(@anthropic-ai/sdk@0.124.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)
+        specifier: 0.3.268
+        version: 0.3.268(@anthropic-ai/sdk@0.125.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)
       cyrus-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
@@ -561,9 +561,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -580,9 +580,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
@@ -599,69 +599,69 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
       vitest:
         specifier: ^4.1.10
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.1)(tsx@4.23.0)(yaml@2.8.3))
 
 packages:
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.263':
-    resolution: {integrity: sha512-H4eLd4Tkx3rJkt739CHb+9AcaKiiOpibU4tYsmma47mV+2zAPjUyFxpuE2N57VSmpAgbLQxu44du0TFN+UH5dg==}
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.268':
+    resolution: {integrity: sha512-LdWLd0osGaDWXX6iYtDjUBRiY5ORoTSPfdkGRo7egbTYumRhHQi/B7JmbGUMqfNxpmKgTI8YsW+YTniUsBEVsw==}
     cpu: [arm64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.263':
-    resolution: {integrity: sha512-jKwmfkem1s/TcK7u83cJf2zLHMz846irV4vqYGUlo74uX2qfX57R4UsrCMlcTUMou/U9vQyNCc/Kk0s+zSxYRg==}
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.268':
+    resolution: {integrity: sha512-MHu24qCzyRjnfiaXOUB5vwtNPUUTuv1T1dAovbF3IQhKoPANVVt7dYW4uGczcVwrrDjiYWd5R6NLnFrz2//mkQ==}
     cpu: [x64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.263':
-    resolution: {integrity: sha512-TiOmi9mqYvu3uGgM+0eQrUQzgXb7pgTzqahtRyEjpJrNigddGoANHcbNKL7P7y4etJpyIuYXGuVh5SLJzySYVA==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.268':
+    resolution: {integrity: sha512-qQcJ5iIepKU1eHy6KTtE0PUJ5DDtb+HkokcLpVRZeIowCF4RSbOso5siiO/TUFNwoSrIB7ri7ji6ge5juHYrrg==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.263':
-    resolution: {integrity: sha512-2KPY1wu1hdjpVsw+Tg3i50uhxhhetO1fB24wjUJAQJ8YPSogqO32UbtYPJ6I3F17lBNHb/Mq3nRYGAuSU5yjtg==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.268':
+    resolution: {integrity: sha512-IgvuEx9s1F+dhq8B9XqEoUGJCYK1d1yN4TkDILeWQ5tI/Y6fX7MKppF1GVgiRd1R7YI2L4IGBkFcry5gJAunkg==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.263':
-    resolution: {integrity: sha512-PWctt/XjebBxtI37i2xx2OMxSscPMnKmxU82MWdtIvoAyJ40U5yfqpm92fm45R02eLn9j4LQpvNocVTcRAHv+g==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.268':
+    resolution: {integrity: sha512-BguDX5ZRLHeEI7R+lKu0BI2iv8SmlMwZCNnqWRo2x79yRsdjD2Hcvjsj79HholtzD6YPA/R2USlxuT7Ygj9k0w==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.263':
-    resolution: {integrity: sha512-un7HJzTT+DSQLgM33emQ0qHAwIY3CXIwe8JXoD9PaT7pdLepK4Ffa4r5j84pHTVS5uoGqxcf196tBgqb5/Z7FA==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.268':
+    resolution: {integrity: sha512-mIvSW1iyZpdq+G7nv+GSLhPSLG3OyhWKbL2BZ2/Zn9VSgtKjwMtnINW19pU84D+J+heRlqKUMAx4EbH4DOHolw==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.263':
-    resolution: {integrity: sha512-n8owOwNSSi7/KpONb/ut+uXRjBIp9N6EjwADiB+YygPwGRtpWP+PR/qFsGdTVBE5cpPwhgKVAf27xEZEfNvcSQ==}
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.268':
+    resolution: {integrity: sha512-p8Aj7iohK2TddsQZ+tNhG2w6np1MmdpPVqHpOuElab7Iu4OA3iOerc/21T+Z3fza/gOPaTV0nKiEIO0tbAQrLA==}
     cpu: [arm64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.263':
-    resolution: {integrity: sha512-EwqzsOLxIJTX6RIXtQ21ekOKmYBNfwbtGtqaPqdWZGzpMbHaie8kGsM630h9RFaoxeytS/jbg8B3fPCdUKfhPw==}
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.268':
+    resolution: {integrity: sha512-zT56NISgATcVk6hVLr/CIl+5H/G6mqjhd1t/V/JMVupMuc3ffirEPu47cVJldGf0DVMa+sZ17uRwXvIM2Vi4iA==}
     cpu: [x64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk@0.3.263':
-    resolution: {integrity: sha512-0QWoHgWWlSmgXfEqZRbVYRoXT9p4tx/yKaZ4eLJ8l1MR65SIvMGR+cd5ZXUpGYZpj9RzbYiYU9LoFg90mdIjmw==}
+  '@anthropic-ai/claude-agent-sdk@0.3.268':
+    resolution: {integrity: sha512-24oj+nuSjSYF/yrZefXdjUIYPJ+OnbTNP5GkaSiOiY4lfPF9PPwtDviDp3hojYpgvL5wDKaueNWmbfc/DVVbWQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@anthropic-ai/sdk': '>=0.93.0'
       '@modelcontextprotocol/sdk': '>=1.30.0'
       zod: ^4.0.0
 
-  '@anthropic-ai/sdk@0.124.0':
-    resolution: {integrity: sha512-cN5O8i9UVxHeOQAzj/XjshWXG8KiibJDw9OGpH2Z/eR3n/RBxdoLxDJOcfqAJWvjaMDFfHTBADU04hWRJVkDyA==}
+  '@anthropic-ai/sdk@0.125.0':
+    resolution: {integrity: sha512-Hq5wYlXupzJ9M1Fzqjqa3hObcuigEXVZJqSYDgeZGM3wF4qrNERM5Z1OOAeoT9rlod8awJ3uYyJjbQXp1ckIGg==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -1464,6 +1464,53 @@ packages:
 
   '@types/node@20.19.39':
     resolution: {integrity: sha512-orrrD74MBUyK8jOAD/r0+lfa1I2MO6I+vAkmAWzMYbCcgrN4lCrmK52gRFQq/JRxfYPfonkr4b0jcY7Olqdqbw==}
+
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260707.2':
+    resolution: {integrity: sha512-wny2pgKjGbiZtnOIHVa3tXC1UfDqxNEFzyPGmiqybedG8hipG2Nfp0l5UxbaKCjkLacUpH/W5bP2hBOMVhCOzg==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260707.2':
+    resolution: {integrity: sha512-Afc7M5zOwo+GpfcYwz5Z8HMB2tPVsui7nNIqEuuFB73MPdVqNn/Wmpe4tP4MRri0AtJnJknoHBaTJ/VDAp/Jhw==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260707.2':
+    resolution: {integrity: sha512-iITBa2WjjTI5N9t5l7Z4KoOSI+2zBlhbvFzsD/f8qX8QoKjz/Y4DPyBDgezYi8nkqjjksbgSOJ3/ykzhwrB9cg==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260707.2':
+    resolution: {integrity: sha512-hJm/UOqZTr9FHmR7uNm8VGX4oKtfWk0Jem0zPeJFNC8ckGUfSBueyiEYMZB+XmRc1aG4x1E46y3CplP4CLHvGQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm]
+    os: [linux]
+
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260707.2':
+    resolution: {integrity: sha512-du0dzi6y97Po5vDNdPJTyyijHCpaS22JLRnKZEJXBDaO9gCIymOv/5QQokFRuOlQm0bWl3i9PF4OVdGP6uAOQA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [linux]
+
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260707.2':
+    resolution: {integrity: sha512-SsAwfhyHJ1akgBc+99z4+hwdbHsdWaKB8EwCNIMA6JfSLMeUjffrYvxu+vfMyxVtOVOz7RrRXRoiDiu4a2sCtg==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260707.2':
+    resolution: {integrity: sha512-DL4u27stv0fo71sVhOzHSwE+YMZsbBijVI+kg5dLDLilSH79WFTJ8RSQ46vJrCMt+Gjlv/JOZP1PuLJDfioYeQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [win32]
+
+  '@typescript/native-preview@7.0.0-dev.20260707.2':
+    resolution: {integrity: sha512-oUGp+Rep/hqMhPunyinsALUwSlzHINSxitifPiSaeqoKOKD2OlR9NE3TaPqwsl4NlGslsOSUXI1JotWQzpYCPg==}
+    engines: {node: '>=16.20.0'}
+    hasBin: true
 
   '@vitest/coverage-v8@4.1.11':
     resolution: {integrity: sha512-8MVGEFnJIcdGjcbfKmeq8z0pZHH0JlVtoVZH9Q/qwUp6wyFnEJUBMrw9DCaj+ra3vShGmhavjalMIhPNxZAUcw==}
@@ -2828,46 +2875,46 @@ packages:
 
 snapshots:
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.263':
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.268':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.263':
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.268':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.263':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.268':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.263':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.268':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.263':
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.268':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.263':
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.268':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.263':
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.268':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.263':
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.268':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.263(@anthropic-ai/sdk@0.124.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)':
+  '@anthropic-ai/claude-agent-sdk@0.3.268(@anthropic-ai/sdk@0.125.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)':
     dependencies:
-      '@anthropic-ai/sdk': 0.124.0(zod@4.3.6)
+      '@anthropic-ai/sdk': 0.125.0(zod@4.3.6)
       '@modelcontextprotocol/sdk': 1.30.0(zod@4.3.6)
       zod: 4.3.6
     optionalDependencies:
-      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.263
-      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.263
-      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.263
-      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.263
-      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.263
-      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.263
-      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.263
-      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.263
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.268
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.268
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.268
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.268
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.268
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.268
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.268
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.268
 
-  '@anthropic-ai/sdk@0.124.0(zod@4.3.6)':
+  '@anthropic-ai/sdk@0.125.0(zod@4.3.6)':
     dependencies:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.0.0
@@ -3531,6 +3578,37 @@ snapshots:
   '@types/node@20.19.39':
     dependencies:
       undici-types: 6.21.0
+
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260707.2':
+    optional: true
+
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260707.2':
+    optional: true
+
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260707.2':
+    optional: true
+
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260707.2':
+    optional: true
+
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260707.2':
+    optional: true
+
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260707.2':
+    optional: true
+
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260707.2':
+    optional: true
+
+  '@typescript/native-preview@7.0.0-dev.20260707.2':
+    optionalDependencies:
+      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20260707.2
+      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20260707.2
+      '@typescript/native-preview-linux-arm': 7.0.0-dev.20260707.2
+      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20260707.2
+      '@typescript/native-preview-linux-x64': 7.0.0-dev.20260707.2
+      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260707.2
+      '@typescript/native-preview-win32-x64': 7.0.0-dev.20260707.2
 
   '@vitest/coverage-v8@4.1.11(vitest@4.1.11)':
     dependencies:

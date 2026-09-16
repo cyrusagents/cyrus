@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-zulip-event-transport",
-	"version": "0.2.71",
+	"version": "0.2.72",
 	"description": "Zulip event transport for receiving and verifying Zulip outgoing webhooks",
 	"repository": {
 		"type": "git",
@@ -14,9 +14,9 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
-		"typecheck": "tsc --noEmit",
+		"build": "tsgo",
+		"dev": "tsgo --watch",
+		"typecheck": "tsgo --noEmit",
 		"test": "vitest",
 		"test:run": "vitest run"
 	},
@@ -26,7 +26,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
-		"typescript": "^5.3.3",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
 		"vitest": "^4.1.10"
 	},
 	"publishConfig": {

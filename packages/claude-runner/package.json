@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-claude-runner",
-	"version": "0.2.71",
+	"version": "0.2.72",
 	"description": "Claude CLI execution wrapper for Cyrus",
 	"repository": {
 		"type": "git",
@@ -14,15 +14,15 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
+		"build": "tsgo",
+		"dev": "tsgo --watch",
 		"test": "vitest",
 		"test:run": "vitest run",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.3.263",
-		"@anthropic-ai/sdk": "^0.124.0",
+		"@anthropic-ai/claude-agent-sdk": "0.3.268",
+		"@anthropic-ai/sdk": "^0.125.0",
 		"@linear/sdk": "^64.0.0",
 		"cyrus-core": "workspace:*",
 		"dotenv": "^16.4.5",
@@ -33,7 +33,7 @@
 		"@types/fs-extra": "^11.0.4",
 		"@types/node": "^20.0.0",
 		"tsx": "^4.23.0",
-		"typescript": "^5.3.3",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
 		"vitest": "^4.1.11"
 	},
 	"publishConfig": {

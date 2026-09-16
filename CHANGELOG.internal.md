@@ -4,6 +4,17 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Changed
+- Switched builds, type checking, and development watch commands to the native TypeScript compiler, reducing measured local build time by 74% and type-check time by 68%. Prompt-assembly tests now use mock Linear trackers reliably, preventing network-dependent CI timeouts. ([CYPACK-1520](https://linear.app/ceedar/issue/CYPACK-1520), [#1485](https://github.com/cyrusagents/cyrus/pull/1485))
+
+### Fixed
+- Release recovery now compares complete uncompressed package archives, retaining mixed-commit protection while allowing an approved first publish packed by a different gzip implementation to resume safely. ([#1483](https://github.com/cyrusagents/cyrus/pull/1483))
+- The release workflow now submits fresh packages in dependency order before checking npm visibility and archive integrity as a batch, avoiding registry propagation delays being multiplied across the package graph while retaining the pre-tag verification boundary. ([CYPACK-1521](https://linear.app/ceedar/issue/CYPACK-1521), [#1486](https://github.com/cyrusagents/cyrus/pull/1486))
+
+## [0.2.72] - 2026-09-15
+
+_No internal-only changes._
+
 ## [0.2.71] - 2026-09-04
 
 ### Changed

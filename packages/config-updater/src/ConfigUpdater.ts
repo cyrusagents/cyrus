@@ -4,6 +4,7 @@ import { handleCheckGlab } from "./handlers/checkGlab.js";
 import { handleConfigureMcp } from "./handlers/configureMcp.js";
 import { handleCyrusConfig } from "./handlers/cyrusConfig.js";
 import { handleCyrusEnv } from "./handlers/cyrusEnv.js";
+import { handleGitHubTokens } from "./handlers/githubTokens.js";
 import {
 	handleRepository,
 	handleRepositoryDelete,
@@ -23,6 +24,7 @@ import type {
 	CyrusEnvPayload,
 	DeleteRepositoryPayload,
 	DeleteSkillPayload,
+	GitHubTokensPayload,
 	ListSkillsPayload,
 	RepositoryPayload,
 	TestMcpPayload,
@@ -68,6 +70,10 @@ export class ConfigUpdater {
 		this.registerRoute(
 			"/api/update/configure-mcp",
 			this.handleConfigureMcpRoute,
+		);
+		this.registerRoute(
+			"/api/update/github-tokens",
+			this.handleGitHubTokensRoute,
 		);
 		this.registerRoute("/api/check-gh", this.handleCheckGhRoute);
 		this.registerRoute("/api/check-glab", this.handleCheckGlabRoute);
@@ -239,6 +245,15 @@ export class ConfigUpdater {
 		payload: ConfigureMcpPayload,
 	): Promise<ApiResponse> {
 		return handleConfigureMcp(payload, this.cyrusHome);
+	}
+
+	/**
+	 * Handle GitHub installation tokens push
+	 */
+	private async handleGitHubTokensRoute(
+		payload: GitHubTokensPayload,
+	): Promise<ApiResponse> {
+		return handleGitHubTokens(payload, this.cyrusHome);
 	}
 
 	/**

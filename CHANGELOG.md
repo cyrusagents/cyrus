@@ -6,18 +6,82 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Multi-user self-host: provision personal GitHub identity and optional Claude credentials by triggering Linear user with `cyrus add-user`, keeping secrets in protected files or referenced env vars. Claude, Codex, Cursor, Gemini and OpenCode sessions use that user's PAT for GitHub and Git HTTPS, plus their commit identity; missing mappings and removed user pins refuse instead of falling back to the host. Unknown authors cannot borrow parent credentials, and follow-ups follow an explicit pin-or-reject policy (pin remains a proposed default). `cyrus add-user --github-only` keeps existing model authentication; personal Claude credentials apply only to Claude. Credential-filtered Claude sessions disable file settings sources. Hosted config pushes preserve the local mapping. Invalid/expired tokens surface provider errors, not automatic host fallback. ([CYPACK-1502](https://linear.app/ceedar/issue/CYPACK-1502/resolve-claude-credentials-and-gitlinear-identities-by-prompter-for), [#1472](https://github.com/cyrusagents/cyrus/pull/1472), [cyrus-hosted#1074](https://github.com/cyrusagents/cyrus-hosted/pull/1074), [documentation#41](https://github.com/cyrusagents/documentation/pull/41))
-- New optional `maxConcurrentSessions` setting in `~/.cyrus/config.json` caps how many agent sessions run at once across all repositories and platforms. Extra session starts wait in order for a free slot and begin automatically as running sessions finish. Omit it for the previous unlimited behavior. The value hot-reloads with the config file: raising it admits queued sessions immediately, and lowering it takes effect as running sessions finish. ([#1445](https://github.com/cyrusagents/cyrus/pull/1445), [#1469](https://github.com/cyrusagents/cyrus/pull/1469))
-- Zulip is now a supported chat platform. @mention the bot in a Zulip topic (or DM it) and Cyrus answers in that topic, with 👀/✅ reactions marking receipt and completion. Set `ZULIP_SITE`, `ZULIP_BOT_EMAIL`, `ZULIP_API_KEY` and `ZULIP_WEBHOOK_TOKEN` to enable it; see [docs/ZULIP.md](./docs/ZULIP.md). ([#1468](https://github.com/cyrusagents/cyrus/pull/1468))
-
-### Changed
-- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.261` to [`0.3.263`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03263), bringing Claude sessions to parity with Claude Code 2.1.263. `@anthropic-ai/sdk` remains current at [`^0.124.0`](https://github.com/anthropics/anthropic-sdk-typescript/blob/main/CHANGELOG.md#01240-2026-09-04), and the refreshed 31-tool Claude allowance lists are unchanged. ([CYPACK-1498](https://linear.app/ceedar/issue/CYPACK-1498/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1463](https://github.com/cyrusagents/cyrus/pull/1463), [cyrus-hosted#1063](https://github.com/cyrusagents/cyrus-hosted/pull/1063))
-- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.260` to [`0.3.261`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03261), adding initialization-time plugin delivery to avoid Windows launch failures with many plugins, fixing `query()` in runtimes without native `Symbol.dispose`, and bringing Claude sessions to parity with Claude Code 2.1.261. Updated `@anthropic-ai/sdk` from `^0.123.0` to [`^0.124.0`](https://github.com/anthropics/anthropic-sdk-typescript/blob/main/CHANGELOG.md#01240-2026-09-04), adding expanded usage-report breakdowns, organization compliance-setting types, broader workspace-ID support, and safer agent-toolset filesystem permissions. The refreshed 31-tool Claude allowance lists are unchanged. ([CYPACK-1497](https://linear.app/ceedar/issue/CYPACK-1497/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1462](https://github.com/cyrusagents/cyrus/pull/1462), [cyrus-hosted#1062](https://github.com/cyrusagents/cyrus-hosted/pull/1062))
 
 ### Fixed
 - Session identity announcements use plain language instead of internal configuration names, including “shared instance credentials” for the shared Claude/GitHub setup; the corresponding opt-in policy value is now `"shared"`, with `"host"` retained as a backward-compatible alias. Live issue title, description and attachment updates now obey the same current-user ownership policy as follow-up prompts; strict rejection posts an explanation before downloading attachments or sending input. Running sessions without an assigned credential owner refuse new input until restarted as a new session. Per-user credential CLI commands exit after success even when an `.env` file is watched. Concurrent agent sessions save state in order, avoiding temporary-file collisions that could lose persisted credential pins. ([CYPACK-1502](https://linear.app/ceedar/issue/CYPACK-1502/resolve-claude-credentials-and-gitlinear-identities-by-prompter-for), [#1472](https://github.com/cyrusagents/cyrus/pull/1472))
 
+
+- Linear webhooks from all twelve published outbound IP addresses are now accepted, preventing missed events as Linear rolls out new source addresses. ([CYPACK-1518](https://linear.app/ceedar/issue/CYPACK-1518), [#1481](https://github.com/cyrusagents/cyrus/pull/1481))
+
+## [0.2.72] - 2026-09-15
+
+### Fixed
+- GitHub CLI commands that view, clone, or fork an explicitly named repository now use that repository's installation token when run from another organization's directory. Repository overrides through `GH_REPO` and attached `-R` arguments are also honored. ([CYHOST-913](https://linear.app/ceedar/issue/CYHOST-913), [#1307](https://github.com/cyrusagents/cyrus/pull/1307))
+
+### Added
+- Cyrus can now read the contents of Linear agent sessions with the separate `get_agent_session_contents` tool, including user prompts, tool results, and responses, with pagination for longer conversations. ([CYPACK-1506](https://linear.app/ceedar/issue/CYPACK-1506), [#1473](https://github.com/cyrusagents/cyrus/pull/1473))
+- New optional `maxConcurrentSessions` setting in `~/.cyrus/config.json` caps how many agent sessions run at once across all repositories and platforms. Extra session starts wait in order for a free slot and begin automatically as running sessions finish. Omit it for the previous unlimited behavior. The value hot-reloads with the config file: raising it admits queued sessions immediately, and lowering it takes effect as running sessions finish. ([#1445](https://github.com/cyrusagents/cyrus/pull/1445), [#1469](https://github.com/cyrusagents/cyrus/pull/1469))
+- Zulip is now a supported chat platform. @mention the bot in a Zulip topic (or DM it) and Cyrus answers in that topic, with 👀/✅ reactions marking receipt and completion. Set `ZULIP_SITE`, `ZULIP_BOT_EMAIL`, `ZULIP_API_KEY` and `ZULIP_WEBHOOK_TOKEN` to enable it; see [docs/ZULIP.md](./docs/ZULIP.md). ([#1468](https://github.com/cyrusagents/cyrus/pull/1468))
+
+### Changed
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.261` to [`0.3.268`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03268), bringing Claude sessions to parity with Claude Code 2.1.268. The accumulated update adds browser SSE delivery/catch-up helpers, preserves shell working-directory changes across multi-turn sessions, improves message correlation for synthetic and agent-initiated turns, records custom system prompts by default, and expands host control over permission prompts, plugin reloads, context usage, and interrupted-turn recovery. Updated `@anthropic-ai/sdk` from `^0.124.0` to [`^0.125.0`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v0.125.0), adding Managed Agents auto-mode permissions, public GitHub repository mounts, and new API types. The refreshed 31-tool Claude allowance lists remove the three MCP resource-discovery tools no longer exposed by Claude Code 2.1.268. ([CYPACK-1498](https://linear.app/ceedar/issue/CYPACK-1498/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [CYPACK-1505](https://linear.app/ceedar/issue/CYPACK-1505/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [CYPACK-1510](https://linear.app/ceedar/issue/CYPACK-1510/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1463](https://github.com/cyrusagents/cyrus/pull/1463), [#1471](https://github.com/cyrusagents/cyrus/pull/1471), [#1474](https://github.com/cyrusagents/cyrus/pull/1474), [cyrus-hosted#1063](https://github.com/cyrusagents/cyrus-hosted/pull/1063), [cyrus-hosted#1073](https://github.com/cyrusagents/cyrus-hosted/pull/1073), [cyrus-hosted#1077](https://github.com/cyrusagents/cyrus-hosted/pull/1077))
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.260` to [`0.3.261`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03261), adding initialization-time plugin delivery to avoid Windows launch failures with many plugins, fixing `query()` in runtimes without native `Symbol.dispose`, and bringing Claude sessions to parity with Claude Code 2.1.261. Updated `@anthropic-ai/sdk` from `^0.123.0` to [`^0.124.0`](https://github.com/anthropics/anthropic-sdk-typescript/blob/main/CHANGELOG.md#01240-2026-09-04), adding expanded usage-report breakdowns, organization compliance-setting types, broader workspace-ID support, and safer agent-toolset filesystem permissions. The refreshed 31-tool Claude allowance lists are unchanged. ([CYPACK-1497](https://linear.app/ceedar/issue/CYPACK-1497/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1462](https://github.com/cyrusagents/cyrus/pull/1462), [cyrus-hosted#1062](https://github.com/cyrusagents/cyrus-hosted/pull/1062))
+
 ### Security
 - Patched five newly reported Cyrus CLI dependency advisories by updating the Vitest toolchain and enforcing a safe Hono release, so `pnpm audit` again reports no known vulnerabilities. ([CYPACK-1503](https://linear.app/ceedar/issue/CYPACK-1503/address-open-security-patches-for-cyrus-cli), [#1466](https://github.com/cyrusagents/cyrus/pull/1466))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.72
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.72
+
+#### cyrus-core
+- cyrus-core@0.2.72
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.72
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.72
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.72
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.72
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.72
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.72
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.72
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.72
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.72
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.72
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.72
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.72
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.72
+
+#### cyrus-ai
+- cyrus-ai@0.2.72 ([CYPACK-1519](https://linear.app/ceedar/issue/CYPACK-1519/run-a-release), [#1482](https://github.com/cyrusagents/cyrus/pull/1482))
 
 ## [0.2.71] - 2026-09-04
 
@@ -529,6 +593,9 @@ All notable changes to this project will be documented in this file.
 
 #### cyrus-ai (CLI)
 - cyrus-ai@0.2.64
+
+### Added
+- Cyrus now supports multiple GitHub organizations per team: git and `gh` operations automatically use the right credentials for each repository's org. Tokens are pushed by the Cyrus control plane and a git credential helper picks the matching one per repository, so concurrent sessions across different GitHub orgs no longer share a single login. ([CYHOST-913](https://linear.app/ceedar/issue/CYHOST-913), [#1307](https://github.com/cyrusagents/cyrus/pull/1307))
 
 ## [0.2.63] - 2026-06-09
 
