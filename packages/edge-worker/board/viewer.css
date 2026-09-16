@@ -337,10 +337,15 @@
 	outline-offset: -2px;
 }
 .activity-chevron {
-	width: 8px;
+	display: block;
+	width: 14px;
+	height: 14px;
 	flex: none;
 	color: #b0b0b8;
-	font-size: 16px;
+	transform-origin: center;
+}
+.activity-summary[aria-expanded="true"] .activity-chevron {
+	transform: rotate(90deg);
 }
 .activity-time {
 	flex: none;

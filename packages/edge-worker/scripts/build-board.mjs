@@ -1,4 +1,4 @@
-import { copyFile, mkdir } from "node:fs/promises";
+import { appendFile, copyFile, mkdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
@@ -16,6 +16,16 @@ await build({
 	define: { "process.env.NODE_ENV": '"production"' },
 	legalComments: "linked",
 });
+for (const name of ["@hugeicons/react", "@hugeicons/core-free-icons"]) {
+	const license = await readFile(
+		new URL(`node_modules/${name}/LICENSE.md`, root),
+		"utf8",
+	);
+	await appendFile(
+		new URL("dist/board/app.js.LEGAL.txt", root),
+		`\n${name}\n${license}\n`,
+	);
+}
 await copyFile(
 	new URL("board/index.html", root),
 	new URL("dist/board/index.html", root),

@@ -130,3 +130,9 @@ Removed the breadcrumb and separate service/filter bars. One toolbar now contain
 Edge verification measured a 48px toolbar at the normal 1912px viewport and at 600px with a selected log row. All toolbar controls fit without horizontal overflow. Source and error filtering, pause/resume through refresh, and switching to Raw worked; the options panel closed on an outside click. The page reported no console errors and the viewport override was reset afterward. No breadcrumb or separate filter bar remains. HTML, JavaScript and CSS were deployed locally without restarting Cyrus.
 
 The board build, changed-file Biome checks and 10 activity/selection/viewer regressions pass. The full worker suite remains at 822 passing tests, one skip and the same 52 Windows failures, with no changed failing test names. No backend or dependency changes were needed.
+
+## Disclosure icon follow-up
+
+Replaced the font-dependent disclosure characters with Hugeicons `ArrowRight01Icon`, rendered through the official React package at 14px. Expanded rows rotate the SVG 90 degrees around its center. Detail offsets account for the wider icon at every breakpoint. Both Hugeicons packages are pinned build dependencies and their MIT notices are included in the served JavaScript license file; the icon needs no CDN request.
+
+Edge measured zero vertical center offset for all 140 rendered arrows and for the expanded arrow. The expanded detail text still aligned with its row's message column. Visual inspection confirmed the right/down arrows; the page had no console errors. The board build, worker typecheck and changed-file Biome checks pass. The full worker suite has 822 passes, one skip and the same 52 baseline failing test names. Local deployment updated only static assets and license text.

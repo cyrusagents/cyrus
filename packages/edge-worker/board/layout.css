@@ -214,7 +214,7 @@ h1 {
 .log-pane {
 	--board-gutter: 22px;
 	--row-gap: 12px;
-	--detail-leading: 192px;
+	--detail-leading: 198px;
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
@@ -269,7 +269,7 @@ h1 {
 @media (max-width: 1050px) {
 	.log-pane {
 		--row-gap: 8px;
-		--detail-leading: 121px;
+		--detail-leading: 127px;
 	}
 	main {
 		grid-template-columns: 280px minmax(0, 1fr);
@@ -279,7 +279,7 @@ h1 {
 	.log-pane {
 		--board-gutter: 15px;
 		--row-gap: 7px;
-		--detail-leading: 105px;
+		--detail-leading: 111px;
 	}
 	main {
 		grid-template-columns: 220px minmax(0, 1fr);

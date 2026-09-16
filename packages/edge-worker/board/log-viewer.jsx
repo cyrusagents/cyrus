@@ -1,3 +1,5 @@
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -73,9 +75,14 @@ function ActivityRow({
 						else onToggle();
 					}}
 				>
-					<span className="activity-chevron" aria-hidden="true">
-						{expanded ? "⌄" : "›"}
-					</span>
+					<HugeiconsIcon
+						icon={ArrowRight01Icon}
+						className="activity-chevron"
+						size={14}
+						strokeWidth={2}
+						aria-hidden="true"
+						focusable="false"
+					/>
 					<time
 						className="activity-time"
 						dateTime={
