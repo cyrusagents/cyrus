@@ -11,6 +11,9 @@
  *   - an unmapped human triggering a child of a mapped user's issue must not
  *     borrow the parent's credentials.
  */
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { LinearClient } from "@linear/sdk";
 import type {
 	AgentSessionCreatedWebhook,
@@ -185,6 +188,136 @@ describe("EdgeWorker per-prompter credentials", () => {
 			WS,
 			"linear",
 		) as Promise<unknown>;
+
+	async function startWithMockedIO(worker: any) {
+		vi.spyOn(worker.defaultSkillsDeployer, "ensureDeployed").mockResolvedValue(
+			undefined,
+		);
+		vi.spyOn(
+			worker.skillsPluginResolver,
+			"ensureUserPluginScaffolded",
+		).mockResolvedValue(undefined);
+		vi.spyOn(worker, "loadPersistedState").mockResolvedValue(undefined);
+		vi.spyOn(worker, "initializeComponents").mockResolvedValue(undefined);
+		vi.spyOn(worker, "isWarmSessionsEnabled").mockReturnValue(false);
+		vi.spyOn(worker.configManager, "startConfigWatcher").mockImplementation(
+			() => {},
+		);
+		vi.spyOn(worker.webhookIpValidator, "isEnabled").mockReturnValue(false);
+		await worker.start();
+	}
+
+	it.each([
+		"malformed",
+		"unreadable",
+	])("starts and reloads shared-only workers with a %s installation store", async (damage) => {
+		const home = mkdtempSync(join(tmpdir(), "cyrus-ew-store-"));
+		try {
+			const path = join(home, "github-tokens.json");
+			if (damage === "malformed")
+				writeFileSync(path, "secret-sentinel-invalid-json");
+			else mkdirSync(path);
+			edgeWorker = makeWorker({
+				cyrusHome: home,
+				linearUsers: undefined,
+				prompterCredentialPolicy: { nonHumanTrigger: "shared" },
+			});
+			const worker = edgeWorker as any;
+			await startWithMockedIO(worker);
+			const reload = worker.configManager.listeners("configChanged")[0];
+			await reload({
+				added: [],
+				removed: [],
+				modified: [],
+				newConfig: { ...worker.config },
+			});
+			expect(worker.prompterCredentialService.allEnvRefNames()).toEqual([]);
+			await expect(resolveForRunner(session())).resolves.toBeUndefined();
+			await expect(
+				resolveForRunner(session({ linearUserId: "", source: "host" })),
+			).resolves.toBeUndefined();
+			expect(refusals).toEqual([]);
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
+	});
+
+	it.each([
+		"malformed",
+		"unreadable",
+	])("starts with a %s personal store but visibly refuses personal/shared runners and chat", async (damage) => {
+		const home = mkdtempSync(join(tmpdir(), "cyrus-ew-store-"));
+		try {
+			const path = join(home, "github-tokens.json");
+			if (damage === "malformed")
+				writeFileSync(path, "secret-sentinel-invalid-json");
+			else mkdirSync(path);
+			edgeWorker = makeWorker({
+				cyrusHome: home,
+				prompterCredentialPolicy: { nonHumanTrigger: "shared" },
+			});
+			const worker = edgeWorker as any;
+			await startWithMockedIO(worker);
+			const factory = vi.spyOn(worker, "createRunnerForType");
+			for (const s of [
+				session(),
+				session({ linearUserId: "", source: "host" }),
+				session({
+					linearUserId: ADA,
+					credentialUserId: ADA,
+					source: "prompter",
+				}),
+			]) {
+				await expect(resolveForRunner(s)).rejects.toBeInstanceOf(
+					PrompterCredentialError,
+				);
+			}
+			expect(refusals).toHaveLength(3);
+			expect(
+				refusals.every(
+					(message) =>
+						message.includes("Repair github-tokens.json") &&
+						!message.includes("secret-sentinel"),
+				),
+			).toBe(true);
+			const deps = worker.buildChatSessionHandlerDeps({}, () => undefined);
+			expect(() => deps.createRunner({}, "claude")).toThrow(
+				PrompterCredentialError,
+			);
+			expect(factory).not.toHaveBeenCalled();
+			const active = session({
+				linearUserId: ADA,
+				credentialUserId: ADA,
+				source: "prompter",
+			});
+			active.agentRunner = { isRunning: () => true } as any;
+			await expect(
+				worker.applyPrompterFollowUpPolicy(
+					active,
+					promptedWebhook(ADA, ADA),
+					{ id: ADA },
+					WS,
+				),
+			).resolves.toBe(false);
+			expect(refusals).toHaveLength(4);
+			expect(refusals.at(-1)).toContain("Repair github-tokens.json");
+			// Removing the last mapping during a broken-store reload cannot enable
+			// shared fallback with an incomplete environment omission list.
+			const reload = worker.configManager.listeners("configChanged")[0];
+			await reload({
+				added: [],
+				removed: [],
+				modified: [],
+				newConfig: { ...worker.config, linearUsers: {} },
+			});
+			await expect(resolveForRunner(session())).rejects.toBeInstanceOf(
+				PrompterCredentialError,
+			);
+			expect(refusals).toHaveLength(5);
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
+	});
 
 	it.each([
 		"claude",

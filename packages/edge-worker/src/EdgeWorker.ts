@@ -7304,14 +7304,6 @@ ${input.userComment}
 		includeClaude = true,
 	): Promise<ResolvedPrompterCredentials | undefined> {
 		const service = this.prompterCredentialService;
-		// A session that carries a user pin is ALWAYS resolved against the
-		// current mapping — even when the mapping is now empty — so removing
-		// the last mapped user (config reload) makes that user's sessions
-		// refuse, never fall through to host credentials. Only pin-less
-		// sessions short-circuit when the feature is off.
-		if (!service.isEnabled() && !session.prompter?.credentialUserId) {
-			return undefined;
-		}
 
 		const refuse = async (message: string): Promise<never> => {
 			if (linearWorkspaceId && sessionPlatform === "linear") {
@@ -7325,6 +7317,22 @@ ${input.userComment}
 				session.prompter?.credentialUserId,
 			);
 		};
+
+		try {
+			service.allEnvRefNames(session.prompter?.credentialUserId);
+		} catch (error) {
+			if (error instanceof PrompterCredentialError) await refuse(error.message);
+			throw error;
+		}
+
+		// A session that carries a user pin is ALWAYS resolved against the
+		// current mapping — even when the mapping is now empty — so removing
+		// the last mapped user (config reload) makes that user's sessions
+		// refuse, never fall through to host credentials. Only pin-less
+		// sessions short-circuit when the feature is off.
+		if (!service.isEnabled() && !session.prompter?.credentialUserId) {
+			return undefined;
+		}
 
 		if (!session.prompter) {
 			const policy = service.policy;

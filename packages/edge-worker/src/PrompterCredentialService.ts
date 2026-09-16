@@ -63,6 +63,7 @@ export class PrompterCredentialService {
 	private config: PrompterCredentialServiceConfig;
 	private helperPath: string | null = null;
 	private readonly credentialEnvNames = new Set<string>();
+	private personalCredentialsObserved = false;
 
 	constructor(
 		config: PrompterCredentialServiceConfig,
@@ -70,23 +71,13 @@ export class PrompterCredentialService {
 		private readonly logger: ILogger,
 	) {
 		this.config = config;
-		for (const name of [
-			...collectEnvRefNames(config.linearUsers),
-			...new GitHubTokenStore(this.cyrusHome).personalEnvNames(),
-		]) {
-			this.credentialEnvNames.add(name);
-		}
+		this.refreshEnvRefNames();
 	}
 
 	/** Hot-reload entry point (ConfigManager `configChanged`). */
 	updateConfig(config: PrompterCredentialServiceConfig): void {
 		this.config = config;
-		for (const name of [
-			...collectEnvRefNames(config.linearUsers),
-			...new GitHubTokenStore(this.cyrusHome).personalEnvNames(),
-		]) {
-			this.credentialEnvNames.add(name);
-		}
+		this.refreshEnvRefNames();
 	}
 
 	/** True when at least one Linear user is mapped. */
@@ -275,6 +266,7 @@ export class PrompterCredentialService {
 		includeClaude = true,
 	): ResolvedPrompterCredentials | undefined {
 		const pin = session.prompter;
+		const omitEnv = this.allEnvRefNames(pin?.credentialUserId);
 		// No pin: nothing to resolve (the caller applies the backstop policy
 		// when the feature is on). A pin ALWAYS resolves — independent of how
 		// many users are currently mapped — so removing the last mapped user
@@ -292,7 +284,7 @@ export class PrompterCredentialService {
 			{
 				cyrusHome: this.cyrusHome,
 				gitCredentialHelperPath: this.ensureHelper(),
-				additionalOmitEnv: this.allEnvRefNames(),
+				additionalOmitEnv: omitEnv,
 				includeClaude,
 			},
 		);
@@ -311,9 +303,15 @@ export class PrompterCredentialService {
 	/**
 	 * Check that a pin's GitHub credential is readable before any worktree
 	 * or runner exists. Personal Claude auth is checked for Claude starts. Returns a secret-free problem description, or null.
-	 * Host pins have nothing to validate.
+	 * Host pins still require a complete personal-secret omission list.
 	 */
 	validatePin(pin: SessionPrompter): string | null {
+		try {
+			this.allEnvRefNames(pin.credentialUserId);
+		} catch (error) {
+			if (error instanceof PrompterCredentialError) return error.message;
+			throw error;
+		}
 		if (pin.source === "host" || !pin.credentialUserId) return null;
 		const result = resolveLinearUserCredentials(
 			pin.credentialUserId,
@@ -334,10 +332,38 @@ export class PrompterCredentialService {
 	 * Stripped from every session's child env (pinned or host) so one user's
 	 * secret in `~/.cyrus/.env` is never visible to another user's agent.
 	 */
-	allEnvRefNames(): string[] {
-		for (const name of new GitHubTokenStore(this.cyrusHome).personalEnvNames())
-			this.credentialEnvNames.add(name);
+	allEnvRefNames(credentialUserId?: string): string[] {
+		if (
+			!this.refreshEnvRefNames() &&
+			(this.personalCredentialsObserved || credentialUserId)
+		) {
+			throw new PrompterCredentialError(
+				"Cannot safely run this session because personal credential metadata could not be read. Repair github-tokens.json in the Cyrus home, then prompt the session again. No agent was started with shared credentials.",
+				credentialUserId,
+			);
+		}
 		return [...this.credentialEnvNames].sort();
+	}
+
+	/**
+	 * Construction and config reload must preserve legacy installation-only
+	 * startup. Session checks enforce complete filtering once personal credentials
+	 * have been observed, even after the last mapping is removed. Never expose
+	 * parse errors or file contents; retry each time so an operator can repair it.
+	 */
+	private refreshEnvRefNames(): boolean {
+		this.personalCredentialsObserved ||= this.isEnabled();
+		for (const name of collectEnvRefNames(this.config.linearUsers)) {
+			this.credentialEnvNames.add(name);
+		}
+		try {
+			const names = new GitHubTokenStore(this.cyrusHome).personalEnvNames();
+			this.personalCredentialsObserved ||= names.length > 0;
+			for (const name of names) this.credentialEnvNames.add(name);
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	/** Install the git credential helper once per process (idempotent on disk). */

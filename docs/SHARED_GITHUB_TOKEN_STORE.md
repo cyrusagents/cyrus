@@ -64,6 +64,18 @@ reference to config. Do not delete the whole shared file to remove a user:
 and managed user-secret directory, and preserves installation tokens. External
 source files and environment values remain the operator's responsibility.
 
+A malformed or unreadable store does not prevent worker startup or configuration
+reload. Installation-only instances retain the legacy shared-credential behavior.
+When personal credentials are configured, or personal environment references have
+been observed since startup, an unreadable store blocks session starts and personal-session input
+validation with an explicit repair message. This includes shared-policy sessions:
+they cannot safely inherit an environment without a complete personal-secret
+omission list. Removing the last mapping does not clear this protection. Repairing
+the store restores resolution without a restart; previously observed environment
+names remain filtered. Existing personal session assignments always fail closed,
+even if personal credentials are now disabled. Store mutations remain strict and
+never overwrite an unreadable or malformed file.
+
 ## Selection and failure behavior
 
 Mapped sessions receive `CYRUS_HOME` and `CYRUS_GITHUB_USER_ID` for the assigned

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -96,6 +96,86 @@ function session(prompter?: CyrusAgentSession["prompter"]): CyrusAgentSession {
 }
 
 describe("PrompterCredentialService", () => {
+	it.each([
+		"malformed",
+		"unreadable",
+	])("contains %s installation-store errors when personal credentials are disabled", (damage) => {
+		const path = join(home, "github-tokens.json");
+		if (damage === "malformed") writeFileSync(path, "not-json-secret-sentinel");
+		else mkdirSync(path);
+		const svc = new PrompterCredentialService({}, home, silentLogger);
+		expect(() => svc.updateConfig({})).not.toThrow();
+		expect(svc.allEnvRefNames()).toEqual([]);
+		expect(svc.resolveForSession(session())).toBeUndefined();
+		expect(
+			svc.resolveForSession(session({ linearUserId: "", source: "host" })),
+		).toBeUndefined();
+		const pin = {
+			linearUserId: ADA,
+			credentialUserId: ADA,
+			source: "prompter" as const,
+		};
+		expect(() => svc.resolveForSession(session(pin))).toThrow(
+			PrompterCredentialError,
+		);
+		expect(svc.validatePin(pin)).toContain("Repair github-tokens.json");
+	});
+
+	it("contains startup/reload errors but refuses incomplete personal secret filtering until repair", () => {
+		const path = join(home, "github-tokens.json");
+		writeFileSync(path, "not-json-secret-sentinel");
+		const svc = service();
+		const pin = {
+			linearUserId: ADA,
+			credentialUserId: ADA,
+			source: "prompter" as const,
+		};
+		expect(() => svc.allEnvRefNames()).toThrow(PrompterCredentialError);
+		expect(() => svc.resolveForSession(session(pin))).toThrow(
+			"Repair github-tokens.json",
+		);
+		expect(svc.validatePin(pin)).not.toContain("secret-sentinel");
+		expect(() =>
+			svc.resolveForSession(session({ linearUserId: "", source: "host" })),
+		).toThrow(PrompterCredentialError);
+		expect(() => svc.updateConfig({})).not.toThrow();
+		expect(() => svc.allEnvRefNames()).toThrow(PrompterCredentialError);
+		writeFileSync(
+			path,
+			JSON.stringify({
+				version: 1,
+				updatedAt: "now",
+				tokens: [],
+				personalTokens: { bob: { env: "PCS_BOB_GH" } },
+			}),
+		);
+		expect(svc.allEnvRefNames()).toEqual([
+			"PCS_BOB_GH",
+			"PCS_TEST_ADA_CLAUDE",
+			"PCS_TEST_ADA_GH",
+		]);
+		writeFileSync(path, "broken-again");
+		expect(() => svc.updateConfig({})).not.toThrow();
+		expect(() => svc.allEnvRefNames()).toThrow(PrompterCredentialError);
+	});
+
+	it("retains store environment references and refuses corruption even without configured mappings", () => {
+		const path = join(home, "github-tokens.json");
+		writeFileSync(
+			path,
+			JSON.stringify({
+				version: 1,
+				updatedAt: "now",
+				tokens: [],
+				personalTokens: { bob: { env: "PCS_BOB_GH" } },
+			}),
+		);
+		const svc = new PrompterCredentialService({}, home, silentLogger);
+		expect(svc.allEnvRefNames()).toEqual(["PCS_BOB_GH"]);
+		writeFileSync(path, "broken");
+		expect(() => svc.allEnvRefNames()).toThrow(PrompterCredentialError);
+	});
+
 	it("is disabled without mapped users for NEW sessions, but an existing pin still fails closed", () => {
 		const svc = new PrompterCredentialService({}, home, silentLogger);
 		expect(svc.isEnabled()).toBe(false);
