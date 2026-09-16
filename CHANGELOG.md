@@ -9,8 +9,6 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Session identity announcements use plain language instead of internal configuration names, including “shared instance credentials” for the shared Claude/GitHub setup; the corresponding opt-in policy value is now `"shared"`, with `"host"` retained as a backward-compatible alias. Live issue title, description and attachment updates now obey the same current-user ownership policy as follow-up prompts; strict rejection posts an explanation before downloading attachments or sending input. Running sessions without an assigned credential owner refuse new input until restarted as a new session. Per-user credential CLI commands exit after success even when an `.env` file is watched. Concurrent agent sessions save state in order, avoiding temporary-file collisions that could lose persisted credential pins. ([CYPACK-1502](https://linear.app/ceedar/issue/CYPACK-1502/resolve-claude-credentials-and-gitlinear-identities-by-prompter-for), [#1472](https://github.com/cyrusagents/cyrus/pull/1472))
-
-
 - Linear webhooks from all twelve published outbound IP addresses are now accepted, preventing missed events as Linear rolls out new source addresses. ([CYPACK-1518](https://linear.app/ceedar/issue/CYPACK-1518), [#1481](https://github.com/cyrusagents/cyrus/pull/1481))
 
 ## [0.2.72] - 2026-09-15

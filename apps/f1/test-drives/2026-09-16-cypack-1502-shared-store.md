@@ -3,7 +3,9 @@
 Date: September 16, 2026 UTC (September 15 Pacific).
 Runtime main `e9e1e53d629b023545ebfd821bcd16c67f44f217` merged into the feature at
 `8558a173`. Hosted main was also merged at `002fc722`; docs main was already an
-ancestor. Existing work and CYHOST-913 reference branches were preserved.
+ancestor. Connor’s earlier remote main merge `aa4ed2ae` was also reconciled
+without a force push; its only conflict was the older changelog layout. Existing
+work and CYHOST-913 reference branches were preserved.
 
 ## Contract and offline regressions
 
