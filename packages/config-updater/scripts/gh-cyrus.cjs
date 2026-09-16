@@ -14,24 +14,18 @@
  *   2. A positional repository for `repo view`, `clone`, or `fork`.
  *   3. GH_REPO, then the cwd's `remote.origin.url` (how gh infers "the current
  *      repository").
- * Then the token, from `<cyrusHome>/github-tokens.json` (pushed by
- * cyrus-hosted):
- *   3. The org-matched token.
- *   4. `CYRUS_GH_TOKEN` from the session env (set to the session's primary
- *      repository's org token — covers repo-less commands like `gh api`).
- *   5. The single valid token, when exactly one exists.
- *   6. No token: fall through to gh's own stored auth (hosts.yml).
- *
- * In every case the customer-controlled GITHUB_TOKEN / GH_TOKEN env vars
- * are removed from gh's environment (the wrapper's historical contract);
- * they remain untouched for every other tool in the session.
+ * A managed store is authoritative. Explicit owners require an org match;
+ * repo-less commands may use a still-current session hint or a single token.
+ * Missing/expired/removed credentials refuse before native gh can consult
+ * hosts.yml or a keyring. With no store/enrollment, unmanaged auth is untouched.
  */
 "use strict";
 
 const { spawnSync } = require("node:child_process");
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
+const {
+	loadManagedAuth,
+	resolveManagedToken,
+} = require("./managed-github-auth.cjs");
 
 /** Extract the owner/org from common GitHub repo references. */
 function ownerFromRepoRef(ref) {
@@ -118,56 +112,62 @@ function ownerFromCwd() {
 	return ownerFromRepoRef((result.stdout || "").trim());
 }
 
-/** Non-expired tokens from the Cyrus token store file. */
-function loadValidTokens() {
-	const cyrusHome = process.env.CYRUS_HOME || path.join(os.homedir(), ".cyrus");
-	const tokensFile = path.join(cyrusHome, "github-tokens.json");
-	let tokens = [];
-	try {
-		const parsed = JSON.parse(fs.readFileSync(tokensFile, "utf8"));
-		if (Array.isArray(parsed.tokens)) tokens = parsed.tokens;
-	} catch {
-		return [];
-	}
-	const now = Date.now();
-	return tokens.filter((t) => {
-		if (!t || typeof t.token !== "string" || t.token.length === 0) return false;
-		const expiresAt = Date.parse(t.expiresAt);
-		return !Number.isNaN(expiresAt) && expiresAt > now;
-	});
-}
-
-function resolveToken(args) {
-	const owner =
-		ownerFromArgs(args) ||
-		ownerFromRepoRef(process.env.GH_REPO) ||
-		ownerFromCwd();
-	const valid = loadValidTokens();
-
-	if (owner) {
-		const lowered = owner.toLowerCase();
-		const match = valid.find(
-			(t) =>
-				typeof t.organization === "string" &&
-				t.organization.toLowerCase() === lowered,
+/** Explicit REST repo/org targets override cwd and session hints. */
+function ownerFromApi(args) {
+	if (args[0] !== "api") return "";
+	const valueFlags = new Set([
+		"--method",
+		"-X",
+		"--header",
+		"-H",
+		"--field",
+		"-F",
+		"--raw-field",
+		"-f",
+		"--hostname",
+		"--input",
+		"--jq",
+		"-q",
+		"--template",
+		"-t",
+		"--cache",
+	]);
+	for (let i = 1; i < args.length; i++) {
+		if (valueFlags.has(args[i])) {
+			i++;
+			continue;
+		}
+		if (args[i].startsWith("-")) continue;
+		const match = args[i].match(
+			/^(?:https:\/\/api\.github\.com)?\/?(?:repos|orgs)\/([^/?#]+)/i,
 		);
-		if (match) return match.token;
+		return match ? match[1] : "";
 	}
-	if (process.env.CYRUS_GH_TOKEN) return process.env.CYRUS_GH_TOKEN;
-	if (valid.length === 1) return valid[0].token;
-	return undefined;
+	return "";
 }
 
 function main() {
 	const args = process.argv.slice(2);
 
-	// Strip the customer-controlled token vars from gh's env (historical
-	// wrapper contract); set GH_TOKEN only when Cyrus resolved a token.
 	const env = { ...process.env };
-	delete env.GITHUB_TOKEN;
-	delete env.GH_TOKEN;
-	const token = resolveToken(args);
-	if (token) env.GH_TOKEN = token;
+	const auth = loadManagedAuth();
+	if (auth.managed) {
+		const owner =
+			ownerFromApi(args) ||
+			ownerFromArgs(args) ||
+			ownerFromRepoRef(env.GH_REPO) ||
+			ownerFromCwd();
+		const token = resolveManagedToken(auth.tokens, owner, env.CYRUS_GH_TOKEN);
+		if (!token) {
+			console.error(
+				"gh-cyrus: no current managed GitHub credential for this command",
+			);
+			process.exit(1);
+		}
+		delete env.GITHUB_TOKEN;
+		delete env.CYRUS_GH_TOKEN;
+		env.GH_TOKEN = token;
+	}
 
 	const ghBin = process.env.CYRUS_GH_REAL_BIN || "/usr/bin/gh";
 	const result = spawnSync(ghBin, args, { stdio: "inherit", env });
