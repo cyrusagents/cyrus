@@ -31,6 +31,9 @@ Git/gh personal selection takes precedence over installation and host fallbacks.
 - Built CLI add/list/check/remove tests verify canonical references, separate
   Claude storage, no new parallel GitHub secret file, installation preservation,
   and a tombstone on removal.
+- Custom-home PATH checks skip all three older Cyrus gh wrapper forms rather
+  than handing personal authentication back to an installation selector. Directory
+  aliases cannot make the shim recursively select itself.
 - Existing org/owner selection, explicit `-R`/`GH_REPO` handling, installation
   consumers, cross-runner and streaming ownership tests remain green.
 - Five additional builder cases verify that personal credentials override the
@@ -38,7 +41,7 @@ Git/gh personal selection takes precedence over installation and host fallbacks.
 
 Validation: full monorepo suite **2,117 passed, 2 skipped**; the subsequently
 expanded builder suite **13 passed** (five new cases), and shared-store suite
-**12 passed** (including a new lock-timeout/no-deletion case). Build, typecheck and lint
+**15 passed** (including lock-timeout/no-deletion and three old-wrapper cases). Build, typecheck and lint
 passed; lint reports 12 existing warnings. JSON schemas regenerated and tested.
 Dependency audit reports no known vulnerabilities; the public MDX guide compiles.
 

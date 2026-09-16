@@ -76,7 +76,9 @@ PATs fail at GitHub without retrying another identity.
 The runtime prepends a session-only `scripts/bin/gh` shim and selects the shared
 Git helper through process-local Git configuration. It does not change global
 Git configuration or run `gh auth login` for personal users. This also cooperates
-with the installation-token `gh` wrapper. With no personal selection, existing
+with the installation-token `gh` wrapper. The shim skips older Cyrus wrappers
+on PATH and resolves directory aliases, preventing those wrappers from replacing
+a personal PAT or recursively invoking the shim. With no personal selection, existing
 owner/org matching, explicit repository overrides, single-installation fallback,
 and shared `gh` authentication retain their previous behavior.
 

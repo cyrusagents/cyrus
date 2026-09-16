@@ -265,6 +265,28 @@ describe("shared installation and personal GitHub store", () => {
 	});
 
 	it.each([
+		"#!/bin/sh\n# gh-cyrus.cjs\nprintf fixture-host",
+		"#!/bin/sh\n# exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh\nprintf fixture-host",
+		"#!/bin/sh\n# CYRUS_GH_TOKEN /usr/bin/gh\nprintf fixture-host",
+	])("skips a pre-existing Cyrus wrapper instead of letting it replace personal auth", async (legacy) => {
+		store.setPersonalToken(A, { token: "fixture-A" });
+		const env = session(A, "Alice");
+		const old = join(home, "old-bin"),
+			native = join(home, "native-bin");
+		mkdirSync(old);
+		mkdirSync(native);
+		writeFileSync(join(old, "gh"), legacy, { mode: 0o755 });
+		writeFileSync(
+			join(native, "gh"),
+			"#!/usr/bin/env node\nprocess.stdout.write(process.env.GH_TOKEN);",
+			{ mode: 0o755 },
+		);
+		env.PATH = `${join(home, "scripts/bin")}:${old}:${native}:${process.env.PATH}`;
+		const result = await exec("gh", ["api", "user"], { env, timeout: 3000 });
+		expect(result.stdout).toBe("fixture-A");
+	});
+
+	it.each([
 		"missing",
 		"revoked",
 		"corrupt",
