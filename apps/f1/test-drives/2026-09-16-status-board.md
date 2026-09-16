@@ -62,3 +62,15 @@ A resumed runner has a new message buffer even though the session manager still 
 The board now merges saved public output with the runner buffer and suppresses overlapping entries by runner session ID, output kind and content, preserving occurrence counts and saved timestamps. Saved tool results are included; plain user prompts remain excluded. This also restores tool names in historical output.
 
 Validation: all 17 board/logger tests pass; full build and typecheck pass. The worker suite has 807 passing tests, one skip, and the same 52 Windows failures present in the base commit, with no new failures. A local saved-state check confirmed that history remains visible even with an empty replacement runner. This fixes retained history visibility; it does not restore tasks previously deleted by session cleanup.
+
+## Task archive follow-up
+
+The left task list still lost completed issues because terminal-state cleanup removes both the session and its entries. A regression test reproduced the empty task list after `removeSession`, independently of whether the page had ever been opened.
+
+The session manager now emits a removal event before deleting entries, including age-based cleanup. The board captures allowlisted task metadata and recent public output, then saves an atomic, bounded archive under the configured Cyrus home. Archived rows and per-task log retrieval survive restart; live sessions override an archive with the same ID. Archive errors do not interrupt task cleanup. Other runners retain their observed start times when a task is archived.
+
+An additional F1 drive used a fresh disposable repository on port 3600 and a real Codex runner. The labeled issue `DEF-1` read README.md and returned `Archive lifecycle verified.` Six tracker activities were verified with pagination. `terminate-issue --issue-id issue-1 --action completed` then ran actual terminal cleanup. The first board request was made only after cleanup: it returned the task with `archived=true`, `status=completed`, and five archived agent entries including the final result. The repository remained clean and the test server was stopped.
+
+Validation: 22 board/history/viewer/logger tests pass, including restart, ID deduplication, age-based cleanup, retention limits, redaction, corrupt/unwritable storage, and history-route access control. Full monorepo build and typecheck pass. The worker suite has 812 passing tests, one skip, and the same 52 baseline Windows failures; changed-file Biome checks pass.
+
+The updated local service was also verified in the user's existing Edge tab: both a retained task and an archived task appeared, and selecting the archive loaded its individual log entries. This supersedes the earlier blocked browser check for the local installation. Historical data recovered for that installation was kept outside the repository; automatic recovery of tasks deleted before this archive existed is not claimed.

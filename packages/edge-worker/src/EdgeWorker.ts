@@ -919,6 +919,11 @@ export class EdgeWorker extends EventEmitter {
 		// 4. Register /status endpoint for process activity monitoring
 		this.registerStatusEndpoint();
 		registerStatusBoard(this.sharedApplicationServer.getFastifyInstance(), {
+			historyPath: join(this.cyrusHome, "state", "board-history.json"),
+			onSessionRemoved: (listener) => {
+				this.agentSessionManager.on("sessionRemoving", listener);
+				return () => this.agentSessionManager.off("sessionRemoving", listener);
+			},
 			getSessions: () => this.getAllKnownSessions(),
 			getEntries: (sessionId) =>
 				this.agentSessionManager.getSessionEntries(sessionId),

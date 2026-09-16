@@ -11,6 +11,7 @@ import {
 } from "cyrus-core";
 import Fastify from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
+import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import {
 	type BoardOptions,
 	boardMessageLogs,
@@ -61,6 +62,89 @@ function board(sessions: CyrusAgentSession[] = []) {
 const message = (value: unknown) => value as AgentMessage;
 
 describe("status board snapshots", () => {
+	it("does not reset another runner's start time when a task is archived", () => {
+		const ongoing = session("ongoing");
+		const removed = session("removed");
+		let running = false;
+		ongoing.agentRunner!.isRunning = () => running;
+		let remove!: (session: CyrusAgentSession) => void;
+		const sessions = [ongoing, removed];
+		const view = new StatusBoard({
+			...options(sessions),
+			onSessionRemoved: (listener) => {
+				remove = listener;
+				return () => {};
+			},
+		});
+		cleanups.push(() => view.close());
+		view.snapshot();
+		running = true;
+		const startedAt = view
+			.snapshot()
+			.tasks.find((task) => task.id === ongoing.id)?.turnStartedAt;
+		remove(removed);
+		sessions.pop();
+		expect(
+			view.snapshot().tasks.find((task) => task.id === ongoing.id)
+				?.turnStartedAt,
+		).toBe(startedAt);
+	});
+	it("archives removed tasks without a browser and restores them after restart", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "board-history-"));
+		cleanups.push(() => rm(directory, { recursive: true, force: true }));
+		const manager = new AgentSessionManager();
+		const task = session("old-task");
+		task.status = "complete" as CyrusAgentSession["status"];
+		manager.restoreState(
+			{ [task.id]: task },
+			{
+				[task.id]: [
+					{
+						type: "assistant",
+						content: "Historical output",
+						metadata: { timestamp: 1500 },
+					},
+					{ type: "user", content: "PRIVATE_PROMPT" },
+				],
+			},
+		);
+		const settings: BoardOptions = {
+			...options(),
+			historyPath: join(directory, "board-history.json"),
+			getSessions: () => manager.getAllSessions(),
+			getEntries: (id) => manager.getSessionEntries(id),
+			onSessionRemoved: (listener) => {
+				manager.on("sessionRemoving", listener);
+				return () => manager.off("sessionRemoving", listener);
+			},
+		};
+		const first = new StatusBoard(settings);
+		await first.ready();
+		manager.removeSession(task.id);
+		expect(first.snapshot().tasks).toEqual([
+			expect.objectContaining({
+				id: task.id,
+				archived: true,
+				status: "completed",
+			}),
+		]);
+		await first.close();
+		const restarted = new StatusBoard(settings);
+		cleanups.push(() => restarted.close());
+		await restarted.ready();
+		expect(restarted.snapshot().tasks).toHaveLength(1);
+		expect(restarted.historyLogs(task.id).map((log) => log.text)).toEqual([
+			"Historical output",
+		]);
+		expect(JSON.stringify(restarted.snapshot())).not.toContain(
+			"/private/worktree",
+		);
+		manager.restoreState({ [task.id]: task }, {});
+		expect(restarted.snapshot().tasks).toHaveLength(1);
+		expect(restarted.snapshot().tasks[0]?.archived).not.toBe(true);
+		manager.cleanup(0);
+		expect(restarted.snapshot().tasks[0]?.archived).toBe(true);
+	});
 	it("keeps saved history when a resumed runner has only the new turn", () => {
 		const task = session();
 		task.agentRunner!.getMessages = () => [
@@ -313,6 +397,7 @@ describe("status board routes", () => {
 		for (const url of [
 			"/board",
 			"/board/api/snapshot",
+			"/board/api/history/old-task",
 			"/board/events",
 			"/board/assets/app.js",
 		]) {

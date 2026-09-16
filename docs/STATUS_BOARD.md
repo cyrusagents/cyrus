@@ -17,12 +17,15 @@ Task titles and log messages retain their original language.
 - Agent logs include assistant text, tool calls, tool results, and completion/error results from the common runner message interface.
 - Cyrus logs come from its structured logger, starting when the board is registered. Historical stdout/stderr files are not scanned.
 - Saved assistant, tool, tool-result and completion entries are merged with live output, including after a restart or a resumed turn. Matching output is shown once, using its saved timestamp.
-- The task list follows Cyrus's retained sessions. Tasks removed by Cyrus cleanup are not independently archived by the board.
-- Snapshots retain at most 60 sessions, prioritizing running tasks, and 650 recent log entries. Individual entries are limited to 4,000 characters.
+- Issue sessions are archived before terminal-state or age-based cleanup, even when no browser is open. Archived tasks remain in the list after restart and are labeled `Archived`; they never appear as running. If a session is resumed, its live record takes precedence.
+- The archive is stored in `<cyrusHome>/state/board-history.json` with atomic writes. It keeps up to 200 removed tasks and the latest 100 public agent log entries per task, within 16 MiB overall; the oldest tasks are evicted first. Storage failures show a warning and do not stop Cyrus.
+- Snapshots show up to 60 retained sessions, prioritizing running tasks, plus the archive. Live logs retain 650 recent entries. Individual entries are limited to 4,000 characters. Selecting an archived task loads its own logs, so new activity cannot displace them from the shared live log window.
+- This archive starts when the updated worker is installed. Tasks already deleted before installation cannot be reconstructed automatically. Chat sessions are shown while retained by their chat handler; the removal archive follows the issue-session manager.
 - Agent messages use the session update time for initial history and the time first observed by the board for new messages. These are observation times, not exact SDK event timestamps.
 
 The page receives snapshots over `/board/events` every two seconds while it is open.
 `/board/api/snapshot` supplies the same data as JSON. Closing the last page stops the streaming timer.
+`/board/api/history/:sessionId` supplies an archived task's bounded log entries on demand.
 The existing `/status` response remains unchanged.
 
 ## Local access

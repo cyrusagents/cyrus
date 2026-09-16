@@ -20,6 +20,25 @@ let latest = null,
 const viewer = createLogViewer($("logs"), () => {
 	$("follow").checked = false;
 });
+const history = new Map();
+async function loadHistory(task) {
+	if (!task?.archived || history.has(task.id)) return;
+	try {
+		const response = await fetch(
+			`/board/api/history/${encodeURIComponent(task.id)}`,
+			{ cache: "no-store" },
+		);
+		if (!response.ok) throw Error();
+		history.set(task.id, {
+			at: task.lastActivityAt,
+			logs: (await response.json()).logs,
+		});
+		if (selected === task.id) renderLogs();
+	} catch {
+		$("warnings").textContent =
+			"Cannot load archived logs. Select the task to retry.";
+	}
+}
 function element(tag, cls, text) {
 	const el = document.createElement(tag);
 	if (cls) el.className = cls;
@@ -71,11 +90,17 @@ function renderConnection() {
 }
 function render(data) {
 	displayed = data;
+	for (const [id, cached] of history) {
+		const task = data.tasks?.find((task) => task.id === id);
+		if (!task?.archived || task.lastActivityAt !== cached.at)
+			history.delete(id);
+	}
 	renderConnection();
 	$("warnings").textContent = (data.warnings || []).join(" ");
 	$("task-count").textContent = (data.tasks || []).length;
 	renderTasks();
 	renderLogs();
+	loadHistory(data.tasks?.find((task) => task.id === selected));
 }
 function renderTasks() {
 	const needle = $("task-search").value.trim().toLowerCase(),
@@ -148,7 +173,8 @@ function renderTasks() {
 			element(
 				"span",
 				"",
-				t.repositories?.join(", ") || "Repository unconfirmed",
+				(t.repositories?.join(", ") || "Repository unconfirmed") +
+					(t.archived ? " · Archived" : ""),
 			),
 			element(
 				"span",
@@ -167,6 +193,7 @@ function renderTasks() {
 			selected = selected === t.id ? null : t.id;
 			renderTasks();
 			renderLogs();
+			loadHistory(t);
 		});
 		$("tasks").append(b);
 	}
@@ -187,12 +214,15 @@ function renderLogs() {
 					(names[task.status] || task.status) +
 					" · Last activity " +
 					ago(task.lastActivityAt) +
+					(task.archived ? " · Archived · Up to 100 recent entries" : "") +
 					(task.quiet ? " · No activity for over 2 minutes" : ""),
 			),
 		);
 	}
 	const source = $("source").value;
-	const logs = (displayed?.logs || []).filter(
+	const logs = (
+		task?.archived ? history.get(task.id)?.logs || [] : displayed?.logs || []
+	).filter(
 		(l) =>
 			(!task ||
 				(l.sessionId ? l.sessionId === task.id : l.issue === task.issue)) &&

@@ -8,6 +8,7 @@ import {
 	subscribeLocalLogs,
 } from "cyrus-core";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { BoardHistory, type BoardTask } from "./BoardHistory.js";
 
 const MAX_TASKS = 60;
 const MAX_LOGS = 650;
@@ -24,6 +25,8 @@ export interface BoardLog {
 }
 
 export interface BoardOptions {
+	historyPath?: string;
+	onSessionRemoved?(listener: (session: CyrusAgentSession) => void): () => void;
 	getSessions(): CyrusAgentSession[];
 	getEntries(sessionId: string): CyrusAgentSessionEntry[];
 	getStatus(): "idle" | "busy";
@@ -153,8 +156,10 @@ function outputKey(runnerSessionId: string, log: BoardLog): string {
 	return JSON.stringify([runnerSessionId, log.kind, log.text]);
 }
 
-/** A process-local, bounded view of the sessions Cyrus already owns. */
+/** Live runners plus a bounded, persistent archive of removed sessions. */
 export class StatusBoard {
+	private history: BoardHistory;
+	private unsubscribeRemoval?: () => void;
 	private serviceLogs: BoardLog[] = [];
 	private messageTimes = new WeakMap<AgentMessage, number>();
 	private observed = new Map<
@@ -169,11 +174,35 @@ export class StatusBoard {
 	private unsubscribe: () => void;
 
 	constructor(private options: BoardOptions) {
+		this.history = new BoardHistory(options.historyPath, bounded);
 		this.unsubscribe = subscribeLocalLogs((record) => this.recordLog(record));
+		this.unsubscribeRemoval = options.onSessionRemoved?.((session) => {
+			try {
+				const snapshot = this.liveSnapshot([session]);
+				const task = snapshot.tasks[0];
+				if (task)
+					this.history.add(
+						{ ...task, reason: "Archived after session cleanup." },
+						snapshot.logs.filter(
+							(log) => log.sessionId === session.id && log.source === "agent",
+						),
+					);
+			} catch {
+				this.history.warning = "A removed task could not be archived.";
+			}
+		});
 	}
 
-	close(): void {
+	ready(): Promise<void> {
+		return this.history.ready();
+	}
+	historyLogs(id: string): BoardLog[] {
+		return this.history.logs(id);
+	}
+	async close(): Promise<void> {
+		this.unsubscribeRemoval?.();
 		this.unsubscribe();
+		await this.history.flush();
 		this.serviceLogs = [];
 		this.observed.clear();
 	}
@@ -193,9 +222,29 @@ export class StatusBoard {
 	}
 
 	snapshot() {
+		const live = this.liveSnapshot();
+		const ids = new Set(
+			this.options.getSessions().map((session) => session.id),
+		);
+		return {
+			...live,
+			tasks: [
+				...live.tasks,
+				...this.history.tasks().filter((task) => !ids.has(task.id)),
+			].sort(
+				(a, b) =>
+					Number(b.status === "running") - Number(a.status === "running") ||
+					b.lastActivityAt - a.lastActivityAt,
+			),
+			warnings: this.history.warning ? [this.history.warning] : [],
+		};
+	}
+
+	private liveSnapshot(sessions = this.options.getSessions()) {
 		const now = Date.now();
-		const sessions = this.options.getSessions();
-		const ids = new Set(sessions.map((session) => session.id));
+		const ids = new Set(
+			this.options.getSessions().map((session) => session.id),
+		);
 		for (const id of this.observed.keys())
 			if (!ids.has(id)) this.observed.delete(id);
 		// Prioritize real live runners before applying the retention limit.
@@ -211,7 +260,7 @@ export class StatusBoard {
 			)
 			.slice(0, MAX_TASKS);
 		const logs = [...this.serviceLogs];
-		const tasks = active.map(({ session, running }) => {
+		const tasks: BoardTask[] = active.map(({ session, running }) => {
 			const runner = session.agentRunner;
 			const previous = this.observed.get(session.id);
 			const startedAt =
@@ -376,6 +425,7 @@ export function registerStatusBoard(
 		],
 	]);
 	app.register(async (scoped) => {
+		await board.ready();
 		scoped.addHook("onRequest", async (request, reply) => {
 			if (!isLocalBoardRequest(request))
 				return reply.code(403).send({ error: "Local access only" });
@@ -395,6 +445,12 @@ export function registerStatusBoard(
 			);
 		}
 		scoped.get("/board/api/snapshot", async () => board.snapshot());
+		scoped.get<{ Params: { sessionId: string } }>(
+			"/board/api/history/:sessionId",
+			async (request) => ({
+				logs: board.historyLogs(request.params.sessionId),
+			}),
+		);
 		scoped.get("/board/events", (request, reply) => {
 			for (const [name, value] of Object.entries(reply.getHeaders())) {
 				if (value !== undefined) reply.raw.setHeader(name, value);
@@ -428,7 +484,7 @@ export function registerStatusBoard(
 		if (timer) clearInterval(timer);
 		for (const client of clients) client.end();
 		clients.clear();
-		board.close();
+		await board.close();
 	});
 	return board;
 }
