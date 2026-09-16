@@ -60,7 +60,7 @@ All notable changes to this project will be documented in this file.
 - cyrus-edge-worker@0.2.73
 
 #### cyrus-ai
-- cyrus-ai@0.2.73 ([CYPACK-1519](https://linear.app/ceedar/issue/CYPACK-1519/run-a-release))
+- cyrus-ai@0.2.73 ([CYPACK-1519](https://linear.app/ceedar/issue/CYPACK-1519/run-a-release), [#1488](https://github.com/cyrusagents/cyrus/pull/1488))
 
 ## [0.2.72] - 2026-09-15
 
