@@ -47,6 +47,7 @@
 			"sqlite3"
 		],
 		"overrides": {
+			"@melloware/react-logviewer>immutable": "5.1.9",
 			"ip-address": ">=10.3.1",
 			"@opentelemetry/core": ">=2.8.0",
 			"uuid": ">=11.1.1",

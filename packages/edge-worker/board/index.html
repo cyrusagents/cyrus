@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,initial-scale=1">
+		<title>Cyrus · Tasks & Logs</title>
+		<link rel="stylesheet" href="/board/assets/app.css">
+	</head>
+	<body>
+		<main>
+			<aside class="sidebar" aria-label="Task list">
+				<div class="sidebar-tools">
+					<div class="sidebar-heading">
+						<div class="task-heading">
+							<h1>Tasks <span id="task-count" class="muted"></span></h1>
+							<div id="connection" class="connection off" role="status">
+								<i class="dot"></i><span class="sr-only">Connecting</span>
+							</div>
+						</div>
+						<label class="toggle"
+							><input id="running-only" type="checkbox">Running only</label
+						>
+					</div>
+					<label class="search"
+						><span class="sr-only">Search tasks</span>
+						<input
+							id="task-search"
+							type="search"
+							placeholder="Search tasks…"
+							autocomplete="off"
+						></label
+					>
+				</div>
+				<div class="task-list" id="tasks">
+					<div class="empty">Loading tasks…</div>
+				</div>
+			</aside>
+			<section class="log-pane" aria-label="Live logs">
+				<div class="warn" id="warnings" role="status"></div>
+				<div class="terminal" id="logs" tabindex="0" aria-label="Log contents">
+					<div class="empty">Connecting to logs…</div>
+				</div>
+			</section>
+		</main>
+		<script type="module" src="/board/assets/app.js"></script>
+	</body>
+</html>

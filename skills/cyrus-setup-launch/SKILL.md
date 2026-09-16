@@ -9,6 +9,10 @@ description: Print a summary of the Cyrus setup and offer to start the agent.
 
 Prints a summary of the completed setup and offers to start Cyrus.
 
+Use the absolute `CYRUS_ENTRY` launcher from the prerequisites step. Verify `node "$CYRUS_ENTRY" --installation` reports the selected nexmoe/cyrus commit. If this skill is invoked independently, resolve the default or user-selected install directory first; run prerequisites if no verified fork installation exists. Do not resolve a bare global `cyrus` executable.
+
+Include the source commit and launcher path in the summary. Preserve an already authorized background method. When replacing an existing service, inspect its current command, wait until `/status` reports idle, and gracefully stop it before switching to this launcher; keep its environment and tunnel configuration. Avoid starting a second worker on the same port.
+
 ## Step 1: Gather Configuration
 
 Read current state:
@@ -67,16 +71,16 @@ Cyrus needs to run as a background process so it stays alive and restarts after 
 >
 > 1. **pm2** (recommended) — Node.js process manager. Simple to set up, auto-restarts on crash, log management built in. Best for most users.
 > 2. **systemd** (Linux only) — OS-level service manager. Starts on boot automatically, managed with `systemctl`. Best for dedicated Linux servers.
-> 3. **Neither** — just run `cyrus` in the foreground for now (you can set up persistence later).
+> 3. **Neither** — run the fork launcher in the foreground for now.
 
 ### Option 1: pm2
 
 The agent should run all of these commands directly:
 
 1. Check if pm2 is installed (`which pm2`). If not, install it (`npm install -g pm2`).
-2. Start Cyrus: `pm2 start cyrus --name cyrus`
+2. Start the verified launcher: `pm2 start "$CYRUS_ENTRY" --name cyrus --interpreter "<absolute node executable>" -- start`. Resolve Node with `command -v node` (Bash) or `(Get-Command node).Source` (PowerShell). For an existing pm2 process, update its script/interpreter to these paths instead of only restarting a process that still points to the npm CLI.
 3. Save the process list: `pm2 save`
-4. Run `pm2 startup` — this prints a system-specific command. The agent should run that output command too (it typically requires `sudo`).
+4. On supported Unix systems, use `pm2 startup` to configure reboot persistence. On Windows, preserve an existing scheduled task or background launcher and replace its Cyrus invocation with `node "<CYRUS_ENTRY>" start`; use `Start-Process -WindowStyle Hidden` for a background launch. Do not claim reboot persistence from `pm2 save` alone on Windows.
 
 After setup, inform the user of useful commands:
 - `pm2 logs cyrus` — view logs
@@ -89,7 +93,7 @@ The agent should run all of these commands directly:
 
 1. Resolve the actual values for the service file:
    ```bash
-   CYRUS_BIN=$(which cyrus)
+   NODE_BIN=$(command -v node)
    CYRUS_USER=$(whoami)
    ```
 
@@ -104,7 +108,7 @@ The agent should run all of these commands directly:
    Type=simple
    User=$CYRUS_USER
    EnvironmentFile=/home/$CYRUS_USER/.cyrus/.env
-   ExecStart=$CYRUS_BIN
+   ExecStart="$NODE_BIN" "$CYRUS_ENTRY" start
    Restart=always
    RestartSec=10
 
@@ -130,7 +134,7 @@ After setup, inform the user of useful commands:
 Run directly:
 
 ```bash
-cyrus
+node "$CYRUS_ENTRY" start
 ```
 
 ## Step 4: Start ngrok (if applicable)
@@ -192,6 +196,8 @@ curl -s http://localhost:3456/status
 ```
 
 Should return `{"status":"idle"}` or similar.
+
+Also load `/board` and `/board/api/snapshot` directly on the same loopback port. Confirm the service's executable/script points to the verified fork launcher; a working `/status` alone can belong to an older official instance. Report the installed source commit and board URL.
 
 > Then try assigning a Linear issue to Cyrus, or @mentioning it in Slack, to verify the full pipeline works!
 

@@ -21,7 +21,12 @@ export type {
 	LogContext,
 	LogEventAttributes,
 } from "./logging/index.js";
-export { createLogger, LogLevel } from "./logging/index.js";
+export {
+	createLogger,
+	type LocalLogRecord,
+	LogLevel,
+	subscribeLocalLogs,
+} from "./logging/index.js";
 
 // export { Session } from './Session.js'
 // export type { SessionOptions, , NarrativeItem } from './Session.js'

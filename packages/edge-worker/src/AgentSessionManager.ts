@@ -41,8 +41,9 @@ import type {
 /**
  * Events emitted by AgentSessionManager
  */
-// biome-ignore lint/complexity/noBannedTypes: Empty events type (events removed in CYPACK-996 skill refactor)
-export type AgentSessionManagerEvents = {};
+export type AgentSessionManagerEvents = {
+	sessionRemoving: (session: CyrusAgentSession) => void;
+};
 
 /**
  * Type-safe event emitter interface for AgentSessionManager
@@ -1657,6 +1658,8 @@ export class AgentSessionManager extends EventEmitter {
 	 */
 	removeSession(sessionId: string): void {
 		const log = this.sessionLog(sessionId);
+		const session = this.sessions.get(sessionId);
+		if (session) this.emit("sessionRemoving", session);
 		this.sessions.delete(sessionId);
 		this.entries.delete(sessionId);
 		this.activitySinks.delete(sessionId);
@@ -1680,10 +1683,7 @@ export class AgentSessionManager extends EventEmitter {
 				(session.status === "complete" || session.status === "error") &&
 				session.updatedAt < cutoff
 			) {
-				const log = this.sessionLog(sessionId);
-				this.sessions.delete(sessionId);
-				this.entries.delete(sessionId);
-				log.debug(`Cleaned up session`);
+				this.removeSession(sessionId);
 			}
 		}
 	}

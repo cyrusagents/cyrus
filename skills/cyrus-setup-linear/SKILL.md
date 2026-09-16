@@ -9,6 +9,8 @@ description: Create a Linear OAuth application and configure Cyrus to use it —
 
 Creates a Linear OAuth application and configures credentials so Cyrus can receive webhooks and respond to issues.
 
+Use the `CYRUS_ENTRY` path supplied by prerequisites for the OAuth command. If invoked independently, verify the fork launcher with `node "<launcher>" --installation`, or run prerequisites first if it is missing.
+
 ## Step 1: Check Existing Configuration
 
 ```bash
@@ -219,7 +221,7 @@ All three must return 1 (the `.` after `=` ensures the value is not empty). If a
 Run the OAuth authorization flow:
 
 ```bash
-cyrus self-auth-linear
+node "$CYRUS_ENTRY" self-auth-linear
 ```
 
 This will:
@@ -239,4 +241,4 @@ If the count is 0, authorization failed. Ask the user to check their credentials
 
 > ✓ Linear OAuth application created
 > ✓ Credentials saved to `~/.cyrus/.env`
-> ✓ Workspace authorized via `cyrus self-auth-linear`
+> ✓ Workspace authorized via the verified fork launcher.

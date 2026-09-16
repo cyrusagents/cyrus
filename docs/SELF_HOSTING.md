@@ -5,7 +5,7 @@
 If you're using any AI coding agent (Claude Code, Codex, Cursor, etc.), set up Cyrus with a single command:
 
 ```bash
-npx skills add ceedaragents/cyrus -g
+npx skills add nexmoe/cyrus -g
 ```
 
 Then in your agent:
@@ -14,7 +14,7 @@ Then in your agent:
 /cyrus-setup
 ```
 
-The setup skill walks you through everything below — automatically.
+The setup skill builds this fork from a pinned source commit, then walks you through everything below. Before PR #1 is merged, use the explicit branch command in [Fork Installation](./FORK_INSTALLATION.md) to obtain the updated skills.
 
 ---
 
@@ -27,7 +27,7 @@ This guide walks you through setting up Cyrus completely self-hosted, including 
 ## Prerequisites
 
 - **Linear workspace** with admin access (required to create OAuth apps)
-- **Node.js** v18 or higher
+- **Node.js** v22 or higher with npm/npx, plus Git (Git for Windows includes the required Git Bash)
 - **jq** (for Claude Code parsing)
 - **A public URL** for receiving Linear webhooks
 
@@ -39,7 +39,7 @@ brew install jq gh
 
 # Verify
 jq --version      # Should show version like jq-1.7
-node --version    # Should show v18 or higher
+node --version    # Should show v22 or higher
 ```
 
 **Linux/Ubuntu:**
@@ -48,7 +48,7 @@ apt install -y gh npm git jq
 
 # Verify
 jq --version      # Should show version like jq-1.7
-node --version    # Should show v18 or higher
+node --version    # Should show v22 or higher
 ```
 
 ---
@@ -63,7 +63,7 @@ You'll complete these steps:
 4. Install Cyrus and complete your environment file
 5. Start Cyrus, authorize with Linear, and add repositories
 
-> **Tip:** Cyrus automatically loads environment variables from `~/.cyrus/.env` on startup. You can override this path with `cyrus --env-file=/path/to/your/env`.
+> **Tip:** Cyrus automatically loads environment variables from `~/.cyrus/.env` on startup. Pass `--env-file=/path/to/your/env` through the verified fork launcher to override it.
 
 ---
 
@@ -169,8 +169,10 @@ LINEAR_WEBHOOK_SECRET=lin_whs_s56dlmfhg72038474nmfojhsn7
 ### 4.1 Install Cyrus
 
 ```bash
-npm install -g cyrus-ai
+node "<cyrus-setup-prerequisites>/scripts/install-fork.mjs"
 ```
+
+Follow [Fork Installation](./FORK_INSTALLATION.md) to obtain the installer and set `CYRUS_ENTRY` to its printed launcher path. Verify `node "$CYRUS_ENTRY" --installation` reports the expected fork commit. All commands below use this launcher; a global official npm installation does not include these modifications.
 
 ### 4.2 Complete Your Environment File
 
@@ -202,7 +204,7 @@ ANTHROPIC_API_KEY=your-api-key
 ### 5.1 Authorize with Linear
 
 ```bash
-cyrus self-auth-linear
+node "$CYRUS_ENTRY" self-auth-linear
 ```
 
 This will:
@@ -213,29 +215,29 @@ This will:
 ### 5.2 Add a Repository
 
 ```bash
-cyrus self-add-repo https://github.com/yourorg/yourrepo.git
+node "$CYRUS_ENTRY" self-add-repo https://github.com/yourorg/yourrepo.git
 ```
 
 This clones the repository to `~/.cyrus/repos/` and configures it with your Linear workspace credentials.
 
 For multiple workspaces, specify which one:
 ```bash
-cyrus self-add-repo https://github.com/yourorg/yourrepo.git "My Workspace"
+node "$CYRUS_ENTRY" self-add-repo https://github.com/yourorg/yourrepo.git "My Workspace"
 ```
 
-You can run `cyrus self-add-repo` at any time, even while Cyrus is running. No restart is required—Cyrus will automatically pick up the new repository configuration.
+You can run `node "$CYRUS_ENTRY" self-add-repo` while Cyrus is running. It automatically picks up the new repository configuration.
 
 ### 5.3 Start Cyrus
 
 Once authorization is complete and repositories are added, start Cyrus:
 
 ```bash
-cyrus
+node "$CYRUS_ENTRY" start
 ```
 
 Cyrus automatically loads `~/.cyrus/.env` on startup. You'll see Cyrus start up and show logs.
 
-> **Note:** To use a different env file location, use `cyrus --env-file=/path/to/your/env`.
+> **Note:** To use a different env file location, pass `--env-file=/path/to/your/env` through the same launcher.
 
 ---
 
@@ -255,7 +257,7 @@ For 24/7 availability, run Cyrus as a persistent process.
 
 ```bash
 tmux new-session -s cyrus
-cyrus
+node "$CYRUS_ENTRY" start
 # Ctrl+B, D to detach
 # tmux attach -t cyrus to reattach
 ```
@@ -263,7 +265,7 @@ cyrus
 ### Using pm2
 
 ```bash
-pm2 start cyrus --name cyrus
+pm2 start "$CYRUS_ENTRY" --name cyrus --interpreter "$(command -v node)" -- start
 pm2 save
 pm2 startup
 ```
@@ -281,7 +283,7 @@ After=network.target
 Type=simple
 User=your-user
 EnvironmentFile=/home/your-user/.cyrus/.env
-ExecStart=/usr/local/bin/cyrus
+ExecStart=/absolute/path/to/node /home/your-user/.local/share/cyrus-nexmoe/cyrus.mjs start
 Restart=always
 
 [Install]
@@ -322,7 +324,7 @@ For detailed options, see the [Configuration File Reference](./CONFIG_FILE.md).
 ### Repository Not Processing
 
 - Check that the repository is in your config (`~/.cyrus/config.json`)
-- Verify Linear tokens are valid with `cyrus check-tokens`
+- Verify Linear tokens are valid with `node "$CYRUS_ENTRY" check-tokens`
 - Ensure the issue is assigned to Cyrus in Linear
 
 ### Claude Code Not Working
