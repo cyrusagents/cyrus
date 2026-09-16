@@ -114,10 +114,42 @@ command with the exact recorded error:
 Failed to authenticate. API Error: 401 OAuth access token has expired.
 ```
 
+One bounded availability assessment then tried the installed Gemini CLI in its
+normal API-key environment, without reading or exporting credential values. A
+fresh F1 run on port `3603` created `issue-1` / `DEF-1`, selected the
+repository, and created
+`/tmp/cyrus-f1-1789545280092/worktrees/DEF-1`. The Gemini runner failed during
+its standard chat-state initialization, before it could run
+`pwd && git status --short`:
+
+```text
+Error: Failed to initialize chat: EPERM: operation not permitted, mkdir '/Users/agentops/.gemini/tmp/.../chats'
+```
+
+No command executed and no files were edited. The availability assessment also
+found Cursor Agent installed but not logged in, and OpenCode unable to open its
+normal log file at `/Users/agentops/.local/share/opencode/log/opencode.log`.
+No additional runner sessions were started.
+
 Therefore successful command execution in a configured F1 repository remains
 an open validation gate. It requires an existing supported runner with a
 working normal execution environment; no denied sandbox was bypassed and no
 permissions were expanded.
+
+### Normal restoration owners and actions
+
+- Claude: the configured account is `connor@ceedar.io`; its F1 OAuth token
+  must be refreshed by that account through the normal Claude Code
+  authentication flow. No interactive login was initiated here.
+- Gemini, OpenCode, and Codex: the release-owner environment running as
+  `connor` needs its normal sandbox/runtime configuration restored so each
+  runner can write its standard state directory. The observed paths are
+  `/Users/agentops/.gemini/tmp/.../chats` for Gemini and
+  `/Users/agentops/.local/share/opencode/log/opencode.log` for OpenCode; Codex
+  fails earlier at `sandbox-exec`. This requires the environment/sandbox
+  operator, not a credential copy or an F1 retry.
+- Cursor Agent: its account owner needs to complete the normal Cursor Agent
+  login before it can be assessed as a runner. No login was initiated here.
 
 ## Observations
 
@@ -134,7 +166,7 @@ permissions were expanded.
 The F1 release drive proves the lifecycle and control path for local F1 server,
 issue creation, session/worktree lifecycle, activity rendering, pagination,
 final response, explicit stop, and graceful shutdown. It is not full
-end-to-end release validation because neither configured runner completed an
+end-to-end release validation because none of the assessed runner environments completed an
 actual command in the F1 repository. The exact remaining gate is successful
 read-only command execution by a supported runner in its normal configured F1
 environment.
