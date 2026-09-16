@@ -44,6 +44,10 @@ Switch to **Raw** for the bundled React LogViewer, including line numbers, previ
 navigation and matching-line filtering. Both views support pause and follow. Scrolling up,
 searching, expanding a row or selecting a timeline marker disables Follow; enabling it returns
 to the latest output. Source filters and task selection apply to both views.
+When scrolled away from the bottom, a floating down-arrow button appears in the lower-right
+corner. **Jump to bottom and follow new logs** returns to the latest output, clears text search
+and enables Follow. Source/error filters and the selected task stay unchanged; paused updates
+stay paused until resumed in Log options.
 Task titles and log messages retain their original language.
 
 ## Data and status

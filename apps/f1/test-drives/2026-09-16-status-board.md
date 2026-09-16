@@ -150,3 +150,9 @@ The board build and changed-file Biome checks pass. The complete worker suite re
 Hover, expanded and selected backgrounds now belong to the complete activity heading, including its checkbox and left gutter. The summary button is transparent so the row has one continuous background in every state.
 
 Edge mouse movement over the checkbox and summary produced the same `rgb(248, 248, 250)` heading background. Expanded and selected states covered the same region, with the button remaining transparent. Expanding, selecting, clearing with Esc and collapsing still worked; the console had no errors. The board build and CSS Biome check pass. This CSS-only change was checked in the browser without adding redundant unit tests; only the local CSS asset was replaced.
+
+## Jump to bottom follow-up
+
+Both Activity and Raw provide a floating Hugeicons down-arrow button when the log viewport is more than two pixels above its bottom. Clicking it jumps to the latest output and enables Follow, using the same search-reset behavior as the existing Follow control. Task, source/error filters and pause state are retained. Activity also rechecks its position after content, expansion, wrapping and viewport-size changes; Raw uses the log viewer's scroll callback.
+
+The board build, changed-file Biome checks and 10 existing activity/selection/viewer regressions pass. Local static assets were updated without restarting Cyrus, and `/status` still returns HTTP 200. Browser interaction verification could not be completed in this follow-up: the existing Edge tab's debugger connection timed out, and opening a fresh local-board tab was blocked by the browser. No successful click or visual verification is claimed for this button.

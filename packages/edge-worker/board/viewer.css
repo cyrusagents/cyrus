@@ -1,6 +1,29 @@
 #logs {
 	position: relative;
 }
+.jump-to-bottom {
+	position: absolute;
+	right: 24px;
+	bottom: 24px;
+	z-index: 3;
+	display: grid;
+	place-items: center;
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	border: 1px solid #dedbe5;
+	border-radius: 50%;
+	background: #fff;
+	color: #716081;
+	box-shadow: 0 2px 8px #2820381a;
+}
+.jump-to-bottom:hover {
+	background: #f3f0f8;
+	border-color: #b3a4c5;
+}
+.jump-to-bottom:focus-visible {
+	outline: 2px solid #9280af;
+}
 .activity-toolbar {
 	display: flex;
 	flex-wrap: nowrap;

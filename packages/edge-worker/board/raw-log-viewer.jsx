@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { isAboveBottom, JumpToBottom } from "./jump-to-bottom.jsx";
 import { MonitorLog } from "./viewer-compat.mjs";
 
 const gray = "\x1b[90m",
@@ -53,8 +54,9 @@ function formatLogs(logs) {
 		.join("\n")}\n`;
 }
 
-export function RawLogView({ logs, follow, wrap, scope }) {
+export function RawLogView({ logs, follow, wrap, scope, onFollow }) {
 	const viewer = useRef(null);
+	const [aboveBottom, setAboveBottom] = useState(false);
 	const text = logs.length ? formatLogs(logs) : "";
 	useEffect(() => {
 		// Recompute matches when an SSE snapshot replaces the text.
@@ -82,6 +84,7 @@ export function RawLogView({ logs, follow, wrap, scope }) {
 				selectableLines
 				enableLinks={false}
 				follow={follow}
+				onScroll={(position) => setAboveBottom(isAboveBottom(position))}
 				wrapLines={wrap}
 				rowHeight={23}
 				extraLines={0}
@@ -99,6 +102,14 @@ export function RawLogView({ logs, follow, wrap, scope }) {
 					},
 				}}
 			/>
+			{aboveBottom && logs.length > 0 && (
+				<JumpToBottom
+					onClick={() => {
+						viewer.current?.followLatest();
+						onFollow();
+					}}
+				/>
+			)}
 			{!logs.length && (
 				<div className="viewer-empty">No logs match these filters.</div>
 			)}

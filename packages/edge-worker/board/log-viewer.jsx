@@ -9,6 +9,7 @@ import {
 	visibleRows,
 } from "./activity-model.mjs";
 import { selectionText, selectRows } from "./activity-selection.mjs";
+import { isAboveBottom, JumpToBottom } from "./jump-to-bottom.jsx";
 import { LogOptions } from "./log-options.jsx";
 import { RawLogView } from "./raw-log-viewer.jsx";
 import { useMarquee } from "./use-marquee.jsx";
@@ -238,6 +239,7 @@ function LogView({
 		[expanded, setExpanded] = useState(null);
 	const [selected, setSelected] = useState(new Set()),
 		[copyStatus, setCopyStatus] = useState("");
+	const [aboveBottom, setAboveBottom] = useState(false);
 	const anchor = useRef(null),
 		selectAll = useRef(null),
 		copyRequest = useRef(0);
@@ -365,6 +367,22 @@ function LogView({
 		if (follow && mode === "activity" && visible.length && list.current)
 			list.current.scrollTop = list.current.scrollHeight;
 	}, [follow, visible, mode]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: These changes can alter the list's scroll height without a scroll event.
+	useEffect(() => {
+		const element = list.current;
+		if (mode !== "activity" || !element) return;
+		const measure = () => setAboveBottom(isAboveBottom(element));
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, [mode, visible, expanded, wrap]);
+	function jumpToBottom() {
+		setQuery("");
+		setExpanded(null);
+		if (list.current) list.current.scrollTop = list.current.scrollHeight;
+		onControlsChange({ follow: true });
+	}
 	function jump(key) {
 		stopFollowing();
 		setExpanded(key);
@@ -485,6 +503,9 @@ function LogView({
 						ref={list}
 						tabIndex={-1}
 						onPointerDown={marquee.onPointerDown}
+						onScroll={(event) =>
+							setAboveBottom(isAboveBottom(event.currentTarget))
+						}
 						aria-label="Activity entries"
 					>
 						{visible.length ? (
@@ -531,16 +552,19 @@ function LogView({
 							/>
 						)}
 					</section>
+					{aboveBottom && <JumpToBottom onClick={jumpToBottom} />}
 				</>
 			) : (
 				<div className="raw-view">
 					<RawLogView
+						key={scope}
 						logs={
 							errorsOnly ? logs.filter((log) => log.level === "error") : logs
 						}
 						follow={follow}
 						wrap={wrap}
 						scope={scope}
+						onFollow={() => onControlsChange({ follow: true })}
 					/>
 				</div>
 			)}
