@@ -216,6 +216,28 @@ h1 {
 	font-size: 11px;
 	color: #999;
 }
+.task-context {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 8px;
+	min-width: 0;
+}
+.task-repository {
+	overflow-wrap: anywhere;
+}
+.task-model {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 10px;
+	line-height: 1.6;
+	padding: 1px 5px;
+	border-radius: 4px;
+	color: #81728f;
+	background: #eeebf2;
+}
 .pill {
 	font-size: 10px;
 	color: #888;

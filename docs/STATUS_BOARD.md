@@ -14,6 +14,8 @@ Click the arrow beside a task's issue identifier to open that issue in Linear in
 This also works for archived tasks and leaves the current log selection unchanged. Tasks without
 a Linear-style issue identifier have no external link. Links use Linear's documented
 [`/issue/ENG-123` route](https://linear.app/docs/get-the-app) and your signed-in Linear account.
+Each task also shows its recorded model beside its repository. Tasks with no saved model,
+including older archives, display **Model unknown**; the board does not infer a model from current defaults.
 The disclosure arrow uses a bundled [Hugeicons](https://github.com/hugeicons/hugeicons) SVG,
 centered in the row and rotated around its center when expanded; it requires no external request.
 Search matches the full loaded text, including collapsed results; **Errors only** retains the call

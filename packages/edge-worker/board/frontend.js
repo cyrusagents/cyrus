@@ -173,6 +173,7 @@ function renderTasks() {
 			t.id,
 			t.issue,
 			t.title,
+			t.model,
 			t.status,
 			t.reason,
 			t.quiet,
@@ -214,6 +215,7 @@ function renderTasks() {
 		b.title =
 			t.reason +
 			(t.quiet ? " · No activity for over 2 minutes" : "") +
+			`\nModel: ${t.model || "Unknown"}` +
 			"\nSession " +
 			t.id;
 		const top = element("div", "task-top");
@@ -232,13 +234,18 @@ function renderTasks() {
 			),
 		);
 		const meta = element("div", "task-meta");
-		meta.append(
+		const context = element("div", "task-context");
+		context.append(
 			element(
 				"span",
-				"",
+				"task-repository",
 				(t.repositories?.join(", ") || "Repository unconfirmed") +
 					(t.archived ? " · Archived" : ""),
 			),
+			element("span", "task-model", t.model || "Model unknown"),
+		);
+		meta.append(
+			context,
 			element(
 				"span",
 				`pill ${stale && t.status === "running" ? "unknown" : t.status}`,

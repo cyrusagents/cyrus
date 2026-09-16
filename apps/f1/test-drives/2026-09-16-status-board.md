@@ -164,3 +164,9 @@ Task cards provide an always-visible Hugeicons external-link arrow beside Linear
 Edge verification confirmed links on active and archived cards, visible 16px SVG icons, correct link attributes, no nested buttons and no horizontal overflow. Selecting an archived task still displayed its logs. Clicking its arrow opened a new tab that resolved to the corresponding workspace issue and matching heading; the original task selection remained unchanged. No browser console errors were reported. User issue details and screenshots are not included in the repository.
 
 The board build, changed-file Biome checks and 10 existing activity/selection/viewer regressions pass. The full worker suite has 822 passes, one skip and exactly the same 52 failing names as the Windows baseline. Only static assets were deployed locally; the running worker was not restarted.
+
+## Task model label follow-up
+
+Task cards display the recorded model beside repository metadata; missing values explicitly show `Model unknown`. Model changes are included in the task rendering signature so live snapshots update the label even when other task metadata stays unchanged. The full model is also included in the card tooltip.
+
+Edge verified both a populated model label and the unknown-model fallback alongside the issue shortcuts. Live activity continued rendering, with no page overflow or console errors. The board build and changed-file Biome checks pass. The complete worker suite remains at 822 passes, one skip and the same 52 baseline failing names. Static assets were updated without restarting the worker.
