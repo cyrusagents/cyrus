@@ -141,13 +141,22 @@ permissions were expanded.
 - Claude: the configured account is `connor@ceedar.io`; its F1 OAuth token
   must be refreshed by that account through the normal Claude Code
   authentication flow. No interactive login was initiated here.
-- Gemini, OpenCode, and Codex: the release-owner environment running as
-  `connor` needs its normal sandbox/runtime configuration restored so each
-  runner can write its standard state directory. The observed paths are
+- Runtime identity is measured separately from the Claude account: the
+  release-owner shell ran as Unix UID `502` / user `agentops`, with
+  `HOME=/Users/agentops` and the Cyrus worktree as its current directory.
+  `GEMINI_CLI_HOME`, `GEMINI_HOME`, and the XDG state/config overrides were
+  unset. F1 inherits that process environment and Gemini passes it to its
+  child, which explains the `/Users/agentops/.gemini/...` path. The
+  `.gemini` and OpenCode state directories are owned by `agentops` and have
+  owner-write mode, so `EPERM` alone does not establish whether the cause is a
+  sandbox, ACL, or another host access-control condition.
+- The owner of the `agentops` F1 execution environment needs to diagnose and
+  restore normal access to the affected runner state paths before another
+  command-proof attempt. The observed paths are
   `/Users/agentops/.gemini/tmp/.../chats` for Gemini and
   `/Users/agentops/.local/share/opencode/log/opencode.log` for OpenCode; Codex
-  fails earlier at `sandbox-exec`. This requires the environment/sandbox
-  operator, not a credential copy or an F1 retry.
+  fails earlier at `sandbox-exec`. No permission repair, identity change,
+  credential copy, or F1 retry was performed here.
 - Cursor Agent: its account owner needs to complete the normal Cursor Agent
   login before it can be assessed as a runner. No login was initiated here.
 
