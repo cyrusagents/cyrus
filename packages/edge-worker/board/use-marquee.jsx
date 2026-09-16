@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { marqueeSelection } from "./activity-selection.mjs";
 
 export function useMarquee({
@@ -16,12 +16,17 @@ export function useMarquee({
 		clearClick = useRef(0);
 	const latest = useRef(null);
 	latest.current = { selected, setSelected, stopFollowing };
+	const cancel = useCallback(() => {
+		if (drag.current) drag.current.cancelled = true;
+		cancelAnimationFrame(frame.current);
+		setBox(null);
+	}, []);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Changing filters or views cancels the current drag.
 	useEffect(() => {
 		function update() {
 			const state = drag.current,
 				element = list.current;
-			if (!state?.active || !element) return;
+			if (!state?.active || state.cancelled || !element) return;
 			const viewport = element.getBoundingClientRect();
 			const edge = 32;
 			const speed =
@@ -81,11 +86,13 @@ export function useMarquee({
 		}
 		function tick() {
 			update();
-			if (drag.current?.active) frame.current = requestAnimationFrame(tick);
+			if (drag.current?.active && !drag.current.cancelled)
+				frame.current = requestAnimationFrame(tick);
 		}
 		function move(event) {
 			const state = drag.current;
-			if (!state || event.pointerId !== state.pointerId) return;
+			if (!state || state.cancelled || event.pointerId !== state.pointerId)
+				return;
 			state.clientX = event.clientX;
 			state.clientY = event.clientY;
 			if (
@@ -111,12 +118,12 @@ export function useMarquee({
 				(event.pointerId !== undefined && state.pointerId !== event.pointerId)
 			)
 				return;
-			if (state.active) {
-				if (event.type === "pointerup") {
+			if (state.active || state.cancelled) {
+				if (!state.cancelled && event.type === "pointerup") {
 					state.clientX = event.clientX;
 					state.clientY = event.clientY;
 					update();
-				} else latest.current.setSelected(state.original);
+				} else if (!state.cancelled) latest.current.setSelected(state.original);
 				blockClick.current = true;
 				clearTimeout(clearClick.current);
 				clearClick.current = setTimeout(() => {
@@ -183,5 +190,5 @@ export function useMarquee({
 			original,
 		};
 	}
-	return { box, onPointerDown };
+	return { box, onPointerDown, cancel };
 }

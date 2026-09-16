@@ -136,3 +136,11 @@ The board build, changed-file Biome checks and 10 activity/selection/viewer regr
 Replaced the font-dependent disclosure characters with Hugeicons `ArrowRight01Icon`, rendered through the official React package at 14px. Expanded rows rotate the SVG 90 degrees around its center. Detail offsets account for the wider icon at every breakpoint. Both Hugeicons packages are pinned build dependencies and their MIT notices are included in the served JavaScript license file; the icon needs no CDN request.
 
 Edge measured zero vertical center offset for all 140 rendered arrows and for the expanded arrow. The expanded detail text still aligned with its row's message column. Visual inspection confirmed the right/down arrows; the page had no console errors. The board build, worker typecheck and changed-file Biome checks pass. The full worker suite has 822 passes, one skip and the same 52 baseline failing test names. Local deployment updated only static assets and license text.
+
+## Escape selection follow-up
+
+Esc clears activity row selection, the Shift-selection anchor and copy feedback using the same action as the Clear button. It also cancels an in-progress marquee, stops its animation frame and ignores subsequent drag movement until pointer release. IME composition is excluded; an Esc handled for row selection preserves search text and still allows the options panel to close.
+
+In Edge, selecting all 140 rows followed by Esc cleared every row, reset the select-all checkbox and removed the copy actions. Esc from the search field cleared a filtered selection while preserving its query. A single-row selection with the options panel open was also cleared, and the panel closed. No console errors were recorded. In-progress marquee cancellation was reviewed in code rather than separately exercised in the browser.
+
+The board build and changed-file Biome checks pass. The complete worker suite remains at 822 passes, one skip and the same 52 baseline failing test names. Only the local JavaScript asset was replaced; Cyrus was not restarted.

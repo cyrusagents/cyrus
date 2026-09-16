@@ -27,6 +27,8 @@ hold Ctrl/Cmd or Shift while dragging to add to the selection. Dragging near the
 bottom edge scrolls it automatically. Expanded detail text retains normal text selection.
 Row checkboxes are also available; Shift-click selects a range and Ctrl/Cmd-click toggles a row.
 The toolbar checkbox selects all currently visible rows.
+Press **Esc** to clear row selection and cancel an active selection rectangle. This also resets
+the Shift-selection anchor; when rows are selected, Esc preserves the current search text.
 Choose **Copy** or press **Ctrl+C / Cmd+C** while the log pane has focus to copy the selection
 in display order, with timestamps and full loaded text, including paired tool results.
 Native text selections and search fields keep their normal copy behavior. Selection stops Follow,

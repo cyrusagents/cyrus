@@ -1,6 +1,6 @@
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
 	activityRows,
@@ -251,6 +251,30 @@ function LogView({
 		stopFollowing,
 		scope: `${scope}|${query}|${mode}`,
 	});
+	const cancelMarquee = marquee.cancel;
+	const clearSelection = useCallback(() => {
+		cancelMarquee();
+		setSelected(new Set());
+		anchor.current = null;
+		copyRequest.current++;
+		setCopyStatus("");
+	}, [cancelMarquee]);
+	const hasMarquee = Boolean(marquee.box);
+	useEffect(() => {
+		function onEscape(event) {
+			if (
+				event.key !== "Escape" ||
+				event.isComposing ||
+				mode !== "activity" ||
+				(!selected.size && !hasMarquee)
+			)
+				return;
+			event.preventDefault();
+			clearSelection();
+		}
+		document.addEventListener("keydown", onEscape);
+		return () => document.removeEventListener("keydown", onEscape);
+	}, [mode, selected.size, hasMarquee, clearSelection]);
 	const rows = useMemo(() => activityRows(logs), [logs]);
 	const stats = useMemo(() => activityStats(logs), [logs]);
 	const visible = useMemo(
@@ -402,10 +426,9 @@ function LogView({
 						{selectedCount > 0 && (
 							<button
 								type="button"
-								onClick={() => {
-									setSelected(new Set());
-									anchor.current = null;
-								}}
+								title="Clear selection (Esc)"
+								aria-keyshortcuts="Escape"
+								onClick={clearSelection}
 							>
 								<span aria-hidden="true">×</span>
 								<span className="sr-only">Clear selection</span>
