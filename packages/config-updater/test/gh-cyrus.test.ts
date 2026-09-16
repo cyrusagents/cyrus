@@ -211,6 +211,57 @@ exit 0
 		);
 	});
 
+	it("resolves API owner placeholders from GH_REPO before cwd, without changing arguments", () => {
+		saveTokens([{ organization: "Retained", token: "ghs_retained" }]);
+		const cwd = makeRepo("other", "https://github.com/Removed/repo.git");
+		for (const args of [
+			["api", "repos/{owner}/{repo}"],
+			["api", "--method", "GET", "/repos/{owner}/{repo}/branches/{branch}"],
+			["api", "https://api.github.com/repos/{owner}/{repo}"],
+		]) {
+			const result = runGhCyrus(args, {
+				cwd,
+				env: { GH_REPO: "Retained/repo", CYRUS_GH_TOKEN: "stale" },
+			});
+			expect(result.status).toBe(0);
+			expect(result.stdout).toContain("GH_TOKEN=ghs_retained");
+			expect(result.stdout).toContain(`ARGS=${args.join(" ")}`);
+		}
+	});
+	it("resolves API owner placeholders from cwd when GH_REPO is absent", () => {
+		saveTokens([{ organization: "Retained", token: "ghs_retained" }]);
+		const cwd = makeRepo("retained", "https://github.com/Retained/repo.git");
+		const result = runGhCyrus(["api", "repos/{owner}/{repo}"], {
+			cwd,
+			env: { GH_REPO: undefined },
+		});
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain("GH_TOKEN=ghs_retained");
+	});
+	it("uses explicit repository context before GH_REPO for API placeholders", () => {
+		saveTokens([{ organization: "Retained", token: "ghs_retained" }]);
+		const result = runGhCyrus(
+			["api", "repos/{owner}/{repo}", "--repo", "Retained/repo"],
+			{ env: { GH_REPO: "Removed/repo" } },
+		);
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain("GH_TOKEN=ghs_retained");
+	});
+	it("does not borrow a token for an unresolved placeholder or explicit removed owner", () => {
+		saveTokens([{ organization: "Retained", token: "ghs_retained" }]);
+		for (const [endpoint, repo] of [
+			["repos/{owner}/{repo}", undefined],
+			["repos/{owner}/{repo}", "Removed/repo"],
+			["repos/Removed/{repo}", "Retained/repo"],
+		]) {
+			const result = runGhCyrus(["api", endpoint!], {
+				env: { GH_REPO: repo, CYRUS_GH_TOKEN: "ghs_retained" },
+			});
+			expect(result.status).toBe(1);
+			expect(result.stdout).toBe("");
+		}
+	});
+
 	it("uses a currently valid CYRUS_GH_TOKEN hint outside a repo", () => {
 		saveTokens([
 			{ organization: "OrgA", token: "ghs_org_a" },

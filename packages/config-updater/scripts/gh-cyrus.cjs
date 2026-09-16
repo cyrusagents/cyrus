@@ -113,7 +113,7 @@ function ownerFromCwd() {
 }
 
 /** Explicit REST repo/org targets override cwd and session hints. */
-function ownerFromApi(args) {
+function ownerFromApi(args, repositoryOwner) {
 	if (args[0] !== "api") return "";
 	const valueFlags = new Set([
 		"--method",
@@ -141,7 +141,12 @@ function ownerFromApi(args) {
 		const match = args[i].match(
 			/^(?:https:\/\/api\.github\.com)?\/?(?:repos|orgs)\/([^/?#]+)/i,
 		);
-		return match ? match[1] : "";
+		if (!match) return "";
+		// gh expands {owner} using its repository context. Keep an unresolved
+		// placeholder explicit so it cannot fall back to the single/session token.
+		return repositoryOwner
+			? match[1].replaceAll("{owner}", repositoryOwner)
+			: match[1];
 	}
 	return "";
 }
@@ -151,12 +156,16 @@ function main() {
 
 	const env = { ...process.env };
 	const auth = loadManagedAuth();
-	if (auth.managed) {
-		const owner =
-			ownerFromApi(args) ||
-			ownerFromArgs(args) ||
-			ownerFromRepoRef(env.GH_REPO) ||
-			ownerFromCwd();
+	if (auth.managed && args.length === 1 && args[0] === "--version") {
+		// The health handler probes installation separately from authentication.
+		// Native gh --version does not contact GitHub or inspect stored auth.
+		delete env.GITHUB_TOKEN;
+		delete env.GH_TOKEN;
+		delete env.CYRUS_GH_TOKEN;
+	} else if (auth.managed) {
+		const repositoryOwner =
+			ownerFromArgs(args) || ownerFromRepoRef(env.GH_REPO) || ownerFromCwd();
+		const owner = ownerFromApi(args, repositoryOwner) || repositoryOwner;
 		const token = resolveManagedToken(auth.tokens, owner, env.CYRUS_GH_TOKEN);
 		if (!token) {
 			console.error(

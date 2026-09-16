@@ -9,8 +9,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Fastify from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { ConfigUpdater } from "../src/ConfigUpdater.js";
+import { handleCheckGh } from "../src/handlers/checkGh.js";
 import { handleGitHubTokens } from "../src/handlers/githubTokens.js";
 
 const scripts = join(__dirname, "..", "scripts");
@@ -246,6 +248,79 @@ describe("managed GitHub credential revocation (real subprocesses, synthetic cre
 			).toContain("synthetic-cached");
 		} finally {
 			vi.unstubAllEnvs();
+		}
+	});
+	it("health distinguishes installed gh from absent managed authentication", async () => {
+		const bin = join(home, ".local", "bin");
+		mkdirSync(bin, { recursive: true });
+		writeFileSync(join(bin, "gh"), '#!/bin/sh\nexec /usr/bin/gh "$@"\n', {
+			mode: 0o755,
+		});
+		writeFileSync(
+			native,
+			`#!${process.execPath}\nif (process.argv.length === 3 && process.argv[2] === '--version' && !process.env.GH_TOKEN && !process.env.GITHUB_TOKEN && !process.env.CYRUS_GH_TOKEN) { console.log('gh version fixture'); process.exit(0); } process.exit(97);`,
+			{ mode: 0o755 },
+		);
+		try {
+			for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
+			vi.stubEnv("PATH", `${bin}:${env.PATH}`);
+			expect(
+				(await handleGitHubTokens({ tokens: [] }, join(home, ".cyrus")))
+					.success,
+			).toBe(true);
+			expect(await handleCheckGh({}, join(home, ".cyrus"))).toEqual({
+				success: true,
+				message: "GitHub CLI check completed",
+				data: { isInstalled: true, isAuthenticated: false },
+			});
+			expect(gh(["--version", "api", "user"]).status).toBe(1);
+			expect(gh(["auth", "status"]).status).toBe(1);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+	it("HTTP acknowledgement reports installation, rejects unauthorized pushes, and maps installation failure to non-2xx", async () => {
+		const app = Fastify();
+		new ConfigUpdater(
+			app,
+			join(home, ".cyrus"),
+			() => "synthetic-api-key",
+		).register();
+		try {
+			for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
+			const request = {
+				method: "POST" as const,
+				url: "/api/update/github-tokens",
+				payload: { tokens: [] },
+			};
+			expect((await app.inject(request)).statusCode).toBe(401);
+			expect(existsSync(store)).toBe(false);
+			const authorized = {
+				...request,
+				headers: { authorization: "Bearer synthetic-api-key" },
+			};
+			const delivered = await app.inject(authorized);
+			expect(delivered.statusCode).toBe(200);
+			expect(delivered.json()).toEqual({
+				success: true,
+				message: "GitHub installation tokens updated successfully",
+				data: {
+					tokensCount: 0,
+					ghAuthConfigured: false,
+					ghResolverInstalled: true,
+				},
+			});
+			rmSync(join(home, ".cyrus", "scripts", "gh-cyrus.cjs"));
+			mkdirSync(join(home, ".cyrus", "scripts", "gh-cyrus.cjs"));
+			const failed = await app.inject(authorized);
+			expect(failed.statusCode).toBe(400);
+			expect(failed.json()).toEqual({
+				success: false,
+				error: "Failed to configure managed gh authentication",
+			});
+		} finally {
+			vi.unstubAllEnvs();
+			await app.close();
 		}
 	});
 });
