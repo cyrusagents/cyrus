@@ -62,6 +62,41 @@ function board(sessions: CyrusAgentSession[] = []) {
 const message = (value: unknown) => value as AgentMessage;
 
 describe("status board snapshots", () => {
+	it("correlates live tool results within a runner session, including empty output", () => {
+		const call = (runner: string) =>
+			boardMessageLogs(
+				message({
+					type: "assistant",
+					session_id: runner,
+					message: {
+						content: [
+							{ type: "tool_use", id: "tool-1", name: "Bash", input: {} },
+						],
+					},
+				}),
+				10,
+			)[0];
+		const output = boardMessageLogs(
+			message({
+				type: "user",
+				session_id: "runner-a",
+				message: {
+					content: [
+						{ type: "tool_result", tool_use_id: "tool-1", content: "" },
+					],
+				},
+			}),
+			20,
+		)[0];
+		expect(output).toMatchObject({
+			text: "",
+			kind: "output",
+			toolCallId: call("runner-a")?.toolCallId,
+		});
+		expect(output?.toolCallId).toMatch(/^[a-f0-9]{64}$/);
+		expect(output?.toolCallId).not.toBe(call("runner-b")?.toolCallId);
+		expect(call("")?.toolCallId).toBeUndefined();
+	});
 	it("does not reset another runner's start time when a task is archived", () => {
 		const ongoing = session("ongoing");
 		const removed = session("removed");
@@ -208,6 +243,8 @@ describe("status board snapshots", () => {
 			100, 110, 120, 140,
 		]);
 		expect(result.tasks[0]?.status).toBe("error");
+		expect(result.logs[1]?.toolCallId).toMatch(/^[a-f0-9]{64}$/);
+		expect(result.logs[1]?.toolCallId).toBe(result.logs[2]?.toolCallId);
 	});
 	it("does not duplicate saved output when the runner still contains it", () => {
 		const task = session();

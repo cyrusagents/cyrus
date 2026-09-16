@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import {
@@ -22,6 +23,8 @@ export interface BoardLog {
 	text: string;
 	sessionId?: string;
 	issue?: string;
+	/** Opaque correlation within a runner session; never inferred from log order. */
+	toolCallId?: string;
 }
 
 export interface BoardOptions {
@@ -67,20 +70,34 @@ function bounded(value: string): string {
 		: clean;
 }
 
+function toolCallId(id: unknown, runner: unknown): string | undefined {
+	if (typeof id !== "string" || !id || typeof runner !== "string" || !runner)
+		return;
+	return createHash("sha256")
+		.update(JSON.stringify([runner, id]))
+		.digest("hex");
+}
+
 /** Explicit output allowlist: never forward prompts, reasoning, or SDK system data. */
 export function boardMessageLogs(
 	message: AgentMessage,
 	at: number,
 ): BoardLog[] {
 	const logs: BoardLog[] = [];
-	const add = (value: string, kind: BoardLog["kind"], error = false) => {
-		if (value)
+	const add = (
+		value: string,
+		kind: BoardLog["kind"],
+		error = false,
+		id?: string,
+	) => {
+		if (value || kind === "output")
 			logs.push({
 				at,
 				source: "agent",
 				level: error ? "error" : "info",
 				kind,
 				text: bounded(value),
+				...(id ? { toolCallId: id } : {}),
 			});
 	};
 	if (message.type === "assistant" || message.type === "user") {
@@ -93,7 +110,12 @@ export function boardMessageLogs(
 			if (message.type === "assistant" && block.type === "text")
 				add(block.text, "activity");
 			else if (message.type === "assistant" && block.type === "tool_use")
-				add(`${block.name}\n${text(block.input)}`, "tool");
+				add(
+					`${block.name}\n${text(block.input)}`,
+					"tool",
+					false,
+					toolCallId(block.id, message.session_id),
+				);
 			else if (block.type === "tool_result") {
 				const output =
 					typeof block.content === "string"
@@ -102,7 +124,12 @@ export function boardMessageLogs(
 								?.filter((part) => part.type === "text")
 								.map((part) => part.text)
 								.join("\n") ?? "");
-				add(output, "output", Boolean(block.is_error));
+				add(
+					output,
+					"output",
+					Boolean(block.is_error),
+					toolCallId(block.tool_use_id, message.session_id),
+				);
 			}
 		}
 	} else if (message.type === "result") {
@@ -131,7 +158,7 @@ function savedEntryLog(
 		toolCall && entry.metadata?.toolInput !== undefined
 			? `${entry.metadata.toolName}\n${text(entry.metadata.toolInput)}`
 			: entry.content;
-	if (!content) return;
+	if (!content && !toolResult) return;
 	return {
 		at: entry.metadata?.timestamp ?? fallbackTime,
 		source: "agent",
@@ -285,6 +312,12 @@ export class StatusBoard {
 					entry.opencodeSessionId ??
 					"";
 				const key = outputKey(runnerSessionId, log);
+				if (log.kind === "tool" || log.kind === "output") {
+					log.toolCallId = toolCallId(
+						entry.metadata?.toolUseId,
+						runnerSessionId,
+					);
+				}
 				savedCounts.set(key, (savedCounts.get(key) ?? 0) + 1);
 				lastActivityAt = Math.max(lastActivityAt, log.at);
 				logs.push({

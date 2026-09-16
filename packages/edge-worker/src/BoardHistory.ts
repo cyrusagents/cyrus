@@ -29,6 +29,10 @@ const logSchema = z.object({
 	text,
 	sessionId: text.optional(),
 	issue: text.optional(),
+	toolCallId: z
+		.string()
+		.regex(/^[a-f0-9]{64}$/)
+		.optional(),
 });
 const recordSchema = z.object({
 	task: taskSchema,

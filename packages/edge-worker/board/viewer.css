@@ -1,6 +1,366 @@
 #logs {
 	position: relative;
 }
+.activity-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 18px;
+	min-height: 48px;
+	flex: none;
+	padding: 8px 22px;
+	border-block: 1px solid #ededee;
+}
+.activity-stats {
+	display: flex;
+	gap: 16px;
+	color: #85858e;
+	font-size: 12px;
+	white-space: nowrap;
+}
+.activity-stats b {
+	font-weight: 500;
+	color: #52525d;
+	margin-left: 4px;
+	font-variant-numeric: tabular-nums;
+}
+.activity-stats .has-errors b {
+	color: #c65a58;
+}
+.view-switch {
+	display: flex;
+	gap: 2px;
+	border: 0;
+	padding: 0;
+	margin: 0;
+}
+.view-switch button {
+	border: 0;
+	border-radius: 4px;
+	background: transparent;
+	color: #93939b;
+	font-size: 11px;
+	padding: 5px 8px;
+}
+.view-switch button[aria-pressed="true"] {
+	background: #f1f1f4;
+	color: #50505d;
+}
+.activity-search {
+	position: relative;
+	min-width: 100px;
+	width: 260px;
+	margin-left: auto;
+}
+.activity-search input {
+	width: 100%;
+	height: 30px;
+	border: 1px solid #e5e5e9;
+	border-radius: 5px;
+	padding: 0 70px 0 10px;
+	font-size: 12px;
+	color: #444;
+	background: #fff;
+}
+.activity-search input::placeholder {
+	color: #a4a4ac;
+}
+.search-count {
+	position: absolute;
+	right: 9px;
+	top: 8px;
+	color: #9797a0;
+	font-size: 10px;
+	pointer-events: none;
+}
+.activity-timeline {
+	flex: none;
+	padding: 10px 22px 10px 15px;
+	border-bottom: 1px solid #e8e8ec;
+	background: #fdfdfe;
+}
+.timeline-lane {
+	display: flex;
+	align-items: center;
+	height: 18px;
+	gap: 11px;
+}
+.timeline-label {
+	width: 46px;
+	flex: none;
+	text-align: right;
+	color: #93939e;
+	font-size: 10px;
+}
+.timeline-track {
+	position: relative;
+	flex: 1;
+	height: 12px;
+	background: repeating-linear-gradient(
+		to right,
+		transparent 0,
+		transparent calc(25% - 1px),
+		#eeeef2 calc(25% - 1px),
+		#eeeef2 25%
+	);
+}
+.timeline-event {
+	position: absolute;
+	height: 12px;
+	min-width: 1px;
+	border: 0;
+	border-right: 1px solid #fff;
+	padding: 0;
+	background: #a7a8b0;
+	border-radius: 1px;
+}
+.timeline-event.kind-activity {
+	background: #a48ac0;
+}
+.timeline-event.kind-tool,
+.timeline-event.kind-output {
+	background: #dfa04c;
+}
+.timeline-event.kind-lifecycle {
+	background: #65af8b;
+}
+.timeline-event.level-error {
+	background: #d46565;
+}
+.timeline-event:hover,
+.timeline-event.active {
+	filter: brightness(0.8);
+	outline: 2px solid #5b5870;
+	z-index: 1;
+}
+.activity-list {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #ccc transparent;
+	overscroll-behavior: contain;
+	overflow-anchor: none;
+}
+.activity-row {
+	border-bottom: 1px solid #f0f0f2;
+}
+.activity-summary {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	height: 38px;
+	padding: 0 22px 0 12px;
+	text-align: left;
+	background: #fff;
+	border: 0;
+	font-size: 12px;
+	color: #41414a;
+}
+.activity-summary:hover {
+	background: #f8f8fa;
+}
+.expanded .activity-summary {
+	background: #f4f4f7;
+}
+.activity-summary:focus-visible {
+	outline: 2px solid #b3a4c9;
+	outline-offset: -2px;
+}
+.activity-chevron {
+	width: 8px;
+	flex: none;
+	color: #b0b0b8;
+	font-size: 16px;
+}
+.activity-time {
+	flex: none;
+	color: #9696a0;
+	font-size: 10px;
+	font-variant-numeric: tabular-nums;
+	width: 47px;
+}
+.activity-badge {
+	flex: none;
+	width: 76px;
+	text-align: center;
+	font-size: 9px;
+	font-weight: 650;
+	letter-spacing: 0.4px;
+	padding: 4px 5px;
+	border-radius: 4px;
+	color: #81818e;
+	background: #f1f1f4;
+}
+.badge-activity {
+	color: #896aaa;
+	background: #f0eaf5;
+}
+.badge-tool,
+.badge-output {
+	color: #b77a26;
+	background: #fff4e3;
+}
+.badge-lifecycle {
+	color: #528d73;
+	background: #eaf4ee;
+}
+.activity-issue {
+	flex: none;
+	color: #9a99a3;
+	font-size: 10px;
+}
+.activity-preview {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	gap: 10px;
+	white-space: nowrap;
+}
+.tool-preview {
+	font-family: "Cascadia Code", Consolas, "Microsoft YaHei", monospace;
+	font-size: 11px;
+}
+.tool-name {
+	font-weight: 550;
+	flex: 0 1 auto;
+	max-width: 30%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.tool-input {
+	flex: 0 1 auto;
+	max-width: 52%;
+	color: #8a8892;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.tool-output {
+	flex: 1;
+	min-width: 0;
+	color: #898992;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.result-arrow {
+	flex: none;
+	color: #b0aeb9;
+}
+.message-preview {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.kind-service .message-preview,
+.kind-output .message-preview {
+	color: #868690;
+	font-family: "Cascadia Code", Consolas, monospace;
+	font-size: 11px;
+}
+.activity-error {
+	flex: none;
+	font-size: 10px;
+	color: #bd5555;
+}
+.level-error .tool-output,
+.level-error .message-preview,
+.error-output {
+	color: #be5555;
+}
+.activity-detail {
+	padding: 12px 24px 16px 111px;
+	background: #fafafb;
+	border-top: 1px solid #eeeef2;
+}
+.detail-label {
+	font-size: 10px;
+	color: #9693a1;
+	margin-bottom: 8px;
+}
+.activity-detail pre {
+	font:
+		11px / 1.8 "Cascadia Code",
+		Consolas,
+		"Microsoft YaHei",
+		monospace;
+	margin: 0 0 14px;
+	overflow: auto;
+	color: #65626e;
+	tab-size: 2;
+}
+.activity-detail pre:last-child {
+	margin-bottom: 0;
+}
+.activity-detail .error-output {
+	color: #be5555;
+}
+.activity-detail.detail-wrap pre {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.activity-row mark {
+	background: #fff0b5;
+	color: #5d4c18;
+	border-radius: 2px;
+}
+.raw-view {
+	display: flex;
+	flex-direction: column;
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	padding: 12px 22px 18px;
+}
+@media (max-width: 1050px) {
+	.activity-toolbar {
+		flex-wrap: wrap;
+		gap: 8px 12px;
+		padding: 8px 15px;
+	}
+	.activity-search {
+		flex: 1;
+		min-width: 130px;
+	}
+	.activity-stats {
+		gap: 10px;
+		font-size: 11px;
+	}
+	.activity-summary {
+		gap: 8px;
+		padding-right: 15px;
+	}
+	.activity-time {
+		display: none;
+	}
+	.activity-detail {
+		padding-left: 36px;
+	}
+}
+@media (max-width: 700px) {
+	.activity-search {
+		min-width: 100%;
+	}
+	.activity-toolbar .view-switch {
+		margin-left: auto;
+	}
+	.activity-badge {
+		width: 63px;
+		font-size: 8px;
+	}
+	.activity-issue {
+		display: none;
+	}
+	.activity-summary {
+		gap: 7px;
+		font-size: 11px;
+	}
+	.tool-input {
+		max-width: 45%;
+	}
+	.raw-view {
+		padding: 10px 12px;
+	}
+}
 #logs .react-lazylog-searchbar {
 	flex: none;
 	height: 44px;

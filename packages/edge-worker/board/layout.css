@@ -290,7 +290,7 @@ h1 {
 	height: 16px;
 }
 .log-controls {
-	padding: 13px 22px;
+	padding: 9px 22px;
 	display: flex;
 	align-items: center;
 	gap: 14px;
@@ -371,7 +371,7 @@ h1 {
 	min-height: 0;
 	min-width: 0;
 	overflow: hidden;
-	padding: 0 22px 18px;
+	padding: 0;
 	display: flex;
 	flex-direction: column;
 }
@@ -423,7 +423,7 @@ h1 {
 		padding: 0 15px 12px;
 	}
 	.terminal {
-		padding: 3px 12px 15px;
+		padding: 0;
 	}
 	.bar-actions {
 		gap: 6px;

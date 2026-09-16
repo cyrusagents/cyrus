@@ -226,14 +226,15 @@ function renderLogs() {
 		(l) =>
 			(!task ||
 				(l.sessionId ? l.sessionId === task.id : l.issue === task.issue)) &&
-			(source === "all" || l.source === source) &&
-			(!$("errors").checked || l.level === "error"),
+			(source === "all" || l.source === source),
 	);
 	$("log-count").textContent = `${logs.length} entries`;
 	viewer.update({
 		logs,
 		follow: $("follow").checked,
 		wrap: $("wrap").checked,
+		errorsOnly: $("errors").checked,
+		showIssue: !task,
 		scope: [selected, source, $("errors").checked].join("|"),
 	});
 }

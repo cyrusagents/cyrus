@@ -31,6 +31,42 @@ function task(id = "one"): BoardTask {
 	};
 }
 describe("task archive", () => {
+	it("preserves tool correlation across restart while accepting older unlinked logs", async () => {
+		const file = await path();
+		const archive = new BoardHistory(file);
+		await archive.ready();
+		archive.add(task(), [
+			{
+				at: 1,
+				source: "agent",
+				kind: "tool",
+				level: "info",
+				text: "Read\n{}",
+				toolCallId: "a".repeat(64),
+				sessionId: "one",
+			},
+			{
+				at: 2,
+				source: "agent",
+				kind: "output",
+				level: "info",
+				text: "",
+				toolCallId: "a".repeat(64),
+				sessionId: "one",
+			},
+			{
+				at: 3,
+				source: "agent",
+				kind: "activity",
+				level: "info",
+				text: "Old entry",
+			},
+		]);
+		await archive.flush();
+		const restored = new BoardHistory(file);
+		await restored.ready();
+		expect(restored.logs("one")).toEqual(archive.logs("one"));
+	});
 	it("bounds retention, deduplicates IDs, and never treats an archive as a live runner", async () => {
 		const archive = new BoardHistory();
 		for (let index = 0; index < 205; index++)

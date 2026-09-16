@@ -6,10 +6,22 @@ Use your configured server port if it differs from 3456. No second server, comma
 
 For this fork, follow [Fork Installation](./FORK_INSTALLATION.md) and start it with the verified source launcher. Installing the official npm package or only downloading the setup skills does not install the board changes.
 
-The English interface has a task list and a live log pane. Select a task, search tasks or logs,
-filter by source or errors, wrap long lines, pause the display, or follow new entries.
-Search supports highlighting, previous/next match navigation, and matching-line filtering.
-Scrolling up or typing a search disables Follow; enabling Follow returns to the latest output.
+The English interface has a task list and a live log pane. The default **Activity** view shows
+compact, color-coded assistant, tool, result and Cyrus rows. Tool calls and results appear together
+when explicit IDs identify the same call within the same task and runner session. Older records
+without correlation IDs keep separate result rows. Click a row to expand its recorded input/output.
+Search matches the full loaded text, including collapsed results; **Errors only** retains the call
+beside its failed result. **Wrap details** controls expanded and raw text.
+
+The three-lane activity strip shows recorded event order. Click a marker to jump to its row.
+Markers do not represent execution durations. **Span** measures the time between the first and
+last loaded entries, including idle gaps; **Calls** and **Errors** count this loaded window, not
+the task's lifetime totals. Search and error filters narrow the rows and strip together.
+
+Switch to **Raw** for the bundled React LogViewer, including line numbers, previous/next match
+navigation and matching-line filtering. Both views support pause and follow. Scrolling up,
+searching, expanding a row or selecting a timeline marker disables Follow; enabling it returns
+to the latest output. Source filters and task selection apply to both views.
 Task titles and log messages retain their original language.
 
 ## Data and status

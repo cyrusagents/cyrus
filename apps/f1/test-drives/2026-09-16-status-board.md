@@ -91,3 +91,13 @@ Validation on Windows / Node 24.9.0:
 The installer has explicit macOS/Linux execution paths, but this host only exercised Windows. It retains prior release directories and does not automatically migrate existing service commands; the launch skill performs that switch when the worker is idle.
 
 The distribution path was also exercised with skills 1.5.26: installing `nexmoe/cyrus#feat/integrated-status-board` into a disposable project downloaded all five changed skills, including the installer, launcher and source pin. The downloaded installer verified the existing smoke installation successfully. The README uses this tested `#ref` syntax because a GitHub `/tree/` URL incorrectly split the slash-containing branch name.
+
+## Compact activity UI follow-up
+
+The default log view now uses single-line, color-coded activity rows with expandable details, paired tool input/results, error highlighting, full-text search and a three-lane event strip. The Raw view retains the bundled React LogViewer. Pairing requires an opaque ID derived from the runner session and tool call, plus the same Cyrus task; older unlinked archives remain readable as separate rows. Empty tool results are retained. Statistics describe only the loaded log window, and strip markers represent event order rather than execution duration.
+
+A fresh disposable F1 repository on port 3600 ran a real Codex task that read README.md and returned `Activity pairing verified.` The tracker recorded six activities; pagination returned three entries at offset one. The board exposed two assistant entries, one tool call, one tool result and one completion entry. After terminal cleanup, the archived task was completed and its five entries projected into four rows with one correctly paired tool/result. The repository stayed clean and the idle test server was stopped.
+
+Validation: full monorepo build and typecheck passed. All 26 worker board/history/viewer/activity tests passed. The full worker suite has 818 passing tests, one skip and exactly the same 52 failing test names as the established Windows baseline. Changed-file Biome checks passed. The existing two local tasks survived the production update, and public agent entries now include correlation IDs. The existing local webhook patch was preserved by hash.
+
+Visual verification for this UI revision could not be completed: claiming the existing Edge tab timed out, and a fresh Edge tab reported `ERR_BLOCKED_BY_CLIENT` for the local URL. Browser protections were not changed. HTTP, build, data projection and real-runner validation passed; this follow-up does not claim a browser interaction or screenshot pass.
