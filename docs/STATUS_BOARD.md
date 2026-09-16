@@ -13,6 +13,14 @@ without correlation IDs keep separate result rows. Click a row to expand its rec
 Search matches the full loaded text, including collapsed results; **Errors only** retains the call
 beside its failed result. **Wrap details** controls expanded and raw text.
 
+Use the row checkboxes to select multiple entries; Shift-click selects a range. Ctrl/Cmd-click
+on a row also toggles selection. The toolbar checkbox selects all currently visible rows.
+Choose **Copy** or press **Ctrl+C / Cmd+C** while the log pane has focus to copy the selection
+in display order, with timestamps and full loaded text, including paired tool results.
+Native text selections and search fields keep their normal copy behavior. Selection stops Follow,
+survives live updates for retained rows, and clears when changing the task, filters or view.
+If browser clipboard access fails, keep focus in the pane and use the keyboard copy shortcut.
+
 The three-lane activity strip shows recorded event order. Click a marker to jump to its row.
 Markers do not represent execution durations. **Span** measures the time between the first and
 last loaded entries, including idle gaps; **Calls** and **Errors** count this loaded window, not

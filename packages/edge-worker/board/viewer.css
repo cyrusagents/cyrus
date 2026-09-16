@@ -3,6 +3,7 @@
 }
 .activity-toolbar {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 18px;
 	min-height: 48px;
@@ -144,11 +145,59 @@
 .activity-row {
 	border-bottom: 1px solid #f0f0f2;
 }
+.activity-heading {
+	display: flex;
+	align-items: stretch;
+}
+.row-select {
+	display: grid;
+	place-items: center;
+	flex: 0 0 30px;
+	cursor: pointer;
+}
+.row-select input,
+.select-visible input {
+	width: 13px;
+	height: 13px;
+	margin: 0;
+	accent-color: #8671a4;
+	cursor: pointer;
+}
+.select-visible {
+	display: flex;
+	align-items: center;
+}
+.selection-actions {
+	display: flex;
+	gap: 8px;
+	white-space: nowrap;
+}
+.selection-actions button {
+	border: 0;
+	border-radius: 4px;
+	background: #f1f1f4;
+	color: #61556f;
+	padding: 5px 8px;
+	font-size: 11px;
+}
+.selection-actions button:disabled {
+	color: #aaa;
+	background: transparent;
+}
+.copy-status {
+	flex: none;
+	padding: 6px 22px;
+	font-size: 11px;
+	color: #716081;
+	background: #faf8fd;
+	border-bottom: 1px solid #eeeaf3;
+}
 .activity-summary {
 	display: flex;
 	align-items: center;
 	gap: 12px;
 	width: 100%;
+	min-width: 0;
 	height: 38px;
 	padding: 0 22px 0 12px;
 	text-align: left;
@@ -268,7 +317,7 @@
 	color: #be5555;
 }
 .activity-detail {
-	padding: 12px 24px 16px 111px;
+	padding: 12px 24px 16px 141px;
 	background: #fafafb;
 	border-top: 1px solid #eeeef2;
 }
@@ -519,4 +568,11 @@
 		margin-right: 8px;
 		margin-left: 4px;
 	}
+}
+.row-checked .activity-heading,
+.row-checked .activity-summary {
+	background: #f0edf7;
+}
+.row-checked .activity-detail {
+	background: #f7f5fb;
 }

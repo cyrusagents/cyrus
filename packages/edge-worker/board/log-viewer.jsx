@@ -7,6 +7,7 @@ import {
 	rowLabel,
 	visibleRows,
 } from "./activity-model.mjs";
+import { selectionText, selectRows } from "./activity-selection.mjs";
 import { RawLogView } from "./raw-log-viewer.jsx";
 import "./viewer.css";
 
@@ -29,66 +30,101 @@ function Highlight({ text = "", query }) {
 	);
 }
 
-function ActivityRow({ row, query, expanded, onToggle, showIssue, wrap }) {
+function ActivityRow({
+	row,
+	query,
+	expanded,
+	onToggle,
+	showIssue,
+	wrap,
+	checked,
+	onSelect,
+}) {
 	const { log, output, name, input } = row;
 	return (
 		<div
-			className={`activity-row kind-${log.kind} level-${row.level}${expanded ? " expanded" : ""}`}
+			className={`activity-row kind-${log.kind} level-${row.level}${expanded ? " expanded" : ""}${checked ? " row-checked" : ""}`}
 		>
-			<button
-				type="button"
-				className="activity-summary"
-				aria-expanded={expanded}
-				onClick={onToggle}
-			>
-				<span className="activity-chevron" aria-hidden="true">
-					{expanded ? "⌄" : "›"}
-				</span>
-				<time
-					className="activity-time"
-					dateTime={
-						Number.isFinite(log.at) ? new Date(log.at).toISOString() : undefined
-					}
+			<div className="activity-heading">
+				<label
+					className="row-select"
+					title="Select row · Shift-click to select a range"
 				>
-					{time(log.at)}
-				</time>
-				<span className={`activity-badge badge-${log.kind}`}>
-					{rowLabel(row)}
-				</span>
-				{showIssue && log.issue && (
-					<span className="activity-issue">{log.issue}</span>
-				)}
-				<span className={`activity-preview${name ? " tool-preview" : ""}`}>
-					{name ? (
-						<>
-							<strong className="tool-name">
-								<Highlight text={name} query={query} />
-							</strong>
-							<span className="tool-input">
-								<Highlight text={input} query={query} />
-							</span>
-							{output && (
-								<>
-									<span className="result-arrow" aria-hidden="true">
-										→
-									</span>
-									<span className="tool-output">
-										<Highlight
-											text={output.text || "(empty result)"}
-											query={query}
-										/>
-									</span>
-								</>
-							)}
-						</>
-					) : (
-						<span className="message-preview">
-							<Highlight text={log.text || "(empty result)"} query={query} />
-						</span>
+					<input
+						type="checkbox"
+						checked={checked}
+						aria-label={`Select ${rowLabel(row)} at ${time(log.at)}${row.name ? `: ${row.name}` : ""}`}
+						onChange={(event) =>
+							onSelect(
+								Boolean(event.nativeEvent.shiftKey),
+								event.target.checked,
+							)
+						}
+					/>
+				</label>
+				<button
+					type="button"
+					className="activity-summary"
+					aria-expanded={expanded}
+					onClick={(event) => {
+						if (event.shiftKey || event.ctrlKey || event.metaKey)
+							onSelect(event.shiftKey, !checked);
+						else onToggle();
+					}}
+				>
+					<span className="activity-chevron" aria-hidden="true">
+						{expanded ? "⌄" : "›"}
+					</span>
+					<time
+						className="activity-time"
+						dateTime={
+							Number.isFinite(log.at)
+								? new Date(log.at).toISOString()
+								: undefined
+						}
+					>
+						{time(log.at)}
+					</time>
+					<span className={`activity-badge badge-${log.kind}`}>
+						{rowLabel(row)}
+					</span>
+					{showIssue && log.issue && (
+						<span className="activity-issue">{log.issue}</span>
 					)}
-				</span>
-				{row.level === "error" && <span className="activity-error">Error</span>}
-			</button>
+					<span className={`activity-preview${name ? " tool-preview" : ""}`}>
+						{name ? (
+							<>
+								<strong className="tool-name">
+									<Highlight text={name} query={query} />
+								</strong>
+								<span className="tool-input">
+									<Highlight text={input} query={query} />
+								</span>
+								{output && (
+									<>
+										<span className="result-arrow" aria-hidden="true">
+											→
+										</span>
+										<span className="tool-output">
+											<Highlight
+												text={output.text || "(empty result)"}
+												query={query}
+											/>
+										</span>
+									</>
+								)}
+							</>
+						) : (
+							<span className="message-preview">
+								<Highlight text={log.text || "(empty result)"} query={query} />
+							</span>
+						)}
+					</span>
+					{row.level === "error" && (
+						<span className="activity-error">Error</span>
+					)}
+				</button>
+			</div>
 			{expanded && (
 				<div className={`activity-detail${wrap ? " detail-wrap" : ""}`}>
 					{name ? (
@@ -173,10 +209,16 @@ function LogView({
 	errorsOnly,
 	showIssue,
 	stopFollowing,
+	rootElement,
 }) {
 	const [mode, setMode] = useState("activity"),
 		[query, setQuery] = useState(""),
 		[expanded, setExpanded] = useState(null);
+	const [selected, setSelected] = useState(new Set()),
+		[copyStatus, setCopyStatus] = useState("");
+	const anchor = useRef(null),
+		selectAll = useRef(null),
+		copyRequest = useRef(0);
 	const list = useRef(null),
 		rowNodes = useRef(new Map());
 	const rows = useMemo(() => activityRows(logs), [logs]);
@@ -185,6 +227,76 @@ function LogView({
 		() => visibleRows(rows, query, errorsOnly),
 		[rows, query, errorsOnly],
 	);
+	const selectedCount = visible.filter((row) => selected.has(row.key)).length;
+	const copyText = useMemo(
+		() => selectionText(visible, selected),
+		[visible, selected],
+	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Selection belongs to the current task, filters and view.
+	useEffect(() => {
+		setSelected(new Set());
+		anchor.current = null;
+	}, [scope, query, mode]);
+	useEffect(() => {
+		const keys = new Set(visible.map((row) => row.key));
+		setSelected((previous) => {
+			const retained = new Set([...previous].filter((key) => keys.has(key)));
+			return retained.size === previous.size ? previous : retained;
+		});
+	}, [visible]);
+	useEffect(() => {
+		if (selectAll.current)
+			selectAll.current.indeterminate =
+				selectedCount > 0 && selectedCount < visible.length;
+	}, [selectedCount, visible.length]);
+	useEffect(() => {
+		copyRequest.current++;
+		setCopyStatus("");
+		function copy(event) {
+			// Native text selection and editable fields keep their normal copy behavior.
+			if (
+				!copyText ||
+				mode !== "activity" ||
+				!event.clipboardData ||
+				window.getSelection()?.toString() ||
+				event.target.closest?.(
+					'input:not([type="checkbox"]), textarea, [contenteditable="true"]',
+				)
+			)
+				return;
+			event.clipboardData.setData("text/plain", copyText);
+			event.preventDefault();
+			setCopyStatus(
+				`Copied ${selectedCount} ${selectedCount === 1 ? "row" : "rows"}`,
+			);
+		}
+		rootElement.addEventListener("copy", copy);
+		return () => rootElement.removeEventListener("copy", copy);
+	}, [copyText, mode, rootElement, selectedCount]);
+	function select(row, range, checked) {
+		stopFollowing();
+		const previousAnchor = anchor.current;
+		setSelected((previous) =>
+			selectRows(visible, previous, row.key, previousAnchor, range, checked),
+		);
+		if (!range || !visible.some((item) => item.key === anchor.current))
+			anchor.current = row.key;
+	}
+	async function copySelected() {
+		const request = ++copyRequest.current;
+		try {
+			await navigator.clipboard.writeText(copyText);
+			if (request === copyRequest.current)
+				setCopyStatus(
+					`Copied ${selectedCount} ${selectedCount === 1 ? "row" : "rows"}`,
+				);
+		} catch {
+			if (request === copyRequest.current)
+				setCopyStatus(
+					"Clipboard unavailable. Press Ctrl+C / ⌘C to copy selected rows.",
+				);
+		}
+	}
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Reset expansion when the selected task or source changes.
 	useEffect(() => {
 		setExpanded(null);
@@ -207,6 +319,26 @@ function LogView({
 	return (
 		<>
 			<div className="activity-toolbar">
+				{mode === "activity" && (
+					<label className="select-visible" title="Select all visible rows">
+						<input
+							ref={selectAll}
+							type="checkbox"
+							aria-label="Select all visible rows"
+							checked={visible.length > 0 && selectedCount === visible.length}
+							disabled={!visible.length}
+							onChange={(event) => {
+								stopFollowing();
+								setSelected(
+									new Set(
+										event.target.checked ? visible.map((row) => row.key) : [],
+									),
+								);
+								anchor.current = null;
+							}}
+						/>
+					</label>
+				)}
 				<div
 					className="activity-stats"
 					title="Statistics for the loaded logs. Span is the time between the first and last recorded entries, including idle gaps."
@@ -234,6 +366,29 @@ function LogView({
 					))}
 				</fieldset>
 				{mode === "activity" && (
+					<div className="selection-actions">
+						<button
+							type="button"
+							disabled={!selectedCount}
+							title="Copy selected rows (Ctrl+C / ⌘C)"
+							onClick={copySelected}
+						>
+							Copy{selectedCount ? ` (${selectedCount})` : " selected"}
+						</button>
+						{selectedCount > 0 && (
+							<button
+								type="button"
+								onClick={() => {
+									setSelected(new Set());
+									anchor.current = null;
+								}}
+							>
+								Clear
+							</button>
+						)}
+					</div>
+				)}
+				{mode === "activity" && (
 					<label className="activity-search">
 						<span className="sr-only">Search activity</span>
 						<input
@@ -251,6 +406,11 @@ function LogView({
 					</label>
 				)}
 			</div>
+			{copyStatus && (
+				<div className="copy-status" role="status">
+					{copyStatus}
+				</div>
+			)}
 			{mode === "activity" ? (
 				<>
 					<Timeline rows={visible} selected={expanded} onSelect={jump} />
@@ -274,6 +434,8 @@ function LogView({
 										expanded={expanded === row.key}
 										showIssue={showIssue}
 										wrap={wrap}
+										checked={selected.has(row.key)}
+										onSelect={(range, checked) => select(row, range, checked)}
 										onToggle={() => {
 											stopFollowing();
 											setExpanded(expanded === row.key ? null : row.key);
@@ -318,7 +480,13 @@ export function createLogViewer(container, onStopFollowing) {
 		draw();
 	}
 	function draw() {
-		root.render(<LogView {...current} stopFollowing={stopFollowing} />);
+		root.render(
+			<LogView
+				{...current}
+				rootElement={container}
+				stopFollowing={stopFollowing}
+			/>,
+		);
 	}
 	container.addEventListener(
 		"wheel",

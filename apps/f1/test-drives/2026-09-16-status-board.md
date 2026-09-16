@@ -104,3 +104,11 @@ Visual verification for this UI revision could not be completed: claiming the ex
 
 The setup pin was advanced to activity runtime commit b5df78c8aef9f1072f382df8c945f2be2d7d4ab6. The bundled installer fetched and built that revision in an isolated directory, and its board JavaScript hash matches the deployed local build. All four installer regression tests still pass.
 
+
+## Multi-row copy follow-up
+
+Activity rows now support checkbox selection, Shift ranges, Ctrl/Cmd-click toggling, selecting all visible rows, and copying with a button or Ctrl/Cmd+C. Copied text includes timestamps, full loaded text, and paired tool results in display order. Native text selection keeps standard clipboard behavior. Selection stops Follow, remains attached to retained rows during live updates, and clears when changing task, filters or view.
+
+Three new regression tests cover individual/range selection, filtered ranges and expired anchors, and exact full-text serialization with paired results and hidden/unselected rows excluded. The board build and changed-file Biome checks pass. The full worker suite has 821 passing tests, one skip, and the same 52 baseline failures with no changed failing test names.
+
+Edge verification now succeeds, superseding the previous visual-verification limitation: the updated compact layout was inspected, Shift-click selected three rows without expanding them and disabled Follow, button and keyboard copying produced identical full text including paired results, filtered Select All selected only visible rows, and changing filters cleared selection. The page had no horizontal overflow or browser console errors. The user's clipboard was cleared back to its original empty state after verification. Only static assets were updated locally; no agent restart was needed. User log content and screenshots are not included in the repository.
