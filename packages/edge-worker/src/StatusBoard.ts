@@ -114,6 +114,45 @@ export function boardMessageLogs(
 	return logs;
 }
 
+function savedEntryLog(
+	entry: CyrusAgentSessionEntry,
+	fallbackTime: number,
+): BoardLog | undefined {
+	const toolResult =
+		entry.type === "user" && Boolean(entry.metadata?.toolUseId);
+	if (entry.type !== "assistant" && entry.type !== "result" && !toolResult)
+		return;
+	const toolCall =
+		entry.type === "assistant" && Boolean(entry.metadata?.toolName);
+	const content =
+		toolCall && entry.metadata?.toolInput !== undefined
+			? `${entry.metadata.toolName}\n${text(entry.metadata.toolInput)}`
+			: entry.content;
+	if (!content) return;
+	return {
+		at: entry.metadata?.timestamp ?? fallbackTime,
+		source: "agent",
+		level:
+			entry.metadata?.isError ||
+			entry.metadata?.toolResultError ||
+			entry.metadata?.sdkError
+				? "error"
+				: "info",
+		kind: toolResult
+			? "output"
+			: toolCall
+				? "tool"
+				: entry.type === "result"
+					? "lifecycle"
+					: "activity",
+		text: bounded(content),
+	};
+}
+
+function outputKey(runnerSessionId: string, log: BoardLog): string {
+	return JSON.stringify([runnerSessionId, log.kind, log.text]);
+}
+
 /** A process-local, bounded view of the sessions Cyrus already owns. */
 export class StatusBoard {
 	private serviceLogs: BoardLog[] = [];
@@ -182,6 +221,29 @@ export class StatusBoard {
 			this.observed.set(session.id, { runner, running, startedAt, seen: true });
 			const messages = runner?.getMessages() ?? [];
 			let lastActivityAt = session.updatedAt;
+			// The manager retains previous turns even when a resumed runner starts
+			// with an empty message buffer. Saved output is the history source.
+			const savedCounts = new Map<string, number>();
+			const savedEntries = this.options.getEntries(session.id).slice(-MAX_LOGS);
+			for (const entry of savedEntries) {
+				const log = savedEntryLog(entry, session.updatedAt);
+				if (!log) continue;
+				const runnerSessionId =
+					entry.codexSessionId ??
+					entry.claudeSessionId ??
+					entry.geminiSessionId ??
+					entry.cursorSessionId ??
+					entry.opencodeSessionId ??
+					"";
+				const key = outputKey(runnerSessionId, log);
+				savedCounts.set(key, (savedCounts.get(key) ?? 0) + 1);
+				lastActivityAt = Math.max(lastActivityAt, log.at);
+				logs.push({
+					...log,
+					sessionId: session.id,
+					issue: session.issue?.identifier,
+				});
+			}
 			for (const message of messages.slice(-160)) {
 				let at = this.messageTimes.get(message);
 				if (at === undefined) {
@@ -189,27 +251,18 @@ export class StatusBoard {
 					this.messageTimes.set(message, at);
 				}
 				const entries = boardMessageLogs(message, at);
-				if (entries.length) lastActivityAt = Math.max(lastActivityAt, at);
-				for (const entry of entries)
+				for (const entry of entries) {
+					const runnerSessionId =
+						"session_id" in message ? (message.session_id ?? "") : "";
+					const key = outputKey(runnerSessionId, entry);
+					const savedCount = savedCounts.get(key) ?? 0;
+					if (savedCount > 0) {
+						savedCounts.set(key, savedCount - 1);
+						continue;
+					}
+					lastActivityAt = Math.max(lastActivityAt, at);
 					logs.push({
 						...entry,
-						sessionId: session.id,
-						issue: session.issue?.identifier,
-					});
-			}
-			// Restored sessions have no runner. Only show persisted public outputs.
-			if (!runner) {
-				for (const entry of this.options.getEntries(session.id).slice(-160)) {
-					if (entry.type !== "assistant" && entry.type !== "result") continue;
-					logs.push({
-						at: entry.metadata?.timestamp ?? session.updatedAt,
-						source: "agent",
-						level:
-							entry.metadata?.isError || entry.metadata?.toolResultError
-								? "error"
-								: "info",
-						kind: entry.type === "result" ? "lifecycle" : "activity",
-						text: bounded(entry.content),
 						sessionId: session.id,
 						issue: session.issue?.identifier,
 					});

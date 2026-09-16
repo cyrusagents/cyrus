@@ -16,7 +16,8 @@ Task titles and log messages retain their original language.
 - The board includes issue sessions and chat sessions managed by this Cyrus instance.
 - Agent logs include assistant text, tool calls, tool results, and completion/error results from the common runner message interface.
 - Cyrus logs come from its structured logger, starting when the board is registered. Historical stdout/stderr files are not scanned.
-- After a restart, available saved assistant/result entries provide recent history for restored issue sessions.
+- Saved assistant, tool, tool-result and completion entries are merged with live output, including after a restart or a resumed turn. Matching output is shown once, using its saved timestamp.
+- The task list follows Cyrus's retained sessions. Tasks removed by Cyrus cleanup are not independently archived by the board.
 - Snapshots retain at most 60 sessions, prioritizing running tasks, and 650 recent log entries. Individual entries are limited to 4,000 characters.
 - Agent messages use the session update time for initial history and the time first observed by the board for new messages. These are observation times, not exact SDK event timestamps.
 

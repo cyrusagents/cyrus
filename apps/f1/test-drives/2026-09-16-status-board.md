@@ -54,3 +54,11 @@ pnpm audit --registry=https://registry.npmjs.org
 ## Retrospective
 
 The existing server can provide a useful live view directly from its owned runners and structured logger. No process scanning, credentials/config serialization, standalone listener, or production restart was needed. Remaining validation limitations are the baseline Windows checks and the blocked Edge visual check described above.
+
+## History regression follow-up
+
+A resumed runner has a new message buffer even though the session manager still retains previous turns. The original board only read saved entries when there was no runner, so resuming a session hid its history. Two regression tests reproduced this omission and the loss of saved timestamps before the fix.
+
+The board now merges saved public output with the runner buffer and suppresses overlapping entries by runner session ID, output kind and content, preserving occurrence counts and saved timestamps. Saved tool results are included; plain user prompts remain excluded. This also restores tool names in historical output.
+
+Validation: all 17 board/logger tests pass; full build and typecheck pass. The worker suite has 807 passing tests, one skip, and the same 52 Windows failures present in the base commit, with no new failures. A local saved-state check confirmed that history remains visible even with an empty replacement runner. This fixes retained history visibility; it does not restore tasks previously deleted by session cleanup.

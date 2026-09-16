@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import {
 	type AgentMessage,
 	type CyrusAgentSession,
+	type CyrusAgentSessionEntry,
 	createLogger,
 	type IAgentRunner,
 } from "cyrus-core";
@@ -60,6 +61,95 @@ function board(sessions: CyrusAgentSession[] = []) {
 const message = (value: unknown) => value as AgentMessage;
 
 describe("status board snapshots", () => {
+	it("keeps saved history when a resumed runner has only the new turn", () => {
+		const task = session();
+		task.agentRunner!.getMessages = () => [
+			message({
+				type: "result",
+				session_id: "new-turn",
+				is_error: true,
+				errors: ["New turn failed"],
+			}),
+		];
+		const entries: CyrusAgentSessionEntry[] = [
+			{
+				type: "assistant",
+				content: "Previous investigation",
+				codexSessionId: "old-turn",
+				metadata: { timestamp: 100 },
+			},
+			{
+				type: "assistant",
+				content: "{}",
+				codexSessionId: "old-turn",
+				metadata: {
+					timestamp: 110,
+					toolUseId: "tool-1",
+					toolName: "Read",
+					toolInput: { path: "README.md" },
+				},
+			},
+			{
+				type: "user",
+				content: "Previous tool output",
+				codexSessionId: "old-turn",
+				metadata: {
+					timestamp: 120,
+					toolUseId: "tool-1",
+					toolResultError: false,
+				},
+			},
+			{ type: "user", content: "PRIVATE_PROMPT", metadata: { timestamp: 130 } },
+			{
+				type: "result",
+				content: "Previous turn completed",
+				codexSessionId: "old-turn",
+				metadata: { timestamp: 140, isError: false },
+			},
+		];
+		const view = new StatusBoard({
+			...options([task]),
+			getEntries: () => entries,
+		});
+		cleanups.push(() => view.close());
+		const result = view.snapshot();
+		expect(result.logs.map((log) => log.text)).toEqual([
+			"Previous investigation",
+			'Read\n{"path":"README.md"}',
+			"Previous tool output",
+			"Previous turn completed",
+			"New turn failed",
+		]);
+		expect(result.logs.slice(0, 4).map((log) => log.at)).toEqual([
+			100, 110, 120, 140,
+		]);
+		expect(result.tasks[0]?.status).toBe("error");
+	});
+	it("does not duplicate saved output when the runner still contains it", () => {
+		const task = session();
+		task.agentRunner!.getMessages = () => [
+			message({
+				type: "assistant",
+				session_id: "turn",
+				message: { content: [{ type: "text", text: "Already saved" }] },
+			}),
+		];
+		const view = new StatusBoard({
+			...options([task]),
+			getEntries: () => [
+				{
+					type: "assistant",
+					content: "Already saved",
+					codexSessionId: "turn",
+					metadata: { timestamp: 110 },
+				},
+			],
+		});
+		cleanups.push(() => view.close());
+		expect(view.snapshot().logs).toEqual([
+			expect.objectContaining({ text: "Already saved", at: 110 }),
+		]);
+	});
 	it("uses each live runner, not a stale session status or the process-wide busy flag", () => {
 		const running = session("running", true);
 		running.status = "error" as CyrusAgentSession["status"];
