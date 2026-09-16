@@ -101,3 +101,6 @@ A fresh disposable F1 repository on port 3600 ran a real Codex task that read RE
 Validation: full monorepo build and typecheck passed. All 26 worker board/history/viewer/activity tests passed. The full worker suite has 818 passing tests, one skip and exactly the same 52 failing test names as the established Windows baseline. Changed-file Biome checks passed. The existing two local tasks survived the production update, and public agent entries now include correlation IDs. The existing local webhook patch was preserved by hash.
 
 Visual verification for this UI revision could not be completed: claiming the existing Edge tab timed out, and a fresh Edge tab reported `ERR_BLOCKED_BY_CLIENT` for the local URL. Browser protections were not changed. HTTP, build, data projection and real-runner validation passed; this follow-up does not claim a browser interaction or screenshot pass.
+
+The setup pin was advanced to activity runtime commit b5df78c8aef9f1072f382df8c945f2be2d7d4ab6. The bundled installer fetched and built that revision in an isolated directory, and its board JavaScript hash matches the deployed local build. All four installer regression tests still pass.
+
