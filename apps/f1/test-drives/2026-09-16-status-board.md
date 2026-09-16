@@ -144,3 +144,9 @@ Esc clears activity row selection, the Shift-selection anchor and copy feedback 
 In Edge, selecting all 140 rows followed by Esc cleared every row, reset the select-all checkbox and removed the copy actions. Esc from the search field cleared a filtered selection while preserving its query. A single-row selection with the options panel open was also cleared, and the panel closed. No console errors were recorded. In-progress marquee cancellation was reviewed in code rather than separately exercised in the browser.
 
 The board build and changed-file Biome checks pass. The complete worker suite remains at 822 passes, one skip and the same 52 baseline failing test names. Only the local JavaScript asset was replaced; Cyrus was not restarted.
+
+## Full-row highlighting follow-up
+
+Hover, expanded and selected backgrounds now belong to the complete activity heading, including its checkbox and left gutter. The summary button is transparent so the row has one continuous background in every state.
+
+Edge mouse movement over the checkbox and summary produced the same `rgb(248, 248, 250)` heading background. Expanded and selected states covered the same region, with the button remaining transparent. Expanding, selecting, clearing with Esc and collapsing still worked; the console had no errors. The board build and CSS Biome check pass. This CSS-only change was checked in the browser without adding redundant unit tests; only the local CSS asset was replaced.

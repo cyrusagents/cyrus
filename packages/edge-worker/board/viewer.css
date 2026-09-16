@@ -274,6 +274,7 @@
 	display: flex;
 	align-items: stretch;
 	padding-left: var(--board-gutter);
+	background: #fff;
 }
 .row-select {
 	display: grid;
@@ -321,15 +322,15 @@
 	height: 38px;
 	padding: 0 var(--board-gutter) 0 0;
 	text-align: left;
-	background: #fff;
+	background: transparent;
 	border: 0;
 	font-size: 12px;
 	color: #41414a;
 }
-.activity-summary:hover {
+.activity-heading:hover {
 	background: #f8f8fa;
 }
-.expanded .activity-summary {
+.expanded .activity-heading {
 	background: #f4f4f7;
 }
 .activity-summary:focus-visible {
@@ -695,8 +696,7 @@
 		margin-left: 4px;
 	}
 }
-.row-checked .activity-heading,
-.row-checked .activity-summary {
+.row-checked .activity-heading {
 	background: #f0edf7;
 }
 .row-checked .activity-detail {
