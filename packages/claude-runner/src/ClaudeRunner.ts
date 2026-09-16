@@ -38,6 +38,7 @@ import {
 } from "./sandbox-requirements.js";
 import {
 	buildBaseSessionEnv,
+	buildOmitEnv,
 	normalizeMcpHttpTransport,
 } from "./session-env.js";
 import type {
@@ -668,7 +669,11 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// load file based settings, to maintain more backwards compatibility,
 					// particularly with CLAUDE.md files, settings files, and custom slash commands,
 					// see: https://docs.claude.com/en/docs/claude-code/sdk/migration-guide#settings-sources-no-longer-loaded-by-default
-					settingSources: ["user", "project", "local"],
+					// File settings can re-inject env credentials after the SDK's
+					// env overlay. A filtered session must not load those sources.
+					settingSources: this.config.omitEnv?.length
+						? []
+						: ["user", "project", "local"],
 					env: {
 						...buildBaseSessionEnv(),
 						// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally NOT set while
@@ -678,6 +683,10 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 						// See: CYPACK-1108.
 						...this.repositoryEnv,
 						...this.config.additionalEnv,
+						// Per-session credential isolation: host vars listed in omitEnv
+						// (e.g. ANTHROPIC_API_KEY when a per-prompter OAuth token is in
+						// use) are unset so they cannot win over additionalEnv.
+						...buildOmitEnv(this.config.omitEnv),
 						// When logging at DEBUG level, enable the SDK's own debug output so
 						// --debug-to-stderr and DEBUG=1 propagate to the Claude subprocess.
 						// Explicitly set or unset to override any leaked value from process.env.

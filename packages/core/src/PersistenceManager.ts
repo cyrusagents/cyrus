@@ -88,6 +88,7 @@ export interface V3SerializableEdgeWorkerState {
 export class PersistenceManager {
 	private persistencePath: string;
 	private logger: ILogger;
+	private pendingSave: Promise<void> = Promise.resolve();
 
 	constructor(persistencePath?: string, logger?: ILogger) {
 		this.persistencePath =
@@ -113,20 +114,36 @@ export class PersistenceManager {
 	 * Save EdgeWorker state to disk (single file for all repositories)
 	 */
 	async saveEdgeWorkerState(state: SerializableEdgeWorkerState): Promise<void> {
-		try {
-			await this.ensurePersistenceDirectory();
-			const stateFile = this.getEdgeWorkerStateFilePath();
-			const stateData = {
+		// Concurrent sessions share this manager and the atomic-write temp file.
+		// Capture each snapshot now, then write in request order so an older save
+		// cannot replace a newer one or rename its temporary file out from under it.
+		const serialized = JSON.stringify(
+			{
 				version: PERSISTENCE_VERSION,
 				savedAt: new Date().toISOString(),
 				state,
-			};
+			},
+			null,
+			2,
+		);
+		const save = this.pendingSave.then(() =>
+			this.writeStateSnapshot(serialized),
+		);
+		// Preserve the error for this caller without blocking all future saves.
+		this.pendingSave = save.catch(() => {});
+		await save;
+	}
+
+	private async writeStateSnapshot(serialized: string): Promise<void> {
+		try {
+			await this.ensurePersistenceDirectory();
+			const stateFile = this.getEdgeWorkerStateFilePath();
 			// Write-then-rename so the state file is always a complete document.
 			// A plain writeFile interrupted mid-write (SIGKILL, OOM kill, power
 			// loss) leaves truncated JSON that the next boot cannot parse, which
 			// orphans every in-flight session.
 			const tmpFile = `${stateFile}.tmp`;
-			await writeFile(tmpFile, JSON.stringify(stateData, null, 2), "utf8");
+			await writeFile(tmpFile, serialized, "utf8");
 			await rename(tmpFile, stateFile);
 		} catch (error) {
 			this.logger.error("Failed to save EdgeWorker state:", error);

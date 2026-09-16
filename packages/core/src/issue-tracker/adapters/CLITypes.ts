@@ -402,7 +402,15 @@ export function createCLIIssue(
 /**
  * Create a CLI Comment object compatible with our Pick-based Comment type.
  */
-export function createCLIComment(data: CLICommentData): Comment {
+export function createCLIComment(
+	data: CLICommentData,
+	/**
+	 * Optional lookup so `comment.user` resolves to the authoring CLI user —
+	 * the EdgeWorker reads `(await comment.user).id` to attribute follow-up
+	 * prompts to a human (per-prompter credential resolution).
+	 */
+	resolveUser?: (userId: string) => User | undefined,
+): Comment {
 	const comment = {
 		id: data.id,
 		body: data.body,
@@ -432,7 +440,15 @@ export function createCLIComment(data: CLICommentData): Comment {
 
 		// Relationship getters (return Promise<Type> | undefined)
 		get user() {
-			return undefined;
+			const user =
+				data.userId && resolveUser ? resolveUser(data.userId) : undefined;
+			// Our `User` is a Pick of the SDK user; callers only read the picked
+			// fields, so widen the promise to the SDK's LinearFetch<User> shape.
+			return user
+				? (Promise.resolve(
+						user,
+					) as unknown as LinearSDK.LinearFetch<LinearSDK.User>)
+				: undefined;
 		},
 		get issue() {
 			return undefined;

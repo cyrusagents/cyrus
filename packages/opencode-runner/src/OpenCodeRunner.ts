@@ -10,6 +10,7 @@ import type {
 	SDKResultMessage,
 	SDKUserMessage,
 } from "cyrus-core";
+import { buildRunnerEnvironment } from "cyrus-core";
 import {
 	buildOpenCodeConfig,
 	buildOpenCodeRuntimeEnv,
@@ -389,11 +390,11 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 			ensureOpenCodeStateDirectories(runtimeEnv);
 			const child = spawn(this.config.openCodePath || "opencode", args, {
 				cwd: this.config.workingDirectory || cwd(),
-				env: {
+				env: buildRunnerEnvironment(this.config, {
 					...process.env,
 					...this.config.env,
 					...runtimeEnv,
-				},
+				}),
 				stdio: ["pipe", "pipe", "pipe"],
 			});
 			this.process = child;

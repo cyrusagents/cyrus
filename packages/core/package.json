@@ -12,7 +12,8 @@
 	"types": "dist/index.d.ts",
 	"files": [
 		"dist",
-		"schemas"
+		"schemas",
+		"github-scripts"
 	],
 	"scripts": {
 		"build": "tsgo",

@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
 	chmodSync,
-	copyFileSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
@@ -9,21 +8,12 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { GitHubTokenStore } from "cyrus-core";
+import { ensureGitHubScripts, GitHubTokenStore } from "cyrus-core";
 import {
 	type ApiResponse,
 	type GitHubTokensPayload,
 	GitHubTokensPayloadSchema,
 } from "../types.js";
-
-/** Path of a bundled script within this package's scripts/ directory */
-function bundledScriptPath(scriptName: string): string {
-	// Resolves from both src/handlers (tests) and dist/handlers (published)
-	// to <package root>/scripts/<scriptName>.
-	const here = dirname(fileURLToPath(import.meta.url));
-	return join(here, "..", "..", "scripts", scriptName);
-}
 
 /**
  * Install the per-invocation gh token resolver to
@@ -37,7 +27,7 @@ export function ensureGhTokenResolver(cyrusHome: string): string {
 	const scriptDir = join(cyrusHome, "scripts");
 	const scriptDest = join(scriptDir, "gh-cyrus.cjs");
 	mkdirSync(scriptDir, { recursive: true });
-	copyFileSync(bundledScriptPath("gh-cyrus.cjs"), scriptDest);
+	ensureGitHubScripts(cyrusHome);
 	chmodSync(scriptDest, 0o755);
 	return scriptDest;
 }
@@ -63,7 +53,7 @@ export function ensureGitHubCredentialHelper(cyrusHome: string): string {
 	const scriptDest = join(scriptDir, "git-credential-cyrus.cjs");
 
 	mkdirSync(scriptDir, { recursive: true });
-	copyFileSync(bundledScriptPath("git-credential-cyrus.cjs"), scriptDest);
+	ensureGitHubScripts(cyrusHome);
 	chmodSync(scriptDest, 0o755);
 
 	const credentialKey = "credential.https://github.com";
