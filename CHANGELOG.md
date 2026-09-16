@@ -4,8 +4,63 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.73] - 2026-09-16
+
 ### Fixed
 - Linear webhooks from all twelve published outbound IP addresses are now accepted, preventing missed events as Linear rolls out new source addresses. ([CYPACK-1518](https://linear.app/ceedar/issue/CYPACK-1518), [#1481](https://github.com/cyrusagents/cyrus/pull/1481))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.73
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.73
+
+#### cyrus-core
+- cyrus-core@0.2.73
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.73
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.73
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.73
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.73
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.73
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.73
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.73
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.73
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.73
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.73
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.73
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.73
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.73
+
+#### cyrus-ai
+- cyrus-ai@0.2.73 ([CYPACK-1519](https://linear.app/ceedar/issue/CYPACK-1519/run-a-release))
 
 ## [0.2.72] - 2026-09-15
 
