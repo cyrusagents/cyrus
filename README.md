@@ -36,7 +36,7 @@ The skills install the **nexmoe/cyrus fork from a tested source commit**, includ
 **Before this PR is merged into `main`, install its skills explicitly:**
 
 ```bash
-npx skills add https://github.com/nexmoe/cyrus/tree/feat/integrated-status-board -g
+npx skills add "nexmoe/cyrus#feat/integrated-status-board" -g
 ```
 
 See **[Fork Installation](./docs/FORK_INSTALLATION.md)** for requirements, the verified launcher, updates and source commit verification. The existing npm version number alone does not identify a fork build.

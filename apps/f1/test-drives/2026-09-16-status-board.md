@@ -89,3 +89,5 @@ Validation on Windows / Node 24.9.0:
 - After the launcher smoke test stopped, F1's additional development dependencies were installed in the disposable source release. A real Codex task read README.md and returned `Fresh fork verified.` Its six activities were checked with pagination. Terminal cleanup retained an archived completed task with five log entries and the final result. The test repository stayed clean.
 
 The installer has explicit macOS/Linux execution paths, but this host only exercised Windows. It retains prior release directories and does not automatically migrate existing service commands; the launch skill performs that switch when the worker is idle.
+
+The distribution path was also exercised with skills 1.5.26: installing `nexmoe/cyrus#feat/integrated-status-board` into a disposable project downloaded all five changed skills, including the installer, launcher and source pin. The downloaded installer verified the existing smoke installation successfully. The README uses this tested `#ref` syntax because a GitHub `/tree/` URL incorrectly split the slash-containing branch name.

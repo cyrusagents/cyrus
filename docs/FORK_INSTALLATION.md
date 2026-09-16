@@ -5,10 +5,12 @@
 Until PR #1 is merged, obtain the updated skills from its branch:
 
 ```bash
-npx skills add https://github.com/nexmoe/cyrus/tree/feat/integrated-status-board -g
+npx skills add "nexmoe/cyrus#feat/integrated-status-board" -g
 ```
 
 The tested runtime commit is recorded in [`source.json`](../skills/cyrus-setup-prerequisites/scripts/source.json). It includes the integrated status board and persistent issue-task archive. This pin is independent of the skills' branch and is not a floating `main` reference. A maintainer should update it when shipping new runtime changes. No fork npm package is published by this installation flow.
+
+Use the quoted `#ref` form for this branch: a `/tree/feat/integrated-status-board` URL is interpreted by skills 1.5.26 as branch `feat` plus a directory, rather than the complete branch name.
 
 ## Requirements and installation
 
