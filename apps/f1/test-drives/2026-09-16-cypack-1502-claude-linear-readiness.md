@@ -2,7 +2,7 @@
 
 **Superseded:** [fresh actual Linear A/B proof](2026-09-17-cypack-1502-claude-linear-ab.md).
 Endpoint/OAuth recovery is complete, both draft PR17/18 have verified identities,
-and B-to-A refusal passed. The text below is the earlier
+and both directions of cross-user refusal passed. The text below is the earlier
 pre-recovery snapshot, preserved as historical evidence.
 
 September 16, 2026. **BLOCKED before actual Linear session execution.**

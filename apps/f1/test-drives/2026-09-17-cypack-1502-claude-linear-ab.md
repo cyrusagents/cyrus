@@ -1,6 +1,6 @@
 # CYPACK-1502: actual Linear / Claude A and B shared-store acceptance
 
-September 17, 2026 UTC. **Both positive identity runs passed.** Actual Linear
+September 17, 2026 UTC. **Both positive identity runs and both cross-user refusals passed.** Actual Linear
 delivery produced fresh draft PR17 and PR18 through personal credentials in the
 shared `github-tokens.json`. No mock tracker is used in this drive.
 
@@ -83,18 +83,46 @@ thought, and refusal response. **A actions stayed 24; worker runner starts staye
 The screenshot `claude-shared-store-B-to-A-refusal.png` is in the issue attachment
 directory. Both saved credential owners remain unchanged.
 
-### A → B: pending
+### A → B: passed
 
-Connor was asked to send the corresponding bounded `CY1502_A_TO_B_SHOULD_NOT_RUN`
-probe in B's existing session. Baseline: 32 B actions; worker starts/messages
-1/53. No reverse refusal is claimed before its actual prompt and response arrive.
+Connor's actual prompt `765666ad-1494-4309-8c0e-143a2c151716` at
+`00:57:13.173Z` carries his UUID `67a670bb-4d83-46ed-b98b-88bb2089d95d` in B's
+existing session. It asks for `printf CY1502_A_TO_B_SHOULD_NOT_RUN`, with no
+file/PR changes. Response `ffa1d8db-e20b-458b-95b5-175f3d13e704` at
+`00:57:14.703Z` visibly refuses Connor's prompt under `reject`, naming
+CyrusLimited's assigned credentials. The screenshot
+`claude-shared-store-A-to-B-refusal.png` captures that actual Linear response.
+
+Compared the complete action-ID sets, not just counts: **B remained at the same
+32 actions**, and A remained at the same 24. The only three new B activities were
+the prompt, acknowledgment thought `d337c5a2-2342-4d49-b3ea-731740b18208`, and
+refusal response. Worker starts/messages remained **1/53 across both probes**;
+neither probe reached Claude or ran a tool. Final activity totals are A 35 and B
+59. The reverse probe occurred with checkout `e63f7e33` (another evidence-only
+commit) and the same running worker. GitHub REST rechecks confirmed both draft
+PR heads, open state and identities unchanged afterward.
 
 ## Limits and cleanup
 
-The worker/tunnel remain available pending the reverse probe. Positive sessions
-are complete; resource teardown is not yet claimed. Protected raw evidence stays
-in the disposable root, including independent GitHub metadata, full Linear
-activity pages, saved owners, and runner/action baselines.
+Both sessions are complete. Before teardown, revalidated worker **31623** by its
+open disposable `.env`, feature cwd and exclusive port3743 listener; revalidated
+tunnel **31581** by its cloudflared executable and the specific disposable tunnel
+log. Attempted SIGTERM to exactly those two PIDs. **The managed execution sandbox
+denied both signals**, so resource teardown is not claimed complete. No force
+signal, unrelated listener or internal Cyrus process was touched; old PID73800
+was excluded.
+
+A guarded cleanup script is prepared at `/private/tmp/cypack1502-retire-test.py`.
+The operator can run `python3 /private/tmp/cypack1502-retire-test.py` from an
+agentops terminal outside this managed sandbox. It revalidates both process
+identities and the port before signaling, refuses changed identities, uses only
+SIGTERM, checks for exit, and preserves every file. This is the remaining cleanup
+prerequisite, not an acceptance prerequisite. Its Python syntax check passed.
+
+Protected raw evidence and secrets remain in the disposable root, including
+independent GitHub metadata, full Linear activity pages, saved owners,
+runner/action baselines, and the denied-teardown result. No token values or
+prefixes are included in publishable evidence.
 
 These two Claude tokens belong to one underlying account; separate subscription
 isolation is unproven. This drive's positive runs and refusal probes are sequential
