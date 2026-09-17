@@ -1,4 +1,4 @@
-import { execSync, spawn } from "node:child_process";
+import { execFileSync, execSync, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import {
 	existsSync,
@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GitService } from "../src/GitService.js";
 
 vi.mock("node:child_process", () => ({
+	execFileSync: vi.fn(),
 	execSync: vi.fn(),
 	spawn: vi.fn(),
 }));
@@ -33,6 +34,7 @@ vi.mock("../src/WorktreeIncludeService.js", () => ({
 	}),
 }));
 
+const mockExecFileSync = vi.mocked(execFileSync);
 const mockExecSync = vi.mocked(execSync);
 const mockSpawn = vi.mocked(spawn);
 const mockExistsSync = vi.mocked(existsSync);
@@ -89,6 +91,8 @@ describe("GitService", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mockExecFileSync.mockReset().mockReturnValue(Buffer.from(""));
+		mockExecSync.mockReset().mockReturnValue(Buffer.from(""));
 		delete process.env.CYRUS_WORKTREES_DIR;
 		delete process.env.SECRET_TOKEN;
 		vi.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -166,7 +170,7 @@ describe("GitService", () => {
 
 	describe("findWorktreeByBranch", () => {
 		it("returns the worktree path when the branch is found", () => {
-			mockExecSync.mockReturnValue(
+			mockExecFileSync.mockReturnValue(
 				[
 					"worktree /home/user/repo",
 					"HEAD abc123def456",
@@ -188,7 +192,7 @@ describe("GitService", () => {
 		});
 
 		it("returns null when the branch is not found", () => {
-			mockExecSync.mockReturnValue(
+			mockExecFileSync.mockReturnValue(
 				[
 					"worktree /home/user/repo",
 					"HEAD abc123def456",
@@ -206,7 +210,7 @@ describe("GitService", () => {
 		});
 
 		it("handles empty output gracefully", () => {
-			mockExecSync.mockReturnValue("");
+			mockExecFileSync.mockReturnValue("");
 
 			const result = gitService.findWorktreeByBranch(
 				"some-branch",
@@ -217,7 +221,7 @@ describe("GitService", () => {
 		});
 
 		it("handles bare worktree entries (no branch line)", () => {
-			mockExecSync.mockReturnValue(
+			mockExecFileSync.mockReturnValue(
 				[
 					"worktree /home/user/repo",
 					"HEAD abc123def456",
@@ -239,7 +243,7 @@ describe("GitService", () => {
 		});
 
 		it("returns null when git command fails", () => {
-			mockExecSync.mockImplementation(() => {
+			mockExecFileSync.mockImplementation(() => {
 				throw new Error("not a git repository");
 			});
 
@@ -252,7 +256,7 @@ describe("GitService", () => {
 		});
 
 		it("handles detached HEAD entries (no branch line)", () => {
-			mockExecSync.mockReturnValue(
+			mockExecFileSync.mockReturnValue(
 				[
 					"worktree /home/user/detached",
 					"HEAD abc123def456",
@@ -285,8 +289,8 @@ describe("GitService", () => {
 			};
 
 		const installRevParseMock = () => {
-			mockExecSync.mockImplementation((cmd: any, opts: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any, opts: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				const cwd = String(opts?.cwd ?? "");
 				const entry = metadataByCwd[cwd];
 				if (!entry) {
@@ -323,8 +327,8 @@ describe("GitService", () => {
 		});
 
 		it("resolves from workspace.path for single-repo workspaces", () => {
-			mockExecSync.mockImplementation((cmd: any, opts: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any, opts: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (String(opts?.cwd) !== "/ws/ENG-2") {
 					throw new Error("not a git repository");
 				}
@@ -391,8 +395,8 @@ describe("GitService", () => {
 			const repository = makeRepository();
 
 			let callCount = 0;
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (cmdStr === "git rev-parse --git-dir") {
 					return Buffer.from(".git\n");
 				}
@@ -412,7 +416,7 @@ describe("GitService", () => {
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "cyrustester/eng-97-fix-shader"',
+						"git rev-parse --verify --end-of-options cyrustester/eng-97-fix-shader",
 					)
 				) {
 					// Branch exists
@@ -434,8 +438,8 @@ describe("GitService", () => {
 			const issue = makeIssue();
 			const repository = makeRepository();
 
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (cmdStr === "git rev-parse --git-dir") {
 					return Buffer.from(".git\n");
 				}
@@ -445,7 +449,7 @@ describe("GitService", () => {
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "cyrustester/eng-97-fix-shader"',
+						"git rev-parse --verify --end-of-options cyrustester/eng-97-fix-shader",
 					)
 				) {
 					// Branch exists
@@ -482,8 +486,8 @@ describe("GitService", () => {
 			const issue = makeIssue();
 			const repository = makeRepository();
 
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (cmdStr === "git rev-parse --git-dir") {
 					return Buffer.from(".git\n");
 				}
@@ -492,7 +496,7 @@ describe("GitService", () => {
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "cyrustester/eng-97-fix-shader"',
+						"git rev-parse --verify --end-of-options cyrustester/eng-97-fix-shader",
 					)
 				) {
 					return Buffer.from("abc123\n");
@@ -515,8 +519,8 @@ describe("GitService", () => {
 
 	describe("createGitWorktree - repo setup hook discovery", () => {
 		const setupSuccessfulWorktreeCreate = () => {
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (cmdStr === "git rev-parse --git-dir") {
 					return Buffer.from(".git\n");
 				}
@@ -525,7 +529,7 @@ describe("GitService", () => {
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "cyrustester/eng-97-fix-shader"',
+						"git rev-parse --verify --end-of-options cyrustester/eng-97-fix-shader",
 					)
 				) {
 					throw new Error("branch not found");
@@ -537,9 +541,6 @@ describe("GitService", () => {
 					return Buffer.from("abc123\trefs/heads/main\n");
 				}
 				if (cmdStr.includes("git worktree add")) {
-					return Buffer.from("");
-				}
-				if (cmdStr.includes("cyrus-setup.sh")) {
 					return Buffer.from("");
 				}
 				return Buffer.from("");
@@ -810,8 +811,8 @@ describe("GitService", () => {
 			const issue = makeIssue();
 			const repository = makeRepository();
 
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (cmdStr === "git rev-parse --git-dir") {
 					return Buffer.from(".git\n");
 				}
@@ -824,7 +825,7 @@ describe("GitService", () => {
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "cyrustester/eng-97-fix-shader"',
+						"git rev-parse --verify --end-of-options cyrustester/eng-97-fix-shader",
 					)
 				) {
 					throw new Error("not found");
@@ -856,18 +857,22 @@ describe("GitService", () => {
 				expect.stringContaining("Stale worktree entry found"),
 			);
 			// Should have run git worktree prune
-			expect(mockExecSync).toHaveBeenCalledWith("git worktree prune", {
-				cwd: "/home/user/repo",
-				stdio: "pipe",
-			});
+			expect(mockExecFileSync).toHaveBeenCalledWith(
+				"git",
+				["worktree", "prune"],
+				{
+					cwd: "/home/user/repo",
+					stdio: "pipe",
+				},
+			);
 		});
 
 		it("does not match substring paths in worktree list", async () => {
 			const issue = makeIssue({ identifier: "CYSV-56" });
 			const repository = makeRepository();
 
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (cmdStr === "git rev-parse --git-dir") {
 					return Buffer.from(".git\n");
 				}
@@ -877,7 +882,7 @@ describe("GitService", () => {
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "cyrustester/eng-97-fix-shader"',
+						"git rev-parse --verify --end-of-options cyrustester/eng-97-fix-shader",
 					)
 				) {
 					throw new Error("not found");
@@ -948,8 +953,15 @@ describe("GitService", () => {
 			await gitService.deleteWorktree("DEF-123");
 
 			// Should run git worktree remove with cwd set to the main repo
-			expect(mockExecSync).toHaveBeenCalledWith(
-				'git worktree remove --force "/home/user/.cyrus/worktrees/DEF-123"',
+			expect(mockExecFileSync).toHaveBeenCalledWith(
+				"git",
+				[
+					"worktree",
+					"remove",
+					"--force",
+					"--",
+					"/home/user/.cyrus/worktrees/DEF-123",
+				],
 				expect.objectContaining({
 					stdio: "pipe",
 					cwd: "/home/user/repos/my-repo",
@@ -1012,15 +1024,29 @@ describe("GitService", () => {
 			await gitService.deleteWorktree("DEF-123");
 
 			// Should run git worktree remove for both subdirectories with correct cwd
-			expect(mockExecSync).toHaveBeenCalledWith(
-				'git worktree remove --force "/home/user/.cyrus/worktrees/DEF-123/repo-a"',
+			expect(mockExecFileSync).toHaveBeenCalledWith(
+				"git",
+				[
+					"worktree",
+					"remove",
+					"--force",
+					"--",
+					"/home/user/.cyrus/worktrees/DEF-123/repo-a",
+				],
 				expect.objectContaining({
 					stdio: "pipe",
 					cwd: "/home/user/repos/repo-a",
 				}),
 			);
-			expect(mockExecSync).toHaveBeenCalledWith(
-				'git worktree remove --force "/home/user/.cyrus/worktrees/DEF-123/repo-b"',
+			expect(mockExecFileSync).toHaveBeenCalledWith(
+				"git",
+				[
+					"worktree",
+					"remove",
+					"--force",
+					"--",
+					"/home/user/.cyrus/worktrees/DEF-123/repo-b",
+				],
 				expect.objectContaining({
 					stdio: "pipe",
 					cwd: "/home/user/repos/repo-b",
@@ -1059,7 +1085,7 @@ describe("GitService", () => {
 				return "";
 			});
 
-			mockExecSync.mockImplementation(() => {
+			mockExecFileSync.mockImplementation(() => {
 				throw new Error("git worktree remove failed");
 			});
 
@@ -1088,7 +1114,7 @@ describe("GitService", () => {
 			await gitService.deleteWorktree("DEF-123");
 
 			// Should not call git worktree remove
-			expect(mockExecSync).not.toHaveBeenCalled();
+			expect(mockExecFileSync).not.toHaveBeenCalled();
 
 			// Should still delete the directory
 			expect(mockRmSync).toHaveBeenCalledWith(
@@ -1178,11 +1204,9 @@ describe("GitService", () => {
 						"cyrus-teardown.sh",
 					),
 			);
-			const removeOrder = mockExecSync.mock.invocationCallOrder.find(
+			const removeOrder = mockExecFileSync.mock.invocationCallOrder.find(
 				(_, index) =>
-					String(mockExecSync.mock.calls[index]?.[0]).includes(
-						"worktree remove",
-					),
+					mockExecFileSync.mock.calls[index]?.[1]?.includes("remove"),
 			);
 			expect(teardownOrder).toBeDefined();
 			expect(removeOrder).toBeDefined();
@@ -1642,8 +1666,8 @@ describe("GitService", () => {
 			});
 
 			// Mock git commands for both repos
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (cmdStr === "git rev-parse --git-dir") {
 					return Buffer.from(".git\n");
 				}
@@ -1694,8 +1718,8 @@ describe("GitService", () => {
 				workspaceBaseDir: "/other/base",
 			});
 
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (cmdStr === "git rev-parse --git-dir") {
 					return Buffer.from(".git\n");
 				}
@@ -1736,8 +1760,8 @@ describe("GitService", () => {
 				repositoryPath: "/home/user/does-not-exist",
 			});
 
-			mockExecSync.mockImplementation((cmd: any, opts: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any, opts: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (cmdStr === "git rev-parse --git-dir") {
 					// Second repo is not a git repo
 					if (opts?.cwd === "/home/user/does-not-exist") {
@@ -1799,11 +1823,11 @@ describe("GitService", () => {
 			const repository = makeRepository();
 
 			// Mock branchExists to return true for parent branch
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "cyrustester/eng-96-parent-issue"',
+						"git rev-parse --verify --end-of-options cyrustester/eng-96-parent-issue",
 					)
 				) {
 					return Buffer.from("abc123\n");
@@ -1848,11 +1872,11 @@ describe("GitService", () => {
 			const repository = makeRepository();
 
 			// Mock branchExists to return true for blocking branch
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "cyrustester/eng-95-blocking"',
+						"git rev-parse --verify --end-of-options cyrustester/eng-95-blocking",
 					)
 				) {
 					return Buffer.from("abc123\n");
@@ -1900,10 +1924,12 @@ describe("GitService", () => {
 			const repository = makeRepository();
 
 			// Mock branchExists: blocking branch doesn't exist, parent does
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
 				if (
-					cmdStr.includes('git rev-parse --verify "cyrustester/eng-96-parent"')
+					cmdStr.includes(
+						"git rev-parse --verify --end-of-options cyrustester/eng-96-parent",
+					)
 				) {
 					return Buffer.from("abc123\n");
 				}
@@ -1962,9 +1988,13 @@ describe("GitService", () => {
 				},
 			});
 
-			mockExecSync.mockImplementation((cmd: any) => {
-				const cmdStr = String(cmd);
-				if (cmdStr.includes('git rev-parse --verify "eng-95-branch"')) {
+			mockExecFileSync.mockImplementation((cmd: any, args: any) => {
+				const cmdStr = [cmd, ...args].join(" ");
+				if (
+					cmdStr.includes(
+						"git rev-parse --verify --end-of-options eng-95-branch",
+					)
+				) {
 					return Buffer.from("abc123\n");
 				}
 				throw new Error("not found");
