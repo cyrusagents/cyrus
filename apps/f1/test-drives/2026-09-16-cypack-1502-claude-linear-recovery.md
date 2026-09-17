@@ -1,7 +1,7 @@
 # CYPACK-1502: recovered actual Linear → Claude → shared-store GitHub proof
 
 September 16, 2026 (execution timestamps below are September 17 UTC).
-**B passed; A and fresh cross-user refusal remain pending.** This is actual Linear
+**B passed; A's original session exists but is stale; fresh cross-user refusal remains pending.** This is actual Linear
 delivery, not F1's mock tracker. Runtime:
 `44be11646265eebcd050b473a8677976da1c5006`.
 This report supersedes the endpoint/OAuth blockers in the earlier
@@ -74,14 +74,38 @@ F1 protocol applied to the real delivery path:
 
 ## Exact remaining A interaction
 
-The browser offers only the B account; no Connor login is available. Connor must
-open [TEST-407](https://linear.app/cyrusagenttesting/issue/TEST-407) as
-**connor@atcyrus.com** and delegate it to **Cyrus CYPACK-1502 Test** (or mention that
-app). No further OAuth/setup action is needed while this temporary tunnel lives.
+Connor delegated the existing TEST-407 at `2026-09-17T00:22:27.766Z`. Independent
+Linear API inspection confirms the original session
+[`6833cd0a-7f26-4df1-9d19-5d36933414a1`](https://linear.app/cyrusagenttesting/agent-session/6833cd0a-7f26-4df1-9d19-5d36933414a1),
+creator `67a670bb-4d83-46ed-b98b-88bb2089d95d`, and test-app delegate
+`9e5beb85-a23a-4d76-b627-742e52f4232f`. **No duplicate issue, delegation or session
+was dispatched.**
+
+The temporary worker and tunnel had stopped between agent turns, contrary to the
+earlier expectation that they would remain available. A became stale with zero
+activities; this is not an A execution failure or a credential-selection result.
+Restored the same isolated home on port 3743 using detached processes (worker PID
+**31623**, tunnel PID **31581**), preserving B's saved credential owner and both
+shared-store mappings. This restarted runtime is `a5c69e63228484cedef8a493c740357f89f8fb83`
+(only report changes since B's tested runtime). Local and public `/status` return
+`{"status":"idle"}`. Inspected and updated only the same test app's endpoint
+fields, verifying saved values:
+
+- Callback: `https://horse-start-favourites-seven.trycloudflare.com/callback`
+- Webhook: `https://horse-start-favourites-seven.trycloudflare.com/linear-webhook`
+
+The existing isolated OAuth grant remains valid; no new login or authorization is
+needed. The accessible agentops Chrome (CDP 9229) profile and workspace switcher
+show only CyrusLimited/cyrusops1. Connor's separately authenticated Chrome is not
+that browser context. Requested **one continuation message in the existing A
+session as Connor**: “Continue the existing TEST-407 acceptance task; draft PR
+only.” Do not redelegate or create another session. A has not yet resumed at this
+checkpoint. Detached process startup is verified now; cross-turn lifetime has not
+yet been demonstrated.
 
 A issue UUID: `1ed4f8cd-93c9-4b9a-abbc-eb0ee24b2f11`; intended Linear actor:
 `67a670bb-4d83-46ed-b98b-88bb2089d95d`; intended GitHub actor: **Connoropolous**.
-No fresh A session or A draft PR is claimed. After it completes, independently
+No A runner execution or A draft PR is claimed. After it completes, independently
 record the same metadata, then exercise cross-user follow-ups and confirm visible
 refusal with no new runner input/actions. Prior offline and Gemini mock-tracker
 refusal coverage is separate; this drive has not yet re-proven that boundary.
