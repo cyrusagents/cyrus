@@ -159,6 +159,7 @@ describe("EdgeWorker - child AgentSessionEvent.created webhooks", () => {
 			"This thread is for an agent session",
 			undefined,
 			undefined,
+			undefined, // prompter pin (per-prompter credentials not configured)
 		);
 	});
 	describe("linking a child session to its parent issue's session", () => {

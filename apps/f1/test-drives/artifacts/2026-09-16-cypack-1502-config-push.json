@@ -1,0 +1,186 @@
+{
+	"runtimeTestedSha": "8800e009ed235342c490153fffbd77ee15c33a78",
+	"hostedBuilderSha": "d2f68e338652bfc960f1e18e8f51673d143573be",
+	"scope": "Representative hosted builder fixture -> real local ConfigUpdater HTTP -> watched config -> running EdgeWorker; F1 mock tracker, live Gemini and GitHub /user",
+	"payloadTopLevelKeys": [
+		"codexDefaultModel",
+		"defaultFallbackModel",
+		"defaultModel",
+		"defaultRunner",
+		"global_setup_script",
+		"issueUpdateTrigger",
+		"linearWorkspaceSlug",
+		"linearWorkspaces",
+		"ngrokAuthToken",
+		"prReviewTrigger",
+		"repositories",
+		"slackThreadFollowing",
+		"strictMcpConfig",
+		"stripeCustomerId"
+	],
+	"reload": {
+		"before": {
+			"pid": 26951,
+			"reloadEvents": 0,
+			"defaultRunner": "gemini",
+			"claudeDefaultModel": "sonnet",
+			"issueUpdateTrigger": false,
+			"userIds": [
+				"67a670bb-4d83-46ed-b98b-88bb2089d95d",
+				"917d99c8-c72d-4c22-9167-597f407faae9"
+			],
+			"policy": {
+				"unmappedPrompter": "reject",
+				"nonHumanTrigger": "reject",
+				"externalPlatformSessions": "shared",
+				"followUpByOtherUser": "reject"
+			}
+		},
+		"after": {
+			"pid": 26951,
+			"reloadEvents": 1,
+			"defaultRunner": "gemini",
+			"claudeDefaultModel": "opus",
+			"issueUpdateTrigger": true,
+			"userIds": [
+				"67a670bb-4d83-46ed-b98b-88bb2089d95d",
+				"917d99c8-c72d-4c22-9167-597f407faae9"
+			],
+			"policy": {
+				"unmappedPrompter": "reject",
+				"nonHumanTrigger": "reject",
+				"externalPlatformSessions": "shared",
+				"followUpByOtherUser": "reject"
+			}
+		},
+		"diskMappingsEqual": true,
+		"diskPolicyEqual": true,
+		"omittedPersonalKeys": true,
+		"unauthorizedPushRejected": true
+	},
+	"installationRefresh": [
+		{
+			"status": 200,
+			"result": {
+				"success": true,
+				"message": "GitHub installation tokens updated successfully",
+				"data": {
+					"tokensCount": 1,
+					"ghAuthConfigured": false
+				}
+			},
+			"personalEntriesUnchanged": true,
+			"installationsReplaced": true,
+			"storeMode": "0600"
+		},
+		{
+			"status": 200,
+			"result": {
+				"success": true,
+				"message": "GitHub installation tokens updated successfully",
+				"data": {
+					"tokensCount": 0,
+					"ghAuthConfigured": false
+				}
+			},
+			"personalEntriesUnchanged": true,
+			"installationsReplaced": true,
+			"storeMode": "0600"
+		}
+	],
+	"crossUser": [
+		{
+			"target": "Connoropolous",
+			"sender": "CyrusLimited",
+			"ack": {
+				"success": true,
+				"message": "Session prompted successfully"
+			},
+			"newActionCount": 0,
+			"refusals": [
+				"This session runs with Connoropolous's credentials and prompterCredentialPolicy.followUpByOtherUser is `reject`, so a prompt from CyrusLimited cannot be applied here. Start a new session (@mention Cyrus or delegate the issue) to work under your own credentials."
+			]
+		},
+		{
+			"target": "CyrusLimited",
+			"sender": "Connoropolous",
+			"ack": {
+				"success": true,
+				"message": "Session prompted successfully"
+			},
+			"newActionCount": 0,
+			"refusals": [
+				"This session runs with CyrusLimited's credentials and prompterCredentialPolicy.followUpByOtherUser is `reject`, so a prompt from Connoropolous cannot be applied here. Start a new session (@mention Cyrus or delegate the issue) to work under your own credentials."
+			]
+		}
+	],
+	"renderer": [
+		{
+			"sessionId": "session-1",
+			"activityTypes": ["action", "prompt", "response", "thought"],
+			"timestampsAndContent": true,
+			"paginationDistinct": true
+		},
+		{
+			"sessionId": "session-2",
+			"activityTypes": ["action", "prompt", "response", "thought"],
+			"timestampsAndContent": true,
+			"paginationDistinct": true
+		}
+	],
+	"finalState": {
+		"mappingsAndPolicyPreserved": true,
+		"effective": {
+			"pid": 26951,
+			"reloadEvents": 1,
+			"defaultRunner": "gemini",
+			"claudeDefaultModel": "opus",
+			"issueUpdateTrigger": true,
+			"userIds": [
+				"67a670bb-4d83-46ed-b98b-88bb2089d95d",
+				"917d99c8-c72d-4c22-9167-597f407faae9"
+			],
+			"policy": {
+				"unmappedPrompter": "reject",
+				"nonHumanTrigger": "reject",
+				"externalPlatformSessions": "shared",
+				"followUpByOtherUser": "reject"
+			}
+		},
+		"installationId": "fixture-final",
+		"personalUserIds": [
+			"67a670bb-4d83-46ed-b98b-88bb2089d95d",
+			"917d99c8-c72d-4c22-9167-597f407faae9"
+		]
+	},
+	"cleanup": {
+		"stoppedSessions": 2,
+		"serverStopped": true,
+		"portClosed": true,
+		"secretScanFiles": 108,
+		"rawOrPrefixMatches": 0,
+		"disposableCredentialStoreAndApiKeyRemoved": true
+	},
+	"identityActions": [
+		{
+			"sessionId": "session-1",
+			"createdAt": 1789528287086,
+			"content": "{\"type\":\"action\",\"action\":\"run_shell_command (Get the GitHub login of the current user)\",\"parameter\":\"gh api user --jq .login\",\"result\":\"```\\nConnoropolous\\n```\"}"
+		},
+		{
+			"sessionId": "session-1",
+			"createdAt": 1789528347995,
+			"content": "{\"type\":\"action\",\"action\":\"run_shell_command (Get the GitHub login of the current user for POST_PUSH verification)\",\"parameter\":\"gh api user --jq .login\",\"result\":\"```\\nConnoropolous\\n```\"}"
+		},
+		{
+			"sessionId": "session-2",
+			"createdAt": 1789528281788,
+			"content": "{\"type\":\"action\",\"action\":\"run_shell_command (Get GitHub login using gh CLI)\",\"parameter\":\"gh api user --jq .login\",\"result\":\"```\\nCyrusLimited\\n```\"}"
+		},
+		{
+			"sessionId": "session-2",
+			"createdAt": 1789528348034,
+			"content": "{\"type\":\"action\",\"action\":\"run_shell_command (Get GitHub login using gh CLI for POST_PUSH verification)\",\"parameter\":\"gh api user --jq .login\",\"result\":\"```\\nCyrusLimited\\n```\"}"
+		}
+	]
+}

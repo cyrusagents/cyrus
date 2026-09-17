@@ -90,6 +90,24 @@ describe("AppServerProcessManager pool", () => {
 		expect(clients).toHaveLength(2);
 	});
 
+	it("never pools app-server processes across personal GitHub identities", async () => {
+		const { clients, factory } = recordingFactory();
+		const manager = new AppServerProcessManager(factory, { idleCloseMs: 0 });
+		const leases = await Promise.all(
+			["ada", "bob"].map((user) =>
+				manager.acquire(
+					configWithEnv({
+						CODEX_HOME: "/same-model-home",
+						GH_TOKEN: user,
+						GITHUB_TOKEN: user,
+					}),
+				),
+			),
+		);
+		expect(clients).toHaveLength(2);
+		for (const lease of leases) lease.release();
+	});
+
 	it("evicts an idle process so the next acquire starts fresh", async () => {
 		vi.useFakeTimers();
 		try {

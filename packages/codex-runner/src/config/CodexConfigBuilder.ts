@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { buildRunnerEnvironment } from "cyrus-core";
 import type { ResolvedCodexConfig } from "../backend/types.js";
 import type {
 	CodexConfigOverrides,
@@ -104,16 +105,14 @@ export class CodexConfigBuilder {
 	private buildEnvOverride(
 		codexHome: string,
 	): Record<string, string> | undefined {
-		if (!this.config.codexHome) {
+		if (
+			!this.config.codexHome &&
+			!this.config.additionalEnv &&
+			!this.config.omitEnv?.length
+		)
 			return undefined;
-		}
-		const env: Record<string, string> = {};
-		for (const [key, value] of Object.entries(process.env)) {
-			if (typeof value === "string") {
-				env[key] = value;
-			}
-		}
-		env.CODEX_HOME = codexHome;
+		const env = buildRunnerEnvironment(this.config);
+		if (this.config.codexHome) env.CODEX_HOME = codexHome;
 		return env;
 	}
 
@@ -130,6 +129,18 @@ export class CodexConfigBuilder {
 		const { sandbox_workspace_write: _dropped, ...rest } =
 			this.config.configOverrides ?? {};
 		const configOverrides: CodexConfigOverrides = { ...rest };
+		if (this.config.additionalEnv?.CYRUS_PROMPTER_GITHUB_TOKEN) {
+			// The process env has already been filtered. Codex otherwise removes
+			// token variables from shell tools, or local settings can replace them.
+			configOverrides.shell_environment_policy = {
+				inherit: "all",
+				experimental_use_profile: false,
+				ignore_default_excludes: true,
+				exclude: [],
+				include_only: [],
+				set: {},
+			};
+		}
 
 		const mcpServers = buildCodexMcpServersConfig({
 			workingDirectory: this.config.workingDirectory,

@@ -22,6 +22,47 @@ export namespace CLIPrompts {
 	}
 
 	/**
+	 * Ask for a secret without echoing it. Keystrokes are masked so the value
+	 * never lands in the terminal scrollback or shell history. Falls back to
+	 * reading one line from stdin when stdin is not a TTY (piped input).
+	 */
+	export async function askSecret(prompt: string): Promise<string> {
+		if (!process.stdin.isTTY) {
+			// Piped: read a single line, no echo concerns.
+			return (await CLIPrompts.ask(prompt)).trim();
+		}
+		const rl = readline.createInterface({
+			input: process.stdin,
+			output: process.stdout,
+			terminal: true,
+		});
+		// Mute echo while the secret is typed (readline writes the prompt itself).
+		const mutable = rl as unknown as {
+			_writeToOutput?: (s: string) => void;
+			output: NodeJS.WritableStream;
+		};
+		const originalWrite = mutable._writeToOutput;
+		let muted = false;
+		mutable._writeToOutput = (s: string) => {
+			if (!muted) {
+				originalWrite?.call(rl, s);
+				return;
+			}
+			// Show a bullet per keystroke; swallow everything else.
+			if (s.includes("\n")) mutable.output.write("\n");
+			else if (s.length === 1) mutable.output.write("•");
+		};
+		return new Promise((resolve) => {
+			rl.question(prompt, (answer) => {
+				muted = false;
+				rl.close();
+				resolve(answer.trim());
+			});
+			muted = true;
+		});
+	}
+
+	/**
 	 * Ask a yes/no question
 	 */
 	export async function confirm(

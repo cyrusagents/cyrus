@@ -232,6 +232,191 @@ describe("EdgeWorker - Issue Update Session Delivery (CYPACK-954)", () => {
 
 	afterEach(() => {
 		vi.restoreAllMocks();
+		vi.unstubAllEnvs();
+	});
+
+	describe("per-user ownership of active issue-update inputs", () => {
+		function configureOwnership(policy: "reject" | "pin") {
+			vi.stubEnv("UPDATE_ADA_CLAUDE", "placeholder-claude");
+			vi.stubEnv("UPDATE_ADA_GITHUB", "placeholder-github");
+			(edgeWorker as any).prompterCredentialService.updateConfig({
+				linearUsers: {
+					ada: {
+						displayName: "Ada",
+						claude: { oauthToken: { env: "UPDATE_ADA_CLAUDE" } },
+						github: { token: { env: "UPDATE_ADA_GITHUB" }, login: "ada" },
+					},
+					bob: {
+						displayName: "Bob",
+						claude: { oauthToken: { env: "UPDATE_ADA_CLAUDE" } },
+						github: { token: { env: "UPDATE_ADA_GITHUB" }, login: "bob" },
+					},
+				},
+				prompterCredentialPolicy: { followUpByOtherUser: policy },
+			});
+		}
+
+		const cases = (["reject", "pin"] as const).flatMap((policy) =>
+			(["same", "other", "missing", "integration"] as const).flatMap((actor) =>
+				(["title", "description"] as const).map((field) => ({
+					policy,
+					actor,
+					field,
+				})),
+			),
+		);
+
+		it.each(cases)("$field update from $actor actor under $policy", async ({
+			policy,
+			actor,
+			field,
+		}) => {
+			configureOwnership(policy);
+			const running = {
+				...createMockSession("session-ada", {
+					hasRunner: true,
+					isRunning: true,
+				}),
+				prompter: {
+					linearUserId: "ada",
+					credentialUserId: "ada",
+					source: "prompter",
+				},
+			};
+			mockAgentSessionManager.getSessionsByIssueId.mockReturnValue([running]);
+			cacheRepository();
+			const postActivity = vi
+				.spyOn(edgeWorker as any, "postActivityDirect")
+				.mockResolvedValue(undefined);
+			const postThought = vi
+				.spyOn((edgeWorker as any).activityPoster, "postThoughtActivity")
+				.mockResolvedValue(undefined);
+			const download = vi
+				.spyOn(edgeWorker as any, "downloadCommentAttachments")
+				.mockResolvedValue({ totalNewAttachments: 0 });
+			const webhook = createIssueUpdateWebhook({
+				updatedFrom: { [field]: "old content" },
+			});
+			// The creator and assignee are Ada even when Bob edited or the actor is absent.
+			webhook.data.creatorId = "ada";
+			webhook.data.creator = { id: "ada", name: "Ada" };
+			webhook.data.assigneeId = "ada";
+			if (actor !== "missing")
+				webhook.actor = {
+					id: actor === "same" || actor === "integration" ? "ada" : "bob",
+					name: actor === "same" ? "Ada" : "Bob",
+					type: actor === "integration" ? "integration" : "user",
+				};
+			await (edgeWorker as any).handleIssueContentUpdate(webhook);
+			if (policy === "reject" && actor !== "same") {
+				expect(running.agentRunner!.addStreamMessage).not.toHaveBeenCalled();
+				expect(download).not.toHaveBeenCalled();
+				expect(postActivity).toHaveBeenCalledWith(
+					expect.anything(),
+					expect.objectContaining({
+						agentSessionId: running.id,
+						content: {
+							type: "response",
+							body: expect.stringContaining(
+								actor === "other" ? "Bob" : "could not determine",
+							),
+						},
+					}),
+					expect.any(String),
+				);
+			} else {
+				expect(postActivity).not.toHaveBeenCalled();
+				expect(
+					running.agentRunner!.addStreamMessage,
+				).toHaveBeenCalledExactlyOnceWith(
+					expect.stringContaining(`<${field}_change>`),
+				);
+				if (actor !== "same")
+					expect(postThought).toHaveBeenCalledWith(
+						running.id,
+						"test-workspace",
+						expect.stringContaining("Ada"),
+					);
+			}
+			expect(running.prompter.credentialUserId).toBe("ada");
+		});
+		it.each([
+			"removed",
+			"unpinned",
+		] as const)("refuses an active %s owner without switching credentials", async (state) => {
+			configureOwnership("reject");
+			const running = {
+				...createMockSession("session-ada", {
+					hasRunner: true,
+					isRunning: true,
+				}),
+				prompter:
+					state === "removed"
+						? {
+								linearUserId: "ada",
+								credentialUserId: "ada",
+								source: "prompter",
+							}
+						: undefined,
+			};
+			if (state === "removed")
+				(edgeWorker as any).prompterCredentialService.updateConfig({
+					linearUsers: {},
+				});
+			mockAgentSessionManager.getSessionsByIssueId.mockReturnValue([running]);
+			cacheRepository();
+			const postActivity = vi
+				.spyOn(edgeWorker as any, "postActivityDirect")
+				.mockResolvedValue(undefined);
+			await (edgeWorker as any).handleIssueContentUpdate(
+				createIssueUpdateWebhook({
+					actor: { id: "ada", name: "Ada", type: "user" },
+				}),
+			);
+			expect(running.agentRunner!.addStreamMessage).not.toHaveBeenCalled();
+			expect(postActivity).toHaveBeenCalledWith(
+				expect.anything(),
+				expect.objectContaining({
+					agentSessionId: running.id,
+					content: {
+						type: "response",
+						body: expect.stringContaining(
+							state === "removed" ? "no entry" : "no assigned credential owner",
+						),
+					},
+				}),
+				expect.any(String),
+			);
+			if (state === "unpinned") expect(running.prompter).toBeUndefined();
+		});
+
+		it("does not redirect a refused update to another active session", async () => {
+			configureOwnership("reject");
+			const running = ["ada", "bob"].map((owner, index) => ({
+				...createMockSession(`session-${owner}`, {
+					hasRunner: true,
+					isRunning: true,
+				}),
+				updatedAt: 100 - index,
+				prompter: {
+					linearUserId: owner,
+					credentialUserId: owner,
+					source: "prompter",
+				},
+			}));
+			mockAgentSessionManager.getSessionsByIssueId.mockReturnValue(running);
+			cacheRepository();
+			vi.spyOn(edgeWorker as any, "postActivityDirect").mockResolvedValue(
+				undefined,
+			);
+			await (edgeWorker as any).handleIssueContentUpdate(
+				createIssueUpdateWebhook({
+					actor: { id: "bob", name: "Bob", type: "user" },
+				}),
+			);
+			for (const session of running)
+				expect(session.agentRunner!.addStreamMessage).not.toHaveBeenCalled();
+		});
 	});
 
 	// =========================================================================

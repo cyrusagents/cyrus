@@ -5,6 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Changed
+- Recorded fresh actual Linear/Claude acceptance through the shared GitHub token store: verified both users' draft PR openers and Git author/committer identities, plus visible cross-user refusal in both directions without runner execution. Review-enforcement proof remains separate. ([CYPACK-1502](https://linear.app/ceedar/issue/CYPACK-1502), [#1472](https://github.com/cyrusagents/cyrus/pull/1472))
 - Switched builds, type checking, and development watch commands to the native TypeScript compiler, reducing measured local build time by 74% and type-check time by 68%. Prompt-assembly tests now use mock Linear trackers reliably, preventing network-dependent CI timeouts. ([CYPACK-1520](https://linear.app/ceedar/issue/CYPACK-1520), [#1485](https://github.com/cyrusagents/cyrus/pull/1485))
 
 ### Fixed
