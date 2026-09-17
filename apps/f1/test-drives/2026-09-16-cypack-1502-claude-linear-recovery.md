@@ -1,5 +1,9 @@
 # CYPACK-1502: recovered actual Linear → Claude → shared-store GitHub proof
 
+**Superseded:** [fresh A/B identity proof and refusal checks](2026-09-17-cypack-1502-claude-linear-ab.md).
+A's original session resumed successfully and created draft PR18. The chronology
+below preserves the earlier recovery checkpoints rather than current blockers.
+
 September 16, 2026 (execution timestamps below are September 17 UTC).
 **B passed; A's original session exists but is stale; fresh cross-user refusal remains pending.** This is actual Linear
 delivery, not F1's mock tracker. Runtime:
