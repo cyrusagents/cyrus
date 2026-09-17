@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Prevent branch names and worktree paths from being interpreted as shell commands when preparing or cleaning up agent workspaces. ([#1492](https://github.com/cyrusagents/cyrus/pull/1492))
 - Linear webhooks from all twelve published outbound IP addresses are now accepted, preventing missed events as Linear rolls out new source addresses. ([CYPACK-1518](https://linear.app/ceedar/issue/CYPACK-1518), [#1481](https://github.com/cyrusagents/cyrus/pull/1481))
 
 ## [0.2.72] - 2026-09-15
