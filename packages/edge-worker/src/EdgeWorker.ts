@@ -4138,12 +4138,14 @@ ${taskSection}`;
 
 		// Find parked sessions that were blocked by this issue
 		const sessionsToWake: string[] = [];
+		let blockerCleared = false;
 		for (const [blockedIssueId, parked] of this.parkedSessions.entries()) {
 			if (parked.blockingIssueIds.includes(completedIssueId)) {
 				// Remove this blocker from the list
 				parked.blockingIssueIds = parked.blockingIssueIds.filter(
 					(id) => id !== completedIssueId,
 				);
+				blockerCleared = true;
 
 				// If no more blockers, wake the session
 				if (parked.blockingIssueIds.length === 0) {
@@ -4156,12 +4158,20 @@ ${taskSection}`;
 			}
 		}
 
+		// A session still holding blockers records no other way that this one is
+		// done, so the shortened list has to reach disk. Sessions being woken
+		// below are covered by the save that follows their removal.
+		if (blockerCleared && sessionsToWake.length === 0) {
+			await this.savePersistedState();
+		}
+
 		// Wake up unblocked sessions
 		for (const blockedIssueId of sessionsToWake) {
 			const parked = this.parkedSessions.get(blockedIssueId);
 			if (!parked) continue;
 
 			this.parkedSessions.delete(blockedIssueId);
+			await this.savePersistedState();
 
 			this.logger.info(
 				`Waking parked session for issue ${parked.agentSession.issue?.identifier} — all blockers resolved`,
@@ -4213,6 +4223,7 @@ ${taskSection}`;
 		if (blockResult.blocked) {
 			// Still blocked — update the parked entry and re-post status
 			parked.blockingIssueIds = blockResult.blockingIssueIds;
+			await this.savePersistedState();
 			const blockerList = blockResult.blockingIdentifiers
 				.map((id) => `**${id}**`)
 				.join(", ");
@@ -4229,6 +4240,7 @@ ${taskSection}`;
 
 		// Blockers resolved — wake the session
 		this.parkedSessions.delete(issueId);
+		await this.savePersistedState();
 		this.logger.info(
 			`Re-prompt cleared blockers for ${parked.agentSession.issue?.identifier} — waking session`,
 		);
@@ -4629,6 +4641,9 @@ ${taskSection}`;
 				routingMethod,
 				blockingIssueIds: blockResult.blockingIssueIds,
 			});
+			// Persist immediately: the promise posted below ("will start
+			// automatically") can only be kept if this survives a restart.
+			await this.savePersistedState();
 
 			// Post acknowledgment to the Linear agent session
 			const blockerList = blockResult.blockingIdentifiers
@@ -7280,11 +7295,31 @@ ${input.userComment}
 			this.repositoryRouter.getIssueRepositoryCache().entries(),
 		);
 
+		// Repositories become ids — see SerializedParkedSession for why.
+		const parkedSessions = Object.fromEntries(
+			Array.from(this.parkedSessions.entries()).map(([issueId, parked]) => [
+				issueId,
+				{
+					agentSession: parked.agentSession,
+					linearWorkspaceId: parked.linearWorkspaceId,
+					repositoryIds: parked.repositories.map((repo) => repo.id),
+					guidance: parked.guidance,
+					commentBody: parked.commentBody,
+					baseBranchOverrides: parked.baseBranchOverrides
+						? Object.fromEntries(parked.baseBranchOverrides.entries())
+						: undefined,
+					routingMethod: parked.routingMethod,
+					blockingIssueIds: parked.blockingIssueIds,
+				},
+			]),
+		);
+
 		return {
 			agentSessions: serializedState.sessions,
 			agentSessionEntries: serializedState.entries,
 			childToParentAgentSession,
 			issueRepositoryCache,
+			parkedSessions,
 		};
 	}
 
@@ -7355,6 +7390,38 @@ ${input.userComment}
 			this.logger.debug(
 				`Restored ${cache.size} issue-to-repository cache mappings`,
 			);
+		}
+
+		// Repository ids resolve in the order they were stored, because
+		// repositories[0] is the primary repo the access check and the worktree
+		// both use.
+		if (state.parkedSessions) {
+			for (const [issueId, parked] of Object.entries(state.parkedSessions)) {
+				const repositories = parked.repositoryIds
+					.map((id) => this.config.repositories.find((repo) => repo.id === id))
+					.filter((repo): repo is RepositoryConfig => repo !== undefined);
+				if (repositories.length === 0) {
+					this.logger.warn(
+						`Dropping parked session for issue ${issueId}: none of its repositories (${parked.repositoryIds.join(", ")}) are configured`,
+					);
+					continue;
+				}
+
+				this.parkedSessions.set(issueId, {
+					agentSession:
+						parked.agentSession as AgentSessionCreatedWebhook["agentSession"],
+					repositories,
+					linearWorkspaceId: parked.linearWorkspaceId,
+					guidance: parked.guidance as AgentSessionCreatedWebhook["guidance"],
+					commentBody: parked.commentBody,
+					baseBranchOverrides: parked.baseBranchOverrides
+						? new Map(Object.entries(parked.baseBranchOverrides))
+						: undefined,
+					routingMethod: parked.routingMethod,
+					blockingIssueIds: parked.blockingIssueIds,
+				});
+			}
+			this.logger.debug(`Restored ${this.parkedSessions.size} parked sessions`);
 		}
 	}
 
