@@ -275,6 +275,11 @@ export class AgentSessionManager extends EventEmitter {
 		linearSession.metadata = {
 			...linearSession.metadata, // Preserve existing metadata
 			model: claudeSystemMessage.model,
+			reasoningEffort:
+				"reasoningEffort" in claudeSystemMessage &&
+				typeof claudeSystemMessage.reasoningEffort === "string"
+					? claudeSystemMessage.reasoningEffort
+					: undefined,
 			tools: claudeSystemMessage.tools,
 			permissionMode: claudeSystemMessage.permissionMode,
 			apiKeySource: claudeSystemMessage.apiKeySource,

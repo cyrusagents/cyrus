@@ -20,6 +20,8 @@ import type {
 
 interface ThreadStartResult {
 	thread?: { id?: string };
+	model?: string;
+	reasoningEffort?: string | null;
 }
 
 interface TurnStartResult {
@@ -99,13 +101,14 @@ export class AppServerCodexBackend
 		this.appServer = appServer;
 
 		try {
-			const threadId = config.resumeSessionId
+			const result = config.resumeSessionId
 				? await this.resumeThread(config)
 				: await this.startThread(config);
 
+			const threadId = result.threadId;
 			this.threadId = threadId;
 			appServer.registerThread(threadId, this.threadHandler);
-			this.emit("event", { kind: "thread-started", threadId });
+			this.emit("event", { kind: "thread-started", ...result });
 			return { threadId };
 		} catch (error) {
 			this.appServer = null;
@@ -207,7 +210,11 @@ export class AppServerCodexBackend
 
 	// ---- Thread setup -------------------------------------------------------
 
-	private async startThread(config: ResolvedCodexConfig): Promise<string> {
+	private async startThread(config: ResolvedCodexConfig): Promise<{
+		threadId: string;
+		model?: string;
+		reasoningEffort?: string | null;
+	}> {
 		const result = await this.appServer?.request<ThreadStartResult>(
 			"thread/start",
 			this.threadOptionsParams(config),
@@ -216,10 +223,18 @@ export class AppServerCodexBackend
 		if (!id) {
 			throw new Error("thread/start did not return a thread id");
 		}
-		return id;
+		return {
+			threadId: id,
+			model: result?.model,
+			reasoningEffort: result?.reasoningEffort,
+		};
 	}
 
-	private async resumeThread(config: ResolvedCodexConfig): Promise<string> {
+	private async resumeThread(config: ResolvedCodexConfig): Promise<{
+		threadId: string;
+		model?: string;
+		reasoningEffort?: string | null;
+	}> {
 		const result = await this.appServer?.request<ThreadStartResult>(
 			"thread/resume",
 			{
@@ -228,7 +243,11 @@ export class AppServerCodexBackend
 			},
 		);
 		// Resuming returns the same id we asked for; fall back to it defensively.
-		return result?.thread?.id ?? config.resumeSessionId ?? "";
+		return {
+			threadId: result?.thread?.id ?? config.resumeSessionId ?? "",
+			model: result?.model,
+			reasoningEffort: result?.reasoningEffort,
+		};
 	}
 
 	private threadOptionsParams(

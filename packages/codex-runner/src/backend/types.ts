@@ -69,7 +69,12 @@ export interface NormalizedUsage {
  * turns it into Cyrus `SDKMessage`s.
  */
 export type NormalizedCodexEvent =
-	| { kind: "thread-started"; threadId: string }
+	| {
+			kind: "thread-started";
+			threadId: string;
+			model?: string;
+			reasoningEffort?: string | null;
+	  }
 	| { kind: "turn-started" }
 	| { kind: "item-started"; item: NormalizedCodexItem }
 	| { kind: "item-completed"; item: NormalizedCodexItem }

@@ -98,6 +98,7 @@ export interface CyrusAgentSession {
 	agentRunner?: IAgentRunner;
 	metadata?: {
 		model?: string;
+		reasoningEffort?: string;
 		tools?: string[];
 		permissionMode?: string;
 		apiKeySource?: string;

@@ -311,7 +311,11 @@ export class CodexEventMapper {
 		switch (event.kind) {
 			case "thread-started": {
 				this.ctx.onThreadStarted(event.threadId);
-				this.emitSystemInitMessage(event.threadId);
+				this.emitSystemInitMessage(
+					event.threadId,
+					event.model,
+					event.reasoningEffort,
+				);
 				break;
 			}
 			case "item-completed": {
@@ -531,13 +535,17 @@ export class CodexEventMapper {
 		this.pushAndEmit(assistantMessage);
 	}
 
-	private emitSystemInitMessage(sessionId: string): void {
+	private emitSystemInitMessage(
+		sessionId: string,
+		model?: string,
+		reasoningEffort?: string | null,
+	): void {
 		if (this.hasInitMessage) {
 			return;
 		}
 		this.hasInitMessage = true;
 
-		const initMessage: SDKSystemInitMessage = {
+		const initMessage: SDKSystemInitMessage & { reasoningEffort?: string } = {
 			type: "system",
 			subtype: "init",
 			agents: undefined,
@@ -546,7 +554,8 @@ export class CodexEventMapper {
 			cwd: this.ctx.workingDirectory || cwd(),
 			tools: [],
 			mcp_servers: [],
-			model: this.ctx.model || DEFAULT_CODEX_MODEL,
+			model: model || this.ctx.model || DEFAULT_CODEX_MODEL,
+			...(reasoningEffort ? { reasoningEffort } : {}),
 			permissionMode: "default",
 			slash_commands: [],
 			output_style: "default",

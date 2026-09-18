@@ -108,6 +108,30 @@ describe("AppServerCodexBackend", () => {
 		});
 	});
 
+	it.each([
+		false,
+		true,
+	])("reports actual model and effort on open (resume=%s)", async (resume) => {
+		const { backend, client } = makeBackend();
+		const events: NormalizedCodexEvent[] = [];
+		backend.on("event", (event) => events.push(event));
+		client.responses[resume ? "thread/resume" : "thread/start"] = {
+			thread: { id: "actual" },
+			model: "gpt-6-astra",
+			reasoningEffort: "xhigh",
+		};
+		await backend.open({
+			...baseConfig,
+			resumeSessionId: resume ? "actual" : undefined,
+		});
+		expect(events).toContainEqual({
+			kind: "thread-started",
+			threadId: "actual",
+			model: "gpt-6-astra",
+			reasoningEffort: "xhigh",
+		});
+	});
+
 	it("passes MCP config overrides through to thread/start config", async () => {
 		const { backend, client } = makeBackend();
 		await backend.open({

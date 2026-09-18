@@ -14,6 +14,7 @@ const taskSchema = z.object({
 	status: z.enum(["running", "completed", "error", "idle"]),
 	reason: text,
 	model: text,
+	reasoningEffort: text.optional(),
 	createdAt: z.number().finite(),
 	lastActivityAt: z.number().finite(),
 	turnStartedAt: z.number().finite(),
@@ -94,6 +95,8 @@ export class BoardHistory {
 		const task = { ...parsed.task, archived: true, quiet: false };
 		for (const key of ["issue", "title", "reason", "model"] as const)
 			task[key] = this.sanitize(task[key]);
+		if (task.reasoningEffort)
+			task.reasoningEffort = this.sanitize(task.reasoningEffort);
 		task.repositories = task.repositories.map(this.sanitize);
 		if (task.status === "running") task.status = "idle";
 		return {

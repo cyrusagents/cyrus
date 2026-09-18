@@ -62,6 +62,25 @@ describe("AgentSessionManager - Codex tool activity mapping", () => {
 		manager.addAgentRunner(sessionId, runner);
 	});
 
+	it.each([
+		"xhigh",
+		null,
+		undefined,
+	])("records effective Codex effort %s without guessing defaults", async (reasoningEffort) => {
+		mapper.handle({
+			kind: "thread-started",
+			threadId: "codex-session-1",
+			model: "gpt-6-astra",
+			reasoningEffort,
+		});
+		for (const message of mapper.getMessages())
+			await manager.handleClaudeMessage(sessionId, message);
+		expect(manager.getAllSessions()[0]?.metadata).toMatchObject({
+			model: "gpt-6-astra",
+			reasoningEffort: reasoningEffort ?? undefined,
+		});
+	});
+
 	it("creates Linear action entries for Codex file_change events", async () => {
 		mapper.handle({
 			kind: "item-completed",

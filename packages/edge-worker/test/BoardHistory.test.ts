@@ -31,6 +31,23 @@ function task(id = "one"): BoardTask {
 	};
 }
 describe("task archive", () => {
+	it("preserves recorded effort across restart and accepts older records", async () => {
+		const file = await path();
+		const archive = new BoardHistory(file);
+		await archive.ready();
+		archive.add({ ...task("new"), reasoningEffort: "xhigh" }, []);
+		archive.add(task("old"), []);
+		await archive.flush();
+		const restored = new BoardHistory(file);
+		await restored.ready();
+		expect(restored.tasks().find((t) => t.id === "new")?.reasoningEffort).toBe(
+			"xhigh",
+		);
+		expect(
+			restored.tasks().find((t) => t.id === "old")?.reasoningEffort,
+		).toBeUndefined();
+	});
+
 	it("preserves tool correlation across restart while accepting older unlinked logs", async () => {
 		const file = await path();
 		const archive = new BoardHistory(file);

@@ -174,6 +174,7 @@ function renderTasks() {
 			t.issue,
 			t.title,
 			t.model,
+			t.reasoningEffort,
 			t.status,
 			t.reason,
 			t.quiet,
@@ -216,6 +217,7 @@ function renderTasks() {
 			t.reason +
 			(t.quiet ? " · No activity for over 2 minutes" : "") +
 			`\nModel: ${t.model || "Unknown"}` +
+			`\nReasoning effort: ${t.reasoningEffort || "Unknown"}` +
 			"\nSession " +
 			t.id;
 		const top = element("div", "task-top");
@@ -242,7 +244,11 @@ function renderTasks() {
 				(t.repositories?.join(", ") || "Repository unconfirmed") +
 					(t.archived ? " · Archived" : ""),
 			),
-			element("span", "task-model", t.model || "Model unknown"),
+			element(
+				"span",
+				"task-model",
+				`${t.model || "Model unknown"} · ${t.reasoningEffort || "Effort unknown"}`,
+			),
 		);
 		meta.append(
 			context,
@@ -274,6 +280,8 @@ function renderLogs() {
 	const taskDetail = task
 		? `${task.issue || "Task"} · ` +
 			(task.model || "Unknown model") +
+			" · " +
+			(task.reasoningEffort || "Effort unknown") +
 			" · " +
 			(names[task.status] || task.status) +
 			" · Last activity " +

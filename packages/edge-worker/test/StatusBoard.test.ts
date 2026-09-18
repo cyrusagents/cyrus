@@ -62,6 +62,19 @@ function board(sessions: CyrusAgentSession[] = []) {
 const message = (value: unknown) => value as AgentMessage;
 
 describe("status board snapshots", () => {
+	it("exposes recorded reasoning effort and leaves missing effort unknown", () => {
+		const known = session("known");
+		known.metadata = { model: "gpt-6-astra", reasoningEffort: "high" };
+		const view = board([known, session("old")]);
+		expect(view.snapshot().tasks.find((t) => t.id === "known")).toMatchObject({
+			model: "gpt-6-astra",
+			reasoningEffort: "high",
+		});
+		expect(
+			view.snapshot().tasks.find((t) => t.id === "old")?.reasoningEffort,
+		).toBe("");
+	});
+
 	it("correlates live tool results within a runner session, including empty output", () => {
 		const call = (runner: string) =>
 			boardMessageLogs(
