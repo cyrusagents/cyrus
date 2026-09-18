@@ -373,8 +373,8 @@ export class RepositoryRouter {
 	 *
 	 * Supported tag syntaxes:
 	 * - [repo=my-repo-name] or [repo=my-repo-name#branch]
-	 * - repo=frontend,backend#branch
-	 * - repos=frontend,backend
+	 * - [repos=frontend,backend] or [repos=frontend,backend#branch]
+	 * - Legacy unbracketed repo= / repos= selectors
 	 */
 	private async findRepositoriesByDescriptionTag(
 		issueId: string | undefined,
@@ -475,9 +475,10 @@ export class RepositoryRouter {
 	 * Parse repo tags from issue description
 	 *
 	 * Supported syntaxes:
-	 * - `[repo=name]` or `[repo=name#branch]` — bracketed, single repo per tag
-	 * - `repo=name,name2#branch` — unbracketed, comma-separated repos with optional branch
-	 * - `repos=name,name2#branch` — same as above with plural "repos"
+	 * - `[repo=name]` or `[repo=name#branch]` — a single repository
+	 * - `[repos=name,name2#branch]` — multiple repositories with an optional shared branch
+	 * - `[repo=name,name2]` — singular spelling also accepts a list
+	 * - Legacy unbracketed `repo=name,name2#branch` and `repos=name,name2#branch`
 	 *
 	 * Also handles escaped brackets (\\[repo=...\\]) which Linear may produce.
 	 *
@@ -488,9 +489,9 @@ export class RepositoryRouter {
 	): { repo: string; branch?: string }[] {
 		const tags: { repo: string; branch?: string }[] = [];
 
-		// Pattern 1: Bracketed [repo=...] (existing syntax)
-		// Matches: [repo=name], [repo=name#branch], \[repo=name\]
-		const bracketRegex = /\\?\[repo=([a-zA-Z0-9_\-/.#]+)\\?\]/g;
+		// Bracketed selectors use the same list/branch parser as legacy selectors.
+		// Both repo and repos accept comma-separated names and Linear-escaped brackets.
+		const bracketRegex = /\\?\[repos?=([a-zA-Z0-9_\-/.#,]+)\\?\]/g;
 		for (const match of description.matchAll(bracketRegex)) {
 			if (match[1]) {
 				tags.push(...this.parseRepoValue(match[1]));
@@ -576,7 +577,7 @@ export class RepositoryRouter {
 
 				const fullIssue = await issueTracker.fetchIssue(issueId);
 				const project = await fullIssue?.project;
-				if (!project || !project.name) {
+				if (!project?.name) {
 					this.logger.debug(
 						`No project name found for issue ${issueId} in repository ${repo.name}`,
 					);

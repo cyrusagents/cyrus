@@ -778,6 +778,50 @@ describe("RepositoryRouter", () => {
 		});
 
 		describe("parseRepoTagsFromDescription", () => {
+			it.each([
+				"[repos=jectora,BoTab]",
+				"[repo=jectora,BoTab]",
+				"\\[repos=jectora,BoTab\\]",
+			])("should parse bracketed repository lists: %s", (description) => {
+				expect(env.router.parseRepoTagsFromDescription(description)).toEqual([
+					{ repo: "jectora" },
+					{ repo: "BoTab" },
+				]);
+			});
+
+			it("should parse a bracketed list with a shared base branch", () => {
+				expect(
+					env.router.parseRepoTagsFromDescription(
+						"[repos=org/frontend,org/backend#release/v2]",
+					),
+				).toEqual([
+					{ repo: "org/frontend", branch: "release/v2" },
+					{ repo: "org/backend", branch: "release/v2" },
+				]);
+			});
+
+			it("should combine bracketed selectors and retain legacy repo syntax", () => {
+				expect(
+					env.router.parseRepoTagsFromDescription(
+						"[agent=codex]\n[model=gpt-6-astra]\n[repos=frontend,backend]\nrepo=backend,shared",
+					),
+				).toEqual([
+					{ repo: "frontend" },
+					{ repo: "backend" },
+					{ repo: "shared" },
+				]);
+			});
+
+			it.each([
+				"[repos=]",
+				"[repos=bad name]",
+				"[repos=frontend,backend",
+			])("should ignore incomplete or invalid bracketed selectors: %s", (description) => {
+				expect(env.router.parseRepoTagsFromDescription(description)).toEqual(
+					[],
+				);
+			});
+
 			it("should parse simple repo name", () => {
 				const result = env.router.parseRepoTagsFromDescription(
 					"Work on [repo=my-repo] feature",
@@ -1879,7 +1923,11 @@ describe("RepositoryRouter", () => {
 
 	describe("Multi-Repo Routing", () => {
 		describe("when multiple [repo=...] description tags exist", () => {
-			it("should return all matching repositories via description-tag routing", async () => {
+			it.each([
+				"Work on [repo=frontend] and [repo=backend]",
+				"Work on [repos=frontend,backend]",
+				"Work on [repo=frontend,backend]",
+			])("should route all repositories from %s", async (description) => {
 				// Given: Two repos matching two description tags
 				const frontendRepo = env
 					.repository("repo-1", "frontend")
@@ -1890,10 +1938,7 @@ describe("RepositoryRouter", () => {
 					.inWorkspace("default-workspace")
 					.build();
 
-				env.issueHasDescription(
-					"issue-1",
-					"Work on [repo=frontend] and [repo=backend]",
-				);
+				env.issueHasDescription("issue-1", description);
 
 				const webhook = env
 					.webhook()

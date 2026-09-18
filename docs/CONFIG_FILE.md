@@ -217,13 +217,39 @@ Example: `["backend", "api"]` - Only process issues that have the "backend" or "
 
 When multiple routing configurations are present, Cyrus evaluates them in the following priority order:
 
-1. **`routingLabels`** (highest priority) - Label-based routing
-2. **`projectKeys`** (medium priority) - Project-based routing
-3. **`teamKeys`** (lowest priority) - Team-based routing
+1. **Description selectors** (highest priority) - Explicit `[repo=...]` or `[repos=...]` routing
+2. **`routingLabels`** - Label-based routing
+3. **`projectKeys`** - Project-based routing
+4. **`teamKeys`** - Team-based routing
 
 If an issue matches multiple routing configurations, the highest priority match will be used. For example, if an issue has a label that matches `routingLabels` and also belongs to a project in `projectKeys`, the label-based routing will take precedence.
 
 ---
+
+## Issue Description Selectors
+
+Set repositories, the agent, and the model in the issue description before starting a session. All selectors use square brackets:
+
+```text
+[repos=frontend,backend]
+[agent=codex]
+[model=gpt-6-astra]
+
+Implement the change in both repositories.
+```
+
+| Selector | Effect |
+| --- | --- |
+| `[repo=frontend]` | Select one repository by its configured name or GitHub/GitLab `owner/repo` path. |
+| `[repos=frontend,backend]` | Select multiple repositories in the issue's Linear workspace. Separate names with commas, without spaces. |
+| `[repo=frontend#develop]` | Use `develop` as that repository's base branch. |
+| `[repos=frontend,backend#develop]` | Use `develop` as the base branch for every repository in this selector. |
+| `[agent=codex]` | Choose the configured agent harness. Other supported names include `claude`, `gemini`, `cursor`, and `opencode`. |
+| `[model=gpt-6-astra]` | Choose a model supported by that harness. |
+
+Use separate tags for different base branches, such as `[repo=frontend#develop] [repo=backend#main]`. `[repo=frontend,backend]` is also accepted. Linear-escaped brackets are supported.
+
+Description selectors take precedence over label-based selection. Legacy unbracketed `repo=frontend` and `repos=frontend,backend` remain supported, but bracketed selectors are recommended. Existing sessions retain their selected repositories.
 
 ## Label-Based AI Modes
 
