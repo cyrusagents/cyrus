@@ -97,6 +97,8 @@ describe("SelfAuthCommand", () => {
 
 		// Ensure environment-dependent code paths are deterministic
 		delete process.env.CLOUDFLARE_TOKEN;
+		delete process.env.LINEAR_DIRECT_WEBHOOKS;
+		delete process.env.LINEAR_WEBHOOK_SECRET;
 
 		// Reset Fastify mock instance
 		mocks.mockFastifyInstance.get.mockReset();
@@ -118,6 +120,17 @@ describe("SelfAuthCommand", () => {
 	});
 
 	describe("Environment Variable Validation", () => {
+		it("requires the app's signing secret for direct webhooks before starting authorization", async () => {
+			process.env.LINEAR_CLIENT_ID = "test-id";
+			process.env.LINEAR_CLIENT_SECRET = "test-secret";
+			process.env.CYRUS_BASE_URL = "https://example.com";
+			process.env.LINEAR_DIRECT_WEBHOOKS = "true";
+			await expect(command.execute([])).rejects.toThrow("process.exit called");
+			expect(mockExit).toHaveBeenCalledWith(1);
+			expect(mocks.mockOpen).not.toHaveBeenCalled();
+			expect(mocks.mockWriteFileSync).not.toHaveBeenCalled();
+		});
+
 		it("should error when LINEAR_CLIENT_ID is missing", async () => {
 			delete process.env.LINEAR_CLIENT_ID;
 			process.env.LINEAR_CLIENT_SECRET = "test-secret";
@@ -411,8 +424,19 @@ describe("SelfAuthCommand", () => {
 		});
 
 		it("should save workspace credentials without modifying repositories", async () => {
+			process.env.LINEAR_WEBHOOK_SECRET = "new-app-webhook-secret";
+			const otherWorkspace = {
+				linearToken: "other-token",
+				linearRefreshToken: "other-refresh",
+				linearOAuth: {
+					clientId: "other-client",
+					clientSecret: "other-secret",
+					webhookSecret: "other-webhook",
+				},
+			};
 			mocks.mockReadFileSync.mockReturnValue(
 				JSON.stringify({
+					linearWorkspaces: { "ws-456": otherWorkspace },
 					repositories: [
 						{ id: "repo-1", linearWorkspaceId: "ws-123" },
 						{ id: "repo-2", linearWorkspaceId: "ws-456" },
@@ -478,6 +502,18 @@ describe("SelfAuthCommand", () => {
 			);
 			expect(writtenConfig.linearWorkspaces["ws-123"].linearWorkspaceName).toBe(
 				"Workspace",
+			);
+			expect(writtenConfig.linearWorkspaces["ws-123"].linearOAuth).toEqual({
+				clientId: "test-client-id",
+				clientSecret: "test-secret",
+				webhookSecret: "new-app-webhook-secret",
+			});
+			expect(writtenConfig.linearWorkspaces["ws-456"]).toEqual(otherWorkspace);
+			expect(mockConsoleLog.mock.calls.flat().join("\n")).not.toContain(
+				"lin_oauth_new",
+			);
+			expect(mockApp.logger.success.mock.calls.flat().join("\n")).not.toContain(
+				"lin_oauth_new",
 			);
 
 			// Repositories are NOT modified — self-auth-linear only saves credentials

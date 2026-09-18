@@ -304,6 +304,15 @@ const PromptDefaultsSchema = z.object({
 export const LinearWorkspaceConfigSchema = z.object({
 	linearToken: z.string(),
 	linearRefreshToken: z.string().optional(),
+	/** App credentials for self-hosted workspaces using their own private OAuth app. */
+	linearOAuth: z
+		.object({
+			clientId: z.string().min(1),
+			clientSecret: z.string().min(1),
+			/** Required for direct webhook delivery from this app. */
+			webhookSecret: z.string().min(1).optional(),
+		})
+		.optional(),
 	/** Linear workspace URL slug (e.g., "ceedar" from "https://linear.app/ceedar/...") */
 	linearWorkspaceSlug: z.string().optional(),
 	/** Human-readable workspace name (e.g., "Ceedar") */

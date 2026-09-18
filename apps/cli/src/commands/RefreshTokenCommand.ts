@@ -114,6 +114,55 @@ export class RefreshTokenCommand extends BaseCommand {
 			if (!ws) continue;
 
 			console.log(`\nRefreshing token for workspace ${ws.name} (${ws.id})...`);
+			const workspaceConfig = config.linearWorkspaces?.[ws.id];
+			if (workspaceConfig?.linearOAuth) {
+				if (!workspaceConfig.linearRefreshToken) {
+					this.logError(
+						`Workspace ${ws.name} has no refresh token. Reauthorize its private app with self-auth-linear and its --env-file.`,
+					);
+					continue;
+				}
+				try {
+					const response = await fetch("https://api.linear.app/oauth/token", {
+						method: "POST",
+						headers: { "Content-Type": "application/x-www-form-urlencoded" },
+						body: new URLSearchParams({
+							grant_type: "refresh_token",
+							client_id: workspaceConfig.linearOAuth.clientId,
+							client_secret: workspaceConfig.linearOAuth.clientSecret,
+							refresh_token: workspaceConfig.linearRefreshToken,
+						}).toString(),
+					});
+					if (!response.ok)
+						throw new Error(`Token refresh returned HTTP ${response.status}`);
+					const tokens = (await response.json()) as {
+						access_token?: string;
+						refresh_token?: string;
+					};
+					if (
+						!tokens.access_token?.startsWith("lin_oauth_") ||
+						!tokens.refresh_token
+					) {
+						throw new Error("Token refresh returned invalid credentials");
+					}
+					const accessToken = tokens.access_token;
+					const refreshToken = tokens.refresh_token;
+					this.app.config.update((cfg) => {
+						const current = cfg.linearWorkspaces?.[ws.id];
+						if (current) {
+							current.linearToken = accessToken;
+							current.linearRefreshToken = refreshToken;
+						}
+						return cfg;
+					});
+					this.logSuccess(`Updated token for workspace ${ws.name}`);
+				} catch {
+					this.logError(
+						`Could not refresh workspace ${ws.name}. Reauthorize its private app with self-auth-linear and its --env-file.`,
+					);
+				}
+				continue;
+			}
 			console.log("Opening Linear OAuth flow in your browser...");
 
 			// Use the proxy's OAuth flow with a callback to localhost
@@ -194,13 +243,8 @@ export class RefreshTokenCommand extends BaseCommand {
 					(cfg as Record<string, unknown>).linearWorkspaces = {};
 				}
 				cfg.linearWorkspaces![ws.id] = {
+					...cfg.linearWorkspaces![ws.id],
 					linearToken: newToken,
-					...(cfg.linearWorkspaces![ws.id]?.linearRefreshToken
-						? {
-								linearRefreshToken:
-									cfg.linearWorkspaces![ws.id]!.linearRefreshToken,
-							}
-						: {}),
 				};
 				return cfg;
 			});

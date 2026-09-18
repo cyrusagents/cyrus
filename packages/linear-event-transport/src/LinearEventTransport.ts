@@ -59,7 +59,7 @@ export class LinearEventTransport
 		this.translationContext = translationContext ?? {};
 
 		// Initialize Linear webhook client for direct mode
-		if (config.verificationMode === "direct") {
+		if (config.verificationMode === "direct" && config.secret) {
 			this.linearWebhookClient = new LinearWebhookClient(config.secret);
 		}
 	}
@@ -129,7 +129,7 @@ export class LinearEventTransport
 		request: FastifyRequest,
 		reply: FastifyReply,
 	): Promise<void> {
-		if (!this.linearWebhookClient) {
+		if (!this.linearWebhookClient && !this.config.resolveWebhookSecret) {
 			reply.code(500).send({ error: "Linear webhook client not initialized" });
 			return;
 		}
@@ -155,6 +155,21 @@ export class LinearEventTransport
 		}
 
 		try {
+			const payload = request.body as LinearWebhookPayload;
+			let webhookClient = this.linearWebhookClient;
+			if (this.config.resolveWebhookSecret) {
+				const organizationId = payload?.organizationId;
+				const secret =
+					typeof organizationId === "string"
+						? this.config.resolveWebhookSecret(organizationId)
+						: undefined;
+				if (!secret) {
+					reply.code(401).send({ error: "Invalid webhook signature" });
+					return;
+				}
+				webhookClient = new LinearWebhookClient(secret);
+			}
+
 			// Use the raw body bytes that SharedApplicationServer stashed on the request
 			// so signature verification uses the exact payload Linear signed, rather than
 			// a re-serialized version that may differ in key order or whitespace.
@@ -162,14 +177,12 @@ export class LinearEventTransport
 			const bodyBuffer = rawBody
 				? Buffer.from(rawBody)
 				: Buffer.from(JSON.stringify(request.body));
-			const isValid = this.linearWebhookClient.verify(bodyBuffer, signature);
+			const isValid = webhookClient?.verify(bodyBuffer, signature);
 
 			if (!isValid) {
 				reply.code(401).send({ error: "Invalid webhook signature" });
 				return;
 			}
-
-			const payload = request.body as LinearWebhookPayload;
 
 			// Emit "event" for legacy IAgentEventTransport compatibility
 			this.emit("event", payload);

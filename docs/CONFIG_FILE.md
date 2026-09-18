@@ -591,3 +591,17 @@ Each repository configuration includes these required fields:
 - `linearWorkspaceId` - Linear workspace UUID (references a key in `linearWorkspaces`)
 
 These fields are managed automatically during setup. For self-hosted instances, use the `cyrus self-auth-linear` and `cyrus self-add-repo` commands.
+
+## Private Linear App Credentials
+
+`linearWorkspaces` is keyed by the Linear workspace UUID. Each entry can include
+`linearOAuth` with `clientId`, `clientSecret`, and `webhookSecret` for that workspace's
+private app. `clientId` and `clientSecret` must both be non-empty. `webhookSecret`
+is required when using direct webhook delivery. These are secrets, just like
+`linearToken` and `linearRefreshToken`.
+
+`self-auth-linear` saves these values automatically. To connect another private
+app without replacing the existing environment, use a separate `--env-file` as
+described in [Self Hosting](./SELF_HOSTING.md#additional-private-linear-apps).
+Legacy workspace entries without `linearOAuth` keep using the global Linear app
+credentials. Token refresh preserves app credentials and workspace metadata.

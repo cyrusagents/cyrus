@@ -13,6 +13,26 @@ Use the `CYRUS_ENTRY` path supplied by prerequisites for the OAuth command. If i
 
 ## Step 1: Check Existing Configuration
 
+When the user asks to add **another workspace with its own private app**, do not
+skip setup because an existing workspace is authorized, and do not replace the
+normal `~/.cyrus/.env`. One instance supports multiple private apps:
+
+- Create the new app in the requested workspace using the manifest below, with
+  the existing base URL, callback URL, and webhook URL.
+- Use a separate credential file, e.g. `~/.cyrus/linear-nexmoe.env`. Include the
+  existing `CYRUS_BASE_URL`, `CYRUS_SERVER_PORT`, `CYRUS_HOST_EXTERNAL=true`, and
+  `LINEAR_DIRECT_WEBHOOKS=true`, then have the user paste the new app's three
+  `LINEAR_*` values into this file. Apply mode `600`; never print its contents.
+- At Step 5, wait for the worker to be idle, stop it to free the callback port,
+  keep the tunnel running, and run:
+  `node "<CYRUS_ENTRY>" --env-file "<new-credential-file>" self-auth-linear`.
+- The command stores the new app credentials in that workspace's `linearOAuth`
+  entry in `config.json`, preserving other workspaces. Restart the existing
+  service with its normal environment, not the new credential file.
+- Check workspace names and credential presence only; never print config tokens
+  or app secrets. Do not claim the new workspace is connected until OAuth saves
+  the requested workspace.
+
 ```bash
 grep -E '^LINEAR_CLIENT_ID=' ~/.cyrus/.env 2>/dev/null
 ```

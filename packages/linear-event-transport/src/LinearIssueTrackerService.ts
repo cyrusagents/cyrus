@@ -105,21 +105,14 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 		logger?: ILogger,
 	) {
 		this.linearClient = linearClient;
-		this.oauthConfig = oauthConfig;
 		this.logger =
 			logger ?? createLogger({ component: "LinearIssueTrackerService" });
 
-		// Register initial refresh token in shared static map
-		if (oauthConfig?.refreshToken) {
-			LinearIssueTrackerService.workspaceRefreshTokens.set(
-				oauthConfig.workspaceId,
-				oauthConfig.refreshToken,
-			);
-		}
+		this.setOAuthConfig(oauthConfig);
 
-		// Only patch if oauthConfig is provided AND linearClient.client exists
-		// (the .client property may not exist in test mocks)
-		if (oauthConfig && linearClient.client) {
+		// Install once so a later workspace authorization can enable refresh.
+		// The .client property may not exist in test mocks.
+		if (linearClient.client) {
 			const client = linearClient.client;
 			const originalRequest = client.request.bind(client);
 
@@ -141,7 +134,8 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 				} catch (error) {
 					// Don't retry if this is already a retry attempt (prevents infinite loops)
 					// or if it's not a token expiration error
-					if (isRetry || !this.isTokenExpiredError(error)) throw error;
+					if (isRetry || !this.oauthConfig || !this.isTokenExpiredError(error))
+						throw error;
 
 					// Coalesce concurrent refresh attempts - everyone shares the same promise.
 					if (!this.refreshPromise) {
@@ -175,6 +169,18 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 					}
 				}
 			};
+		}
+	}
+
+	/** Update this workspace's app credentials and refresh token after config reload. */
+	setOAuthConfig(config: LinearOAuthConfig | undefined): void {
+		this.oauthConfig = config;
+		this.refreshPromise = null;
+		if (config?.refreshToken) {
+			LinearIssueTrackerService.workspaceRefreshTokens.set(
+				config.workspaceId,
+				config.refreshToken,
+			);
 		}
 	}
 

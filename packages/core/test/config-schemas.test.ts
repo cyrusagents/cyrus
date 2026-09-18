@@ -10,6 +10,40 @@ const baseRepository = {
 };
 
 describe("EdgeConfigSchema", () => {
+	it("preserves per-workspace app credentials alongside legacy workspaces", () => {
+		const linearWorkspaces = {
+			legacy: { linearToken: "legacy-token" },
+			private: {
+				linearToken: "new-token",
+				linearOAuth: {
+					clientId: "client-id",
+					clientSecret: "client-secret",
+					webhookSecret: "webhook-secret",
+				},
+			},
+		};
+		expect(
+			EdgeConfigSchema.parse({ repositories: [], linearWorkspaces })
+				.linearWorkspaces,
+		).toEqual(linearWorkspaces);
+	});
+
+	it.each([
+		{ clientId: "client-id" },
+		{ clientId: "", clientSecret: "secret" },
+		{ clientId: "id", clientSecret: "" },
+		{ clientId: "id", clientSecret: "secret", webhookSecret: "" },
+	])("rejects incomplete scoped app credentials: %j", (linearOAuth) => {
+		expect(
+			EdgeConfigSchema.safeParse({
+				repositories: [],
+				linearWorkspaces: {
+					private: { linearToken: "token", linearOAuth },
+				},
+			}).success,
+		).toBe(false);
+	});
+
 	it("accepts strict MCP configuration as a top-level boolean", () => {
 		const enabled = EdgeConfigSchema.parse({
 			repositories: [baseRepository],

@@ -5,6 +5,111 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LinearEventTransport } from "../src/LinearEventTransport.js";
 
 describe("LinearEventTransport", () => {
+	describe("workspace-specific private apps", () => {
+		let server: FastifyInstance;
+		let secrets: Record<string, string | undefined>;
+		const onEvent = vi.fn();
+
+		beforeEach(() => {
+			onEvent.mockClear();
+			secrets = { "workspace-a": "secret-a", "workspace-b": "secret-b" };
+			server = Fastify();
+			server.removeContentTypeParser("application/json");
+			server.addContentTypeParser(
+				"application/json",
+				{ parseAs: "string" },
+				(request, body, done) => {
+					(request as typeof request & { rawBody: string }).rawBody =
+						body as string;
+					done(null, JSON.parse(body as string));
+				},
+			);
+			const transport = new LinearEventTransport({
+				fastifyServer: server,
+				verificationMode: "direct",
+				secret: "legacy-global-secret",
+				resolveWebhookSecret: (id) =>
+					Object.hasOwn(secrets, id) ? secrets[id] : undefined,
+			});
+			transport.on("event", onEvent);
+			transport.register();
+		});
+
+		afterEach(async () => {
+			await server.close();
+		});
+
+		async function deliver(
+			organizationId: unknown,
+			secret: string,
+			url = "/linear-webhook",
+		) {
+			const payload = JSON.stringify(
+				{
+					type: "Issue",
+					action: "create",
+					data: { id: "issue-1" },
+					organizationId,
+				},
+				null,
+				2,
+			);
+			return server.inject({
+				method: "POST",
+				url,
+				payload,
+				headers: {
+					"content-type": "application/json",
+					"linear-signature": createHmac("sha256", secret)
+						.update(payload)
+						.digest("hex"),
+				},
+			});
+		}
+
+		it.each([
+			"/linear-webhook",
+			"/webhook",
+		])("accepts each app's signature on %s using the original body bytes", async (url) => {
+			expect((await deliver("workspace-a", "secret-a", url)).statusCode).toBe(
+				200,
+			);
+			expect((await deliver("workspace-b", "secret-b", url)).statusCode).toBe(
+				200,
+			);
+			expect(onEvent.mock.calls.map(([event]) => event.organizationId)).toEqual(
+				["workspace-a", "workspace-b"],
+			);
+		});
+
+		it.each([
+			["workspace-a", "secret-b"],
+			["workspace-b", "secret-a"],
+			["workspace-b", "legacy-global-secret"],
+			["unknown", "legacy-global-secret"],
+			["__proto__", "secret-a"],
+			[undefined, "legacy-global-secret"],
+			[null, "secret-a"],
+			[{}, "secret-a"],
+		])("rejects organization %j signed by a different app", async (id, secret) => {
+			expect((await deliver(id, secret)).statusCode).toBe(401);
+			expect(onEvent).not.toHaveBeenCalled();
+		});
+
+		it("picks up a rotated secret and fails closed if it is removed", async () => {
+			secrets["workspace-b"] = "rotated-secret";
+			expect((await deliver("workspace-b", "secret-b")).statusCode).toBe(401);
+			expect((await deliver("workspace-b", "rotated-secret")).statusCode).toBe(
+				200,
+			);
+			delete secrets["workspace-b"];
+			expect((await deliver("workspace-b", "rotated-secret")).statusCode).toBe(
+				401,
+			);
+			expect(onEvent).toHaveBeenCalledTimes(1);
+		});
+	});
+
 	describe("published source IPs in direct mode", () => {
 		let server: FastifyInstance;
 		const onEvent = vi.fn();

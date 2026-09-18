@@ -22,6 +22,12 @@ export interface LinearEventTransportConfig {
 	verificationMode: VerificationMode;
 	/** Secret for verification (LINEAR_WEBHOOK_SECRET or CYRUS_API_KEY) */
 	secret: string;
+	/**
+	 * Resolve the signing secret for the claimed organization in direct mode.
+	 * The organization is untrusted until its signature is verified. Returning
+	 * undefined rejects the request; it never falls back to the global secret.
+	 */
+	resolveWebhookSecret?: (organizationId: string) => string | undefined;
 	/** Optional IP allowlist for webhook source validation (only used in direct mode) */
 	ipAllowlist?: readonly string[];
 }

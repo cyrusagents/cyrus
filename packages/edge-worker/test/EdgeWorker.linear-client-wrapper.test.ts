@@ -1,6 +1,6 @@
 import { LinearClient } from "@linear/sdk";
 import type { EdgeWorkerConfig } from "cyrus-core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 
 // Mock modules
@@ -51,9 +51,11 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 	let edgeWorker: EdgeWorker;
 	let mockConfig: EdgeWorkerConfig;
 	let mockLinearClient: any;
+	let originalEnv: NodeJS.ProcessEnv;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		originalEnv = { ...process.env };
 
 		// Setup mock config
 		mockConfig = {
@@ -104,6 +106,10 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 		vi.mocked(LinearClient).mockImplementation(function () {
 			return mockLinearClient;
 		});
+	});
+
+	afterEach(() => {
+		process.env = originalEnv;
 	});
 
 	describe("Auto-retry on 401 errors", () => {
@@ -171,6 +177,101 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 	});
 
 	describe("OAuth config setup", () => {
+		it("uses each private app's credentials without mixing in the global app", () => {
+			mockConfig.linearWorkspaces!["workspace-123"].linearOAuth = {
+				clientId: "private-client-a",
+				clientSecret: "private-secret-a",
+				webhookSecret: "webhook-a",
+			};
+			mockConfig.linearWorkspaces!["workspace-456"] = {
+				linearToken: "token-b",
+				linearRefreshToken: "refresh-b",
+				linearOAuth: {
+					clientId: "private-client-b",
+					clientSecret: "private-secret-b",
+					webhookSecret: "webhook-b",
+				},
+			};
+			edgeWorker = new EdgeWorker(mockConfig);
+			const trackers = (edgeWorker as any).issueTrackers;
+			expect(trackers.get("workspace-123").oauthConfig).toMatchObject({
+				clientId: "private-client-a",
+				clientSecret: "private-secret-a",
+				refreshToken: "refresh_token",
+			});
+			expect(trackers.get("workspace-456").oauthConfig).toMatchObject({
+				clientId: "private-client-b",
+				clientSecret: "private-secret-b",
+				refreshToken: "refresh-b",
+			});
+		});
+
+		it("refreshes two workspaces with the matching app and preserves their stored credentials", async () => {
+			const { readFile, writeFile } = await import("node:fs/promises");
+			const firstOAuth = {
+				clientId: "app-a",
+				clientSecret: "secret-a",
+				webhookSecret: "webhook-a",
+			};
+			const secondOAuth = {
+				clientId: "app-b",
+				clientSecret: "secret-b",
+				webhookSecret: "webhook-b",
+			};
+			mockConfig.linearWorkspaces = {
+				"workspace-123": {
+					linearToken: "old-a",
+					linearRefreshToken: "refresh-a",
+					linearWorkspaceSlug: "alpha",
+					linearOAuth: firstOAuth,
+				},
+				"workspace-456": {
+					linearToken: "old-b",
+					linearRefreshToken: "refresh-b",
+					linearWorkspaceSlug: "beta",
+					linearOAuth: secondOAuth,
+				},
+			};
+			let storedConfig = JSON.stringify(mockConfig);
+			vi.mocked(readFile).mockImplementation(async () => storedConfig);
+			vi.mocked(writeFile).mockImplementation(async (_path, data) => {
+				storedConfig = String(data);
+			});
+			edgeWorker = new EdgeWorker(mockConfig);
+			edgeWorker.setConfigPath("/test/.cyrus/config.json");
+			vi.mocked(fetch).mockImplementation(async (_url, options) => {
+				const params = new URLSearchParams(String(options?.body));
+				const suffix = params.get("client_id") === "app-a" ? "a" : "b";
+				expect(params.get("client_secret")).toBe(`secret-${suffix}`);
+				expect(params.get("refresh_token")).toBe(`refresh-${suffix}`);
+				return new Response(
+					JSON.stringify({
+						access_token: `new-${suffix}`,
+						refresh_token: `rotated-${suffix}`,
+					}),
+				);
+			});
+			const trackers = (edgeWorker as any).issueTrackers;
+			await Promise.all([
+				trackers.get("workspace-123").doTokenRefresh(),
+				trackers.get("workspace-456").doTokenRefresh(),
+			]);
+			expect(fetch).toHaveBeenCalledTimes(2);
+			const stored = JSON.parse(storedConfig).linearWorkspaces;
+			expect(stored["workspace-123"]).toMatchObject({
+				linearToken: "new-a",
+				linearRefreshToken: "rotated-a",
+				linearOAuth: firstOAuth,
+				linearWorkspaceSlug: "alpha",
+			});
+			expect(stored["workspace-456"]).toMatchObject({
+				linearToken: "new-b",
+				linearRefreshToken: "rotated-b",
+				linearOAuth: secondOAuth,
+				linearWorkspaceSlug: "beta",
+			});
+		});
+
 		it("should configure OAuth with correct credentials", async () => {
 			edgeWorker = new EdgeWorker(mockConfig);
 
@@ -188,6 +289,29 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 	});
 
 	describe("Dynamic Linear token updates", () => {
+		it("reloads app credentials even when the access token is unchanged", () => {
+			edgeWorker = new EdgeWorker(mockConfig);
+			const newConfig: EdgeWorkerConfig = {
+				...mockConfig,
+				linearWorkspaces: {
+					"workspace-123": {
+						...mockConfig.linearWorkspaces!["workspace-123"],
+						linearOAuth: {
+							clientId: "new-private-app",
+							clientSecret: "new-secret",
+							webhookSecret: "new-webhook",
+						},
+					},
+				},
+			};
+			(edgeWorker as any).updateLinearWorkspaceTokens(newConfig);
+			const tracker = (edgeWorker as any).issueTrackers.get("workspace-123");
+			expect(tracker.oauthConfig).toMatchObject({
+				clientId: "new-private-app",
+				clientSecret: "new-secret",
+			});
+		});
+
 		it("should call setAccessToken on existing issue trackers when workspace token changes", () => {
 			edgeWorker = new EdgeWorker(mockConfig);
 
@@ -283,6 +407,10 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 			(edgeWorker as any).updateLinearWorkspaceTokens(newConfig);
 
 			expect(issueTrackers.has("workspace-456")).toBe(true);
+			expect(issueTrackers.get("workspace-456").oauthConfig).toMatchObject({
+				workspaceId: "workspace-456",
+				refreshToken: "new_refresh",
+			});
 		});
 	});
 });

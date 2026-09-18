@@ -35,6 +35,8 @@ export interface LinearDirectEventTransportConfig
 	 * Linear webhook secret (LINEAR_WEBHOOK_SECRET) for signature verification.
 	 */
 	secret: string;
+	/** Resolve a workspace's signing secret; undefined rejects the webhook. */
+	resolveWebhookSecret?: (organizationId: string) => string | undefined;
 }
 
 /**

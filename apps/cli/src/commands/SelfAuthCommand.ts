@@ -26,12 +26,22 @@ export class SelfAuthCommand extends BaseCommand {
 		const clientId = process.env.LINEAR_CLIENT_ID;
 		const clientSecret = process.env.LINEAR_CLIENT_SECRET;
 		const baseUrl = process.env.CYRUS_BASE_URL;
+		const webhookSecret = process.env.LINEAR_WEBHOOK_SECRET;
+		const needsWebhookSecret =
+			process.env.LINEAR_DIRECT_WEBHOOKS?.toLowerCase() === "true";
 
-		if (!clientId || !clientSecret || !baseUrl) {
+		if (
+			!clientId ||
+			!clientSecret ||
+			!baseUrl ||
+			(needsWebhookSecret && !webhookSecret)
+		) {
 			this.logError("Missing required environment variables:");
 			if (!clientId) console.log("   - LINEAR_CLIENT_ID");
 			if (!clientSecret) console.log("   - LINEAR_CLIENT_SECRET");
 			if (!baseUrl) console.log("   - CYRUS_BASE_URL");
+			if (needsWebhookSecret && !webhookSecret)
+				console.log("   - LINEAR_WEBHOOK_SECRET");
 			console.log(`\nAdd these to your env file (${this.app.cyrusHome}/.env):`);
 			console.log("  LINEAR_CLIENT_ID=your-client-id");
 			console.log("  LINEAR_CLIENT_SECRET=your-client-secret");
@@ -84,9 +94,7 @@ export class SelfAuthCommand extends BaseCommand {
 				clientId,
 				clientSecret,
 			);
-			this.logSuccess(
-				`Got access token: ${tokens.accessToken.substring(0, 30)}...`,
-			);
+			this.logSuccess("Received OAuth tokens");
 
 			// Fetch workspace info
 			console.log("Fetching workspace info...");
@@ -95,6 +103,11 @@ export class SelfAuthCommand extends BaseCommand {
 
 			// Save workspace credentials to config.json
 			console.log("Saving tokens to config.json...");
+			// Merge into the latest file so authorizing an additional app does not
+			// overwrite token refreshes or configuration changes made while waiting.
+			config = migrateEdgeConfig(
+				JSON.parse(readFileSync(configPath, "utf-8")),
+			) as EdgeConfig;
 			if (!config.linearWorkspaces) {
 				(config as Record<string, unknown>).linearWorkspaces = {};
 			}
@@ -105,6 +118,11 @@ export class SelfAuthCommand extends BaseCommand {
 					: {}),
 				linearWorkspaceName: workspace.name,
 				linearWorkspaceSlug: workspace.slug,
+				linearOAuth: {
+					clientId,
+					clientSecret,
+					...(webhookSecret ? { webhookSecret } : {}),
+				},
 			};
 			writeFileSync(configPath, JSON.stringify(config, null, "\t"), "utf-8");
 
@@ -247,7 +265,7 @@ export class SelfAuthCommand extends BaseCommand {
 			refresh_token?: string;
 		};
 
-		if (!data.access_token || !data.access_token.startsWith("lin_oauth_")) {
+		if (!data.access_token?.startsWith("lin_oauth_")) {
 			throw new Error("Invalid access token received");
 		}
 

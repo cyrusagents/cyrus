@@ -520,6 +520,25 @@
 					"linearRefreshToken": {
 						"type": "string"
 					},
+					"linearOAuth": {
+						"type": "object",
+						"properties": {
+							"clientId": {
+								"type": "string",
+								"minLength": 1
+							},
+							"clientSecret": {
+								"type": "string",
+								"minLength": 1
+							},
+							"webhookSecret": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"required": ["clientId", "clientSecret"],
+						"additionalProperties": false
+					},
 					"linearWorkspaceSlug": {
 						"type": "string"
 					},

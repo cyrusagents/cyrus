@@ -247,6 +247,7 @@ export class EdgeWorker extends EventEmitter {
 	private githubTokenStore: GitHubTokenStore;
 	private globalSessionRegistry: GlobalSessionRegistry; // Centralized session storage across all repositories
 	private configPath?: string; // Path to config.json file
+	private oauthTokenSaveQueue: Promise<void> = Promise.resolve();
 	/** @internal - Exposed for testing only */
 	public repositoryRouter: RepositoryRouter; // Repository routing and selection
 	private gitService: GitService;
@@ -855,6 +856,18 @@ export class EdgeWorker extends EventEmitter {
 				fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
 				verificationMode,
 				secret,
+				resolveWebhookSecret: useDirectWebhooks
+					? (organizationId) => {
+							const workspaces = this.config.linearWorkspaces ?? {};
+							if (!Object.hasOwn(workspaces, organizationId)) return undefined;
+							const workspace = workspaces[organizationId];
+							if (!workspace) return undefined;
+							// A scoped app must not accept another app's global secret.
+							return workspace.linearOAuth
+								? workspace.linearOAuth.webhookSecret
+								: process.env.LINEAR_WEBHOOK_SECRET;
+						}
+					: undefined,
 				ipAllowlist:
 					verificationMode === "direct" && this.webhookIpValidator.isEnabled()
 						? this.webhookIpValidator.getAllowlist("linear")
@@ -3192,17 +3205,27 @@ ${taskSection}`;
 		let anyTokenChanged = false;
 
 		for (const [workspaceId, newWsConfig] of Object.entries(newWorkspaces)) {
-			const oldToken = oldWorkspaces[workspaceId]?.linearToken;
+			const oldWsConfig = oldWorkspaces[workspaceId];
+			const oldToken = oldWsConfig?.linearToken;
 			const newToken = newWsConfig.linearToken;
+			const credentialsChanged =
+				oldWsConfig?.linearRefreshToken !== newWsConfig.linearRefreshToken ||
+				JSON.stringify(oldWsConfig?.linearOAuth) !==
+					JSON.stringify(newWsConfig.linearOAuth);
 
-			if (oldToken === newToken) continue;
+			if (oldToken === newToken && !credentialsChanged) continue;
 
 			anyTokenChanged = true;
 
 			// Update existing issue tracker in-place
 			const issueTracker = this.issueTrackers.get(workspaceId);
 			if (issueTracker) {
-				(issueTracker as LinearIssueTrackerService).setAccessToken(newToken);
+				if (oldToken !== newToken) {
+					(issueTracker as LinearIssueTrackerService).setAccessToken(newToken);
+				}
+				(issueTracker as LinearIssueTrackerService).setOAuthConfig(
+					this.buildOAuthConfig(workspaceId, newWsConfig),
+				);
 				this.logger.info(
 					`🔑 Updated Linear token for workspace ${workspaceId}`,
 				);
@@ -3210,7 +3233,7 @@ ${taskSection}`;
 				// Workspace is new — create a tracker and activity sink for it
 				const newIssueTracker = new LinearIssueTrackerService(
 					new LinearClient({ accessToken: newToken }),
-					this.buildOAuthConfig(workspaceId),
+					this.buildOAuthConfig(workspaceId, newWsConfig),
 				);
 				this.issueTrackers.set(workspaceId, newIssueTracker);
 				this.activitySinks.set(
@@ -7813,18 +7836,21 @@ ${input.userComment}
 	 */
 	private buildOAuthConfig(
 		linearWorkspaceId: string,
+		workspaceConfig = this.config.linearWorkspaces?.[linearWorkspaceId],
 	): LinearOAuthConfig | undefined {
-		const clientId = process.env.LINEAR_CLIENT_ID;
-		const clientSecret = process.env.LINEAR_CLIENT_SECRET;
+		const credentials = workspaceConfig?.linearOAuth ?? {
+			clientId: process.env.LINEAR_CLIENT_ID,
+			clientSecret: process.env.LINEAR_CLIENT_SECRET,
+		};
+		const { clientId, clientSecret } = credentials;
 
 		if (!clientId || !clientSecret) {
 			this.logger.warn(
-				"LINEAR_CLIENT_ID and LINEAR_CLIENT_SECRET not set, token refresh disabled",
+				`OAuth app credentials not configured for workspace ${linearWorkspaceId}, token refresh disabled`,
 			);
 			return undefined;
 		}
 
-		const workspaceConfig = this.config.linearWorkspaces?.[linearWorkspaceId];
 		if (!workspaceConfig?.linearRefreshToken) {
 			this.logger.warn(
 				`No refresh token for workspace ${linearWorkspaceId}, token refresh disabled`,
@@ -7834,8 +7860,7 @@ ${input.userComment}
 
 		// Get workspace name from workspace-level config
 		const workspaceName =
-			this.config.linearWorkspaces?.[linearWorkspaceId]?.linearWorkspaceName ||
-			linearWorkspaceId;
+			workspaceConfig.linearWorkspaceName || linearWorkspaceId;
 
 		return {
 			clientId,
@@ -7875,47 +7900,40 @@ ${input.userComment}
 			this.logger.warn("No config path set, cannot save OAuth tokens");
 			return;
 		}
+		const configPath = this.configPath;
 
-		try {
-			const configContent = await readFile(this.configPath, "utf-8");
-			const config = JSON.parse(configContent);
+		// Different private apps can refresh at the same time. Serialize the
+		// read/merge/write so one workspace cannot overwrite another's tokens.
+		this.oauthTokenSaveQueue = this.oauthTokenSaveQueue.then(async () => {
+			try {
+				const configContent = await readFile(configPath, "utf-8");
+				const config = JSON.parse(configContent);
 
-			// Ensure linearWorkspaces exists
-			if (!config.linearWorkspaces) {
-				config.linearWorkspaces = {};
+				// Ensure linearWorkspaces exists
+				if (!config.linearWorkspaces) {
+					config.linearWorkspaces = {};
+				}
+
+				// Update workspace-level token storage
+				config.linearWorkspaces[tokens.linearWorkspaceId] = {
+					...config.linearWorkspaces[tokens.linearWorkspaceId],
+					linearToken: tokens.linearToken,
+					...(tokens.linearRefreshToken
+						? { linearRefreshToken: tokens.linearRefreshToken }
+						: {}),
+					...(tokens.linearWorkspaceName
+						? { linearWorkspaceName: tokens.linearWorkspaceName }
+						: {}),
+				};
+
+				await writeFile(configPath, JSON.stringify(config, null, "\t"));
+				this.logger.debug(
+					`OAuth tokens saved to config for workspace ${tokens.linearWorkspaceId}`,
+				);
+			} catch (error) {
+				this.logger.error("Failed to save OAuth tokens:", error);
 			}
-
-			// Update workspace-level token storage
-			config.linearWorkspaces[tokens.linearWorkspaceId] = {
-				linearToken: tokens.linearToken,
-				...(tokens.linearRefreshToken
-					? { linearRefreshToken: tokens.linearRefreshToken }
-					: config.linearWorkspaces[tokens.linearWorkspaceId]
-								?.linearRefreshToken
-						? {
-								linearRefreshToken:
-									config.linearWorkspaces[tokens.linearWorkspaceId]
-										.linearRefreshToken,
-							}
-						: {}),
-				...(tokens.linearWorkspaceName
-					? { linearWorkspaceName: tokens.linearWorkspaceName }
-					: config.linearWorkspaces[tokens.linearWorkspaceId]
-								?.linearWorkspaceName
-						? {
-								linearWorkspaceName:
-									config.linearWorkspaces[tokens.linearWorkspaceId]
-										.linearWorkspaceName,
-							}
-						: {}),
-			};
-
-			await writeFile(this.configPath, JSON.stringify(config, null, "\t"));
-			this.logger.debug(
-				`OAuth tokens saved to config for workspace ${tokens.linearWorkspaceId}`,
-			);
-		} catch (error) {
-			this.logger.error("Failed to save OAuth tokens:", error);
-		}
+		});
+		await this.oauthTokenSaveQueue;
 	}
 }

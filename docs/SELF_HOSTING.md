@@ -212,6 +212,45 @@ This will:
 2. Open your browser to Linear's OAuth authorization page
 3. After you click **Authorize**, redirect back and save the tokens to your config
 
+#### Additional private Linear apps
+
+One Cyrus instance can serve private apps from multiple Linear workspaces. Each
+app can use the same public callback URL (`/callback`) and webhook URL
+(`/linear-webhook`). No additional port, domain, or worker is needed.
+
+Create the private app in the additional workspace using the manifest flow in
+`skills/cyrus-setup-linear/SKILL.md`. Save its settings in a separate file, such as
+`~/.cyrus/linear-nexmoe.env`; keep the existing `~/.cyrus/.env` unchanged:
+
+```dotenv
+CYRUS_BASE_URL=https://your-public-url.com
+CYRUS_SERVER_PORT=3456
+CYRUS_HOST_EXTERNAL=true
+LINEAR_DIRECT_WEBHOOKS=true
+LINEAR_CLIENT_ID=the_new_app_client_id
+LINEAR_CLIENT_SECRET=the_new_app_client_secret
+LINEAR_WEBHOOK_SECRET=the_new_app_webhook_secret
+```
+
+Protect this file with `chmod 600`. Wait until Cyrus is idle, stop the worker to
+free its callback port, and keep the tunnel running. Authorize the additional app:
+
+```bash
+node "$CYRUS_ENTRY" --env-file "$HOME/.cyrus/linear-nexmoe.env" self-auth-linear
+```
+
+Select the new workspace in Linear, then restart the normal Cyrus service **without
+the `--env-file` override**. Authorization saves that app's client ID, client secret,
+and webhook secret under the workspace's `linearOAuth` entry in `config.json`.
+Other workspaces and repositories are preserved. Protect `config.json` as a secret
+file; do not commit it or paste it into chat.
+
+Each workspace uses its own app to verify webhooks and refresh OAuth tokens.
+Existing workspaces without `linearOAuth` continue using `LINEAR_CLIENT_ID`,
+`LINEAR_CLIENT_SECRET`, and `LINEAR_WEBHOOK_SECRET` from the normal environment.
+A workspace with scoped credentials never falls back to another app's webhook
+secret. Reauthorizing an app replaces credentials only for its own workspace.
+
 ### 5.2 Add a Repository
 
 ```bash
