@@ -193,4 +193,80 @@ Analyze the issue description, labels, and any user comments to determine which 
 			.expectComponents("issue-context", "user-comment")
 			.verify();
 	});
+
+	it("assignment-based GitLab repo - should tell the agent to use glab", async () => {
+		const worker = createTestWorker();
+
+		const session = {
+			issueId: "c3d4e5f6-a7b8-9012-cdef-234567890123",
+			workspace: { path: "/test/gitlab-repo" },
+			metadata: {},
+		};
+
+		const issue = {
+			id: "c3d4e5f6-a7b8-9012-cdef-234567890123",
+			identifier: "GL-123",
+			title: "Fix GitLab bug",
+			description: "The GitLab integration needs an update",
+		};
+
+		const repository = {
+			id: "repo-gitlab-123",
+			name: "GitLab Repo",
+			repositoryPath: "/test/gitlab-repo",
+			gitlabUrl: "https://gitlab.com/acme/gitlab-repo",
+		};
+
+		await scenario(worker)
+			.newSession()
+			.assignmentBased()
+			.withSession(session)
+			.withIssue(issue)
+			.withRepository(repository)
+			.withUserComment("")
+			.withLabels()
+			.expectUserPrompt(`<context>
+  <repository>GitLab Repo</repository>
+  <working_directory>/test/gitlab-repo</working_directory>
+  <base_branch>main</base_branch>
+</context>
+
+<linear_issue>
+  <id>c3d4e5f6-a7b8-9012-cdef-234567890123</id>
+  <identifier>GL-123</identifier>
+  <title>Fix GitLab bug</title>
+  <description>
+The GitLab integration needs an update
+  </description>
+  <state>Unknown</state>
+  <priority>None</priority>
+  <url></url>
+  <assignee>
+    <linear_display_name></linear_display_name>
+    <linear_profile_url></linear_profile_url>
+    <github_username></github_username>
+    <github_user_id></github_user_id>
+    <github_noreply_email></github_noreply_email>
+  </assignee>
+</linear_issue>
+
+<linear_comments>
+No comments yet.
+</linear_comments>
+
+<source_control_context>
+  <repository name="GitLab Repo">
+    <gitlab_url>https://gitlab.com/acme/gitlab-repo</gitlab_url>
+    <cli>glab</cli>
+  </repository>
+<instructions>
+- Use \`glab\` for GitLab-specific operations such as merge requests, comments, reviews, and project API lookups.
+- Do not use \`gh\` for GitLab repositories.
+- Plain \`git\` fetch, clone, pull, commit, and push operations are already authenticated by the Cyrus git credential helper.
+</instructions>
+</source_control_context>`)
+			.expectPromptType("fallback")
+			.expectComponents("issue-context")
+			.verify();
+	});
 });

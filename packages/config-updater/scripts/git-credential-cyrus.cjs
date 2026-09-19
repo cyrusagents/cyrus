@@ -9,12 +9,9 @@
  *   git config --global --replace-all credential."https://github.com".helper ""
  *   git config --global --add credential."https://github.com".helper "!node <this file>"
  *
- * For `get` operations against github.com it looks up the org (first path
- * segment) in `<cyrusHome>/github-tokens.json` — the per-installation
- * GitHub App tokens pushed by cyrus-hosted — and prints credentials for a
- * case-insensitive org match. If no org matches but exactly one non-expired
- * token exists, that token is used. Otherwise it prints nothing and exits 0
- * so git falls through to other helpers / prompts.
+ * For `get` operations it first checks `<cyrusHome>/git-provider-tokens.json`
+ * for provider-neutral GitHub/GitLab credentials. If that file is absent, it
+ * falls back to the CYHOST-913 `<cyrusHome>/github-tokens.json` format.
  */
 "use strict";
 
@@ -41,36 +38,91 @@ function main() {
 		}
 	}
 
-	if ((attrs.host || "").toLowerCase() !== "github.com") return;
+	const host = (attrs.host || "").toLowerCase();
+	if (!host) return;
 
 	// With credential.useHttpPath=true git sends e.g. path=owner/repo.git
-	const org = (attrs.path || "").split("/")[0] || "";
+	const pathParts = (attrs.path || "").replace(/\.git$/i, "").split("/");
+	const repoNamespace = pathParts.slice(0, -1).join("/").toLowerCase();
+	const org = pathParts[0] || "";
 
 	const cyrusHome = process.env.CYRUS_HOME || path.join(os.homedir(), ".cyrus");
-	const tokensFile = path.join(cyrusHome, "github-tokens.json");
+	const providerTokensFile = path.join(cyrusHome, "git-provider-tokens.json");
 
 	let tokens = [];
 	try {
-		const parsed = JSON.parse(fs.readFileSync(tokensFile, "utf8"));
-		if (Array.isArray(parsed.tokens)) tokens = parsed.tokens;
+		const parsed = JSON.parse(fs.readFileSync(providerTokensFile, "utf8"));
+		if (Array.isArray(parsed.tokens)) {
+			tokens = parsed.tokens
+				.filter((t) => t && typeof t.token === "string")
+				.map((t) => ({
+					provider: t.provider,
+					host: String(t.host || "").toLowerCase(),
+					namespace:
+						typeof t.namespace === "string"
+							? t.namespace.replace(/^\/+|\/+$/g, "").toLowerCase()
+							: null,
+					token: t.token,
+					expiresAt: t.expiresAt ?? null,
+					username:
+						typeof t.username === "string" && t.username.length > 0
+							? t.username
+							: t.provider === "gitlab"
+								? "oauth2"
+								: "x-access-token",
+				}));
+		}
 	} catch {
-		return;
+		// Fall back to the older GitHub-only store below.
+	}
+
+	if (tokens.length === 0 && host === "github.com") {
+		try {
+			const parsed = JSON.parse(
+				fs.readFileSync(path.join(cyrusHome, "github-tokens.json"), "utf8"),
+			);
+			if (Array.isArray(parsed.tokens)) {
+				tokens = parsed.tokens
+					.filter((t) => t && typeof t.token === "string")
+					.map((t) => ({
+						provider: "github",
+						host: "github.com",
+						namespace:
+							typeof t.organization === "string"
+								? t.organization.toLowerCase()
+								: null,
+						token: t.token,
+						expiresAt: t.expiresAt,
+						username: "x-access-token",
+					}));
+			}
+		} catch {
+			return;
+		}
 	}
 
 	const now = Date.now();
 	const valid = tokens.filter((t) => {
+		if (t.host !== host) return false;
 		if (!t || typeof t.token !== "string" || t.token.length === 0) return false;
+		if (!t.expiresAt) return true;
 		const expiresAt = Date.parse(t.expiresAt);
 		return !Number.isNaN(expiresAt) && expiresAt > now;
 	});
 
 	let match;
-	if (org) {
-		const lowered = org.toLowerCase();
+	if (repoNamespace) {
 		match = valid.find(
 			(t) =>
-				typeof t.organization === "string" &&
-				t.organization.toLowerCase() === lowered,
+				typeof t.namespace === "string" &&
+				(repoNamespace === t.namespace ||
+					repoNamespace.startsWith(`${t.namespace}/`)),
+		);
+	}
+	if (!match && org) {
+		const lowered = org.toLowerCase();
+		match = valid.find(
+			(t) => typeof t.namespace === "string" && t.namespace === lowered,
 		);
 	}
 	if (!match && valid.length === 1) {
@@ -78,7 +130,7 @@ function main() {
 	}
 	if (!match) return;
 
-	process.stdout.write(`username=x-access-token\npassword=${match.token}\n`);
+	process.stdout.write(`username=${match.username}\npassword=${match.token}\n`);
 }
 
 main();

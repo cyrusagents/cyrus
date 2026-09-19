@@ -2,7 +2,11 @@ import { exec } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
-import { GitHubTokenStore, getDefaultReposDir } from "cyrus-core";
+import {
+	GitHubTokenStore,
+	GitProviderTokenStore,
+	getDefaultReposDir,
+} from "cyrus-core";
 import type {
 	ApiResponse,
 	DeleteRepositoryPayload,
@@ -33,6 +37,23 @@ function getRepoNameFromUrl(repoUrl: string): string {
 	}
 	// Fallback: use last part of URL
 	return basename(repoUrl, ".git");
+}
+
+function isGitHubRepoUrl(repoUrl: string): boolean {
+	const trimmed = repoUrl.trim();
+	const scpMatch = trimmed.match(/^[\w.-]+@([^:]+):/);
+	if (scpMatch?.[1]) {
+		return scpMatch[1].toLowerCase() === "github.com";
+	}
+
+	const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+		? trimmed
+		: `https://${trimmed}`;
+	try {
+		return new URL(withScheme).hostname.toLowerCase() === "github.com";
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -99,20 +120,22 @@ export async function handleRepository(
 			};
 		}
 
-		// Clone the repository. When cyrus-hosted has pushed per-installation
-		// GitHub tokens (cloud runtime), use plain `git clone` so auth flows
-		// through the Cyrus git credential helper, which resolves the token
-		// for the repo's OWN org — `gh repo clone` would authenticate with
-		// gh's stored login (the first org's token) and fail for repos added
-		// from a different org. Without pushed tokens (self-host), fall back
-		// to `gh repo clone` using the user's own gh authentication.
-		const tokenStore = new GitHubTokenStore(cyrusHome);
+		// Clone the repository. When cyrus-hosted has pushed source-control
+		// tokens (cloud runtime), use plain `git clone` so auth flows through
+		// the Cyrus git credential helper. For GitHub self-host setups without
+		// pushed tokens, fall back to `gh repo clone` using the user's local gh
+		// authentication. Non-GitHub providers must use `git clone`.
+		const gitHubTokenStore = new GitHubTokenStore(cyrusHome);
+		const gitProviderTokenStore = new GitProviderTokenStore(cyrusHome);
 		const usePushedTokens = Boolean(
-			tokenStore.getTokenForRepoUrl(payload.repository_url) ??
-				tokenStore.getFallbackToken(),
+			gitHubTokenStore.getTokenForRepoUrl(payload.repository_url) ??
+				gitHubTokenStore.getFallbackToken() ??
+				gitProviderTokenStore.getTokenForRepoUrl(payload.repository_url),
 		);
+		const useGitClone =
+			usePushedTokens || !isGitHubRepoUrl(payload.repository_url);
 		try {
-			const cloneCmd = usePushedTokens
+			const cloneCmd = useGitClone
 				? `git clone "${payload.repository_url}" "${repoPath}"`
 				: `gh repo clone "${payload.repository_url}" "${repoPath}"`;
 			await execAsync(cloneCmd);
@@ -140,8 +163,10 @@ export async function handleRepository(
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
 			const authHint = usePushedTokens
-				? "The pushed GitHub credentials may not include this repository's org — check the team's GitHub installations."
-				: "Please verify the URL is correct, you have access to the repository, and gh is authenticated.";
+				? "The pushed source-control credentials may not include this repository — check the team's connected provider credentials."
+				: useGitClone
+					? "Please verify the URL is correct and local git credentials can access the repository."
+					: "Please verify the URL is correct, you have access to the repository, and gh is authenticated.";
 			return {
 				success: false,
 				error: "Failed to clone repository",

@@ -45,6 +45,20 @@ function writeTokensFile(
 	);
 }
 
+function writeProviderTokensFile(
+	cyrusHome: string,
+	tokens: Array<Record<string, unknown>>,
+): void {
+	writeFileSync(
+		join(cyrusHome, "git-provider-tokens.json"),
+		JSON.stringify({
+			version: 1,
+			updatedAt: new Date().toISOString(),
+			tokens,
+		}),
+	);
+}
+
 const future = () => new Date(Date.now() + 3600_000).toISOString();
 const past = () => new Date(Date.now() - 3600_000).toISOString();
 
@@ -175,6 +189,52 @@ describe("git-credential-cyrus helper script", () => {
 		expect(result.status).toBe(0);
 		expect(result.stdout).toBe("");
 		expect(result.stderr).toBe("");
+	});
+
+	it("prints GitLab credentials from the provider-neutral token file", () => {
+		writeProviderTokensFile(cyrusHome, [
+			{
+				provider: "gitlab",
+				host: "gitlab.com",
+				namespace: "group/subgroup",
+				token: "glpat_match",
+				expiresAt: null,
+				username: "oauth2",
+			},
+		]);
+
+		const result = runHelper(
+			"get",
+			"protocol=https\nhost=gitlab.com\npath=group/subgroup/repo.git\n",
+			cyrusHome,
+		);
+
+		expect(result.status).toBe(0);
+		expect(result.stderr).toBe("");
+		expect(result.stdout).toBe("username=oauth2\npassword=glpat_match\n");
+	});
+
+	it("matches self-managed GitLab hosts from the provider-neutral token file", () => {
+		writeProviderTokensFile(cyrusHome, [
+			{
+				provider: "gitlab",
+				host: "gitlab.example.com",
+				namespace: "platform",
+				token: "glpat_self_managed",
+				expiresAt: future(),
+			},
+		]);
+
+		const result = runHelper(
+			"get",
+			"protocol=https\nhost=gitlab.example.com\npath=platform/service.git\n",
+			cyrusHome,
+		);
+
+		expect(result.status).toBe(0);
+		expect(result.stdout).toBe(
+			"username=oauth2\npassword=glpat_self_managed\n",
+		);
 	});
 
 	it("does nothing for non-get operations", () => {

@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GitHubTokenStore } from "cyrus-core";
+import { GitHubTokenStore, GitProviderTokenStore } from "cyrus-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleRepository } from "../../src/handlers/repository.js";
 
@@ -97,6 +97,46 @@ describe("handleRepository clone auth selection (CYHOST-913)", () => {
 		expect(response.success).toBe(true);
 		expect(executedCommands).toHaveLength(1);
 		expect(executedCommands[0]).toMatch(/^gh repo clone /);
+	});
+
+	it("uses plain git clone when provider tokens cover a GitLab repo", async () => {
+		new GitProviderTokenStore(cyrusHome).save([
+			{
+				provider: "gitlab",
+				host: "gitlab.com",
+				namespace: "acme",
+				connectionId: "connection-1",
+				token: "glpat_token",
+				expiresAt: null,
+				username: "oauth2",
+			},
+		]);
+
+		const response = await handleRepository(
+			{
+				repository_url: "https://gitlab.com/acme/repo-a.git",
+				repository_name: "repo-a",
+			},
+			cyrusHome,
+		);
+
+		expect(response.success).toBe(true);
+		expect(executedCommands).toHaveLength(1);
+		expect(executedCommands[0]).toMatch(/^git clone /);
+	});
+
+	it("uses plain git clone for GitLab repos even when no pushed tokens exist", async () => {
+		const response = await handleRepository(
+			{
+				repository_url: "https://gitlab.com/acme/repo-a.git",
+				repository_name: "repo-a",
+			},
+			cyrusHome,
+		);
+
+		expect(response.success).toBe(true);
+		expect(executedCommands).toHaveLength(1);
+		expect(executedCommands[0]).toMatch(/^git clone /);
 	});
 
 	it("treats expired pushed tokens as absent and uses gh repo clone", async () => {
