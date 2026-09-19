@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Faster session startup: Cyrus's own tools (session and feedback management, file uploads, issue relations, and docs search) now load immediately at the start of a session instead of being deferred behind an on-demand tool search. Previously the large Linear tool catalog could push the session over an internal limit that silently deferred *every* tool, adding a noticeable stall — sometimes close to a minute of Linear round-trips — before Cyrus could act on the issue. The essentials Cyrus needs are now available up front, while the full Linear toolset remains available on demand. ([#1369](https://github.com/cyrusagents/cyrus/pull/1369))
+
 ### Fixed
 - Linear webhooks from all twelve published outbound IP addresses are now accepted, preventing missed events as Linear rolls out new source addresses. ([CYPACK-1518](https://linear.app/ceedar/issue/CYPACK-1518), [#1481](https://github.com/cyrusagents/cyrus/pull/1481))
 
