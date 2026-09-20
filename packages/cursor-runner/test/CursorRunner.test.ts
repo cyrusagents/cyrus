@@ -1,4 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SDKResultMessage } from "cyrus-core";
@@ -9,9 +17,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const sdkMock = vi.hoisted(() => {
 	const create = vi.fn();
 	const resume = vi.fn();
+	const listModels = vi.fn();
 	return {
 		create,
 		resume,
+		listModels,
 		// Helper for tests to install a stub agent + run.
 		__install(opts: {
 			agentId?: string;
@@ -73,6 +83,7 @@ const sdkMock = vi.hoisted(() => {
 });
 
 vi.mock("@cursor/sdk", () => ({
+	Cursor: { models: { list: sdkMock.listModels } },
 	Agent: {
 		create: sdkMock.create,
 		resume: sdkMock.resume,
@@ -85,6 +96,7 @@ let tempDirs: string[];
 beforeEach(async () => {
 	sdkMock.create.mockReset();
 	sdkMock.resume.mockReset();
+	sdkMock.listModels.mockReset().mockResolvedValue([]);
 	tempDirs = [];
 	({ CursorRunner } = await import("../src/CursorRunner.js"));
 });
@@ -102,6 +114,268 @@ function tempWorkspace(): string {
 }
 
 describe("CursorRunner (SDK adapter)", () => {
+	it.each([
+		undefined,
+		"agent-existing",
+	])("loads Cyrus instructions and scoped skills before SDK startup (resume=%s)", async (resumeSessionId) => {
+		const workspace = tempWorkspace();
+		const plugin = tempWorkspace();
+		for (const name of ["verify-and-ship", "excluded"]) {
+			mkdirSync(join(plugin, "skills", name), { recursive: true });
+			writeFileSync(join(plugin, "skills", name, "SKILL.md"), `# ${name}`);
+		}
+		mkdirSync(join(workspace, ".cursor", "rules"), { recursive: true });
+		writeFileSync(join(workspace, ".cursor", "rules", "user.mdc"), "User rule");
+		const events: Record<string, unknown>[] = [];
+		const agent = sdkMock.__install({ events });
+		const send = agent.send.getMockImplementation()!;
+		agent.send.mockImplementation(async (text, options) => {
+			events.push({
+				type: "user",
+				agent_id: "agent-test-1",
+				run_id: "r",
+				message: { role: "user", content: [{ type: "text", text }] },
+			});
+			return send(text, options);
+		});
+		const inspect = async () => {
+			const rules = readdirSync(join(workspace, ".cursor", "rules"));
+			expect(rules).toEqual(["user.mdc"]);
+			expect(
+				readFileSync(
+					join(workspace, ".cursor", "skills", "verify-and-ship", "SKILL.md"),
+					"utf8",
+				),
+			).toBe("# verify-and-ship");
+			expect(existsSync(join(workspace, ".cursor", "skills", "excluded"))).toBe(
+				false,
+			);
+			return agent;
+		};
+		sdkMock.create.mockImplementation(inspect);
+		sdkMock.resume.mockImplementation(inspect);
+		const runner = new CursorRunner({
+			workingDirectory: workspace,
+			resumeSessionId,
+			appendSystemPrompt: "Ship code changes before stopping.",
+			plugins: [{ type: "local", path: plugin }],
+			skills: ["verify-and-ship"],
+		});
+		await runner.start("Fix the bug");
+		expect(agent.send.mock.calls[0]?.[0]).toBe(
+			`<cyrus_session_context>\nWorking directory: ${workspace}. Use this directory explicitly for shell commands and file operations.\n\nShip code changes before stopping.\n\nCyrus workflow skills (read the relevant SKILL.md with file tools):\n- ${join(workspace, ".cursor", "skills", "verify-and-ship", "SKILL.md")}\n</cyrus_session_context>\n\nFix the bug`,
+		);
+
+		expect(
+			runner.getMessages().find((message) => message.type === "user"),
+		).toMatchObject({
+			message: { content: [{ type: "text", text: "Fix the bug" }] },
+		});
+
+		expect(readdirSync(join(workspace, ".cursor", "rules"))).toEqual([
+			"user.mdc",
+		]);
+		expect(
+			existsSync(join(workspace, ".cursor", "skills", "verify-and-ship")),
+		).toBe(false);
+	});
+
+	it("continues the same agent once when the shipping Stop hook blocks", async () => {
+		const agent = sdkMock.__install({ events: [] });
+		const hook = vi.fn().mockResolvedValue({
+			decision: "block",
+			reason: "Commit, push, and open the PR.",
+		});
+		const runner = new CursorRunner({
+			workingDirectory: tempWorkspace(),
+			hooks: { Stop: [{ hooks: [hook] }] },
+		});
+		await runner.start("Fix the bug");
+		expect(agent.send).toHaveBeenCalledTimes(2);
+		expect(agent.send.mock.calls[1]?.[0]).toBe(
+			"Commit, push, and open the PR.",
+		);
+		expect(hook).toHaveBeenCalledTimes(1);
+		expect(hook.mock.calls[0]?.[0]).toMatchObject({
+			hook_event_name: "Stop",
+			stop_hook_active: false,
+		});
+		expect(
+			runner.getMessages().filter((m) => m.type === "result"),
+		).toHaveLength(1);
+	});
+
+	it("does not continue after a failed SDK run", async () => {
+		const agent = sdkMock.__install({
+			events: [],
+			throwOnSend: new Error("SDK failed"),
+		});
+		const hook = vi
+			.fn()
+			.mockResolvedValue({ decision: "block", reason: "Ship" });
+		const runner = new CursorRunner({
+			workingDirectory: tempWorkspace(),
+			onError: () => {},
+			hooks: { Stop: [{ hooks: [hook] }] },
+		});
+		await runner.start("Fix the bug");
+		expect(agent.send).toHaveBeenCalledTimes(1);
+		expect(hook).not.toHaveBeenCalled();
+	});
+
+	it("runs matched post-tool hooks before the Stop check", async () => {
+		sdkMock.__install({
+			events: [
+				{
+					type: "tool_call",
+					agent_id: "a",
+					run_id: "r",
+					call_id: "write-1",
+					name: "write",
+					status: "completed",
+					args: { path: "new.ts", contents: "export {};" },
+					result: "ok",
+				},
+			],
+		});
+		const post = vi.fn().mockResolvedValue({});
+		const ignored = vi.fn();
+		const stop = vi.fn().mockImplementation(async () => {
+			expect(post).toHaveBeenCalledTimes(1);
+			return {};
+		});
+		const runner = new CursorRunner({
+			workingDirectory: tempWorkspace(),
+			hooks: {
+				PostToolUse: [
+					{ matcher: "Write|Edit", hooks: [post] },
+					{ matcher: "Bash", hooks: [ignored] },
+				],
+				Stop: [{ hooks: [stop] }],
+			},
+		});
+		await runner.start("Add a file");
+		expect(post.mock.calls[0]?.[0]).toMatchObject({
+			hook_event_name: "PostToolUse",
+			tool_name: "Write",
+			tool_input: { file_path: "new.ts" },
+		});
+		expect(ignored).not.toHaveBeenCalled();
+		expect(stop).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not run a shipping continuation after user cancellation", async () => {
+		const agent = sdkMock.__install({ events: [] });
+		const hook = vi
+			.fn()
+			.mockResolvedValue({ decision: "block", reason: "Ship" });
+		const runner = new CursorRunner({
+			workingDirectory: tempWorkspace(),
+			hooks: { Stop: [{ hooks: [hook] }] },
+		});
+		const send = agent.send.getMockImplementation()!;
+		agent.send.mockImplementation(async (...args) => {
+			runner.stop();
+			return send(...args);
+		});
+		await runner.start("Fix the bug");
+		expect(agent.send).toHaveBeenCalledTimes(1);
+		expect(hook).not.toHaveBeenCalled();
+	});
+
+	it("records and sends the catalog default effort for a native SDK model", async () => {
+		sdkMock.__install({ events: [] });
+		const params = [
+			{ id: "effort", value: "high" },
+			{ id: "fast", value: "true" },
+		];
+		sdkMock.listModels.mockResolvedValue([
+			{ id: "grok-4.6", variants: [{ isDefault: true, params }] },
+		]);
+		const runner = new CursorRunner({
+			workingDirectory: tempWorkspace(),
+			model: "grok-4.6",
+		});
+		await runner.start("hi");
+		expect(sdkMock.create).toHaveBeenCalledWith(
+			expect.objectContaining({ model: { id: "grok-4.6", params } }),
+		);
+		expect(runner.getMessages()[0]).toMatchObject({
+			type: "system",
+			model: "grok-4.6",
+			reasoningEffort: "high",
+			fastMode: true,
+		});
+	});
+	it("keeps explicit CLI effort without consulting catalog defaults", async () => {
+		sdkMock.__install({ events: [] });
+		const runner = new CursorRunner({
+			workingDirectory: tempWorkspace(),
+			model: "cursor-grok-4.6-xhigh",
+		});
+		await runner.start("hi");
+		expect(sdkMock.listModels).not.toHaveBeenCalled();
+		expect(runner.getMessages()[0]).toMatchObject({
+			model: "grok-4.6",
+			reasoningEffort: "xhigh",
+			fastMode: false,
+		});
+	});
+	it("leaves effort unknown when the catalog is unavailable", async () => {
+		sdkMock.__install({ events: [] });
+		sdkMock.listModels.mockRejectedValue(new Error("unavailable"));
+		const runner = new CursorRunner({
+			workingDirectory: tempWorkspace(),
+			model: "grok-4.6",
+		});
+		await runner.start("hi");
+		expect(runner.getMessages()[0]).not.toHaveProperty("reasoningEffort");
+		expect(runner.getMessages()[0]).not.toHaveProperty("fastMode");
+		expect(sdkMock.create).toHaveBeenCalledWith(
+			expect.objectContaining({ model: { id: "grok-4.6" } }),
+		);
+	});
+
+	it.each([
+		["cursor-grok-4.6-high", "grok-4.6", "high", "false"],
+		["cursor-grok-4.6-xhigh-fast", "grok-4.6", "xhigh", "true"],
+		["cursor-grok-4.5-low", "grok-4.5", "low", "false"],
+	])("maps CLI selector %s to SDK parameters on create and resume", async (model, id, effort, fast) => {
+		sdkMock.__install({ events: [] });
+		for (const resumeSessionId of [undefined, "agent-existing"]) {
+			const runner = new CursorRunner({
+				workingDirectory: tempWorkspace(),
+				model,
+				resumeSessionId,
+			});
+			await runner.start("hi");
+			const options = resumeSessionId
+				? sdkMock.resume.mock.calls.at(-1)?.[1]
+				: sdkMock.create.mock.calls.at(-1)?.[0];
+			expect(options).toMatchObject({
+				model: {
+					id,
+					params: [
+						{ id: "effort", value: effort },
+						{ id: "fast", value: fast },
+					],
+				},
+			});
+		}
+	});
+	it.each([
+		"grok-4.6",
+		"composer-2.5",
+	])("preserves native SDK model %s", async (model) => {
+		sdkMock.__install({ events: [] });
+		await new CursorRunner({ workingDirectory: tempWorkspace(), model }).start(
+			"hi",
+		);
+		expect(sdkMock.create).toHaveBeenCalledWith(
+			expect.objectContaining({ model: { id: model } }),
+		);
+	});
+
 	it("installs and uninstalls .cursor permission artifacts around a session", async () => {
 		const workspace = tempWorkspace();
 		const cyrusHome = tempWorkspace();
@@ -140,6 +414,11 @@ describe("CursorRunner (SDK adapter)", () => {
 		// While running we expect the artifacts to be present, but since the
 		// stream runs synchronously to completion we instead verify the cleanup.
 		await runner.start("hello");
+		expect(sdkMock.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				local: expect.objectContaining({ cwd: workspace }),
+			}),
+		);
 
 		expect(existsSync(join(workspace, ".cursor", "hooks.json"))).toBe(false);
 		expect(

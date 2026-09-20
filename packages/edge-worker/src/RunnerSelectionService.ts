@@ -358,10 +358,16 @@ export class RunnerSelectionService {
 			inferRunnerFromModel(explicitModel) ||
 			this.getDefaultRunner();
 
-		// If an explicit agent conflicts with model's implied runner, keep the agent and reset model.
+		// Cursor supports multiple model providers; its SDK validates the selected model.
+		// For single-provider runners, retain the existing conflict fallback.
 		const modelRunner = inferRunnerFromModel(explicitModel);
 		let modelOverride = explicitModel;
-		if (modelOverride && modelRunner && modelRunner !== runnerType) {
+		if (
+			runnerType !== "cursor" &&
+			modelOverride &&
+			modelRunner &&
+			modelRunner !== runnerType
+		) {
 			modelOverride = undefined;
 		}
 

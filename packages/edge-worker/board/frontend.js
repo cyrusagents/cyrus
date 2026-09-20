@@ -68,10 +68,15 @@ function element(tag, cls, text) {
 	if (text !== undefined) el.textContent = text;
 	return el;
 }
-function linearIssueLink(identifier) {
+function fastLabel(task) {
+	return task.fastMode === true ? " · Fast" : "";
+}
+
+function linearIssueLink(identifier, workspaceSlug) {
+	if (!/^[a-z0-9][a-z0-9_-]*$/i.test(workspaceSlug || "")) return null;
 	if (!/^[a-z0-9]+-\d+$/i.test(identifier || "")) return null;
 	const link = element("a", "task-issue-link");
-	link.href = `https://linear.app/issue/${encodeURIComponent(identifier)}`;
+	link.href = `https://linear.app/${encodeURIComponent(workspaceSlug)}/issue/${encodeURIComponent(identifier)}/`;
 	link.target = "_blank";
 	link.rel = "noopener noreferrer";
 	link.title = `Open ${identifier} in Linear`;
@@ -172,9 +177,11 @@ function renderTasks() {
 		tasks.map((t) => [
 			t.id,
 			t.issue,
+			t.linearWorkspaceSlug,
 			t.title,
 			t.model,
 			t.reasoningEffort,
+			t.fastMode,
 			t.status,
 			t.reason,
 			t.quiet,
@@ -218,12 +225,13 @@ function renderTasks() {
 			(t.quiet ? " · No activity for over 2 minutes" : "") +
 			`\nModel: ${t.model || "Unknown"}` +
 			`\nReasoning effort: ${t.reasoningEffort || "Unknown"}` +
+			(t.fastMode === true ? "\nFast" : "") +
 			"\nSession " +
 			t.id;
 		const top = element("div", "task-top");
 		const identifier = element("div", "task-identifier");
 		identifier.append(element("span", "issue", t.issue || "Untitled task"));
-		const issueLink = linearIssueLink(t.issue);
+		const issueLink = linearIssueLink(t.issue, t.linearWorkspaceSlug);
 		if (issueLink) identifier.append(issueLink);
 		top.append(
 			identifier,
@@ -247,7 +255,7 @@ function renderTasks() {
 			element(
 				"span",
 				"task-model",
-				`${t.model || "Model unknown"} · ${t.reasoningEffort || "Effort unknown"}`,
+				`${t.model || "Model unknown"} · ${t.reasoningEffort || "Effort unknown"}${fastLabel(t)}`,
 			),
 		);
 		meta.append(
@@ -282,6 +290,7 @@ function renderLogs() {
 			(task.model || "Unknown model") +
 			" · " +
 			(task.reasoningEffort || "Effort unknown") +
+			fastLabel(task) +
 			" · " +
 			(names[task.status] || task.status) +
 			" · Last activity " +

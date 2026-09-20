@@ -280,6 +280,11 @@ export class AgentSessionManager extends EventEmitter {
 				typeof claudeSystemMessage.reasoningEffort === "string"
 					? claudeSystemMessage.reasoningEffort
 					: undefined,
+			fastMode:
+				"fastMode" in claudeSystemMessage &&
+				typeof claudeSystemMessage.fastMode === "boolean"
+					? claudeSystemMessage.fastMode
+					: undefined,
 			tools: claudeSystemMessage.tools,
 			permissionMode: claudeSystemMessage.permissionMode,
 			apiKeySource: claudeSystemMessage.apiKeySource,

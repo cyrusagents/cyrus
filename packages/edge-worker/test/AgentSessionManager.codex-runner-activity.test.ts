@@ -81,6 +81,20 @@ describe("AgentSessionManager - Codex tool activity mapping", () => {
 		});
 	});
 
+	it.each([
+		true,
+		false,
+		undefined,
+	])("retains Fast mode %s in session metadata", async (fastMode) => {
+		mapper.handle({ kind: "thread-started", threadId: "codex-session-1" });
+		for (const message of mapper.getMessages())
+			await manager.handleClaudeMessage(
+				sessionId,
+				Object.assign(message, { fastMode }),
+			);
+		expect(manager.getAllSessions()[0]?.metadata?.fastMode).toBe(fastMode);
+	});
+
 	it("creates Linear action entries for Codex file_change events", async () => {
 		mapper.handle({
 			kind: "item-completed",

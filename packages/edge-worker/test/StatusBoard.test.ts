@@ -62,13 +62,41 @@ function board(sessions: CyrusAgentSession[] = []) {
 const message = (value: unknown) => value as AgentMessage;
 
 describe("status board snapshots", () => {
+	it("keeps workspace routing separate for each task and omits ambiguous routes", () => {
+		const nexmoe = session("nexmoe");
+		const viora = session("viora");
+		viora.repositories = [{ repositoryId: "repo-2" }];
+		const ambiguous = session("ambiguous");
+		ambiguous.repositories = [...nexmoe.repositories, ...viora.repositories];
+		const view = new StatusBoard({
+			...options([nexmoe, viora, ambiguous]),
+			getLinearWorkspaceSlug: (id) => (id === "repo-1" ? "nexmoe" : "viora"),
+		});
+		cleanups.push(() => view.close());
+		const tasks = view.snapshot().tasks;
+		expect(tasks.find((t) => t.id === "nexmoe")?.linearWorkspaceSlug).toBe(
+			"nexmoe",
+		);
+		expect(tasks.find((t) => t.id === "viora")?.linearWorkspaceSlug).toBe(
+			"viora",
+		);
+		expect(
+			tasks.find((t) => t.id === "ambiguous")?.linearWorkspaceSlug,
+		).toBeUndefined();
+	});
+
 	it("exposes recorded reasoning effort and leaves missing effort unknown", () => {
 		const known = session("known");
-		known.metadata = { model: "gpt-6-astra", reasoningEffort: "high" };
+		known.metadata = {
+			model: "gpt-6-astra",
+			reasoningEffort: "high",
+			fastMode: false,
+		};
 		const view = board([known, session("old")]);
 		expect(view.snapshot().tasks.find((t) => t.id === "known")).toMatchObject({
 			model: "gpt-6-astra",
 			reasoningEffort: "high",
+			fastMode: false,
 		});
 		expect(
 			view.snapshot().tasks.find((t) => t.id === "old")?.reasoningEffort,

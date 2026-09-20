@@ -5,12 +5,18 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Task cards show a Fast marker only when enabled; Cursor sessions retain the selected setting in task history. ([#6](https://github.com/nexmoe/cyrus/pull/6))
 - Task cards show the recorded reasoning effort beside the model, including archived sessions. Codex reports the effective model and effort when starting or resuming a thread; older records display unknown. ([#4](https://github.com/nexmoe/cyrus/pull/4))
 - Use bracketed selectors consistently in issue descriptions: `[repos=frontend,backend]` now selects multiple repositories alongside `[agent=...]` and `[model=...]`. Existing repository selectors remain compatible. ([#3](https://github.com/nexmoe/cyrus/pull/3))
 - One self-hosted Cyrus instance can now connect private Linear apps from multiple workspaces using the same domain. Each workspace keeps its own webhook signing secret and OAuth app credentials, while existing single-app setups keep working. ([#2](https://github.com/nexmoe/cyrus/pull/2))
 - Open `/board` on the local Cyrus server to see active and archived tasks with searchable logs, including saved output from previous turns. A compact activity view pairs tool calls with their results, highlights errors, and provides expandable details with centered Hugeicons arrows and consistent full-row highlighting, an event timeline, and drag-box multi-row selection with copying and Esc to clear selection; a single toolbar keeps filters and statistics in an options menu, and a Raw view retains React LogViewer. Both views offer a floating button to jump to the bottom and resume Follow. Task cards show the recorded model and provide a shortcut to open the corresponding Linear issue in a new tab. Issue tasks and recent logs survive session cleanup and restarts. The status board shares Cyrus's existing port. This fork's setup builds a pinned nexmoe/cyrus source commit and uses a verified launcher throughout setup, so a fresh installation includes these changes. ([#1](https://github.com/nexmoe/cyrus/pull/1))
 
 ### Fixed
+- Cursor code tasks receive Cyrus workflow instructions and scoped skills on every turn, and run the shipping guardrail before finishing so changes proceed to commits and pull requests. ([#6](https://github.com/nexmoe/cyrus/pull/6))
+- Explicit Cursor tasks keep their Gemini, Claude, or GPT model selection instead of silently reverting to the default Cursor model. ([#6](https://github.com/nexmoe/cyrus/pull/6))
+- Cursor tasks now record reasoning effort on the status board, including the model catalog default when no effort was specified. ([#6](https://github.com/nexmoe/cyrus/pull/6))
+- Cursor tasks now start with the current SDK, fixing a missing transport dependency and incompatible working-directory parameter. Grok 4.5/4.6 CLI model selectors now preserve their effort and fast settings when passed to the SDK. ([#6](https://github.com/nexmoe/cyrus/pull/6))
+- Task links now open the issue in its own Linear workspace, including saved history. ([#5](https://github.com/nexmoe/cyrus/pull/5))
 - Linear webhooks from all twelve published outbound IP addresses are now accepted, preventing missed events as Linear rolls out new source addresses. ([CYPACK-1518](https://linear.app/ceedar/issue/CYPACK-1518), [#1481](https://github.com/cyrusagents/cyrus/pull/1481))
 
 ## [0.2.72] - 2026-09-15

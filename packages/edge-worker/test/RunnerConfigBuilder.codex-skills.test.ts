@@ -14,7 +14,7 @@ const silentLogger: ILogger = {
 	error: () => {},
 } as unknown as ILogger;
 
-function makeBuilder(): RunnerConfigBuilder {
+function makeBuilder(runnerType: "codex" | "cursor"): RunnerConfigBuilder {
 	const chatToolResolver: IChatToolResolver = {
 		buildChatAllowedTools: () => ["Read(**)"],
 	};
@@ -23,7 +23,7 @@ function makeBuilder(): RunnerConfigBuilder {
 		buildMergedMcpConfigPath: () => undefined,
 	};
 	const runnerSelector: IRunnerSelector = {
-		determineRunnerSelection: () => ({ runnerType: "codex" as const }),
+		determineRunnerSelection: () => ({ runnerType }),
 		getDefaultModelForRunner: () => "gpt-5.5",
 		getDefaultFallbackModelForRunner: () => "gpt-5.2-codex",
 	};
@@ -35,7 +35,10 @@ function makeBuilder(): RunnerConfigBuilder {
 }
 
 describe("RunnerConfigBuilder Codex managed skills", () => {
-	it("passes scoped plugins and skill names to Codex runner configs", () => {
+	it.each([
+		"codex",
+		"cursor",
+	] as const)("passes scoped plugins and skill names to %s runner configs", (expectedRunner) => {
 		const session = {
 			issueId: "issue-1",
 			issue: { identifier: "ABC-1" },
@@ -52,25 +55,27 @@ describe("RunnerConfigBuilder Codex managed skills", () => {
 		} as unknown as RepositoryConfig;
 		const plugins = [{ type: "local" as const, path: "/cyrus/user-skills" }];
 
-		const { config, runnerType } = makeBuilder().buildIssueConfig({
-			session,
-			repository,
-			sessionId: "sess-1",
-			systemPrompt: "test",
-			allowedTools: ["Read(**)"],
-			allowedDirectories: ["/repos/repo-a"],
-			disallowedTools: [],
-			cyrusHome: "/tmp/cyrus-home",
-			linearWorkspaceId: "ws-1",
-			logger: silentLogger,
-			onMessage: () => {},
-			onError: () => {},
-			requireLinearWorkspaceId: () => "ws-1",
-			plugins,
-			skills: ["custom-user"],
-		});
+		const { config, runnerType } = makeBuilder(expectedRunner).buildIssueConfig(
+			{
+				session,
+				repository,
+				sessionId: "sess-1",
+				systemPrompt: "test",
+				allowedTools: ["Read(**)"],
+				allowedDirectories: ["/repos/repo-a"],
+				disallowedTools: [],
+				cyrusHome: "/tmp/cyrus-home",
+				linearWorkspaceId: "ws-1",
+				logger: silentLogger,
+				onMessage: () => {},
+				onError: () => {},
+				requireLinearWorkspaceId: () => "ws-1",
+				plugins,
+				skills: ["custom-user"],
+			},
+		);
 
-		expect(runnerType).toBe("codex");
+		expect(runnerType).toBe(expectedRunner);
 		expect(config.plugins).toEqual(plugins);
 		expect(config.skills).toEqual(["custom-user"]);
 		expect(config.codexHome).toBeUndefined();

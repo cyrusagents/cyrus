@@ -34,6 +34,7 @@ export interface BoardOptions {
 	getEntries(sessionId: string): CyrusAgentSessionEntry[];
 	getStatus(): "idle" | "busy";
 	getRepositoryName(id: string): string;
+	getLinearWorkspaceSlug?(repositoryId: string): string | undefined;
 }
 
 export function redactBoardText(value: string): string {
@@ -360,8 +361,20 @@ export class StatusBoard {
 					: session.status === "complete" || lastResult
 						? "completed"
 						: "idle";
+			const workspaceSlugs = new Set(
+				session.repositories.map((repo) =>
+					this.options.getLinearWorkspaceSlug?.(repo.repositoryId),
+				),
+			);
+			const workspaceSlug =
+				(!session.issueContext ||
+					session.issueContext.trackerId === "linear") &&
+				workspaceSlugs.size === 1
+					? [...workspaceSlugs][0]
+					: undefined;
 			return {
 				id: session.id,
+				linearWorkspaceSlug: workspaceSlug ? bounded(workspaceSlug) : undefined,
 				issue: bounded(
 					session.issue?.identifier ??
 						session.issueContext?.issueIdentifier ??
@@ -374,6 +387,7 @@ export class StatusBoard {
 					: "This session's runner is not executing.",
 				model: bounded(session.metadata?.model ?? ""),
 				reasoningEffort: bounded(session.metadata?.reasoningEffort ?? ""),
+				fastMode: session.metadata?.fastMode,
 				createdAt: session.createdAt,
 				lastActivityAt,
 				turnStartedAt: startedAt,

@@ -32,6 +32,34 @@ describe("RunnerSelectionService", () => {
 		}
 	});
 
+	it.each([
+		"gemini-3.8-flash",
+		"gemini-3.1-pro",
+		"claude-opus-5",
+		"gpt-5.5",
+	])("preserves %s for explicit Cursor routing", (model) => {
+		const service = new RunnerSelectionService({
+			cursorDefaultModel: "grok-4.6",
+		} as EdgeWorkerConfig);
+		for (const [labels, description] of [
+			[[], `[agent=cursor]\n[model=${model}]`],
+			[[`cursor/${model}`], ""],
+			[["cursor"], `[model=${model}]`],
+		] as [string[], string][]) {
+			expect(
+				service.determineRunnerSelection(labels, description),
+			).toMatchObject({ runnerType: "cursor", modelOverride: model });
+		}
+	});
+	it("still infers the Gemini runner without an explicit Cursor selection", () => {
+		const service = new RunnerSelectionService({
+			defaultRunner: "codex",
+		} as EdgeWorkerConfig);
+		expect(
+			service.determineRunnerSelection([], "[model=gemini-3.1-pro]"),
+		).toMatchObject({ runnerType: "gemini", modelOverride: "gemini-3.1-pro" });
+	});
+
 	it("does not auto-detect OpenCode from an API key because OpenCode auth is CLI-managed", () => {
 		process.env.OPENCODE_API_KEY = "not-used-by-opencode";
 

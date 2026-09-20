@@ -99,6 +99,7 @@ export interface CyrusAgentSession {
 	metadata?: {
 		model?: string;
 		reasoningEffort?: string;
+		fastMode?: boolean;
 		tools?: string[];
 		permissionMode?: string;
 		apiKeySource?: string;

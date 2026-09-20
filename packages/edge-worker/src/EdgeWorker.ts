@@ -942,6 +942,12 @@ export class EdgeWorker extends EventEmitter {
 				this.agentSessionManager.getSessionEntries(sessionId),
 			getStatus: () => this.computeStatus(),
 			getRepositoryName: (id) => this.repositories.get(id)?.name ?? id,
+			getLinearWorkspaceSlug: (id) => {
+				const workspaceId = this.repositories.get(id)?.linearWorkspaceId;
+				return workspaceId
+					? this.config.linearWorkspaces?.[workspaceId]?.linearWorkspaceSlug
+					: undefined;
+			},
 		});
 		this.logger.info(
 			"Status board available at /board on the application server",
