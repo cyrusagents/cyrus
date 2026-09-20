@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.268` to [`0.3.278`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03278), bringing Claude sessions to parity with Claude Code 2.1.278. The accumulated update improves resumed and forked session accounting, preserves complete queued-message history, exposes richer startup, usage, and latency metadata, and makes MCP startup behavior more controllable. Updated `@anthropic-ai/sdk` from `^0.125.0` to [`^0.127.0`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v0.127.0), adding compaction controls, rate-limit group metadata, and client reliability fixes. The refreshed 30-tool Claude allowance lists remove the retired `TaskOutput` tool. ([CYPACK-1531](https://linear.app/ceedar/issue/CYPACK-1531/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1497](https://github.com/cyrusagents/cyrus/pull/1497))
+
 ### Fixed
 - Linear webhooks from all twelve published outbound IP addresses are now accepted, preventing missed events as Linear rolls out new source addresses. ([CYPACK-1518](https://linear.app/ceedar/issue/CYPACK-1518), [#1481](https://github.com/cyrusagents/cyrus/pull/1481))
 
