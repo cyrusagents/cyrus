@@ -51,9 +51,13 @@ Add the public key to your GitHub account at [github.com/settings/keys](https://
 
 ## Replies to GitHub requests
 
-For an inline pull request review comment, Cyrus replies in the same review thread, including when the request itself is a reply. Ordinary PR timeline comments have no native reply endpoint, so Cyrus prefixes its response with a direct link to the triggering comment. Queue acknowledgements use the same association.
+For an inline pull request review comment, Cyrus replies in the same review thread, including when the request itself is a reply. Ordinary PR timeline comments have no native reply endpoint, so Cyrus prefixes its response with a direct link to the triggering comment.
 
 Cyrus adds 👀 to a comment when it accepts the request. A queued request keeps 👀 until it runs. After the task finishes and its reply is delivered, Cyrus adds 👍 and removes its own 👀 reaction. An unsuccessful task or a failed reply produces 😕 instead. Other people's reactions are left untouched. Review submissions are separate GitHub objects and do not support comment reactions through this API.
+
+Cyrus does not post receipt or queue-status comments. The agent is instructed to handle the triggering request and return one final answer for Cyrus to publish, rather than posting its own progress or completion comments. Explicitly requested formal reviews and inline review replies are still supported.
+
+Before starting an automated Codex review request, Cyrus rechecks the referenced review. If every thread belonging to that exact review is already resolved, the notification gets 👍 without another agent run or summary. This only applies to structured `Review: <review URL>` notifications from `github-actions[bot]` for Codex `COMMENTED` reviews. Human requests, unresolved reviews, and reviews whose completion cannot be verified still run normally.
 
 See GitHub's [review comment reply API](https://docs.github.com/en/rest/pulls/comments#create-a-reply-for-a-review-comment) and [comment reaction API](https://docs.github.com/en/rest/reactions/reactions).
 

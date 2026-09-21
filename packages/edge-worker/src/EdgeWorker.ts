@@ -161,6 +161,10 @@ import { ChatSessionHandler } from "./ChatSessionHandler.js";
 import { ConfigManager, type RepositoryChanges } from "./ConfigManager.js";
 import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { EgressProxy } from "./EgressProxy.js";
+import {
+	GITHUB_REPLY_INSTRUCTIONS,
+	getAutomaticReviewId,
+} from "./GitHubFeedback.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { McpConfigService } from "./McpConfigService.js";
@@ -1625,17 +1629,6 @@ export class EdgeWorker extends EventEmitter {
 						`Queued GitHub webhook for ${repoFullName}#${prNumber}; ${queue.length} event(s) waiting`,
 					);
 
-					if (reactionToken && prNumber) {
-						await this.postGitHubReplyBody(
-							event,
-							reactionToken,
-							"Received your request. It is queued and will start after Cyrus finishes the current task on this PR.",
-						).catch((err: unknown) => {
-							this.logger.warn(
-								`Failed to post queued acknowledgement: ${err instanceof Error ? err.message : err}`,
-							);
-						});
-					}
 					return;
 				}
 
@@ -1643,17 +1636,29 @@ export class EdgeWorker extends EventEmitter {
 				hasReservedGitHubPrSlot = true;
 			}
 
-			// For pull_request_review events, post an instant acknowledgement comment
-			if (isPullRequestReview && reactionToken && prNumber) {
-				await this.postGitHubReplyBody(
-					event,
-					reactionToken,
-					"Received your change request. Getting started on those changes now.",
-				).catch((err: unknown) => {
+			const reviewId = getAutomaticReviewId(event);
+			if (reviewId && reactionToken && prNumber) {
+				try {
+					if (
+						await this.gitHubCommentService.isReviewFullyResolved({
+							token: reactionToken,
+							owner: extractRepoOwner(event),
+							repo: extractRepoName(event),
+							pullNumber: prNumber,
+							reviewId,
+						})
+					) {
+						this.logger.info(
+							`Skipping resolved Codex review ${reviewId} on ${repoFullName}#${prNumber}`,
+						);
+						await finishReaction(true);
+						return;
+					}
+				} catch (error) {
 					this.logger.warn(
-						`Failed to post acknowledgement comment: ${err instanceof Error ? err.message : err}`,
+						`Could not verify review ${reviewId}; processing request normally: ${error instanceof Error ? error.message : error}`,
 					);
-				});
+				}
 			}
 
 			// Determine the PR head branch and base branch
@@ -2204,7 +2209,9 @@ ${taskInstructions}
 - You are already checked out on the PR branch \`${branchRef}\`
 - Make changes directly to the code on this branch
 - After making changes, commit and push them to the branch
-- Be concise in your responses as they will be posted back to the GitHub PR`;
+- Be concise in your responses as they will be posted back to the GitHub PR
+
+${GITHUB_REPLY_INSTRUCTIONS}`;
 	}
 
 	/**
@@ -2250,7 +2257,9 @@ ${reviewBody}
 - **Reviewer**: @${commentAuthor}
 - **Review URL**: ${commentUrl}
 
-${taskSection}`;
+${taskSection}
+
+${GITHUB_REPLY_INSTRUCTIONS}`;
 	}
 
 	/**

@@ -166,6 +166,35 @@ describe("inspectGitGuardrail", () => {
 		rmSync(workdir, { recursive: true, force: true });
 	});
 
+	it.each([
+		"missing",
+		"stale",
+		"base",
+	])("does not request another shipping turn for a published PR branch with %s tracking", (tracking) => {
+		const remote = mkdtempSync(join(tmpdir(), "cyrus-stop-hook-remote-"));
+		try {
+			git(remote, "init --bare");
+			git(workdir, "init -b main");
+			git(workdir, `remote add origin ${remote}`);
+			writeFileSync(join(workdir, "README.md"), "hello\n");
+			git(workdir, "add README.md");
+			git(workdir, 'commit -m "init"');
+			git(workdir, "push -u origin main");
+			git(workdir, "remote set-head origin main");
+			git(workdir, "switch -c fix-review");
+			if (tracking === "stale") git(workdir, "push -u origin fix-review");
+			if (tracking === "base")
+				git(workdir, "branch --set-upstream-to=origin/main");
+			writeFileSync(join(workdir, "README.md"), "fixed review\n");
+			git(workdir, "commit -am fix");
+			// Push by URL, as an agent can do with an installation token; local tracking stays stale.
+			git(workdir, `push ${remote} HEAD:refs/heads/fix-review`);
+			expect(inspectGitGuardrail(workdir, silentLogger)).toBeNull();
+		} finally {
+			rmSync(remote, { recursive: true, force: true });
+		}
+	});
+
 	it("returns null when cwd is not a git repository", () => {
 		expect(inspectGitGuardrail(workdir, silentLogger)).toBeNull();
 	});

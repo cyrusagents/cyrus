@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import type {
 	HookCallbackMatcher,
@@ -750,17 +750,19 @@ export function buildStopHook(
  * tracked diff and block the stop when left uncommitted.
  */
 export function inspectGitGuardrail(cwd: string, log: ILogger): string | null {
-	const runGit = (args: string): string => {
-		return execSync(`git ${args}`, {
+	const runGit = (args: string[]): string => {
+		return execFileSync("git", args, {
 			cwd,
 			encoding: "utf8",
 			stdio: ["ignore", "pipe", "ignore"],
+			timeout: 5000,
+			env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
 		}).trim();
 	};
 
 	let status: string;
 	try {
-		status = runGit("status --porcelain --untracked-files=no");
+		status = runGit(["status", "--porcelain", "--untracked-files=no"]);
 	} catch (err) {
 		log.debug(
 			`PR guardrail: skipping (cwd is not a git repo or git failed): ${(err as Error).message}`,
@@ -776,17 +778,60 @@ export function inspectGitGuardrail(cwd: string, log: ILogger): string | null {
 
 	let unpushedCount = 0;
 	try {
-		unpushedCount = parseInt(runGit("rev-list --count @{u}..HEAD"), 10) || 0;
+		unpushedCount =
+			parseInt(runGit(["rev-list", "--count", "@{u}..HEAD"]), 10) || 0;
 	} catch {
 		// No upstream configured — fall back to comparing against origin's default branch.
 		try {
-			const baseRef = runGit("rev-parse --verify --abbrev-ref origin/HEAD");
+			const baseRef = runGit([
+				"rev-parse",
+				"--verify",
+				"--abbrev-ref",
+				"origin/HEAD",
+			]);
 			if (baseRef) {
 				unpushedCount =
-					parseInt(runGit(`rev-list --count ${baseRef}..HEAD`), 10) || 0;
+					parseInt(runGit(["rev-list", "--count", `${baseRef}..HEAD`]), 10) ||
+					0;
 			}
 		} catch {
 			// Can't determine a base — be conservative and don't block on commits alone.
+		}
+	}
+
+	if (unpushedCount > 0) {
+		// Agents may push by URL, leaving @{u} stale or pointing at the base branch.
+		// Confirm the published PR branch before asking for another shipping turn.
+		try {
+			const branch = runGit(["symbolic-ref", "--short", "HEAD"]);
+			const config = (key: string): string => {
+				try {
+					return runGit(["config", "--get", key]);
+				} catch {
+					return "";
+				}
+			};
+			const remote =
+				config(`branch.${branch}.pushRemote`) ||
+				config("remote.pushDefault") ||
+				config(`branch.${branch}.remote`) ||
+				"origin";
+			if (remote !== ".") {
+				const head = runGit(["rev-parse", "HEAD"]);
+				const branchRef = `refs/heads/${branch}`;
+				const refs = runGit(["ls-remote", "--heads", "--", remote, branchRef]);
+				if (
+					refs.split("\n").some((line) => {
+						const [sha, ref] = line.split(/\s+/);
+						return sha === head && ref === branchRef;
+					})
+				)
+					unpushedCount = 0;
+			}
+		} catch {
+			log.debug(
+				"PR guardrail: could not verify the published branch; retaining the local shipping check",
+			);
 		}
 	}
 
@@ -812,6 +857,6 @@ export function inspectGitGuardrail(cwd: string, log: ILogger): string | null {
 		"1. Commit any uncommitted changes with a descriptive message.\n" +
 		"2. Push the branch to the remote.\n" +
 		"3. Create or update a pull request that summarizes the change.\n\n" +
-		"If the work is genuinely complete and a PR is not appropriate (for example, a question or research task with no intended code changes), you may stop again — this guardrail only blocks once per session."
+		"If the work is genuinely complete and a PR is not appropriate (for example, a question or research task with no intended code changes), you may stop again — this guardrail only blocks once per session. After verification, give one final summary of the original task and its validation, not a separate report about this shipping check."
 	);
 }

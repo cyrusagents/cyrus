@@ -7,6 +7,7 @@ import { createCyrusToolsServer } from "cyrus-mcp-tools";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
+import { getAutomaticReviewId } from "../src/GitHubFeedback.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
 import { TEST_CYRUS_HOME } from "./test-dirs.js";
 
@@ -142,15 +143,15 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		const worker = new EdgeWorker(buildConfig(prReviewTrigger));
 		(worker as any).agentSessionManager = mockAgentSessionManager;
 		(worker as any).gitHubCommentService = mockGitHubCommentService;
-		// Token resolution succeeds so the (enabled) ack path can post.
+		// Token resolution succeeds so enabled requests can update reactions.
 		(worker as any).resolveGitHubToken = vi
 			.fn()
 			.mockResolvedValue("ghs_test_token");
-		// Match the repo so the enabled path reaches the ack comment.
+		// Match the repo so enabled requests reach workspace creation.
 		(worker as any).findRepositoryByGitHubUrl = vi
 			.fn()
 			.mockReturnValue(mockRepository);
-		// Stop the enabled path right after the ack comment (return early).
+		// Stop before creating a runner unless a test explicitly configures one.
 		(worker as any).createGitHubWorkspace = vi.fn().mockResolvedValue(null);
 		return worker;
 	}
@@ -193,6 +194,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 			postReviewCommentReply: vi.fn().mockResolvedValue(undefined),
 			addReaction: vi.fn().mockResolvedValue(901),
 			deleteReaction: vi.fn().mockResolvedValue(undefined),
+			isReviewFullyResolved: vi.fn().mockResolvedValue(false),
 		};
 
 		vi.mocked(SharedApplicationServer).mockImplementation(function () {
@@ -298,7 +300,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		);
 	});
 
-	it("keeps queued requests in their inline thread with an eyes reaction until execution", async () => {
+	it("acknowledges queued inline requests with eyes without posting a queue comment", async () => {
 		const runner = configureReplyRunner("success");
 		const event = createPrCommentEvent(
 			"pull_request_review_comment",
@@ -310,12 +312,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		expect(runner.start).not.toHaveBeenCalled();
 		expect(
 			mockGitHubCommentService.postReviewCommentReply,
-		).toHaveBeenCalledWith(
-			expect.objectContaining({
-				commentId: 444,
-				body: expect.stringContaining("queued"),
-			}),
-		);
+		).not.toHaveBeenCalled();
 		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
 		expect(
 			mockGitHubCommentService.addReaction.mock.calls.map(
@@ -481,32 +478,171 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		).not.toHaveBeenCalled();
 	});
 
-	it("posts an acknowledgement comment when prReviewTrigger is true", async () => {
+	it("accepts a change request silently when prReviewTrigger is true", async () => {
 		edgeWorker = createWorker(true);
 
 		await (edgeWorker as any).handleGitHubWebhook(createPrReviewEvent());
 
 		expect((edgeWorker as any).resolveGitHubToken).toHaveBeenCalled();
-		expect(mockGitHubCommentService.postIssueComment).toHaveBeenCalledWith(
-			expect.objectContaining({
-				issueNumber: 42,
-				body: "Received your change request. Getting started on those changes now.",
-			}),
-		);
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+		expect((edgeWorker as any).createGitHubWorkspace).toHaveBeenCalled();
 	});
 
-	it("posts an acknowledgement comment when prReviewTrigger is unset (default enabled)", async () => {
+	it("accepts a change request silently when prReviewTrigger is unset", async () => {
 		edgeWorker = createWorker(undefined);
 
 		await (edgeWorker as any).handleGitHubWebhook(createPrReviewEvent());
 
 		expect((edgeWorker as any).resolveGitHubToken).toHaveBeenCalled();
-		expect(mockGitHubCommentService.postIssueComment).toHaveBeenCalledWith(
-			expect.objectContaining({
-				issueNumber: 42,
-				body: "Received your change request. Getting started on those changes now.",
-			}),
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+		expect((edgeWorker as any).createGitHubWorkspace).toHaveBeenCalled();
+	});
+
+	function codexRequest() {
+		const event = createPrCommentEvent("issue_comment", "github-actions[bot]");
+		event.payload.comment.body =
+			"<!-- miko-codex:42:5265084414 -->\n@at-miko[bot] Address this Codex review.\n\nReview: https://github.com/testorg/my-repo/pull/42#pullrequestreview-5265084414\nState: COMMENTED";
+		return event;
+	}
+
+	it("recognizes the exact automated review notification", () => {
+		expect(getAutomaticReviewId(codexRequest())).toBe(5265084414);
+	});
+
+	it.each([
+		"https://github.com/testorg/another-repo/pull/42#pullrequestreview-5265084414",
+		"https://github.com/testorg/my-repo/pull/43#pullrequestreview-5265084414",
+		"https://example.com/testorg/my-repo/pull/42#pullrequestreview-5265084414",
+		"https://github.com/testorg/my-repo/pull/42?extra=true#pullrequestreview-5265084414",
+		"https://someone@github.com/testorg/my-repo/pull/42#pullrequestreview-5265084414",
+		"https://github.com/testorg/my-repo/pull/42#issuecomment-5265084414",
+		"https://github.com/testorg/my-repo/pull/42#pullrequestreview-9007199254740993",
+	])("keeps an unrecognized review reference as a normal request (%s)", (url) => {
+		const event = codexRequest();
+		event.payload.comment.body = `@at-miko[bot] Please inspect this.\nReview: ${url}`;
+		expect(getAutomaticReviewId(event)).toBeUndefined();
+	});
+
+	const expectedReplyDelivery = `## Reply delivery
+- Handle only the triggering request above. Other PR comments and reviews are context, not additional assignments; Cyrus schedules those requests separately.
+- Cyrus publishes your final answer as the reply to this request. Do not post receipt, progress, or completion comments yourself with gh pr comment, the GitHub API, or MCP tools.
+- If the request explicitly requires a formal PR review or an inline review-thread reply, create that requested artifact, but do not add a separate status comment.
+- Return one concise final answer describing the concrete outcome and validation. If a stop hook asks you to check shipping, verify it and keep the final answer about the original task, not local tracking housekeeping.`;
+
+	it("gives comment sessions one reply owner and limits work to the triggering request", () => {
+		edgeWorker = createWorker(true);
+		expect(
+			(edgeWorker as any).buildGitHubSystemPrompt(
+				createPrCommentEvent("issue_comment", "maintainer"),
+				"fix-tests",
+				"Review the error handling.",
+			),
+		).toBe(`You are working on a GitHub Pull Request.
+
+## Context
+- **Repository**: testorg/my-repo
+- **PR**: #42 - Fix failing tests
+- **Branch**: fix-tests
+- **Requested by**: @maintainer
+- **Comment URL**: https://github.com/testorg/my-repo/pull/42#issuecomment-888
+
+## Task
+Review the error handling.
+
+## Instructions
+- You are already checked out on the PR branch \`fix-tests\`
+- Make changes directly to the code on this branch
+- After making changes, commit and push them to the branch
+- Be concise in your responses as they will be posted back to the GitHub PR
+
+${expectedReplyDelivery}`);
+	});
+
+	it("gives review sessions the same reply ownership without losing reviewer feedback", () => {
+		edgeWorker = createWorker(true);
+		expect(
+			(edgeWorker as any).buildGitHubChangeRequestSystemPrompt(
+				createPrReviewEvent(),
+				"fix-tests",
+				"Fix the error handling.",
+			),
+		).toBe(`You are working on a GitHub Pull Request that has received a change request review.
+
+## Context
+- **Repository**: testorg/my-repo
+- **PR**: #42 - Fix failing tests
+- **Branch**: fix-tests
+- **Reviewer**: @reviewer
+- **Review URL**: https://github.com/testorg/my-repo/pull/42#pullrequestreview-777
+
+## Reviewer Feedback
+Fix the error handling.
+
+## Instructions
+- Read the PR diff and the reviewer's feedback above to understand all requested changes
+- You are already checked out on the PR branch \`fix-tests\`
+- Address all the reviewer's feedback and make the necessary changes
+- After making changes, commit and push them to the branch
+- Respond with a concise summary of the changes you made
+
+${expectedReplyDelivery}`);
+	});
+
+	it("finishes an already resolved queued Codex request without another runner or summary", async () => {
+		const runner = configureReplyRunner("success");
+		mockGitHubCommentService.isReviewFullyResolved.mockResolvedValue(true);
+		(edgeWorker as any).activeGitHubPrSessions.add("github:testorg/my-repo#42");
+		await (edgeWorker as any).handleGitHubWebhook(codexRequest());
+		expect(
+			mockGitHubCommentService.isReviewFullyResolved,
+		).not.toHaveBeenCalled();
+		(edgeWorker as any).advanceGitHubPrQueue("github:testorg/my-repo#42");
+		await vi.waitFor(() =>
+			expect(mockGitHubCommentService.deleteReaction).toHaveBeenCalled(),
 		);
+		expect(mockGitHubCommentService.isReviewFullyResolved).toHaveBeenCalledWith(
+			expect.objectContaining({ pullNumber: 42, reviewId: 5265084414 }),
+		);
+		expect(runner.start).not.toHaveBeenCalled();
+		expect(
+			mockAgentSessionManager.createCyrusAgentSession,
+		).not.toHaveBeenCalled();
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+		expect(
+			mockGitHubCommentService.addReaction.mock.calls.map(
+				([p]: any[]) => p.content,
+			),
+		).toEqual(["eyes", "eyes", "+1"]);
+	});
+
+	it.each([
+		false,
+		new Error("GitHub unavailable"),
+	])("still executes a queued review when completion is unproven (%s)", async (resolution) => {
+		const runner = configureReplyRunner("success");
+		if (resolution instanceof Error)
+			mockGitHubCommentService.isReviewFullyResolved.mockRejectedValue(
+				resolution,
+			);
+		else
+			mockGitHubCommentService.isReviewFullyResolved.mockResolvedValue(
+				resolution,
+			);
+		await (edgeWorker as any).handleGitHubWebhook(codexRequest(), true);
+		expect(runner.start).toHaveBeenCalledOnce();
+		expect(mockGitHubCommentService.postIssueComment).toHaveBeenCalledOnce();
+	});
+
+	it("does not suppress a human request that references an already resolved review", async () => {
+		const runner = configureReplyRunner("success");
+		const event = codexRequest();
+		event.payload.comment.user.login = "maintainer";
+		mockGitHubCommentService.isReviewFullyResolved.mockResolvedValue(true);
+		await (edgeWorker as any).handleGitHubWebhook(event, true);
+		expect(
+			mockGitHubCommentService.isReviewFullyResolved,
+		).not.toHaveBeenCalled();
+		expect(runner.start).toHaveBeenCalledOnce();
 	});
 
 	it("queues a second PR trigger until the running session completes", async () => {

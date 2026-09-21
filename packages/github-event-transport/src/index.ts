@@ -10,6 +10,7 @@ export type {
 	GitHubCommentServiceConfig,
 	PostCommentParams,
 	PostReviewCommentReplyParams,
+	ReviewResolutionParams,
 } from "./GitHubCommentService.js";
 export { GitHubCommentService } from "./GitHubCommentService.js";
 export { GitHubEventTransport } from "./GitHubEventTransport.js";

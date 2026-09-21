@@ -77,11 +77,121 @@ export type DeleteReactionParams = Omit<AddReactionParams, "content"> & {
 	reactionId: number;
 };
 
+export interface ReviewResolutionParams {
+	token: string;
+	owner: string;
+	repo: string;
+	pullNumber: number;
+	reviewId: number;
+}
+
+type ReviewThreadsResponse = {
+	data?: {
+		repository?: {
+			pullRequest?: {
+				reviewThreads: {
+					pageInfo: { hasNextPage: boolean; endCursor: string | null };
+					nodes: Array<{
+						isResolved: boolean;
+						comments: {
+							nodes: Array<{ pullRequestReview?: { id: string } | null }>;
+						};
+					}>;
+				};
+			};
+		};
+	};
+	errors?: Array<{ message: string }>;
+};
+
 export class GitHubCommentService {
 	private apiBaseUrl: string;
 
 	constructor(config?: GitHubCommentServiceConfig) {
 		this.apiBaseUrl = config?.apiBaseUrl ?? "https://api.github.com";
+	}
+
+	/**
+	 * A queued Codex notification can become obsolete while another task runs.
+	 * Verify the exact review and every page of its threads before skipping it.
+	 */
+	async isReviewFullyResolved(
+		params: ReviewResolutionParams,
+	): Promise<boolean> {
+		const { token, owner, repo, pullNumber, reviewId } = params;
+		const headers = {
+			Authorization: `Bearer ${token}`,
+			Accept: "application/vnd.github+json",
+			"Content-Type": "application/json",
+			"X-GitHub-Api-Version": "2022-11-28",
+		};
+		const reviewResponse = await fetch(
+			`${this.apiBaseUrl}/repos/${owner}/${repo}/pulls/${pullNumber}/reviews/${reviewId}`,
+			{ headers, signal: AbortSignal.timeout(10_000) },
+		);
+		if (!reviewResponse.ok)
+			throw new Error(`Cannot read GitHub review: ${reviewResponse.status}`);
+		const review = (await reviewResponse.json()) as {
+			node_id?: string;
+			user?: { login?: string };
+			state?: string;
+		};
+		if (
+			!review.node_id ||
+			review.user?.login?.replace(/\[bot\]$/i, "").toLowerCase() !==
+				"chatgpt-codex-connector" ||
+			review.state?.toUpperCase() !== "COMMENTED"
+		)
+			return false;
+		const base = this.apiBaseUrl.replace(/\/$/, "");
+		const graphqlUrl = base.endsWith("/api/v3")
+			? `${base.slice(0, -7)}/api/graphql`
+			: `${base}/graphql`;
+		const query = `query ($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+			repository(owner: $owner, name: $repo) {
+				pullRequest(number: $number) {
+					reviewThreads(first: 100, after: $cursor) {
+						pageInfo { hasNextPage endCursor }
+						nodes { isResolved comments(first: 1) { nodes { pullRequestReview { id } } } }
+					}
+				}
+			}
+		}`;
+		let cursor: string | null = null;
+		const seenCursors = new Set<string>();
+		let matched = 0;
+		for (;;) {
+			const response = await fetch(graphqlUrl, {
+				method: "POST",
+				headers,
+				body: JSON.stringify({
+					query,
+					variables: { owner, repo, number: pullNumber, cursor },
+				}),
+				signal: AbortSignal.timeout(10_000),
+			});
+			if (!response.ok)
+				throw new Error(
+					`Cannot read GitHub review threads: ${response.status}`,
+				);
+			const page = (await response.json()) as ReviewThreadsResponse;
+			if (page.errors?.length)
+				throw new Error("GitHub review thread query failed");
+			const threads = page.data?.repository?.pullRequest?.reviewThreads;
+			if (!threads) return false;
+			for (const thread of threads.nodes) {
+				const threadReviewId = thread.comments.nodes[0]?.pullRequestReview?.id;
+				if (!threadReviewId) return false;
+				if (threadReviewId !== review.node_id) continue;
+				if (!thread.isResolved) return false;
+				matched++;
+			}
+			if (!threads.pageInfo.hasNextPage) return matched > 0;
+			cursor = threads.pageInfo.endCursor;
+			if (!cursor || seenCursors.has(cursor))
+				throw new Error("Incomplete GitHub review thread pagination");
+			seenCursors.add(cursor);
+		}
 	}
 
 	/**
