@@ -185,6 +185,8 @@ export interface GitHubComment {
 	diff_hunk?: string;
 	/** For PR review comments: the commit being commented on */
 	commit_id?: string;
+	/** The root comment of a PR review thread when this comment is a reply. */
+	in_reply_to_id?: number;
 }
 
 /**

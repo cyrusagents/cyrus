@@ -49,6 +49,14 @@ Add the public key to your GitHub account at [github.com/settings/keys](https://
 
 ---
 
+## Replies to GitHub requests
+
+For an inline pull request review comment, Cyrus replies in the same review thread, including when the request itself is a reply. Ordinary PR timeline comments have no native reply endpoint, so Cyrus prefixes its response with a direct link to the triggering comment. Queue acknowledgements use the same association.
+
+Cyrus adds 👀 to a comment when it accepts the request. A queued request keeps 👀 until it runs. After the task finishes and its reply is delivered, Cyrus adds 👍 and removes its own 👀 reaction. An unsuccessful task or a failed reply produces 😕 instead. Other people's reactions are left untouched. Review submissions are separate GitHub objects and do not support comment reactions through this API.
+
+See GitHub's [review comment reply API](https://docs.github.com/en/rest/pulls/comments#create-a-reply-for-a-review-comment) and [comment reaction API](https://docs.github.com/en/rest/reactions/reactions).
+
 ## GitHub CLI Setup
 
 Install and authenticate the GitHub CLI for PR creation:

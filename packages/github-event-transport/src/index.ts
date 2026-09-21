@@ -5,6 +5,7 @@ export {
 } from "./GitHubAppTokenProvider.js";
 export type {
 	AddReactionParams,
+	DeleteReactionParams,
 	GitHubCommentResponse,
 	GitHubCommentServiceConfig,
 	PostCommentParams,

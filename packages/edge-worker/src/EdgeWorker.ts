@@ -1425,6 +1425,52 @@ export class EdgeWorker extends EventEmitter {
 		let githubPrQueueKey: string | undefined;
 		let hasReservedGitHubPrSlot = reservedGitHubPrSlot;
 		let githubPrSlotReleased = false;
+		let reactionToken: string | undefined;
+		let eyesReactionId: number | undefined;
+		let reactionFinished = false;
+		let queued = false;
+		let githubReplyPosted = false;
+		let replyCompletion: Promise<void> | undefined;
+		const finishReaction = async (success: boolean): Promise<void> => {
+			if (
+				reactionFinished ||
+				!reactionToken ||
+				isPullRequestReviewPayload(event.payload)
+			)
+				return;
+			reactionFinished = true;
+			try {
+				const token = await this.resolveGitHubToken(
+					event,
+					this.findRepositoryByGitHubUrl(extractRepoFullName(event)) ??
+						undefined,
+				);
+				if (!token) return;
+				const target = {
+					token,
+					owner: extractRepoOwner(event),
+					repo: extractRepoName(event),
+					commentId: extractCommentId(event),
+					isPullRequestReviewComment: isPullRequestReviewCommentPayload(
+						event.payload,
+					),
+				};
+				await this.gitHubCommentService.addReaction({
+					...target,
+					content: success ? "+1" : "confused",
+				});
+				if (eyesReactionId !== undefined) {
+					await this.gitHubCommentService.deleteReaction({
+						...target,
+						reactionId: eyesReactionId,
+					});
+				}
+			} catch (error) {
+				this.logger.warn(
+					`Failed to finish GitHub reaction: ${error instanceof Error ? error.message : error}`,
+				);
+			}
+		};
 
 		try {
 			// Only handle comments on pull requests
@@ -1445,7 +1491,10 @@ export class EdgeWorker extends EventEmitter {
 
 			// Skip comments from the bot itself to prevent infinite loops
 			const botUsername = process.env.GITHUB_BOT_USERNAME;
-			if (botUsername && commentAuthor === botUsername) {
+			// GitHub App authors include [bot], while configuration may use the bare slug.
+			const botLogin = botUsername?.replace(/\[bot\]$/i, "").toLowerCase();
+			const authorLogin = commentAuthor.replace(/\[bot\]$/i, "").toLowerCase();
+			if (botLogin && authorLogin === botLogin) {
 				this.logger.debug(
 					`Ignoring comment from bot user @${botUsername} on ${repoFullName}#${prNumber}`,
 				);
@@ -1491,14 +1540,14 @@ export class EdgeWorker extends EventEmitter {
 			);
 
 			// Add "eyes" reaction to acknowledge receipt (not for pull_request_review — we post a comment instead)
-			const reactionToken = await this.resolveGitHubToken(
+			reactionToken = await this.resolveGitHubToken(
 				event,
 				this.findRepositoryByGitHubUrl(repoFullName) ?? undefined,
 			);
 			if (reactionToken && !isPullRequestReview) {
 				const commentId = extractCommentId(event);
 				if (commentId) {
-					this.gitHubCommentService
+					eyesReactionId = await this.gitHubCommentService
 						.addReaction({
 							token: reactionToken,
 							owner: extractRepoOwner(event),
@@ -1513,6 +1562,7 @@ export class EdgeWorker extends EventEmitter {
 							this.logger.warn(
 								`Failed to add reaction: ${err instanceof Error ? err.message : err}`,
 							);
+							return undefined;
 						});
 				}
 			}
@@ -1550,19 +1600,15 @@ export class EdgeWorker extends EventEmitter {
 						? `**What to do:** there's currently no self-serve way to update the stored repository URL on your plan — please reach out to Cyrus support and reference \`${repoFullName}\` and we'll reconcile it on the backend.`
 						: `**What to do:** open \`~/.cyrus/config.json\` on the worker and update the \`githubUrl\` of the relevant repository to \`https://github.com/${repoFullName}\`. The worker watches the config file and will pick up the change automatically. If this repo shouldn't be sending events to Cyrus at all, remove the GitHub App from it instead.`;
 
-					this.gitHubCommentService
-						.postIssueComment({
-							token: reactionToken,
-							owner: extractRepoOwner(event),
-							repo: extractRepoName(event),
-							issueNumber: prNumber,
-							body: [...commonPreamble, fix].join("\n"),
-						})
-						.catch((err: unknown) => {
-							this.logger.warn(
-								`Failed to post unconfigured-repo notice: ${err instanceof Error ? err.message : err}`,
-							);
-						});
+					await this.postGitHubReplyBody(
+						event,
+						reactionToken,
+						[...commonPreamble, fix].join("\n"),
+					).catch((err: unknown) => {
+						this.logger.warn(
+							`Failed to post unconfigured-repo notice: ${err instanceof Error ? err.message : err}`,
+						);
+					});
 				}
 				return;
 			}
@@ -1573,25 +1619,22 @@ export class EdgeWorker extends EventEmitter {
 				if (this.activeGitHubPrSessions.has(sessionKey)) {
 					const queue = this.queuedGitHubPrEvents.get(sessionKey) ?? [];
 					queue.push(event);
+					queued = true;
 					this.queuedGitHubPrEvents.set(sessionKey, queue);
 					this.logger.info(
 						`Queued GitHub webhook for ${repoFullName}#${prNumber}; ${queue.length} event(s) waiting`,
 					);
 
 					if (reactionToken && prNumber) {
-						this.gitHubCommentService
-							.postIssueComment({
-								token: reactionToken,
-								owner: extractRepoOwner(event),
-								repo: extractRepoName(event),
-								issueNumber: prNumber,
-								body: "Received your request. It is queued and will start after Cyrus finishes the current task on this PR.",
-							})
-							.catch((err: unknown) => {
-								this.logger.warn(
-									`Failed to post queued acknowledgement: ${err instanceof Error ? err.message : err}`,
-								);
-							});
+						await this.postGitHubReplyBody(
+							event,
+							reactionToken,
+							"Received your request. It is queued and will start after Cyrus finishes the current task on this PR.",
+						).catch((err: unknown) => {
+							this.logger.warn(
+								`Failed to post queued acknowledgement: ${err instanceof Error ? err.message : err}`,
+							);
+						});
 					}
 					return;
 				}
@@ -1602,19 +1645,15 @@ export class EdgeWorker extends EventEmitter {
 
 			// For pull_request_review events, post an instant acknowledgement comment
 			if (isPullRequestReview && reactionToken && prNumber) {
-				this.gitHubCommentService
-					.postIssueComment({
-						token: reactionToken,
-						owner: extractRepoOwner(event),
-						repo: extractRepoName(event),
-						issueNumber: prNumber,
-						body: "Received your change request. Getting started on those changes now.",
-					})
-					.catch((err: unknown) => {
-						this.logger.warn(
-							`Failed to post acknowledgement comment: ${err instanceof Error ? err.message : err}`,
-						);
-					});
+				await this.postGitHubReplyBody(
+					event,
+					reactionToken,
+					"Received your change request. Getting started on those changes now.",
+				).catch((err: unknown) => {
+					this.logger.warn(
+						`Failed to post acknowledgement comment: ${err instanceof Error ? err.message : err}`,
+					);
+				});
 			}
 
 			// Determine the PR head branch and base branch
@@ -1777,7 +1816,6 @@ export class EdgeWorker extends EventEmitter {
 			// terminal result instead, so one held-open process cannot block later
 			// GitHub requests for the same worktree indefinitely.
 			const onMessage = runnerConfig.onMessage;
-			let githubReplyPosted = false;
 			let runner: IAgentRunner;
 			runnerConfig.onMessage = async (message: SDKMessage) => {
 				try {
@@ -1785,12 +1823,19 @@ export class EdgeWorker extends EventEmitter {
 				} finally {
 					if (message.type === "result" && !githubReplyPosted) {
 						githubReplyPosted = true;
-						this.postGitHubReply(event, runner, repository).catch((error) => {
-							this.logger.error(
-								`Failed to post GitHub reply to ${repoFullName}#${prNumber}`,
-								error instanceof Error ? error : new Error(String(error)),
-							);
-						});
+						replyCompletion = this.postGitHubReply(
+							event,
+							runner,
+							repository,
+							message,
+						)
+							.then(finishReaction)
+							.catch((error) => {
+								this.logger.error(
+									`Failed to post GitHub reply to ${repoFullName}#${prNumber}`,
+									error instanceof Error ? error : new Error(String(error)),
+								);
+							});
 						runner.completeStream?.();
 						if (hasReservedGitHubPrSlot && githubPrQueueKey) {
 							this.advanceGitHubPrQueue(githubPrQueueKey);
@@ -1827,13 +1872,29 @@ export class EdgeWorker extends EventEmitter {
 				// A runner that exits before emitting a result still needs a reply.
 				if (!githubReplyPosted) {
 					githubReplyPosted = true;
-					await this.postGitHubReply(event, runner, repository);
+					replyCompletion = this.postGitHubReply(
+						event,
+						runner,
+						repository,
+					).then(finishReaction);
 				}
+				await replyCompletion;
 			} catch (error) {
 				this.logger.error(
 					`GitHub session error for ${repoFullName}#${prNumber}`,
 					error instanceof Error ? error : new Error(String(error)),
 				);
+				if (!githubReplyPosted) {
+					githubReplyPosted = true;
+					replyCompletion = this.postGitHubReply(
+						event,
+						runner,
+						repository,
+						undefined,
+						true,
+					).then(finishReaction);
+				}
+				await replyCompletion;
 			} finally {
 				await this.savePersistedState();
 			}
@@ -1843,6 +1904,7 @@ export class EdgeWorker extends EventEmitter {
 				error instanceof Error ? error : new Error(String(error)),
 			);
 		} finally {
+			if (!queued && !githubReplyPosted) await finishReaction(false);
 			if (
 				hasReservedGitHubPrSlot &&
 				githubPrQueueKey &&
@@ -2198,16 +2260,25 @@ ${taskSection}`;
 		event: GitHubCommentWebhookEvent,
 		runner: IAgentRunner,
 		repository: RepositoryConfig,
-	): Promise<void> {
+		terminalResult?: Extract<SDKMessage, { type: "result" }>,
+		executionFailed = false,
+	): Promise<boolean> {
 		try {
 			// Get the last assistant message from the runner as the summary
 			const messages = runner.getMessages();
+			const resultMessage =
+				terminalResult ??
+				[...messages].reverse().find((message) => message.type === "result");
+			const sessionFailed = executionFailed || resultMessage?.is_error === true;
 			const lastAssistantMessage = [...messages]
 				.reverse()
 				.find((m) => m.type === "assistant");
 
-			let summary = "Task completed. Please review the changes on this branch.";
+			let summary = sessionFailed
+				? "The task did not complete successfully. Please check the Cyrus session logs before retrying."
+				: "Task completed. Please review the changes on this branch.";
 			if (
+				!sessionFailed &&
 				lastAssistantMessage &&
 				lastAssistantMessage.type === "assistant" &&
 				"message" in lastAssistantMessage
@@ -2230,7 +2301,7 @@ ${taskSection}`;
 
 			if (!prNumber) {
 				this.logger.warn("Cannot post GitHub reply: no PR number");
-				return;
+				return false;
 			}
 
 			// Resolve GitHub token (org-matched store token > installation token > App token > PAT)
@@ -2242,37 +2313,50 @@ ${taskSection}`;
 				this.logger.debug(
 					`Would have posted reply to ${owner}/${repo}#${prNumber} (comment ${commentId}): ${summary}`,
 				);
-				return;
+				return false;
 			}
 
-			if (event.eventType === "pull_request_review_comment") {
-				// Reply to the specific review comment thread
-				await this.gitHubCommentService.postReviewCommentReply({
-					token,
-					owner,
-					repo,
-					pullNumber: prNumber,
-					commentId,
-					body: summary,
-				});
-			} else {
-				// Post as a regular issue comment on the PR
-				await this.gitHubCommentService.postIssueComment({
-					token,
-					owner,
-					repo,
-					issueNumber: prNumber,
-					body: summary,
-				});
-			}
+			await this.postGitHubReplyBody(event, token, summary);
 
 			this.logger.info(`Posted GitHub reply to ${owner}/${repo}#${prNumber}`);
+
+			return !sessionFailed;
 		} catch (error) {
 			this.logger.error(
 				"Failed to post GitHub reply",
 				error instanceof Error ? error : new Error(String(error)),
 			);
+			return false;
 		}
+	}
+
+	private async postGitHubReplyBody(
+		event: GitHubCommentWebhookEvent,
+		token: string,
+		body: string,
+	): Promise<unknown> {
+		const target = {
+			token,
+			owner: extractRepoOwner(event),
+			repo: extractRepoName(event),
+		};
+		const prNumber = extractPRNumber(event);
+		if (!prNumber) return;
+		if (isPullRequestReviewCommentPayload(event.payload)) {
+			return this.gitHubCommentService.postReviewCommentReply({
+				...target,
+				pullNumber: prNumber,
+				commentId:
+					event.payload.comment.in_reply_to_id ?? event.payload.comment.id,
+				body,
+			});
+		}
+		return this.gitHubCommentService.postIssueComment({
+			...target,
+			issueNumber: prNumber,
+			body,
+			replyToUrl: extractCommentUrl(event),
+		});
 	}
 
 	/**

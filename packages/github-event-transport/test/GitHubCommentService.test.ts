@@ -137,7 +137,10 @@ describe("GitHubCommentService", () => {
 
 	describe("addReaction", () => {
 		it("adds a reaction to an issue comment", async () => {
-			mockFetch.mockResolvedValueOnce({ ok: true });
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ id: 901 }),
+			});
 
 			await service.addReaction({
 				token: "ghp_test123",
@@ -164,7 +167,10 @@ describe("GitHubCommentService", () => {
 		});
 
 		it("adds a reaction to a PR review comment", async () => {
-			mockFetch.mockResolvedValueOnce({ ok: true });
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ id: 901 }),
+			});
 
 			await service.addReaction({
 				token: "ghp_test123",
@@ -217,7 +223,10 @@ describe("GitHubCommentService", () => {
 				apiBaseUrl: "https://github.example.com/api/v3",
 			});
 
-			mockFetch.mockResolvedValueOnce({ ok: true });
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ id: 901 }),
+			});
 
 			void customService.addReaction({
 				token: "test-token",

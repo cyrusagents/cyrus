@@ -94,6 +94,32 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		};
 	}
 
+	function createPrCommentEvent(
+		eventType: "issue_comment" | "pull_request_review_comment",
+		author: string,
+	): any {
+		const { repository, pull_request } = createPrReviewEvent().payload;
+		return {
+			eventType,
+			deliveryId: "delivery-pr-comment-001",
+			payload: {
+				action: "created",
+				comment: {
+					id: 888,
+					html_url:
+						"https://github.com/testorg/my-repo/pull/42#issuecomment-888",
+					body: "Review handled; comment posted as @at-miko[bot].",
+					user: { login: author },
+				},
+				...(eventType === "issue_comment"
+					? { issue: { ...pull_request, pull_request: {} } }
+					: { pull_request }),
+				repository,
+				sender: { login: author },
+			},
+		};
+	}
+
 	function buildConfig(prReviewTrigger: boolean | undefined): EdgeWorkerConfig {
 		return {
 			proxyUrl: "http://localhost:3000",
@@ -133,7 +159,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		vi.clearAllMocks();
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		vi.spyOn(console, "error").mockImplementation(() => {});
-		delete process.env.GITHUB_BOT_USERNAME;
+		vi.stubEnv("GITHUB_BOT_USERNAME", undefined);
 
 		vi.mocked(createCyrusToolsServer).mockImplementation(() => {
 			return { server: {} } as any;
@@ -164,7 +190,9 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 
 		mockGitHubCommentService = {
 			postIssueComment: vi.fn().mockResolvedValue(undefined),
-			addReaction: vi.fn().mockResolvedValue(undefined),
+			postReviewCommentReply: vi.fn().mockResolvedValue(undefined),
+			addReaction: vi.fn().mockResolvedValue(901),
+			deleteReaction: vi.fn().mockResolvedValue(undefined),
 		};
 
 		vi.mocked(SharedApplicationServer).mockImplementation(function () {
@@ -194,8 +222,250 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		} as any);
 	});
 
+	function configureReplyRunner(mode: "success" | "result-error" | "throw") {
+		edgeWorker = createWorker(true);
+		const result = { type: "result", is_error: mode !== "success" };
+		const runner = {
+			getMessages: () => [
+				{
+					type: "assistant",
+					message: { content: [{ type: "text", text: "Request handled." }] },
+				},
+				result,
+			],
+			start: vi.fn(async () => {
+				if (mode === "throw") throw new Error("runner crashed");
+				return { sessionId: "feedback-session" };
+			}),
+		};
+		(edgeWorker as any).createGitHubWorkspace = vi.fn().mockResolvedValue({
+			path: "/test/workspaces/PR-42",
+			isGitWorktree: true,
+		});
+		(edgeWorker as any).fetchPRBranchRefs = vi
+			.fn()
+			.mockResolvedValue({ headRef: "fix-tests", baseRef: "main" });
+		mockAgentSessionManager.getSession.mockReturnValue({ metadata: {} });
+		(edgeWorker as any).buildAgentRunnerConfig = vi
+			.fn()
+			.mockResolvedValue({ config: {}, runnerType: "claude" });
+		(edgeWorker as any).createRunnerForType = vi.fn().mockReturnValue(runner);
+		(edgeWorker as any).savePersistedState = vi
+			.fn()
+			.mockResolvedValue(undefined);
+		return runner;
+	}
+
+	it.each([
+		"success",
+		"result-error",
+		"throw",
+	] as const)("finishes the triggering comment's reaction for %s", async (mode) => {
+		configureReplyRunner(mode);
+		const event = createPrCommentEvent("issue_comment", "requester");
+		await (edgeWorker as any).handleGitHubWebhook(event);
+		expect(mockGitHubCommentService.postIssueComment).toHaveBeenCalledWith(
+			expect.objectContaining({
+				replyToUrl: event.payload.comment.html_url,
+			}),
+		);
+		expect(
+			mockGitHubCommentService.addReaction.mock.calls.map(
+				([p]: any[]) => p.content,
+			),
+		).toEqual(["eyes", mode === "success" ? "+1" : "confused"]);
+		expect(mockGitHubCommentService.deleteReaction).toHaveBeenCalledWith(
+			expect.objectContaining({ commentId: 888, reactionId: 901 }),
+		);
+	});
+
+	it("replies to the root of an inline thread while reacting to the comment that mentioned Cyrus", async () => {
+		configureReplyRunner("success");
+		const event = createPrCommentEvent(
+			"pull_request_review_comment",
+			"requester",
+		);
+		event.payload.comment.in_reply_to_id = 444;
+		await (edgeWorker as any).handleGitHubWebhook(event);
+		expect(
+			mockGitHubCommentService.postReviewCommentReply,
+		).toHaveBeenCalledWith(
+			expect.objectContaining({ commentId: 444, body: "Request handled." }),
+		);
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+		expect(mockGitHubCommentService.deleteReaction).toHaveBeenCalledWith(
+			expect.objectContaining({ commentId: 888, reactionId: 901 }),
+		);
+	});
+
+	it("keeps queued requests in their inline thread with an eyes reaction until execution", async () => {
+		const runner = configureReplyRunner("success");
+		const event = createPrCommentEvent(
+			"pull_request_review_comment",
+			"requester",
+		);
+		event.payload.comment.in_reply_to_id = 444;
+		(edgeWorker as any).activeGitHubPrSessions.add("github:testorg/my-repo#42");
+		await (edgeWorker as any).handleGitHubWebhook(event);
+		expect(runner.start).not.toHaveBeenCalled();
+		expect(
+			mockGitHubCommentService.postReviewCommentReply,
+		).toHaveBeenCalledWith(
+			expect.objectContaining({
+				commentId: 444,
+				body: expect.stringContaining("queued"),
+			}),
+		);
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+		expect(
+			mockGitHubCommentService.addReaction.mock.calls.map(
+				([p]: any[]) => p.content,
+			),
+		).toEqual(["eyes"]);
+		expect(mockGitHubCommentService.deleteReaction).not.toHaveBeenCalled();
+	});
+
 	afterEach(() => {
+		vi.unstubAllEnvs();
 		vi.restoreAllMocks();
+	});
+
+	it.each([
+		"issue_comment",
+		"pull_request_review_comment",
+	] as const)("does not enqueue its own %s containing a self-mention", async (eventType) => {
+		vi.stubEnv("GITHUB_BOT_USERNAME", "at-miko");
+		edgeWorker = createWorker(true);
+		const sessionKey = "github:testorg/my-repo#42";
+		(edgeWorker as any).activeGitHubPrSessions.add(sessionKey);
+
+		await (edgeWorker as any).handleGitHubWebhook(
+			createPrCommentEvent(eventType, "at-miko[bot]"),
+		);
+
+		expect((edgeWorker as any).resolveGitHubToken).not.toHaveBeenCalled();
+		expect(mockGitHubCommentService.addReaction).not.toHaveBeenCalled();
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+		expect((edgeWorker as any).queuedGitHubPrEvents.size).toBe(0);
+		expect((edgeWorker as any).activeGitHubPrSessions.has(sessionKey)).toBe(
+			true,
+		);
+		expect(
+			mockAgentSessionManager.createCyrusAgentSession,
+		).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["at-miko", "at-miko[bot]"],
+		["at-miko[bot]", "at-miko[bot]"],
+		["At-Miko", "at-miko[bot]"],
+		["at-miko", "at-miko"],
+	])("ignores its own change request with configured login %s and author %s", async (configuredLogin, author) => {
+		vi.stubEnv("GITHUB_BOT_USERNAME", configuredLogin);
+		edgeWorker = createWorker(true);
+		const event = createPrReviewEvent();
+		event.payload.review.user.login = author;
+		event.payload.sender.login = author;
+
+		await (edgeWorker as any).handleGitHubWebhook(event);
+
+		expect((edgeWorker as any).resolveGitHubToken).not.toHaveBeenCalled();
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+		expect(
+			mockAgentSessionManager.createCyrusAgentSession,
+		).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"github-actions[bot]",
+		"reviewer",
+		"at-miko-helper[bot]",
+	])("still accepts a mention from %s", async (author) => {
+		vi.stubEnv("GITHUB_BOT_USERNAME", "at-miko");
+		edgeWorker = createWorker(true);
+		(edgeWorker as any).fetchPRBranchRefs = vi.fn().mockResolvedValue({
+			headRef: "fix-tests",
+			baseRef: "main",
+		});
+
+		await (edgeWorker as any).handleGitHubWebhook(
+			createPrCommentEvent("issue_comment", author),
+		);
+
+		expect(
+			mockGitHubCommentService.addReaction.mock.calls.map(
+				([p]: any[]) => p.content,
+			),
+		).toEqual(["eyes", "confused"]);
+		expect((edgeWorker as any).createGitHubWorkspace).toHaveBeenCalledWith(
+			mockRepository,
+			"fix-tests",
+			42,
+		);
+	});
+
+	it("uses an error result immediately even before the runner stores it", async () => {
+		const runner = configureReplyRunner("success");
+		let onMessage: (message: any) => Promise<void>;
+		(edgeWorker as any).createRunnerForType.mockImplementation(
+			(_type: string, config: any) => {
+				onMessage = config.onMessage;
+				return runner;
+			},
+		);
+		runner.start.mockImplementation(async () => {
+			await onMessage({ type: "result", is_error: true });
+			return { sessionId: "feedback-session" };
+		});
+		await (edgeWorker as any).handleGitHubWebhook(
+			createPrCommentEvent("issue_comment", "requester"),
+		);
+		expect(
+			mockGitHubCommentService.addReaction.mock.calls.map(
+				([p]: any[]) => p.content,
+			),
+		).toEqual(["eyes", "confused"]);
+		expect(mockGitHubCommentService.postIssueComment).toHaveBeenCalledWith(
+			expect.objectContaining({
+				body: "The task did not complete successfully. Please check the Cyrus session logs before retrying.",
+			}),
+		);
+	});
+
+	it("does not leave a late eyes reaction after a fast completion", async () => {
+		const runner = configureReplyRunner("success");
+		let acknowledge!: (id: number) => void;
+		mockGitHubCommentService.addReaction.mockImplementationOnce(
+			() =>
+				new Promise<number>((resolve) => {
+					acknowledge = resolve;
+				}),
+		);
+		const handling = (edgeWorker as any).handleGitHubWebhook(
+			createPrCommentEvent("issue_comment", "requester"),
+		);
+		await vi.waitFor(() => expect(acknowledge).toBeTypeOf("function"));
+		expect(runner.start).not.toHaveBeenCalled();
+		acknowledge(902);
+		await handling;
+		expect(mockGitHubCommentService.deleteReaction).toHaveBeenCalledWith(
+			expect.objectContaining({ reactionId: 902 }),
+		);
+	});
+
+	it("marks a delivery failure without claiming successful completion", async () => {
+		configureReplyRunner("success");
+		mockGitHubCommentService.postIssueComment.mockRejectedValueOnce(
+			new Error("GitHub unavailable"),
+		);
+		await (edgeWorker as any).handleGitHubWebhook(
+			createPrCommentEvent("issue_comment", "requester"),
+		);
+		expect(
+			mockGitHubCommentService.addReaction.mock.calls.map(
+				([p]: any[]) => p.content,
+			),
+		).toEqual(["eyes", "confused"]);
 	});
 
 	it("ignores a changes_requested review when prReviewTrigger is false", async () => {

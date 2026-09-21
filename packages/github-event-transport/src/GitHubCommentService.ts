@@ -24,6 +24,8 @@ export interface PostCommentParams {
 	issueNumber: number;
 	/** Comment body (markdown) */
 	body: string;
+	/** Link to the triggering comment/review; issue comments have no native reply API. */
+	replyToUrl?: string;
 }
 
 /**
@@ -71,6 +73,10 @@ export interface AddReactionParams {
 	content: string;
 }
 
+export type DeleteReactionParams = Omit<AddReactionParams, "content"> & {
+	reactionId: number;
+};
+
 export class GitHubCommentService {
 	private apiBaseUrl: string;
 
@@ -87,7 +93,10 @@ export class GitHubCommentService {
 	async postIssueComment(
 		params: PostCommentParams,
 	): Promise<GitHubCommentResponse> {
-		const { token, owner, repo, issueNumber, body } = params;
+		const { token, owner, repo, issueNumber, replyToUrl } = params;
+		const body = replyToUrl
+			? `[In reply to this request](${replyToUrl})\n\n${params.body}`
+			: params.body;
 		const url = `${this.apiBaseUrl}/repos/${owner}/${repo}/issues/${issueNumber}/comments`;
 
 		const response = await fetch(url, {
@@ -150,7 +159,7 @@ export class GitHubCommentService {
 	 * @see https://docs.github.com/en/rest/reactions/reactions#create-reaction-for-an-issue-comment
 	 * @see https://docs.github.com/en/rest/reactions/reactions#create-reaction-for-a-pull-request-review-comment
 	 */
-	async addReaction(params: AddReactionParams): Promise<void> {
+	async addReaction(params: AddReactionParams): Promise<number> {
 		const {
 			token,
 			owner,
@@ -178,6 +187,36 @@ export class GitHubCommentService {
 			const errorBody = await response.text();
 			throw new Error(
 				`[GitHubCommentService] Failed to add reaction: ${response.status} ${response.statusText} - ${errorBody}`,
+			);
+		}
+		return ((await response.json()) as { id: number }).id;
+	}
+
+	/** Remove the exact reaction returned by addReaction, never another user's reaction. */
+	async deleteReaction(params: DeleteReactionParams): Promise<void> {
+		const {
+			token,
+			owner,
+			repo,
+			commentId,
+			reactionId,
+			isPullRequestReviewComment,
+		} = params;
+		const segment = isPullRequestReviewComment ? "pulls" : "issues";
+		const response = await fetch(
+			`${this.apiBaseUrl}/repos/${owner}/${repo}/${segment}/comments/${commentId}/reactions/${reactionId}`,
+			{
+				method: "DELETE",
+				headers: {
+					Authorization: `Bearer ${token}`,
+					Accept: "application/vnd.github+json",
+					"X-GitHub-Api-Version": "2022-11-28",
+				},
+			},
+		);
+		if (!response.ok && response.status !== 404) {
+			throw new Error(
+				`[GitHubCommentService] Failed to delete reaction: ${response.status} ${response.statusText}`,
 			);
 		}
 	}
