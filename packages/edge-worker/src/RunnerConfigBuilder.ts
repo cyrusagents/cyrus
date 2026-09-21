@@ -820,13 +820,31 @@ export function inspectGitGuardrail(cwd: string, log: ILogger): string | null {
 				const head = runGit(["rev-parse", "HEAD"]);
 				const branchRef = `refs/heads/${branch}`;
 				const refs = runGit(["ls-remote", "--heads", "--", remote, branchRef]);
-				if (
-					refs.split("\n").some((line) => {
-						const [sha, ref] = line.split(/\s+/);
-						return sha === head && ref === branchRef;
-					})
-				)
+				for (const line of refs.split("\n")) {
+					const [sha, ref] = line.split(/\s+/);
+					if (!sha || ref !== branchRef) continue;
+					if (sha !== head) {
+						// The PR can advance while an agent reviews an older checkout.
+						// Read its history without moving any refs or overwriting FETCH_HEAD.
+						try {
+							runGit(["cat-file", "-e", `${sha}^{commit}`]);
+						} catch {
+							runGit([
+								"fetch",
+								"--no-tags",
+								"--no-write-fetch-head",
+								"--refmap=",
+								"--no-recurse-submodules",
+								"--",
+								remote,
+								branchRef,
+							]);
+						}
+						runGit(["merge-base", "--is-ancestor", head, sha]);
+					}
 					unpushedCount = 0;
+					break;
+				}
 			}
 		} catch {
 			log.debug(

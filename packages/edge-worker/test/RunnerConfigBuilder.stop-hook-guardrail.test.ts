@@ -1,5 +1,11 @@
-import { execSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, execSync } from "node:child_process";
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { StopHookInput } from "cyrus-claude-runner";
@@ -164,6 +170,61 @@ describe("inspectGitGuardrail", () => {
 
 	afterEach(() => {
 		rmSync(workdir, { recursive: true, force: true });
+	});
+
+	it.each([
+		"cached",
+		"uncached",
+		"diverged",
+	])("checks whether a newer published PR head contains the local work (%s)", (relationship) => {
+		const remote = mkdtempSync(join(tmpdir(), "cyrus-published-remote-"));
+		const publisher = mkdtempSync(join(tmpdir(), "cyrus-published-writer-"));
+		const readGit = (args: string[]) =>
+			execFileSync("git", args, { cwd: workdir, encoding: "utf8" }).trim();
+		const fetchHead = () => {
+			const path = join(workdir, ".git", "FETCH_HEAD");
+			return existsSync(path) ? readFileSync(path, "utf8") : undefined;
+		};
+		try {
+			git(remote, "init --bare");
+			git(workdir, "init -b main");
+			git(workdir, `remote add origin ${remote}`);
+			writeFileSync(join(workdir, "README.md"), "base\n");
+			git(workdir, "add README.md");
+			git(workdir, 'commit -m "base"');
+			git(workdir, "push -u origin main");
+			git(workdir, "switch -c reviewed");
+			git(workdir, "branch --set-upstream-to=origin/main");
+			writeFileSync(join(workdir, "README.md"), "reviewed commit\n");
+			git(workdir, "commit -am reviewed");
+			git(workdir, `push ${remote} HEAD:refs/heads/reviewed`);
+
+			// The PR author pushes while the agent is reviewing an older checkout.
+			git(publisher, `clone --branch reviewed ${remote} .`);
+			writeFileSync(join(publisher, "README.md"), "newer published commit\n");
+			git(publisher, "commit -am advance");
+			git(publisher, "push origin reviewed");
+			if (relationship === "cached") git(workdir, "fetch origin");
+			if (relationship === "diverged") {
+				writeFileSync(join(workdir, "local.txt"), "unpublished work\n");
+				git(workdir, "add local.txt");
+				git(workdir, "commit -m unpublished");
+			}
+			const refs = readGit(["show-ref"]);
+			const oldFetchHead = fetchHead();
+			const result = inspectGitGuardrail(workdir, silentLogger);
+			if (relationship === "diverged") {
+				expect(result).toContain("not yet on the remote");
+			} else {
+				expect(result).toBeNull();
+			}
+			expect(readGit(["show-ref"])).toBe(refs);
+			expect(fetchHead()).toBe(oldFetchHead);
+			expect(readGit(["status", "--porcelain"])).toBe("");
+		} finally {
+			rmSync(publisher, { recursive: true, force: true });
+			rmSync(remote, { recursive: true, force: true });
+		}
 	});
 
 	it.each([
