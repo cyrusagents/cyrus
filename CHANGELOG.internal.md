@@ -5,6 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Changed
+- Explain the guided `/atmiko-setup` flow and how to start a first task in the README's Getting Started section. ([#11](https://github.com/nexmoe/atmiko/pull/11))
 - Renamed workspace packages, release metadata, MCP identifiers, setup hooks, and harness skill links for Atmiko. Exclude Markdown from Biome's unsupported-language checks while retaining code checks. ([#10](https://github.com/nexmoe/atmiko/pull/10))
 
 ### Changed
