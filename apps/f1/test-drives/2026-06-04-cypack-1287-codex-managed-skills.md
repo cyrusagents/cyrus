@@ -1,9 +1,9 @@
 # Test Drive: CYPACK-1287 — Codex managed skills discovery
 
 **Date**: 2026-06-04
-**Goal**: Verify Cyrus-managed user skills can be surfaced to the Codex runner.
+**Goal**: Verify Atmiko-managed user skills can be surfaced to the Codex runner.
 **Test Repo**: `/tmp/f1-test-drive-cypack-1287`
-**F1 Cyrus Home**: `/var/folders/xv/c55x22nd6lv8kq9fccch04d40000gp/T/cyrus-f1-1780601219391`
+**F1 Atmiko Home**: `/var/folders/xv/c55x22nd6lv8kq9fccch04d40000gp/T/atmiko-f1-1780601219391`
 
 ## Verification Results
 
@@ -16,7 +16,7 @@
 - [x] Session started (`session-2`)
 - [x] Worktree created at `.../worktrees/DEF-2`
 - [x] Codex runner selected via `[agent=codex]`
-- [x] User skills plugin resolved from F1 `cyrusHome`
+- [x] User skills plugin resolved from F1 `atmikoHome`
 - [x] Full Codex model turn started
 - [ ] Full Codex model turn completed
 
@@ -33,15 +33,15 @@ Commands:
 ```bash
 cd apps/f1
 ./f1 init-test-repo --path /tmp/f1-test-drive-cypack-1287
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-cypack-1287 bun run apps/f1/server.ts
-CYRUS_PORT=3600 ./f1 ping
-CYRUS_PORT=3600 ./f1 status
-CYRUS_PORT=3600 ./f1 create-issue \
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-cypack-1287 bun run apps/f1/server.ts
+ATMIKO_PORT=3600 ./f1 ping
+ATMIKO_PORT=3600 ./f1 status
+ATMIKO_PORT=3600 ./f1 create-issue \
   --title "CYPACK-1287 Codex managed skill routed canary" \
   --description 'Use $cypack-1287-canary and then stop. [agent=codex]' \
   --labels codex,primary
-CYRUS_PORT=3600 ./f1 start-session --issue-id issue-2
-CYRUS_PORT=3600 ./f1 view-session --session-id session-2
+ATMIKO_PORT=3600 ./f1 start-session --issue-id issue-2
+ATMIKO_PORT=3600 ./f1 view-session --session-id session-2
 ```
 
 Key outputs:

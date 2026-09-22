@@ -4,7 +4,7 @@
 **Goal**: Validate the between-turns resume path for the Codex app-server backend
 through the real EdgeWorker pipeline (a second prompt after a turn fully completes
 must recall prior context via `thread/resume` in a fresh app-server process).
-**Config**: `CYRUS_DEFAULT_RUNNER=codex CODEX_USE_APP_SERVER=1 CODEX_MODEL=gpt-5.5`
+**Config**: `ATMIKO_DEFAULT_RUNNER=codex CODEX_USE_APP_SERVER=1 CODEX_MODEL=gpt-5.5`
 
 ## Why this drive
 Steering (mid-turn) and activity/tool mapping were validated in the

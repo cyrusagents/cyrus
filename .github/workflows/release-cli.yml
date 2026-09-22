@@ -1,8 +1,8 @@
-name: Release Cyrus CLI
+name: Release Atmiko CLI
 
 run-name: >-
   ${{ inputs.dry_run && 'Dry run' || 'Release' }}
-  cyrus-ai@${{ inputs.version }} (${{ inputs.dist_tag }})
+  atmiko@${{ inputs.version }} (${{ inputs.dist_tag }})
 
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ on:
         type: boolean
 
 concurrency:
-  group: release-cyrus-cli
+  group: release-atmiko-cli
   cancel-in-progress: false
 
 permissions:
@@ -49,13 +49,13 @@ jobs:
         shell: bash
         run: |
           if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "Cyrus releases must be dispatched from main; received $GITHUB_REF." >&2
+            echo "Atmiko releases must be dispatched from main; received $GITHUB_REF." >&2
             exit 1
           fi
 
       - name: Initialize release paths
         shell: bash
-        run: echo "RELEASE_ARTIFACTS=$RUNNER_TEMP/cyrus-release" >> "$GITHUB_ENV"
+        run: echo "RELEASE_ARTIFACTS=$RUNNER_TEMP/atmiko-release" >> "$GITHUB_ENV"
 
       - name: Check out the release source
         uses: actions/checkout@v7
@@ -102,7 +102,7 @@ jobs:
             echo "::error title=Unpublished npm package(s)::Every release package must already exist on npm before this workflow runs."
             printf '  - %s\n' "${missing_packages[@]}"
             echo "Bootstrap each missing package through the approved npm first-publish process, then configure its GitHub Actions trusted publisher."
-            echo "Trusted publisher command: npm trust github <package> --repo cyrusagents/cyrus --file release-cli.yml --allow-publish --yes"
+            echo "Trusted publisher command: npm trust github <package> --repo nexmoe/atmiko --file release-cli.yml --allow-publish --yes"
             exit 1
           fi
 
@@ -121,7 +121,7 @@ jobs:
       - name: Test packages and CLI
         run: |
           pnpm test:packages:run
-          pnpm --filter cyrus-ai test:run
+          pnpm --filter atmiko test:run
 
       - name: Type-check
         run: pnpm typecheck
@@ -172,7 +172,7 @@ jobs:
             release_tarballs+=("$RELEASE_ARTIFACTS/${package_name}-${REQUESTED_VERSION}.tgz")
           done < <(node scripts/release-packages.mjs list)
           npm install --global "${release_tarballs[@]}"
-          ACTUAL_VERSION="$(CYRUS_SENTRY_DISABLED=1 cyrus --version)"
+          ACTUAL_VERSION="$(ATMIKO_SENTRY_DISABLED=1 atmiko --version)"
           if [[ "$ACTUAL_VERSION" != "$REQUESTED_VERSION" ]]; then
             echo "Packed CLI reports ${ACTUAL_VERSION}; expected ${REQUESTED_VERSION}." >&2
             exit 1
@@ -181,8 +181,8 @@ jobs:
       - name: Upload inspected release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: cyrus-${{ inputs.version }}-packages
-          path: ${{ runner.temp }}/cyrus-release/*.tgz
+          name: atmiko-${{ inputs.version }}-packages
+          path: ${{ runner.temp }}/atmiko-release/*.tgz
           if-no-files-found: error
           retention-days: 14
 
@@ -241,7 +241,7 @@ jobs:
               | tr -d ' '
           )" || package_count="unknown"
           {
-            echo "## Cyrus CLI"
+            echo "## Atmiko CLI"
             echo
             echo "- **Result:** ${action}"
             echo "- **Version:** \`${REQUESTED_VERSION}\`"

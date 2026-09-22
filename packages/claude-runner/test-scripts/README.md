@@ -50,7 +50,7 @@ node test-scripts/test-direct-sdk.js
 
 ## Configuration Requirements
 
-Both scripts expect these files to exist in the parent directory (relative to cyrus repo root):
+Both scripts expect these files to exist in the parent directory (relative to atmiko repo root):
 - `../ceedardbmcpconfig.json` - MCP server configuration
 - `../.edge-config.json` - Repository and allowed tools configuration
 

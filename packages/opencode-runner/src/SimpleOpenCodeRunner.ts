@@ -1,10 +1,10 @@
-import type { SDKMessage } from "cyrus-core";
+import type { SDKMessage } from "atmiko-core";
 import {
 	NoResponseError,
 	SessionError,
 	type SimpleAgentQueryOptions,
 	SimpleAgentRunner,
-} from "cyrus-simple-agent-runner";
+} from "atmiko-simple-agent-runner";
 import { OpenCodeRunner } from "./OpenCodeRunner.js";
 
 export class SimpleOpenCodeRunner<
@@ -23,7 +23,7 @@ export class SimpleOpenCodeRunner<
 		const runner = new OpenCodeRunner({
 			openCodePath: (this.config as { openCodePath?: string }).openCodePath,
 			workingDirectory: this.config.workingDirectory,
-			cyrusHome: this.config.cyrusHome,
+			atmikoHome: this.config.atmikoHome,
 			model: this.config.model,
 			fallbackModel: this.config.fallbackModel,
 			maxTurns: this.config.maxTurns,

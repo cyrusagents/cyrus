@@ -5,7 +5,7 @@ import type {
 	SDKMessage,
 	SDKResultMessage,
 	SDKUserMessage,
-} from "cyrus-core";
+} from "atmiko-core";
 import type {
 	NormalizedCodexEvent,
 	NormalizedCodexItem,
@@ -268,7 +268,7 @@ function createResultUsage(parsed: NormalizedUsage): SDKResultMessage["usage"] {
 }
 
 /**
- * Translates backend-neutral {@link NormalizedCodexEvent}s into Cyrus
+ * Translates backend-neutral {@link NormalizedCodexEvent}s into Atmiko
  * `SDKMessage`s and accumulates the session message list. Single responsibility:
  * event → message mapping. Knows nothing about transports or session lifecycle.
  */

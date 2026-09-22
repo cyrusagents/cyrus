@@ -9,20 +9,19 @@ import type {
 	SDKMessage,
 	SdkPluginConfig,
 	StopHookInput,
-} from "cyrus-claude-runner";
+} from "atmiko-claude-runner";
 import type {
 	AgentRunnerConfig,
-	CyrusAgentSession,
+	AtmikoAgentSession,
 	ILogger,
 	OnAskUserQuestion,
 	OpenCodeConfigOverrides,
 	RepositoryConfig,
 	RunnerType,
-} from "cyrus-core";
+} from "atmiko-core";
 import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
-import { appendCloudRuntimeAddendum } from "./prompts/cloudRuntimePromptAddendum.js";
 import { appendFailureModeAddendum } from "./prompts/failureModePromptAddendum.js";
 import { appendGitHubCliMediaAddendum } from "./prompts/githubCliMediaPromptAddendum.js";
 
@@ -76,12 +75,12 @@ export interface ChatRunnerConfigInput {
 	systemPrompt: string;
 	sessionId: string;
 	resumeSessionId?: string;
-	cyrusHome: string;
+	atmikoHome: string;
 	/** Chat platform name (e.g. "slack") — used to namespace the shared auto-memory dir */
 	platformName: string;
 	/** Linear workspace ID for building fresh MCP config at session start */
 	linearWorkspaceId?: string;
-	/** Repository whose MCP runtime servers (Linear MCP, Cyrus tools, etc.) get
+	/** Repository whose MCP runtime servers (Linear MCP, Atmiko tools, etc.) get
 	 * spun up for this chat session — chat sessions are repo-agnostic at the
 	 * session level, so this just picks one repo to seed those native servers. */
 	repository?: RepositoryConfig;
@@ -107,9 +106,9 @@ export interface ChatRunnerConfigInput {
 	 * these skills into its repository discovery layout.
 	 */
 	skills?: string[] | "all";
-	/** Global OpenCode runtime config overrides from Cyrus config */
+	/** Global OpenCode runtime config overrides from Atmiko config */
 	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
-	/** Global OpenCode CLI state scope from Cyrus config */
+	/** Global OpenCode CLI state scope from Atmiko config */
 	opencodeGlobalStateScope?: OpenCodeConfigOverrides["stateScope"];
 	/** Existing runner type to preserve when resuming a completed chat session */
 	runnerType?: RunnerType;
@@ -122,7 +121,7 @@ export interface ChatRunnerConfigInput {
  * Input for building an issue session runner config.
  */
 export interface IssueRunnerConfigInput {
-	session: CyrusAgentSession;
+	session: AtmikoAgentSession;
 	repository: RepositoryConfig;
 	sessionId: string;
 	systemPrompt: string | undefined;
@@ -147,7 +146,7 @@ export interface IssueRunnerConfigInput {
 	/** Whether Claude should ignore ambient MCP configuration. Defaults to true. */
 	strictMcpConfig?: boolean;
 	linearWorkspaceId?: string;
-	cyrusHome: string;
+	atmikoHome: string;
 	logger: ILogger;
 	onMessage: (message: SDKMessage) => void | Promise<void>;
 	onError: (error: Error) => void;
@@ -160,9 +159,9 @@ export interface IssueRunnerConfigInput {
 	requireLinearWorkspaceId: (repo: RepositoryConfig) => string;
 	/** Plugins to load for the session (provides skills, hooks, etc.) */
 	plugins?: SdkPluginConfig[];
-	/** Global OpenCode runtime config overrides from Cyrus config */
+	/** Global OpenCode runtime config overrides from Atmiko config */
 	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
-	/** Global OpenCode CLI state scope from Cyrus config */
+	/** Global OpenCode CLI state scope from Atmiko config */
 	opencodeGlobalStateScope?: OpenCodeConfigOverrides["stateScope"];
 	/**
 	 * Allow-list of skill names enabled for the session (after scope filtering),
@@ -177,8 +176,8 @@ export interface IssueRunnerConfigInput {
 	egressCaCertPath?: string;
 	/**
 	 * GitHub App installation token matched to the session repository's org
-	 * (from the cyrus-hosted-pushed token store). When set, it's exposed to
-	 * the session ONLY as `CYRUS_GH_TOKEN` — the droplet's gh wrapper maps
+	 * (from the atmiko-hosted-pushed token store). When set, it's exposed to
+	 * the session ONLY as `ATMIKO_GH_TOKEN` — the droplet's gh wrapper maps
 	 * it to `GH_TOKEN` inside the gh process. We deliberately do NOT set
 	 * `GH_TOKEN` itself: customers set their own `GH_TOKEN` (e.g. for
 	 * private npm registries on GitHub Packages) and clobbering it would
@@ -288,10 +287,10 @@ export class RunnerConfigBuilder {
 			input.runnerType ?? this.runnerSelector.getDefaultRunner();
 
 		// Shared auto-memory across all chat threads on this platform. Lives
-		// under cyrusHome (not the per-thread workspace) so memory built up in
+		// under atmikoHome (not the per-thread workspace) so memory built up in
 		// one Slack thread is available to every other Slack thread.
 		const autoMemoryDirectory = join(
-			input.cyrusHome,
+			input.atmikoHome,
 			`${input.platformName}-memory`,
 		);
 
@@ -306,14 +305,10 @@ export class RunnerConfigBuilder {
 				...repositoryPaths,
 			],
 			workspaceName: input.workspaceName,
-			cyrusHome: input.cyrusHome,
+			atmikoHome: input.atmikoHome,
 			autoMemoryDirectory,
-			appendSystemPrompt: appendCloudRuntimeAddendum(
-				appendGitHubCliMediaAddendum(
-					appendBrowserUseAddendum(
-						appendFailureModeAddendum(input.systemPrompt),
-					),
-				),
+			appendSystemPrompt: appendGitHubCliMediaAddendum(
+				appendBrowserUseAddendum(appendFailureModeAddendum(input.systemPrompt)),
 			),
 			...(mcpConfig ? { mcpConfig } : {}),
 			...(mcpConfigPath ? { mcpConfigPath } : {}),
@@ -456,16 +451,12 @@ export class RunnerConfigBuilder {
 			allowedDirectories: input.allowedDirectories,
 			...(additionalDirectories.length > 0 && { additionalDirectories }),
 			workspaceName: input.session.issue?.identifier || input.session.issueId,
-			cyrusHome: input.cyrusHome,
+			atmikoHome: input.atmikoHome,
 			mcpConfigPath,
 			mcpConfig,
 			strictMcpConfig: input.strictMcpConfig ?? true,
-			appendSystemPrompt: appendCloudRuntimeAddendum(
-				appendGitHubCliMediaAddendum(
-					appendBrowserUseAddendum(
-						appendFailureModeAddendum(input.systemPrompt),
-					),
-				),
+			appendSystemPrompt: appendGitHubCliMediaAddendum(
+				appendBrowserUseAddendum(appendFailureModeAddendum(input.systemPrompt)),
 			),
 			// Priority order: label override > repository config > global default
 			model: finalModel,
@@ -511,14 +502,14 @@ export class RunnerConfigBuilder {
 		// Expose the org-matched GitHub App installation token to the session
 		// env. Merged on top of any sandbox additionalEnv (CA cert vars) so
 		// both survive. Only set when a token store entry matched the repo's
-		// org — sessions without a match see zero env change. CYRUS_GH_TOKEN
+		// org — sessions without a match see zero env change. ATMIKO_GH_TOKEN
 		// only — never GH_TOKEN, which customers set themselves (e.g. private
 		// npm registries on GitHub Packages); the droplet's gh wrapper maps
-		// CYRUS_GH_TOKEN to GH_TOKEN inside the gh process.
+		// ATMIKO_GH_TOKEN to GH_TOKEN inside the gh process.
 		if (input.githubToken) {
 			config.additionalEnv = {
 				...config.additionalEnv,
-				CYRUS_GH_TOKEN: input.githubToken,
+				ATMIKO_GH_TOKEN: input.githubToken,
 			};
 		}
 
@@ -745,7 +736,7 @@ export function buildStopHook(
  *
  * Uses `--untracked-files=no` so that pre-existing untracked files in the
  * customer's worktree (scratch files, local env files, IDE artifacts) do not
- * wedge the session. Files Cyrus creates via Write/Edit are marked with
+ * wedge the session. Files Atmiko creates via Write/Edit are marked with
  * `git add --intent-to-add` by `IntentToAddHook` so they still show as a
  * tracked diff and block the stop when left uncommitted.
  */

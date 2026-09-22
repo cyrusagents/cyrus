@@ -1,5 +1,5 @@
 // The API bounds the loaded window to 650 live / 100 archived entries.
-// Pair only explicit IDs in the same Cyrus and runner session. Old archives
+// Pair only explicit IDs in the same Atmiko and runner session. Old archives
 // without IDs keep standalone results rather than guessing which tool ran.
 export function activityRows(logs) {
 	const rows = [],
@@ -56,7 +56,7 @@ export function activityRows(logs) {
 }
 
 export function rowLabel(row) {
-	if (row.log.source !== "agent") return "CYRUS";
+	if (row.log.source !== "agent") return "ATMIKO";
 	return (
 		{
 			tool: "TOOL",

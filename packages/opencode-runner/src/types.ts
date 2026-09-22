@@ -2,7 +2,7 @@ import type {
 	AgentRunnerConfig,
 	AgentSessionInfo,
 	SDKMessage,
-} from "cyrus-core";
+} from "atmiko-core";
 
 export type OpenCodeJsonEvent =
 	| OpenCodeStepStartEvent

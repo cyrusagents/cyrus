@@ -16,7 +16,7 @@
 
 ### EdgeWorker
 - [x] Session started (`session-1`)
-- [x] Worktree created at `/var/folders/.../T/cyrus-f1-.../worktrees/DEF-1`
+- [x] Worktree created at `/var/folders/.../T/atmiko-f1-.../worktrees/DEF-1`
 - [x] Activities tracked (28 activities total)
 - [x] Agent processed issue (42 messages, completed successfully)
 
@@ -36,17 +36,17 @@ $ cd apps/f1 && ./f1 init-test-repo --path /tmp/f1-sandbox-proxy-test-1776130730
 ✓ Test repository created successfully at /tmp/f1-sandbox-proxy-test-1776130730
 ```
 
-Server started with `CYRUS_SANDBOX=1`:
+Server started with `ATMIKO_SANDBOX=1`:
 
 ```
-$ CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-sandbox-proxy-test-1776130730 CYRUS_SANDBOX=1 bun run apps/f1/server.ts
+$ ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-sandbox-proxy-test-1776130730 ATMIKO_SANDBOX=1 bun run apps/f1/server.ts
 ```
 
 Key startup log entries:
 
 ```
 [INFO ] [EdgeWorker] Generating CA certificate for egress proxy TLS termination...
-[INFO ] [EdgeWorker] CA certificate written to .../cyrus-f1-.../certs/cyrus-egress-ca.pem
+[INFO ] [EdgeWorker] CA certificate written to .../atmiko-f1-.../certs/atmiko-egress-ca.pem
 [INFO ] [EdgeWorker] Egress proxy started (HTTP: 19080, SOCKS: 19081)
 ```
 
@@ -58,14 +58,14 @@ The proxy started successfully. Settings were passed via the SDK `sandbox` optio
 ### Phase 2: Issue + Session
 
 ```
-$ CYRUS_PORT=3600 ./f1 create-issue --title "Add a .gitignore file..." --description "..."
+$ ATMIKO_PORT=3600 ./f1 create-issue --title "Add a .gitignore file..." --description "..."
 ✓ Issue created: issue-1 (DEF-1)
 
-$ CYRUS_PORT=3600 ./f1 start-session --issue-id issue-1
+$ ATMIKO_PORT=3600 ./f1 start-session --issue-id issue-1
 ✓ Session started: session-1
 
 # Repository selection elicitation (single-repo F1 setup)
-$ CYRUS_PORT=3600 ./f1 prompt-session --session-id session-1 --message "F1 Test Repository"
+$ ATMIKO_PORT=3600 ./f1 prompt-session --session-id session-1 --message "F1 Test Repository"
 ✓ Message sent successfully
 ```
 
@@ -121,7 +121,7 @@ This confirms the proxy is functional and logging correctly.
 
 ### What worked
 
-- Proxy startup via `CYRUS_SANDBOX=1` is clean and fast (CA cert generation in ~54ms)
+- Proxy startup via `ATMIKO_SANDBOX=1` is clean and fast (CA cert generation in ~54ms)
 - SDK sandbox settings are correctly passed per-session, not via `settings.json` mutation
 - The proxy IS intercepting HTTP traffic (verified via manual curl)
 - macOS sandbox is supported (`sandbox-exec` path)
@@ -143,7 +143,7 @@ This confirms the proxy is functional and logging correctly.
 
 2. **Add a `stderr` callback in ClaudeRunner** to capture the Claude CLI sandbox warning/confirmation message. Currently, the sandbox activation/deactivation warning from the CLI is silently discarded. Capturing it would make sandbox status visible in server logs.
 
-3. **Future test drive for proxy interception**: Use `CYRUS_SANDBOX_POLICY=1` with a real or reachable HTTPS remote so that `git fetch` produces a `[TUNNEL]` or `[BLOCKED]` log entry.
+3. **Future test drive for proxy interception**: Use `ATMIKO_SANDBOX_POLICY=1` with a real or reachable HTTPS remote so that `git fetch` produces a `[TUNNEL]` or `[BLOCKED]` log entry.
 
 4. **Consider a smoke test endpoint** in EgressProxy that logs when the first subprocess routes through it, independent of git remote configuration.
 

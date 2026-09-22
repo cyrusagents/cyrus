@@ -5,7 +5,7 @@ import type {
 	ErrorReporterLogAttributes,
 	ErrorReporterLogLevel,
 	ErrorReporterSeverity,
-} from "cyrus-core";
+} from "atmiko-core";
 
 export interface SentryErrorReporterOptions {
 	dsn: string;
@@ -13,11 +13,11 @@ export interface SentryErrorReporterOptions {
 	environment?: string;
 	/**
 	 * Tags applied to every event emitted by this reporter (e.g. `team_id` from
-	 * `CYRUS_TEAM_ID`). See https://docs.sentry.io/platform-redirect/?next=/enriching-events/tags
+	 * `ATMIKO_TEAM_ID`). See https://docs.sentry.io/platform-redirect/?next=/enriching-events/tags
 	 */
 	tags?: Record<string, string>;
 	/**
-	 * Structured context block attached to every event under the `cyrus` key.
+	 * Structured context block attached to every event under the `atmiko` key.
 	 * Unlike tags, contexts are not indexed for search but support nested
 	 * structured data — ideal for grouping related fields (team_id, version,
 	 * environment, deployment) under one heading in the Sentry UI.
@@ -30,7 +30,7 @@ export interface SentryErrorReporterOptions {
 	sampleRate?: number;
 	/**
 	 * If true, prints debug logs from the SDK itself. Decoupled from
-	 * CYRUS_LOG_LEVEL — gate on the dedicated `CYRUS_SENTRY_DEBUG` env var so
+	 * ATMIKO_LOG_LEVEL — gate on the dedicated `ATMIKO_SENTRY_DEBUG` env var so
 	 * app-level debugging doesn't pull in the firehose of Sentry-internal
 	 * tracing/transport chatter.
 	 */
@@ -60,7 +60,7 @@ export interface SentryErrorReporterOptions {
 /**
  * Sentry-backed {@link ErrorReporter}.
  *
- * Single Responsibility: this class only knows how to translate Cyrus-shaped
+ * Single Responsibility: this class only knows how to translate Atmiko-shaped
  * events into the Sentry SDK. It owns no application logic.
  *
  * The constructor initialises the Sentry SDK; therefore at most one instance
@@ -88,7 +88,7 @@ export class SentryErrorReporter implements ErrorReporter {
 			// Performance monitoring is intentionally disabled — we only ship
 			// error tracking. Flip this on later if we need transaction data.
 			tracesSampleRate: 0,
-			// Issues and Logs share a single gate (CYRUS_TEAM_ID upstream); by
+			// Issues and Logs share a single gate (ATMIKO_TEAM_ID upstream); by
 			// the time we get here both are wanted, so always enable Logs.
 			enableLogs: true,
 			beforeSend: options.beforeSend,
@@ -96,7 +96,7 @@ export class SentryErrorReporter implements ErrorReporter {
 			// Append integrations that enrich every event with structured data:
 			//   - extraErrorDataIntegration walks Error subclasses and serialises
 			//     non-standard own properties as `extra` (so e.g. `err.statusCode`,
-			//     `err.requestId`, custom Cyrus error fields surface in Sentry).
+			//     `err.requestId`, custom Atmiko error fields surface in Sentry).
 			//   - consoleIntegration captures console.* output as breadcrumbs so
 			//     events arrive with a structured trail of the last log lines.
 			integrations: (defaults) => [
@@ -104,7 +104,7 @@ export class SentryErrorReporter implements ErrorReporter {
 				Sentry.extraErrorDataIntegration({ depth: 4 }),
 				Sentry.consoleIntegration(),
 			],
-			// Apply caller-provided tags (e.g. team_id) and a structured `cyrus`
+			// Apply caller-provided tags (e.g. team_id) and a structured `atmiko`
 			// context to every event. Tags are indexed/searchable; the context is
 			// shown as a grouped structured block in the Sentry UI and is the
 			// home for fields too noisy or unbounded to be tags.
@@ -136,7 +136,7 @@ export class SentryErrorReporter implements ErrorReporter {
 		attributes?: ErrorReporterLogAttributes,
 	): void {
 		// Merge per-call attributes on top of the process-wide set so team_id
-		// (and any other CYRUS_* tag we configured) lands on every log record.
+		// (and any other ATMIKO_* tag we configured) lands on every log record.
 		const merged: ErrorReporterLogAttributes = {
 			...this.globalLogAttributes,
 			...attributes,
@@ -178,7 +178,7 @@ function buildInitialScope(
 	if (!hasTags && !hasContext) return undefined;
 	return {
 		...(hasTags ? { tags: options.tags } : {}),
-		...(hasContext ? { contexts: { cyrus: options.structuredContext } } : {}),
+		...(hasContext ? { contexts: { atmiko: options.structuredContext } } : {}),
 	};
 }
 

@@ -1,4 +1,4 @@
-import type { EdgeConfig } from "cyrus-core";
+import type { EdgeConfig } from "atmiko-core";
 
 /**
  * Linear credentials obtained from OAuth flow
@@ -18,6 +18,6 @@ export interface Workspace {
 }
 
 /**
- * Re-export EdgeConfig from cyrus-core for convenience
+ * Re-export EdgeConfig from atmiko-core for convenience
  */
 export type { EdgeConfig };

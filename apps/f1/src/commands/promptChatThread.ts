@@ -15,7 +15,7 @@ interface DispatchResponse {
 }
 
 function getUrl(): string {
-	const port = process.env.CYRUS_PORT || "3600";
+	const port = process.env.ATMIKO_PORT || "3600";
 	return `http://localhost:${port}/cli/dispatch-chat`;
 }
 

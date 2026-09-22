@@ -1,12 +1,11 @@
 import { existsSync, mkdirSync, watch } from "node:fs";
 import { dirname, join } from "node:path";
 import {
-	DEFAULT_PROXY_URL,
 	type ErrorReporter,
 	NoopErrorReporter,
 	type RepositoryConfig,
-} from "cyrus-core";
-import { GitService, SharedApplicationServer } from "cyrus-edge-worker";
+} from "atmiko-core";
+import { GitService, SharedApplicationServer } from "atmiko-edge-worker";
 import dotenv from "dotenv";
 import { DEFAULT_SERVER_PORT, parsePort } from "./config/constants.js";
 import { ConfigService } from "./services/ConfigService.js";
@@ -32,7 +31,7 @@ export class Application {
 	private readonly envFilePath: string;
 
 	constructor(
-		public readonly cyrusHome: string,
+		public readonly atmikoHome: string,
 		customEnvPath?: string,
 		version?: string,
 		errorReporter: ErrorReporter = new NoopErrorReporter(),
@@ -46,8 +45,8 @@ export class Application {
 		// Error reporter (Sentry or noop). Injected so tests can supply a fake.
 		this.errorReporter = errorReporter;
 
-		// Determine the env file path: use custom path if provided, otherwise default to ~/.cyrus/.env
-		this.envFilePath = customEnvPath || join(cyrusHome, ".env");
+		// Determine the env file path: use custom path if provided, otherwise default to ~/.atmiko/.env
+		this.envFilePath = customEnvPath || join(atmikoHome, ".env");
 
 		// Ensure required directories exist
 		this.ensureRequiredDirectories();
@@ -59,12 +58,12 @@ export class Application {
 		this.setupEnvFileWatcher();
 
 		// Initialize services
-		this.config = new ConfigService(cyrusHome, this.logger);
-		this.git = new GitService({ cyrusHome }, this.logger);
+		this.config = new ConfigService(atmikoHome, this.logger);
+		this.git = new GitService({ atmikoHome }, this.logger);
 		this.worker = new WorkerService(
 			this.config,
 			this.git,
-			cyrusHome,
+			atmikoHome,
 			this.logger,
 			this.version,
 		);
@@ -108,16 +107,16 @@ export class Application {
 	}
 
 	/**
-	 * Ensure required Cyrus directories exist
-	 * Creates repos dir (CYRUS_REPOS_DIR or ~/.cyrus/repos),
-	 * worktrees dir (CYRUS_WORKTREES_DIR or ~/.cyrus/worktrees),
-	 * and ~/.cyrus/mcp-configs
+	 * Ensure required Atmiko directories exist
+	 * Creates repos dir (ATMIKO_REPOS_DIR or ~/.atmiko/repos),
+	 * worktrees dir (ATMIKO_WORKTREES_DIR or ~/.atmiko/worktrees),
+	 * and ~/.atmiko/mcp-configs
 	 */
 	private ensureRequiredDirectories(): void {
 		const requiredDirs = [
-			getDefaultReposDir(this.cyrusHome),
-			getDefaultWorktreesDir(this.cyrusHome),
-			join(this.cyrusHome, "mcp-configs"),
+			getDefaultReposDir(this.atmikoHome),
+			getDefaultWorktreesDir(this.atmikoHome),
+			join(this.atmikoHome, "mcp-configs"),
 		];
 
 		for (const dirPath of requiredDirs) {
@@ -135,18 +134,15 @@ export class Application {
 		}
 	}
 
-	/**
-	 * Get proxy URL from environment or use default
-	 */
+	/** Return an explicitly configured, operator-owned OAuth proxy. */
 	getProxyUrl(): string {
-		return process.env.PROXY_URL || DEFAULT_PROXY_URL;
-	}
-
-	/**
-	 * Check if using default proxy
-	 */
-	isUsingDefaultProxy(): boolean {
-		return this.getProxyUrl() === DEFAULT_PROXY_URL;
+		const proxyUrl = process.env.PROXY_URL?.trim();
+		if (!proxyUrl) {
+			throw new Error(
+				"Configure your own PROXY_URL or authenticate with atmiko self-auth-linear.",
+			);
+		}
+		return proxyUrl;
 	}
 
 	/**
@@ -154,7 +150,7 @@ export class Application {
 	 */
 	async createTempServer(): Promise<SharedApplicationServer> {
 		const serverPort = parsePort(
-			process.env.CYRUS_SERVER_PORT,
+			process.env.ATMIKO_SERVER_PORT,
 			DEFAULT_SERVER_PORT,
 		);
 		return new SharedApplicationServer(serverPort);
@@ -218,7 +214,7 @@ export class Application {
 							`📦 Starting edge worker with ${repositories.length} repository(ies)...`,
 						);
 
-						// Remove CYRUS_SETUP_PENDING flag from .env (only in setup waiting mode)
+						// Remove ATMIKO_SETUP_PENDING flag from .env (only in setup waiting mode)
 						if (this.isInSetupWaitingMode) {
 							await this.removeSetupPendingFlag();
 						}
@@ -238,11 +234,11 @@ export class Application {
 	}
 
 	/**
-	 * Remove CYRUS_SETUP_PENDING flag from .env file
+	 * Remove ATMIKO_SETUP_PENDING flag from .env file
 	 */
 	private async removeSetupPendingFlag(): Promise<void> {
 		const { readFile, writeFile } = await import("node:fs/promises");
-		const envPath = join(this.cyrusHome, ".env");
+		const envPath = join(this.atmikoHome, ".env");
 
 		if (!existsSync(envPath)) {
 			return;
@@ -252,17 +248,17 @@ export class Application {
 			const envContent = await readFile(envPath, "utf-8");
 			const updatedContent = envContent
 				.split("\n")
-				.filter((line) => !line.startsWith("CYRUS_SETUP_PENDING="))
+				.filter((line) => !line.startsWith("ATMIKO_SETUP_PENDING="))
 				.join("\n");
 
 			await writeFile(envPath, updatedContent, "utf-8");
-			this.logger.info("✅ Removed CYRUS_SETUP_PENDING flag from .env");
+			this.logger.info("✅ Removed ATMIKO_SETUP_PENDING flag from .env");
 
 			// Reload environment variables
 			this.loadEnvFile();
 		} catch (error) {
 			this.logger.error(
-				`❌ Failed to remove CYRUS_SETUP_PENDING flag: ${error}`,
+				`❌ Failed to remove ATMIKO_SETUP_PENDING flag: ${error}`,
 			);
 		}
 	}

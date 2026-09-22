@@ -1,10 +1,10 @@
 {
-	"name": "cyrus-mcp-tools",
+	"name": "atmiko-mcp-tools",
 	"version": "0.2.72",
-	"description": "Runner-neutral MCP tool servers for Cyrus",
+	"description": "Runner-neutral MCP tool servers for Atmiko",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cyrusagents/cyrus.git",
+		"url": "git+https://github.com/nexmoe/atmiko.git",
 		"directory": "packages/mcp-tools"
 	},
 	"type": "module",

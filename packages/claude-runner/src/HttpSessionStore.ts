@@ -3,13 +3,13 @@ import type {
 	SessionStore,
 	SessionStoreEntry,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ILogger } from "cyrus-core";
+import type { ILogger } from "atmiko-core";
 
 /**
  * HTTP-backed Claude Agent SDK SessionStore.
  *
  * Mirrors session transcripts from an edge-worker / ClaudeRunner to the
- * Cyrus hosted control plane, which persists them in a per-team Supabase
+ * Atmiko hosted control plane, which persists them in a per-team Supabase
  * table.
  *
  * References (CYPACK-1121):
@@ -21,9 +21,9 @@ import type { ILogger } from "cyrus-core";
  * Every request carries two pieces of identity, provided by the edge's
  * environment:
  *
- *   - `Authorization: Bearer <CYRUS_API_KEY>` — proves the caller holds the
+ *   - `Authorization: Bearer <ATMIKO_API_KEY>` — proves the caller holds the
  *     team's API key.
- *   - `X-Cyrus-Team-Id:  <CYRUS_TEAM_ID>`    — names the team the request
+ *   - `X-Atmiko-Team-Id:  <ATMIKO_TEAM_ID>`    — names the team the request
  *     belongs to.
  *
  * The server looks up the team by id (O(1) primary-key lookup) and verifies
@@ -41,16 +41,16 @@ import type { ILogger } from "cyrus-core";
  *
  * The adapter passes the 13-contract conformance suite from the upstream
  * examples (`examples/session-stores/shared/conformance.ts`) when pointed
- * at a conforming backend. The cyrus-hosted implementation of these routes
+ * at a conforming backend. The atmiko-hosted implementation of these routes
  * is the canonical conforming backend.
  */
 export interface HttpSessionStoreOptions {
-	/** Base URL of the control-plane, e.g. "https://app.atcyrus.com". */
+	/** Base URL of the control-plane, e.g. "https://control-plane.example.com". */
 	baseUrl: string;
 	/** Team-scoped API key. Sent as `Authorization: Bearer <apiKey>`. */
 	apiKey: string;
 	/**
-	 * Team id this edge belongs to. Sent as `X-Cyrus-Team-Id: <teamId>`.
+	 * Team id this edge belongs to. Sent as `X-Atmiko-Team-Id: <teamId>`.
 	 * The server verifies the bearer token actually belongs to this team.
 	 */
 	teamId: string;
@@ -71,7 +71,7 @@ type JsonBody = Record<string, unknown>;
  * Header name used to identify the team. Extracted as a module-level
  * constant so tests and any future alternate transport stay in sync.
  */
-export const CYRUS_TEAM_ID_HEADER = "X-Cyrus-Team-Id";
+export const ATMIKO_TEAM_ID_HEADER = "X-Atmiko-Team-Id";
 
 export class HttpSessionStore implements SessionStore {
 	private readonly baseUrl: string;
@@ -159,7 +159,7 @@ export class HttpSessionStore implements SessionStore {
 		return {
 			"Content-Type": "application/json",
 			Authorization: `Bearer ${this.apiKey}`,
-			[CYRUS_TEAM_ID_HEADER]: this.teamId,
+			[ATMIKO_TEAM_ID_HEADER]: this.teamId,
 		};
 	}
 

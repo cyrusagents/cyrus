@@ -81,7 +81,7 @@ This will generate different types of messages for our logging test.`;
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 
 		// Check log files
-		const logsDir = join(homedir(), ".cyrus", "logs", logsWorkspaceName);
+		const logsDir = join(homedir(), ".atmiko", "logs", logsWorkspaceName);
 		console.log(`\n📝 Checking logs in: ${logsDir}`);
 
 		if (!existsSync(logsDir)) {
@@ -219,7 +219,7 @@ This will generate different types of messages for our logging test.`;
 		}
 
 		// Clean up logs directory
-		const logsDir = join(homedir(), ".cyrus", "logs", logsWorkspaceName);
+		const logsDir = join(homedir(), ".atmiko", "logs", logsWorkspaceName);
 		if (existsSync(logsDir)) {
 			rmSync(logsDir, { recursive: true, force: true });
 		}

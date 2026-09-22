@@ -1,4 +1,4 @@
-import type { ISimpleAgentRunner, SDKMessage } from "cyrus-core";
+import type { ISimpleAgentRunner, SDKMessage } from "atmiko-core";
 import {
 	InvalidResponseError,
 	SimpleAgentError,
@@ -129,10 +129,10 @@ export abstract class SimpleAgentRunner<T extends string>
 			);
 		}
 
-		if (!config.cyrusHome) {
+		if (!config.atmikoHome) {
 			throw new SimpleAgentError(
 				SimpleAgentErrorCode.INVALID_CONFIG,
-				"cyrusHome is required",
+				"atmikoHome is required",
 			);
 		}
 	}

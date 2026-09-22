@@ -24,23 +24,23 @@
 ## Session Log
 
 ```text
-CYRUS_PORT=3600 ./f1 ping
+ATMIKO_PORT=3600 ./f1 ping
   Server is healthy
 
-CYRUS_PORT=3600 ./f1 create-issue ... [repo=f1-test-repo]
+ATMIKO_PORT=3600 ./f1 create-issue ... [repo=f1-test-repo]
   ID: issue-2
 
-CYRUS_PORT=3600 ./f1 start-session --issue-id issue-2
+ATMIKO_PORT=3600 ./f1 start-session --issue-id issue-2
   Session ID: session-2
 
-CYRUS_PORT=3600 ./f1 view-session --session-id session-2 --limit 10 --offset 0
+ATMIKO_PORT=3600 ./f1 view-session --session-id session-2 --limit 10 --offset 0
   Total Activities: 4
   thought: request received
   thought: routing selected F1 Test Repository
   thought: model selected
   error: Not logged in - Please run /login
 
-CYRUS_PORT=3600 ./f1 stop-session --session-id session-2
+ATMIKO_PORT=3600 ./f1 stop-session --session-id session-2
   Session stopped successfully
 ```
 

@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { LINEAR_WEBHOOK_IPS } from "cyrus-core";
+import { LINEAR_WEBHOOK_IPS } from "atmiko-core";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LinearEventTransport } from "../src/LinearEventTransport.js";

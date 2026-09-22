@@ -5,15 +5,15 @@ import {
 } from "../src/prompts/browserUsePromptAddendum.js";
 
 describe("browser-use prompt addendum", () => {
-	const original = process.env.CYRUS_BROWSER_USE_ENABLED;
+	const original = process.env.ATMIKO_BROWSER_USE_ENABLED;
 
 	beforeEach(() => {
-		delete process.env.CYRUS_BROWSER_USE_ENABLED;
+		delete process.env.ATMIKO_BROWSER_USE_ENABLED;
 	});
 
 	afterEach(() => {
-		if (original === undefined) delete process.env.CYRUS_BROWSER_USE_ENABLED;
-		else process.env.CYRUS_BROWSER_USE_ENABLED = original;
+		if (original === undefined) delete process.env.ATMIKO_BROWSER_USE_ENABLED;
+		else process.env.ATMIKO_BROWSER_USE_ENABLED = original;
 	});
 
 	it("includes the agent-browser CLI name and a screenshot hint", () => {
@@ -22,27 +22,27 @@ describe("browser-use prompt addendum", () => {
 	});
 
 	it("returns the existing prompt unchanged when the env var is unset", () => {
-		expect(appendBrowserUseAddendum("You are Cyrus.")).toBe("You are Cyrus.");
+		expect(appendBrowserUseAddendum("You are Atmiko.")).toBe("You are Atmiko.");
 		expect(appendBrowserUseAddendum(undefined)).toBe("");
 		expect(appendBrowserUseAddendum(null)).toBe("");
 	});
 
 	it("returns the existing prompt unchanged when the env var is falsy", () => {
-		process.env.CYRUS_BROWSER_USE_ENABLED = "false";
-		expect(appendBrowserUseAddendum("You are Cyrus.")).toBe("You are Cyrus.");
-		process.env.CYRUS_BROWSER_USE_ENABLED = "0";
-		expect(appendBrowserUseAddendum("You are Cyrus.")).toBe("You are Cyrus.");
+		process.env.ATMIKO_BROWSER_USE_ENABLED = "false";
+		expect(appendBrowserUseAddendum("You are Atmiko.")).toBe("You are Atmiko.");
+		process.env.ATMIKO_BROWSER_USE_ENABLED = "0";
+		expect(appendBrowserUseAddendum("You are Atmiko.")).toBe("You are Atmiko.");
 	});
 
 	it("appends the addendum with a blank-line separator when enabled", () => {
-		process.env.CYRUS_BROWSER_USE_ENABLED = "true";
-		const result = appendBrowserUseAddendum("You are Cyrus.");
-		expect(result.startsWith("You are Cyrus.\n\n")).toBe(true);
+		process.env.ATMIKO_BROWSER_USE_ENABLED = "true";
+		const result = appendBrowserUseAddendum("You are Atmiko.");
+		expect(result.startsWith("You are Atmiko.\n\n")).toBe(true);
 		expect(result.endsWith(BROWSER_USE_PROMPT_ADDENDUM)).toBe(true);
 	});
 
 	it("returns the addendum verbatim when enabled with no base prompt", () => {
-		process.env.CYRUS_BROWSER_USE_ENABLED = "1";
+		process.env.ATMIKO_BROWSER_USE_ENABLED = "1";
 		expect(appendBrowserUseAddendum(undefined)).toBe(
 			BROWSER_USE_PROMPT_ADDENDUM,
 		);
@@ -51,7 +51,7 @@ describe("browser-use prompt addendum", () => {
 
 	it("accepts common truthy spellings", () => {
 		for (const value of ["true", "1", "yes", "TRUE", " Yes "]) {
-			process.env.CYRUS_BROWSER_USE_ENABLED = value;
+			process.env.ATMIKO_BROWSER_USE_ENABLED = value;
 			expect(appendBrowserUseAddendum("base")).toContain(
 				BROWSER_USE_PROMPT_ADDENDUM,
 			);

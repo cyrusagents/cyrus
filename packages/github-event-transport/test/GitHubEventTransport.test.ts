@@ -576,16 +576,16 @@ describe("GitHubEventTransport", () => {
 
 		afterEach(() => {
 			delete process.env.GITHUB_WEBHOOK_SECRET;
-			delete process.env.CYRUS_HOST_EXTERNAL;
+			delete process.env.ATMIKO_HOST_EXTERNAL;
 		});
 
-		it("switches to signature verification when GITHUB_WEBHOOK_SECRET and CYRUS_HOST_EXTERNAL are set at request time", async () => {
+		it("switches to signature verification when GITHUB_WEBHOOK_SECRET and ATMIKO_HOST_EXTERNAL are set at request time", async () => {
 			const eventListener = vi.fn();
 			transport.on("event", eventListener);
 
 			// Add env vars after startup
 			process.env.GITHUB_WEBHOOK_SECRET = runtimeWebhookSecret;
-			process.env.CYRUS_HOST_EXTERNAL = "true";
+			process.env.ATMIKO_HOST_EXTERNAL = "true";
 
 			const request = createMockRequest(issueCommentPayload, {
 				"x-github-event": "issue_comment",
@@ -608,13 +608,13 @@ describe("GitHubEventTransport", () => {
 			);
 		});
 
-		it("stays in proxy mode when only GITHUB_WEBHOOK_SECRET is set (no CYRUS_HOST_EXTERNAL)", async () => {
+		it("stays in proxy mode when only GITHUB_WEBHOOK_SECRET is set (no ATMIKO_HOST_EXTERNAL)", async () => {
 			const eventListener = vi.fn();
 			transport.on("event", eventListener);
 
 			// Only set webhook secret, not external host flag
 			process.env.GITHUB_WEBHOOK_SECRET = runtimeWebhookSecret;
-			delete process.env.CYRUS_HOST_EXTERNAL;
+			delete process.env.ATMIKO_HOST_EXTERNAL;
 
 			const request = createMockRequest(issueCommentPayload, {
 				authorization: `Bearer ${testSecret}`,
@@ -641,7 +641,7 @@ describe("GitHubEventTransport", () => {
 			transport.on("event", eventListener);
 
 			delete process.env.GITHUB_WEBHOOK_SECRET;
-			delete process.env.CYRUS_HOST_EXTERNAL;
+			delete process.env.ATMIKO_HOST_EXTERNAL;
 
 			const request = createMockRequest(issueCommentPayload, {
 				authorization: `Bearer ${testSecret}`,
@@ -666,7 +666,7 @@ describe("GitHubEventTransport", () => {
 		it("rejects proxy-style request after switching to signature mode", async () => {
 			// Add env vars to trigger signature mode
 			process.env.GITHUB_WEBHOOK_SECRET = runtimeWebhookSecret;
-			process.env.CYRUS_HOST_EXTERNAL = "true";
+			process.env.ATMIKO_HOST_EXTERNAL = "true";
 
 			// Send request with Bearer token (proxy style) — should fail
 			// because signature mode expects x-hub-signature-256 header
@@ -689,7 +689,7 @@ describe("GitHubEventTransport", () => {
 		it("rejects invalid signature after switching to signature mode", async () => {
 			// Add env vars to trigger signature mode
 			process.env.GITHUB_WEBHOOK_SECRET = runtimeWebhookSecret;
-			process.env.CYRUS_HOST_EXTERNAL = "true";
+			process.env.ATMIKO_HOST_EXTERNAL = "true";
 
 			const request = createMockRequest(issueCommentPayload, {
 				"x-hub-signature-256": "sha256=invalid_signature_here",

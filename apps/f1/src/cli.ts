@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * F1 CLI - Testing Framework for Cyrus
+ * F1 CLI - Testing Framework for Atmiko
  *
  * A beautiful command-line interface for interacting with the F1 server.
  * Provides commands for managing issues, sessions, and agent interactions.
@@ -41,14 +41,14 @@ program
 	.name("f1")
 	.version(packageJson.version as string)
 	.description(
-		`${bold(cyan("F1 Testing Framework"))} - CLI for Cyrus
+		`${bold(cyan("F1 Testing Framework"))} - CLI for Atmiko
 
 A beautiful command-line interface for testing and interacting with
-the Cyrus agent system. Manage issues, sessions, and agent activities
+the Atmiko agent system. Manage issues, sessions, and agent activities
 without external dependencies.
 
 Environment Variables:
-  ${cyan("CYRUS_PORT")}  Port for F1 server (default: 3600)
+  ${cyan("ATMIKO_PORT")}  Port for F1 server (default: 3600)
 
 Examples:
   ${cyan("f1 ping")}                           Health check

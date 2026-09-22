@@ -1,4 +1,8 @@
-import type { CyrusAgentSession, ILogger, RepositoryConfig } from "cyrus-core";
+import type {
+	AtmikoAgentSession,
+	ILogger,
+	RepositoryConfig,
+} from "atmiko-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -34,12 +38,12 @@ function makeCodexBuilder(): RunnerConfigBuilder {
 	);
 }
 
-function makeSession(): CyrusAgentSession {
+function makeSession(): AtmikoAgentSession {
 	return {
 		issueId: "issue-1",
 		issue: { identifier: "ABC-1" },
 		workspace: { path: "/ws/root", isGitWorktree: true },
-	} as unknown as CyrusAgentSession;
+	} as unknown as AtmikoAgentSession;
 }
 
 function buildCodexConfig(sandboxSettings?: Record<string, unknown>) {
@@ -56,7 +60,7 @@ function buildCodexConfig(sandboxSettings?: Record<string, unknown>) {
 		allowedTools: ["Read(**)"],
 		allowedDirectories: ["/ws/root", "/repos/repo-a"],
 		disallowedTools: [],
-		cyrusHome: "/tmp/cyrus-home",
+		atmikoHome: "/tmp/atmiko-home",
 		linearWorkspaceId: "ws-1",
 		logger: silentLogger,
 		onMessage: () => {},

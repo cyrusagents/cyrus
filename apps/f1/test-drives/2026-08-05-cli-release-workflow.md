@@ -38,13 +38,13 @@ apps/f1/f1 init-test-repo \
 Started the server and verified health:
 
 ```sh
-CYRUS_PORT=3600 \
-CYRUS_DEFAULT_RUNNER=gemini \
-CYRUS_REPO_PATH=/private/tmp/f1-cli-release-workflow.Tmuhqu \
+ATMIKO_PORT=3600 \
+ATMIKO_DEFAULT_RUNNER=gemini \
+ATMIKO_REPO_PATH=/private/tmp/f1-cli-release-workflow.Tmuhqu \
 bun run apps/f1/server.ts
 
-CYRUS_PORT=3600 apps/f1/f1 ping
-CYRUS_PORT=3600 apps/f1/f1 status
+ATMIKO_PORT=3600 apps/f1/f1 ping
+ATMIKO_PORT=3600 apps/f1/f1 status
 ```
 
 The server reported `ready` and registered the CLI RPC and event transports.
@@ -57,13 +57,13 @@ no-unhandled-error criterion.
 The same scenario was rerun through Codex:
 
 ```sh
-CYRUS_PORT=3600 apps/f1/f1 create-issue \
+ATMIKO_PORT=3600 apps/f1/f1 create-issue \
   --title "Release workflow validation (Codex)" \
   --description "[agent=codex]
 Validate the F1 issue/session/activity pipeline for the trusted CLI release workflow change."
 
-CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-2
-CYRUS_PORT=3600 apps/f1/f1 prompt-session \
+ATMIKO_PORT=3600 apps/f1/f1 start-session --issue-id issue-2
+ATMIKO_PORT=3600 apps/f1/f1 prompt-session \
   --session-id session-2 \
   --message "Use the configured test repository for this issue."
 ```
@@ -76,8 +76,8 @@ fresh fixture repository has no remote.
 Renderer and pagination checks:
 
 ```sh
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-2
-CYRUS_PORT=3600 apps/f1/f1 view-session \
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-2
+ATMIKO_PORT=3600 apps/f1/f1 view-session \
   --session-id session-2 \
   --limit 10 \
   --offset 0
@@ -89,7 +89,7 @@ showed 10 of 20 activities and printed the next-page guidance.
 Cleanup:
 
 ```sh
-CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-2
+ATMIKO_PORT=3600 apps/f1/f1 stop-session --session-id session-2
 ```
 
 The session stopped successfully, and SIGINT shut the F1 server down cleanly

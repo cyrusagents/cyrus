@@ -2,7 +2,7 @@ import type {
 	SDKAssistantMessage,
 	SDKStatusMessage,
 	SDKSystemMessage,
-} from "cyrus-claude-runner";
+} from "atmiko-claude-runner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
 import type { IActivitySink } from "../src/sinks/IActivitySink";
@@ -10,7 +10,7 @@ import type { IActivitySink } from "../src/sinks/IActivitySink";
 /**
  * Tests that GitHub (non-Linear) sessions skip all Linear activity posting.
  *
- * When `platform: "github"` is passed to createCyrusAgentSession, the session
+ * When `platform: "github"` is passed to createAtmikoAgentSession, the session
  * has no externalSessionId, so all postActivity calls should be skipped.
  */
 describe("AgentSessionManager - GitHub Session", () => {
@@ -33,7 +33,7 @@ describe("AgentSessionManager - GitHub Session", () => {
 	});
 
 	function createGitHubSession() {
-		manager.createCyrusAgentSession(
+		manager.createAtmikoAgentSession(
 			sessionId,
 			issueId,
 			{
@@ -50,7 +50,7 @@ describe("AgentSessionManager - GitHub Session", () => {
 	}
 
 	function createLinearSession() {
-		manager.createCyrusAgentSession(
+		manager.createAtmikoAgentSession(
 			sessionId,
 			issueId,
 			{

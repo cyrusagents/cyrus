@@ -96,7 +96,7 @@ describe("Logger error → reporter forwarding", () => {
 				sessionId: "session-abc",
 				platform: "linear",
 				issueIdentifier: "CYPACK-42",
-				repository: "cyrus",
+				repository: "atmiko",
 			},
 		});
 		log.error("Session error:", new Error("x"));
@@ -106,7 +106,7 @@ describe("Logger error → reporter forwarding", () => {
 			sessionId: "session-abc",
 			platform: "linear",
 			issueIdentifier: "CYPACK-42",
-			repository: "cyrus",
+			repository: "atmiko",
 		});
 	});
 
@@ -170,7 +170,7 @@ describe("Logger error → reporter forwarding", () => {
 	});
 
 	it("forwards warn/error and events to Sentry Logs even when console is silenced", () => {
-		// CYRUS_LOG_LEVEL controls the local console only; warn/error and
+		// ATMIKO_LOG_LEVEL controls the local console only; warn/error and
 		// explicit events are the always-on backbone.
 		const log = createLogger({ component: "X", level: LogLevel.SILENT });
 		log.debug("d");

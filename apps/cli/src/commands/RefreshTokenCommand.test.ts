@@ -1,4 +1,4 @@
-import type { EdgeConfig } from "cyrus-core";
+import type { EdgeConfig } from "atmiko-core";
 import open from "open";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Application } from "../Application.js";

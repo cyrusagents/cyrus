@@ -1,4 +1,8 @@
-import type { CyrusAgentSession, ILogger, RepositoryConfig } from "cyrus-core";
+import type {
+	AtmikoAgentSession,
+	ILogger,
+	RepositoryConfig,
+} from "atmiko-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -45,12 +49,12 @@ function makeRepository(): RepositoryConfig {
 	} as unknown as RepositoryConfig;
 }
 
-function makeSession(): CyrusAgentSession {
+function makeSession(): AtmikoAgentSession {
 	return {
 		issueId: "issue-1",
 		issue: { identifier: "ABC-1" },
 		workspace: { path: "/ws/repo-a-worktree", isGitWorktree: true },
-	} as unknown as CyrusAgentSession;
+	} as unknown as AtmikoAgentSession;
 }
 
 function buildIssueConfig(extra: Partial<IssueRunnerConfigInput> = {}) {
@@ -62,7 +66,7 @@ function buildIssueConfig(extra: Partial<IssueRunnerConfigInput> = {}) {
 		allowedTools: ["Read(**)"],
 		allowedDirectories: ["/repos/repo-a"],
 		disallowedTools: [],
-		cyrusHome: "/tmp/cyrus-home",
+		atmikoHome: "/tmp/atmiko-home",
 		linearWorkspaceId: "ws-1",
 		logger: silentLogger,
 		onMessage: () => {},
@@ -73,14 +77,14 @@ function buildIssueConfig(extra: Partial<IssueRunnerConfigInput> = {}) {
 }
 
 describe("RunnerConfigBuilder GitHub token session env (CYHOST-913)", () => {
-	it("exposes ONLY CYRUS_GH_TOKEN when a githubToken is provided", () => {
+	it("exposes ONLY ATMIKO_GH_TOKEN when a githubToken is provided", () => {
 		const { config } = buildIssueConfig({ githubToken: "ghs_org_token" });
 
 		// Never GH_TOKEN: customers set their own GH_TOKEN (e.g. private npm
-		// registries on GitHub Packages) and Cyrus must not clobber it. The
-		// droplet's gh wrapper maps CYRUS_GH_TOKEN to GH_TOKEN for gh only.
+		// registries on GitHub Packages) and Atmiko must not clobber it. The
+		// droplet's gh wrapper maps ATMIKO_GH_TOKEN to GH_TOKEN for gh only.
 		expect(config.additionalEnv).toEqual({
-			CYRUS_GH_TOKEN: "ghs_org_token",
+			ATMIKO_GH_TOKEN: "ghs_org_token",
 		});
 	});
 
@@ -99,7 +103,7 @@ describe("RunnerConfigBuilder GitHub token session env (CYHOST-913)", () => {
 
 		const env = config.additionalEnv as Record<string, string>;
 		expect(env.GH_TOKEN).toBeUndefined();
-		expect(env.CYRUS_GH_TOKEN).toBe("ghs_org_token");
+		expect(env.ATMIKO_GH_TOKEN).toBe("ghs_org_token");
 		// Sandbox CA cert env vars survive the merge
 		expect(env.NODE_EXTRA_CA_CERTS).toBe("/tmp/ca.pem");
 		expect(env.GIT_SSL_CAINFO).toBe("/tmp/ca.pem");

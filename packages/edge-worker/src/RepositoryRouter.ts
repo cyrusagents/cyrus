@@ -7,7 +7,7 @@ import {
 	type ILogger,
 	type RepositoryConfig,
 	type Webhook,
-} from "cyrus-core";
+} from "atmiko-core";
 
 /**
  * Repository routing result types
@@ -413,7 +413,7 @@ export class RepositoryRouter {
 					let isMatch = false;
 
 					// Match by GitHub/GitLab URL path segment (e.g., "org/repo-name" or "repo-name")
-					// Use endsWith to avoid substring false positives (e.g., "cyrus" matching "cyrus-hosted")
+					// Use endsWith to avoid substring false positives (e.g., "atmiko" matching "atmiko-hosted")
 					if (
 						repo.githubUrl?.endsWith(`/${repoTag.repo}`) ||
 						repo.githubUrl?.endsWith(`/${repoTag.repo}.git`) ||

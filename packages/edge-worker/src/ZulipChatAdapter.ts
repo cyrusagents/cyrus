@@ -1,12 +1,12 @@
-import type { IAgentRunner, ILogger } from "cyrus-core";
-import { createLogger } from "cyrus-core";
+import type { IAgentRunner, ILogger } from "atmiko-core";
+import { createLogger } from "atmiko-core";
 import {
 	buildPromptText,
 	type ZulipDestination,
 	type ZulipMessage,
 	ZulipMessageService,
 	type ZulipWebhookEvent,
-} from "cyrus-zulip-event-transport";
+} from "atmiko-zulip-event-transport";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
 
@@ -54,7 +54,7 @@ const CURSOR_WIDTH = 20;
  * `<stream_id>:<topic>`; a DM conversation keys on its participants instead.
  *
  * Unlike Slack, an outgoing webhook bot is only notified about messages that
- * address it (an @mention or a DM), so every event Cyrus sees is directed at
+ * address it (an @mention or a DM), so every event Atmiko sees is directed at
  * it. That removes the whole "decide whether this message was meant for you"
  * apparatus the Slack prompt needs — and it is why the catch-up read matters:
  * it is the only way anything said in the topic between two mentions reaches
@@ -113,13 +113,13 @@ export class ZulipChatAdapter
 	}
 
 	/**
-	 * What was said in this topic since Cyrus last had context.
+	 * What was said in this topic since Atmiko last had context.
 	 *
 	 * One request either way: the newest window of the topic, from which the
 	 * cursor selects what the agent has not seen. A resumed session already
 	 * holds its own replies in memory, so those are dropped from a catch-up —
 	 * but a fresh session has no memory at all and gets the whole window,
-	 * Cyrus's own past replies included.
+	 * Atmiko's own past replies included.
 	 *
 	 * Returns "" when there is nothing to add, `null` when the read failed —
 	 * the caller only advances its cursor on a non-null result, so a failure
@@ -246,8 +246,8 @@ ${repositoryAccessSection}
 ${this.repositoryRoutingContext ? `\n\n${this.repositoryRoutingContext}` : ""}
 
 ## Self-Knowledge
-- If the user asks about your capabilities, features, how you work, what you can do, setup instructions, or anything related to Cyrus documentation, use the \`mcp__cyrus-docs__search_documentation\` tool to look up the answer from the official Cyrus docs.
-- Always prefer searching the docs over guessing or relying on your training data for Cyrus-specific questions.
+- If the user asks about your capabilities, features, how you work, what you can do, setup instructions, or anything related to Atmiko documentation, use the \`mcp__atmiko-docs__search_documentation\` tool to look up the answer from the official Atmiko docs.
+- Always prefer searching the docs over guessing or relying on your training data for Atmiko-specific questions.
 
 ## Orchestration Notes
 - If the user asks you to make repo code changes immediately, use these steps:
@@ -259,8 +259,8 @@ ${this.repositoryRoutingContext ? `\n\n${this.repositoryRoutingContext}` : ""}
   - To choose both execution harness and model from Linear labels, apply a \`<provider>/<model>\` label such as \`openai/gpt-5.5\`. For OpenCode, use \`opencode/<provider>/<model>\`, such as \`opencode/openai/gpt-5.5\`.
   - Assign that Issue to that same user (your own Linear user).
   - That assignment is what immediately kicks off work in your own agent session.
-  - Track execution progress by searching \`mcp__cyrus-tools__linear_get_agent_sessions\` for the active session, then opening it with \`mcp__cyrus-tools__linear_get_agent_session\`.
-  - To send mid-flight feedback or corrections to a running child session, use \`mcp__cyrus-tools__linear_agent_give_feedback\` with the session ID returned by \`linear_get_agent_sessions\`. This is the ONLY way to directly prompt a running child agent. \`mcp__linear__save_comment\` does NOT trigger or notify the agent in any way — it just writes a comment on the issue, which the running session will not see. Always prefer \`linear_agent_give_feedback\` when the child agent is actively working.
+  - Track execution progress by searching \`mcp__atmiko-tools__linear_get_agent_sessions\` for the active session, then opening it with \`mcp__atmiko-tools__linear_get_agent_session\`.
+  - To send mid-flight feedback or corrections to a running child session, use \`mcp__atmiko-tools__linear_agent_give_feedback\` with the session ID returned by \`linear_get_agent_sessions\`. This is the ONLY way to directly prompt a running child agent. \`mcp__linear__save_comment\` does NOT trigger or notify the agent in any way — it just writes a comment on the issue, which the running session will not see. Always prefer \`linear_agent_give_feedback\` when the child agent is actively working.
 
 ## Zulip Message Formatting
 Your response is posted as a Zulip message. Zulip uses Markdown, so ordinary Markdown is correct — including \`[text](url)\` links, \`**bold**\`, tables, and fenced code blocks (give them a language, e.g. \`\`\`python).

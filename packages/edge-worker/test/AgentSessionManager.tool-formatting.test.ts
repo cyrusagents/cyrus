@@ -1,4 +1,4 @@
-import { ClaudeMessageFormatter } from "cyrus-claude-runner";
+import { ClaudeMessageFormatter } from "atmiko-claude-runner";
 import { describe, expect, test } from "vitest";
 
 describe("AgentSessionManager - Tool Formatting", () => {

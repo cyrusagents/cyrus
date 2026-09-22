@@ -1,4 +1,4 @@
-import type { EdgeWorkerConfig, RunnerType } from "cyrus-core";
+import type { EdgeWorkerConfig, RunnerType } from "atmiko-core";
 
 export class RunnerSelectionService {
 	private config: EdgeWorkerConfig;

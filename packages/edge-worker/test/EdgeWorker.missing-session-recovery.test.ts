@@ -1,25 +1,25 @@
 import { join } from "node:path";
 import { LinearClient } from "@linear/sdk";
-import { ClaudeRunner } from "cyrus-claude-runner";
-import { LinearEventTransport } from "cyrus-linear-event-transport";
-import { createCyrusToolsServer } from "cyrus-mcp-tools";
+import { ClaudeRunner } from "atmiko-claude-runner";
+import { LinearEventTransport } from "atmiko-linear-event-transport";
+import { createAtmikoToolsServer } from "atmiko-mcp-tools";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
 import type { EdgeWorkerConfig, RepositoryConfig } from "../src/types.js";
-import { TEST_CYRUS_HOME } from "./test-dirs.js";
+import { TEST_ATMIKO_HOME } from "./test-dirs.js";
 
 // Mock all dependencies
 vi.mock("fs/promises");
-vi.mock("cyrus-claude-runner");
-vi.mock("cyrus-mcp-tools");
-vi.mock("cyrus-codex-runner");
-vi.mock("cyrus-linear-event-transport");
+vi.mock("atmiko-claude-runner");
+vi.mock("atmiko-mcp-tools");
+vi.mock("atmiko-codex-runner");
+vi.mock("atmiko-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
-vi.mock("cyrus-core", async (importOriginal) => {
+vi.mock("atmiko-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as any;
 	return {
 		...actual,
@@ -67,8 +67,8 @@ describe("EdgeWorker - Missing Session/Repository Recovery (CYPACK-852)", () => 
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		vi.spyOn(console, "error").mockImplementation(() => {});
 
-		// Mock createCyrusToolsServer
-		vi.mocked(createCyrusToolsServer).mockImplementation(() => {
+		// Mock createAtmikoToolsServer
+		vi.mocked(createAtmikoToolsServer).mockImplementation(() => {
 			return { server: {} } as any;
 		});
 
@@ -91,7 +91,7 @@ describe("EdgeWorker - Missing Session/Repository Recovery (CYPACK-852)", () => 
 			getSession: vi.fn().mockReturnValue(null), // No session found (simulates missing session)
 			getSessionsByIssueId: vi.fn().mockReturnValue([]),
 			getActiveSessionsByIssueId: vi.fn().mockReturnValue([]),
-			createCyrusAgentSession: vi.fn().mockReturnValue({
+			createAtmikoAgentSession: vi.fn().mockReturnValue({
 				id: "recovered-session",
 				status: "active",
 				issueContext: {
@@ -144,7 +144,7 @@ describe("EdgeWorker - Missing Session/Repository Recovery (CYPACK-852)", () => 
 
 		mockConfig = {
 			proxyUrl: "http://localhost:3000",
-			cyrusHome: TEST_CYRUS_HOME,
+			atmikoHome: TEST_ATMIKO_HOME,
 			repositories: [mockRepository],
 			linearWorkspaces: {
 				"test-workspace": { linearToken: "test-token" },
@@ -509,9 +509,9 @@ describe("EdgeWorker - Missing Session/Repository Recovery (CYPACK-852)", () => 
 			// Session not found initially
 			mockAgentSessionManager.getSession.mockReturnValue(null);
 
-			// Mock createCyrusAgentSession on EdgeWorker (the full method)
+			// Mock createAtmikoAgentSession on EdgeWorker (the full method)
 			const createSessionSpy = vi
-				.spyOn(edgeWorker as any, "createCyrusAgentSession")
+				.spyOn(edgeWorker as any, "createAtmikoAgentSession")
 				.mockResolvedValue({
 					session: {
 						id: "agent-session-legacy-123",
@@ -531,7 +531,7 @@ describe("EdgeWorker - Missing Session/Repository Recovery (CYPACK-852)", () => 
 						path: "/test/workspaces/TEST-123",
 						isGitWorktree: false,
 					},
-					attachmentsDir: join(TEST_CYRUS_HOME, "TEST-123", "attachments"),
+					attachmentsDir: join(TEST_ATMIKO_HOME, "TEST-123", "attachments"),
 				});
 
 			// Also mock the handlePromptWithStreamingCheck to prevent further execution

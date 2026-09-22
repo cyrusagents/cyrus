@@ -28,22 +28,22 @@
 cd apps/f1
 ./f1 init-test-repo --path /tmp/f1-codex-shared-appserver-20260609-153237
 
-CYRUS_PORT=3601 \
-CYRUS_REPO_PATH=/tmp/f1-codex-shared-appserver-20260609-153237 \
-CYRUS_DEFAULT_RUNNER=codex \
+ATMIKO_PORT=3601 \
+ATMIKO_REPO_PATH=/tmp/f1-codex-shared-appserver-20260609-153237 \
+ATMIKO_DEFAULT_RUNNER=codex \
 CODEX_MODEL=gpt-5.5 \
 CODEX_HOME=/tmp/codex-home-f1-auth \
 bun run apps/f1/server.ts
 
-CYRUS_PORT=3601 apps/f1/f1 create-issue \
+ATMIKO_PORT=3601 apps/f1/f1 create-issue \
   --title 'Codex shared app-server smoke auth' \
   --description 'Smoke test only. Do not edit files. Reply exactly: F1-CODEX-OK'
 
-CYRUS_PORT=3601 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3601 apps/f1/f1 prompt-session \
+ATMIKO_PORT=3601 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3601 apps/f1/f1 prompt-session \
   --session-id session-1 \
   --message 'F1 Test Repository'
-CYRUS_PORT=3601 apps/f1/f1 view-session --session-id session-1
+ATMIKO_PORT=3601 apps/f1/f1 view-session --session-id session-1
 ```
 
 Key result:

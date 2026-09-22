@@ -27,26 +27,26 @@
 ```bash
 apps/f1/f1 init-test-repo --path /tmp/f1-opencode-tool-access-20260520
 
-CYRUS_PORT=3625 CYRUS_REPO_PATH=/tmp/f1-opencode-tool-access-20260520 \
+ATMIKO_PORT=3625 ATMIKO_REPO_PATH=/tmp/f1-opencode-tool-access-20260520 \
   bun run apps/f1/server.ts
 
-CYRUS_PORT=3625 apps/f1/f1 ping
-CYRUS_PORT=3625 apps/f1/f1 status
+ATMIKO_PORT=3625 apps/f1/f1 ping
+ATMIKO_PORT=3625 apps/f1/f1 status
 
-CYRUS_PORT=3625 apps/f1/f1 create-issue \
+ATMIKO_PORT=3625 apps/f1/f1 create-issue \
   --title "OpenCode tool access smoke" \
   --description $'Read README.md and reply exactly: F1_OPENCODE_TOOL_ACCESS_OK\n\n[repo=f1-test-repo]\n[agent=opencode]'
 
-CYRUS_PORT=3625 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3625 apps/f1/f1 view-session --session-id session-1 --limit 50 --offset 0
-CYRUS_PORT=3625 apps/f1/f1 view-session --session-id session-1 --search README.md
-CYRUS_PORT=3625 apps/f1/f1 view-session --session-id session-1 --search F1_OPENCODE_TOOL_ACCESS_OK
-CYRUS_PORT=3625 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3625 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3625 apps/f1/f1 view-session --session-id session-1 --limit 50 --offset 0
+ATMIKO_PORT=3625 apps/f1/f1 view-session --session-id session-1 --search README.md
+ATMIKO_PORT=3625 apps/f1/f1 view-session --session-id session-1 --search F1_OPENCODE_TOOL_ACCESS_OK
+ATMIKO_PORT=3625 apps/f1/f1 stop-session --session-id session-1
 ```
 
 Key outputs:
 
-- Server started on `http://localhost:3625` with Cyrus home `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/cyrus-f1-1779282864490`.
+- Server started on `http://localhost:3625` with Atmiko home `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/atmiko-f1-1779282864490`.
 - `RepositoryRouter` selected `F1 Test Repository` via `[repo=f1-test-repo]`.
 - Activity timeline included `Using model: opencode`.
 - Activity timeline included a `Read` action for `README.md`.

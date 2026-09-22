@@ -32,6 +32,15 @@ export {
 // export type { SessionOptions, , NarrativeItem } from './Session.js'
 // export { ClaudeSessionManager as SessionManager } from './ClaudeSessionManager.js'
 
+export type {
+	AtmikoAgentSession,
+	AtmikoAgentSessionEntry,
+	BaseBranchResolution,
+	IssueContext,
+	IssueMinimal,
+	RepositoryContext,
+	Workspace,
+} from "./AtmikoAgentSession.js";
 // Agent Runner types
 export type {
 	AgentMessage,
@@ -58,7 +67,7 @@ export type {
 	SDKUserMessage,
 	SessionCronSummary,
 } from "./agent-runner-types.js";
-// Per-platform default allowed tools — single source of truth for cyrus-hosted
+// Per-platform default allowed tools — single source of truth for atmiko-hosted
 // and self-host configurations alike.
 export type { AllowedToolsPlatform } from "./allowed-tools-defaults.js";
 export {
@@ -67,15 +76,6 @@ export {
 	LINEAR_DEFAULT_ALLOWED_TOOLS,
 	SLACK_DEFAULT_ALLOWED_TOOLS,
 } from "./allowed-tools-defaults.js";
-export type {
-	BaseBranchResolution,
-	CyrusAgentSession,
-	CyrusAgentSessionEntry,
-	IssueContext,
-	IssueMinimal,
-	RepositoryContext,
-	Workspace,
-} from "./CyrusAgentSession.js";
 // Configuration types
 export type {
 	EdgeConfig,
@@ -118,7 +118,6 @@ export {
 export {
 	DEFAULT_BASE_BRANCH,
 	DEFAULT_CONFIG_FILENAME,
-	DEFAULT_PROXY_URL,
 	DEFAULT_REPOS_DIR,
 	DEFAULT_WORKTREES_DIR,
 	getDefaultReposDir,
@@ -259,12 +258,12 @@ export {
 	isUnassignMessage,
 	isUserPromptMessage,
 } from "./messages/index.js";
-// Linear adapters have been moved to cyrus-linear-event-transport package
-// Import them directly from that package instead of from cyrus-core
+// Linear adapters have been moved to atmiko-linear-event-transport package
+// Import them directly from that package instead of from atmiko-core
 export type {
 	SerializableEdgeWorkerState,
-	SerializedCyrusAgentSession,
-	SerializedCyrusAgentSessionEntry,
+	SerializedAtmikoAgentSession,
+	SerializedAtmikoAgentSessionEntry,
 	V3SerializableEdgeWorkerState,
 } from "./PersistenceManager.js";
 export {

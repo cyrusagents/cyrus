@@ -12,7 +12,7 @@
 
 import * as os from "node:os";
 import * as path from "node:path";
-import type { SimpleAgentProgressEvent } from "cyrus-simple-agent-runner";
+import type { SimpleAgentProgressEvent } from "atmiko-simple-agent-runner";
 import { SimpleGeminiRunner } from "../src/SimpleGeminiRunner";
 
 // Example 1: Yes/No Question
@@ -24,7 +24,7 @@ async function yesNoExample() {
 		validResponses: ["yes", "no"],
 
 		// Required: Home directory for logs
-		cyrusHome: path.join(os.homedir(), ".cyrus"),
+		atmikoHome: path.join(os.homedir(), ".atmiko"),
 
 		// Optional: Working directory (defaults to cwd)
 		workingDirectory: process.cwd(),
@@ -71,7 +71,7 @@ async function multipleChoiceExample() {
 
 	const runner = new SimpleGeminiRunner({
 		validResponses: ["easy", "medium", "hard", "expert"],
-		cyrusHome: path.join(os.homedir(), ".cyrus"),
+		atmikoHome: path.join(os.homedir(), ".atmiko"),
 		workingDirectory: process.cwd(),
 		model: "gemini-2.5-flash",
 		maxTurns: 5,
@@ -112,7 +112,7 @@ async function codeReviewExample() {
 
 	const runner = new SimpleGeminiRunner({
 		validResponses: ["approve", "reject", "needs-changes"],
-		cyrusHome: path.join(os.homedir(), ".cyrus"),
+		atmikoHome: path.join(os.homedir(), ".atmiko"),
 		model: "gemini-2.5-flash",
 		maxTurns: 10, // More turns for complex analysis
 		systemPrompt: `You are a code reviewer. Analyze code carefully and provide one of the valid responses.`,
@@ -172,7 +172,7 @@ async function sentimentAnalysisExample() {
 
 	const runner = new SimpleGeminiRunner({
 		validResponses: ["positive", "negative", "neutral"],
-		cyrusHome: path.join(os.homedir(), ".cyrus"),
+		atmikoHome: path.join(os.homedir(), ".atmiko"),
 		model: "gemini-2.5-flash",
 		maxTurns: 3,
 	});
@@ -212,7 +212,7 @@ async function advancedExample() {
 
 	const runner = new SimpleGeminiRunner({
 		validResponses: ["refactor", "keep", "delete"],
-		cyrusHome: path.join(os.homedir(), ".cyrus"),
+		atmikoHome: path.join(os.homedir(), ".atmiko"),
 		model: "gemini-2.5-flash",
 		maxTurns: 8,
 
@@ -300,7 +300,7 @@ async function errorHandlingExample() {
 
 	const runner = new SimpleGeminiRunner({
 		validResponses: ["valid-response"],
-		cyrusHome: path.join(os.homedir(), ".cyrus"),
+		atmikoHome: path.join(os.homedir(), ".atmiko"),
 		model: "gemini-2.5-flash",
 		maxTurns: 2, // Very low to trigger potential failure
 		timeout: 10000, // 10 second timeout

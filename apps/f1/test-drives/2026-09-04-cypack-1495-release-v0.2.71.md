@@ -32,7 +32,7 @@
 Built the F1 application and its transitive workspace dependencies:
 
 ```bash
-pnpm --filter cyrus-f1... build
+pnpm --filter atmiko-f1... build
 ```
 
 Result: all 16 selected workspace projects built successfully.
@@ -41,12 +41,12 @@ Initialized a fresh repository and started F1 with the Claude runner:
 
 ```bash
 apps/f1/f1 init-test-repo --path /private/tmp/f1-release-v0.2.71-3J3J5I/repo
-CYRUS_PORT=3600 \
-  CYRUS_DEFAULT_RUNNER=claude \
-  CYRUS_REPO_PATH=/private/tmp/f1-release-v0.2.71-3J3J5I/repo \
+ATMIKO_PORT=3600 \
+  ATMIKO_DEFAULT_RUNNER=claude \
+  ATMIKO_REPO_PATH=/private/tmp/f1-release-v0.2.71-3J3J5I/repo \
   bun run apps/f1/server.ts
-CYRUS_PORT=3600 apps/f1/f1 ping
-CYRUS_PORT=3600 apps/f1/f1 status
+ATMIKO_PORT=3600 apps/f1/f1 ping
+ATMIKO_PORT=3600 apps/f1/f1 status
 ```
 
 Result: the server started cleanly on port 3600 and `status` returned `ready`. `ping` returned success but printed `Status: undefined`, the same pre-existing RPC/CLI field mismatch documented in the v0.2.70 release drive.
@@ -54,26 +54,26 @@ Result: the server started cleanly on port 3600 and `status` returned `ready`. `
 Created an inspection-only issue, started a session, and resolved the repository-selection elicitation:
 
 ```bash
-CYRUS_PORT=3600 apps/f1/f1 create-issue \
+ATMIKO_PORT=3600 apps/f1/f1 create-issue \
   --title "Release v0.2.71 F1 validation" \
-  --description "Validate Cyrus v0.2.71 end to end by inspecting the configured test repository and reporting which rate limiter features are implemented or still TODO. Do not edit files."
-CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3600 apps/f1/f1 prompt-session \
+  --description "Validate Atmiko v0.2.71 end to end by inspecting the configured test repository and reporting which rate limiter features are implemented or still TODO. Do not edit files."
+ATMIKO_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3600 apps/f1/f1 prompt-session \
   --session-id session-1 \
   --message "Use the configured F1 Test Repository for this issue."
 ```
 
-Result: F1 created `issue-1` / `DEF-1` and `session-1`, routed the user selection to the configured F1 repository, created `/tmp/cyrus-f1-1788567210286/worktrees/DEF-1`, assigned Claude session `26d9c9be-21f4-44d9-97f4-645d208254ae`, and selected `claude/claude-sonnet-5`.
+Result: F1 created `issue-1` / `DEF-1` and `session-1`, routed the user selection to the configured F1 repository, created `/tmp/atmiko-f1-1788567210286/worktrees/DEF-1`, assigned Claude session `26d9c9be-21f4-44d9-97f4-645d208254ae`, and selected `claude/claude-sonnet-5`.
 
 The Claude-backed inspection completed successfully (`Session completed (subtype: success)`, 37 raw SDK messages). It rendered 15 coherent timeline activities and a final response that accurately distinguished the implemented token-bucket algorithm, in-memory storage, public API, and types from the TODO sliding-window algorithm, fixed-window algorithm, Redis adapter, unit tests, and extended docs. It also ran `npm run typecheck` successfully inside the generated repository and honored the instruction not to edit tracked files; `git status --short` remained empty at commit `4dbc9de`.
 
 Verified rendering, pagination, and search:
 
 ```bash
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 8 --offset 0
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 8 --offset 8
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --search "TODO"
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 8 --offset 0
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 8 --offset 8
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --search "TODO"
 ```
 
 Result: the full view showed all 15 activities, the two pagination windows returned 8 and 7 activities respectively, and search returned the seven matching action/thought/response activities.
@@ -81,7 +81,7 @@ Result: the full view showed all 15 activities, the two pagination windows retur
 Stopped the completed session and shut down the server:
 
 ```bash
-CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3600 apps/f1/f1 stop-session --session-id session-1
 ```
 
 Result: the stop request succeeded and `SIGINT` produced a graceful shutdown after saving EdgeWorker state.
@@ -90,7 +90,7 @@ Result: the stop request succeeded and `SIGINT` produced a graceful shutdown aft
 
 1. `f1 ping` still prints `Status: undefined` although the request succeeds; this is the known field-name mismatch also observed in the v0.2.70 drive.
 2. `f1 version` fails because the compiled command looks for `apps/f1/dist/package.json`, which is not copied by the build. The server `/version` route was registered normally, and this auxiliary CLI defect is unrelated to the release contents.
-3. The agent's first `Skill(investigate)` invocation resolved to an unrelated user-level `~/.claude/skills/investigate` skill rather than Cyrus's bundled skill. The agent rejected its irrelevant side-effecting instructions, continued with direct read-only inspection, and completed successfully. This appears to be an ambient skill-name collision, not a regression in the v0.2.71 changes.
+3. The agent's first `Skill(investigate)` invocation resolved to an unrelated user-level `~/.claude/skills/investigate` skill rather than Atmiko's bundled skill. The agent rejected its irrelevant side-effecting instructions, continued with direct read-only inspection, and completed successfully. This appears to be an ambient skill-name collision, not a regression in the v0.2.71 changes.
 4. The generated repository has no remote, so worktree setup logged a failed `git fetch origin` and correctly fell back to local `main`, as expected for the standard F1 scaffold.
 
 ## Final Retrospective

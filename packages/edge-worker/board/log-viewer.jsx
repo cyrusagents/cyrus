@@ -179,7 +179,7 @@ function ActivityRow({
 const lanes = [
 	{ label: "Agent", kinds: ["activity", "lifecycle"] },
 	{ label: "Tools", kinds: ["tool", "output"] },
-	{ label: "Cyrus", kinds: ["service"] },
+	{ label: "Atmiko", kinds: ["service"] },
 ];
 function Timeline({ rows, selected, onSelect }) {
 	return (

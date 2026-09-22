@@ -1,6 +1,6 @@
-# Contributing to Cyrus
+# Contributing to Atmiko
 
-We love your input! We want to make contributing to Cyrus as easy and transparent as possible, whether it's:
+We love your input! We want to make contributing to Atmiko as easy and transparent as possible, whether it's:
 
 - Reporting a bug
 - Discussing the current state of the code
@@ -38,12 +38,12 @@ We use GitHub for issue tracking, code hosting and pull requests. We also track 
 
 ### Project Structure
 
-Cyrus is a pnpm monorepo with the following layout:
+Atmiko is a pnpm monorepo with the following layout:
 
 ```
-cyrus/
+atmiko/
 ├── apps/
-│   ├── cli/        # Main CLI application (the `cyrus-ai` npm package)
+│   ├── cli/        # Main CLI application (the `atmiko` npm package)
 │   └── f1/         # F1 testing framework for end-to-end test drives
 └── packages/
     ├── core/                     # Shared types and session management

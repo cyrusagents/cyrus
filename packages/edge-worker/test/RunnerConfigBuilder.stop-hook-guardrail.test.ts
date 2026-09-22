@@ -8,8 +8,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { StopHookInput } from "cyrus-claude-runner";
-import type { ILogger } from "cyrus-core";
+import type { StopHookInput } from "atmiko-claude-runner";
+import type { ILogger } from "atmiko-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	buildStopHook,
@@ -67,7 +67,7 @@ describe("buildStopHook", () => {
 	let workdir: string;
 
 	beforeEach(() => {
-		workdir = mkdtempSync(join(tmpdir(), "cyrus-stop-hook-build-"));
+		workdir = mkdtempSync(join(tmpdir(), "atmiko-stop-hook-build-"));
 	});
 
 	afterEach(() => {
@@ -84,7 +84,7 @@ describe("buildStopHook", () => {
 
 	it("allows the stop through when the working tree is clean", async () => {
 		// Set up a clean repo synced with its upstream.
-		const remote = mkdtempSync(join(tmpdir(), "cyrus-stop-hook-remote-"));
+		const remote = mkdtempSync(join(tmpdir(), "atmiko-stop-hook-remote-"));
 		try {
 			execSync(`git init --bare`, { cwd: remote, stdio: "ignore" });
 			git(workdir, "init -b main");
@@ -165,7 +165,7 @@ describe("inspectGitGuardrail", () => {
 	let workdir: string;
 
 	beforeEach(() => {
-		workdir = mkdtempSync(join(tmpdir(), "cyrus-stop-hook-"));
+		workdir = mkdtempSync(join(tmpdir(), "atmiko-stop-hook-"));
 	});
 
 	afterEach(() => {
@@ -177,8 +177,8 @@ describe("inspectGitGuardrail", () => {
 		"uncached",
 		"diverged",
 	])("checks whether a newer published PR head contains the local work (%s)", (relationship) => {
-		const remote = mkdtempSync(join(tmpdir(), "cyrus-published-remote-"));
-		const publisher = mkdtempSync(join(tmpdir(), "cyrus-published-writer-"));
+		const remote = mkdtempSync(join(tmpdir(), "atmiko-published-remote-"));
+		const publisher = mkdtempSync(join(tmpdir(), "atmiko-published-writer-"));
 		const readGit = (args: string[]) =>
 			execFileSync("git", args, { cwd: workdir, encoding: "utf8" }).trim();
 		const fetchHead = () => {
@@ -232,7 +232,7 @@ describe("inspectGitGuardrail", () => {
 		"stale",
 		"base",
 	])("does not request another shipping turn for a published PR branch with %s tracking", (tracking) => {
-		const remote = mkdtempSync(join(tmpdir(), "cyrus-stop-hook-remote-"));
+		const remote = mkdtempSync(join(tmpdir(), "atmiko-stop-hook-remote-"));
 		try {
 			git(remote, "init --bare");
 			git(workdir, "init -b main");
@@ -261,7 +261,7 @@ describe("inspectGitGuardrail", () => {
 	});
 
 	it("returns null on a clean repo with no commits ahead of upstream", () => {
-		const remote = mkdtempSync(join(tmpdir(), "cyrus-stop-hook-remote-"));
+		const remote = mkdtempSync(join(tmpdir(), "atmiko-stop-hook-remote-"));
 		try {
 			execSync(`git init --bare`, { cwd: remote, stdio: "ignore" });
 			git(workdir, "init -b main");
@@ -319,7 +319,7 @@ describe("inspectGitGuardrail", () => {
 	});
 
 	it("counts commits ahead of upstream as unshipped work", () => {
-		const remote = mkdtempSync(join(tmpdir(), "cyrus-stop-hook-remote-"));
+		const remote = mkdtempSync(join(tmpdir(), "atmiko-stop-hook-remote-"));
 		try {
 			execSync(`git init --bare`, { cwd: remote, stdio: "ignore" });
 			git(workdir, "init -b main");

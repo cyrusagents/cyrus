@@ -1,14 +1,14 @@
-import type { SDKMessage } from "cyrus-core";
+import type { SDKMessage } from "atmiko-core";
 import {
 	NoResponseError,
 	SessionError,
 	type SimpleAgentQueryOptions,
 	SimpleAgentRunner,
-} from "cyrus-simple-agent-runner";
+} from "atmiko-simple-agent-runner";
 import { CodexRunner } from "./CodexRunner.js";
 
 /**
- * Concrete implementation using CodexRunner from cyrus-codex-runner package.
+ * Concrete implementation using CodexRunner from atmiko-codex-runner package.
  *
  * This implementation uses the Codex SDK to execute queries and
  * constrains the responses to an enumerated set.
@@ -50,7 +50,7 @@ export class SimpleCodexRunner<T extends string> extends SimpleAgentRunner<T> {
 		// Create CodexRunner with configuration
 		const runner = new CodexRunner({
 			workingDirectory: this.config.workingDirectory,
-			cyrusHome: this.config.cyrusHome,
+			atmikoHome: this.config.atmikoHome,
 			model: this.config.model,
 			fallbackModel: this.config.fallbackModel,
 			maxTurns: this.config.maxTurns,

@@ -24,17 +24,17 @@
 
 ## Session log
 
-The changed EdgeWorker was built before starting F1 on port 3600 with a fresh temporary Cyrus home. Only the configured Cursor credential was loaded; production webhook integrations were not used.
+The changed EdgeWorker was built before starting F1 on port 3600 with a fresh temporary Atmiko home. Only the configured Cursor credential was loaded; production webhook integrations were not used.
 
 ```sh
 apps/f1/f1 init-test-repo --path /private/tmp/f1-github-published-ancestor-20260921
-CYRUS_PORT=3600 apps/f1/f1 ping
-CYRUS_PORT=3600 apps/f1/f1 status
-CYRUS_PORT=3600 apps/f1/f1 create-issue --title 'Validate published-ancestor guardrail runtime' --description 'Read-only F1 validation. [repo=f1-test-repo] [agent=cursor] Read README.md and return one short sentence with the package name. Do not edit files, commit, push, create pull requests, or send messages.'
-CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 30 --offset 0
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 2 --offset 5
-CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3600 apps/f1/f1 ping
+ATMIKO_PORT=3600 apps/f1/f1 status
+ATMIKO_PORT=3600 apps/f1/f1 create-issue --title 'Validate published-ancestor guardrail runtime' --description 'Read-only F1 validation. [repo=f1-test-repo] [agent=cursor] Read README.md and return one short sentence with the package name. Do not edit files, commit, push, create pull requests, or send messages.'
+ATMIKO_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 30 --offset 0
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 2 --offset 5
+ATMIKO_PORT=3600 apps/f1/f1 stop-session --session-id session-1
 ```
 
 The session started at 12:47:46 UTC and posted its response at 12:48:08 UTC. The Read tool was denied by existing permissions, so the runner used the permitted shell read. The CLI still displayed `active` after completion; the successful runner result and response activity established completion before explicit cleanup.

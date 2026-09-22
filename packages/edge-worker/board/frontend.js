@@ -132,10 +132,10 @@ function renderConnection() {
 		: paused
 			? "Display paused"
 			: !state?.online
-				? "Cyrus offline"
+				? "Atmiko offline"
 				: state.status === "busy"
-					? "Cyrus busy"
-					: "Cyrus idle";
+					? "Atmiko busy"
+					: "Atmiko idle";
 	$("connection").className =
 		`connection${stale || !state?.online ? " off" : ""}`;
 	$("connection").lastElementChild.textContent = text;

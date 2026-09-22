@@ -15,7 +15,7 @@ vi.mock("node:util", () => ({
 
 describe("handleCheckGh", () => {
 	const mockExec = vi.mocked(exec);
-	const cyrusHome = "/test/cyrus/home";
+	const atmikoHome = "/test/atmiko/home";
 	const payload: CheckGhPayload = {};
 
 	beforeEach(() => {
@@ -42,7 +42,7 @@ describe("handleCheckGh", () => {
 				return Promise.reject(new Error("Unknown command"));
 			});
 
-			const result = await handleCheckGh(payload, cyrusHome);
+			const result = await handleCheckGh(payload, atmikoHome);
 
 			expect(result).toEqual({
 				success: true,
@@ -67,7 +67,7 @@ describe("handleCheckGh", () => {
 				return Promise.reject(new Error("Unknown command"));
 			});
 
-			const result = await handleCheckGh(payload, cyrusHome);
+			const result = await handleCheckGh(payload, atmikoHome);
 
 			expect(result).toEqual({
 				success: true,
@@ -89,7 +89,7 @@ describe("handleCheckGh", () => {
 				return Promise.reject(new Error("Unknown command"));
 			});
 
-			const result = await handleCheckGh(payload, cyrusHome);
+			const result = await handleCheckGh(payload, atmikoHome);
 
 			expect(result).toEqual({
 				success: true,
@@ -112,7 +112,7 @@ describe("handleCheckGh", () => {
 				return Promise.reject(new Error("Unknown command"));
 			});
 
-			const result = await handleCheckGh(payload, cyrusHome);
+			const result = await handleCheckGh(payload, atmikoHome);
 
 			expect(result.success).toBe(true);
 			expect(result.data).toEqual({
@@ -128,7 +128,7 @@ describe("handleCheckGh", () => {
 				return Promise.reject(new Error("Permission denied"));
 			});
 
-			const result = await handleCheckGh(payload, cyrusHome);
+			const result = await handleCheckGh(payload, atmikoHome);
 
 			// Any error is treated as "not installed"
 			expect(result).toEqual({

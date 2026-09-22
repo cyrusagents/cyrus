@@ -1,4 +1,4 @@
-import type { AskUserQuestionInput, IIssueTrackerService } from "cyrus-core";
+import type { AskUserQuestionInput, IIssueTrackerService } from "atmiko-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AskUserQuestionHandler } from "../src/AskUserQuestionHandler.js";
 

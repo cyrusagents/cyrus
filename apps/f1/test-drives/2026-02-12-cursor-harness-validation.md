@@ -39,7 +39,7 @@ Result:
 ### 2) F1 server start attempt (live RPC)
 
 ```bash
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-cursor-20260212-161603 bun run apps/f1/server.ts
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-cursor-20260212-161603 bun run apps/f1/server.ts
 ```
 
 Observed result:
@@ -50,7 +50,7 @@ Observed result:
 ### 3) Cursor harness verification (non-RPC fallback validation)
 
 ```bash
-/Users/agentops/.cyrus/repos/cyrus/node_modules/.pnpm/node_modules/.bin/vitest run test/EdgeWorker.runner-selection.test.ts --config vitest.config.ts
+/Users/agentops/.atmiko/repos/atmiko/node_modules/.pnpm/node_modules/.bin/vitest run test/EdgeWorker.runner-selection.test.ts --config vitest.config.ts
 # run in packages/edge-worker
 ```
 
@@ -61,7 +61,7 @@ Result:
   - `[agent=cursor]` selector selects CursorRunner
 
 ```bash
-/Users/agentops/.cyrus/repos/cyrus/node_modules/.pnpm/node_modules/.bin/vitest run test/CursorRunner.tool-events.test.ts test/formatter.test.ts test/formatter.replay.test.ts
+/Users/agentops/.atmiko/repos/atmiko/node_modules/.pnpm/node_modules/.bin/vitest run test/CursorRunner.tool-events.test.ts test/formatter.test.ts test/formatter.replay.test.ts
 # run in packages/cursor-runner
 ```
 
@@ -78,7 +78,7 @@ bun run apps/f1/test-drives/cursor-offline-drive.ts
 Result:
 - Creates issue and real agent session via CLI issue tracker.
 - Forces procedure routing to `full-development` to avoid external analyzer dependency.
-- Runs EdgeWorker session lifecycle with `CYRUS_CURSOR_MOCK=1` and `[agent=cursor]` selector.
+- Runs EdgeWorker session lifecycle with `ATMIKO_CURSOR_MOCK=1` and `[agent=cursor]` selector.
 - Confirms session reached completion and posted final response activity:
 
 ```json

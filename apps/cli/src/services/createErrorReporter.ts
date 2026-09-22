@@ -2,17 +2,17 @@ import {
 	type ErrorReporter,
 	NoopErrorReporter,
 	setGlobalErrorTags,
-} from "cyrus-core";
+} from "atmiko-core";
 import { SentryErrorReporter } from "./SentryErrorReporter.js";
 import { scrubSentryEvent, scrubSentryLog } from "./sentryScrubber.js";
 
 /**
  * Default DSN baked into release builds. Empty until an admin creates the
- * `ceedar/cyrus-cli` Sentry project and pastes the DSN here. Sentry DSNs are
+ * `ceedar/atmiko-cli` Sentry project and pastes the DSN here. Sentry DSNs are
  * safe to publish — they only authorise event ingestion.
  *
- * End users may override this with the `CYRUS_SENTRY_DSN` env var, or disable
- * reporting entirely with `CYRUS_SENTRY_DISABLED=1`.
+ * End users may override this with the `ATMIKO_SENTRY_DSN` env var, or disable
+ * reporting entirely with `ATMIKO_SENTRY_DISABLED=1`.
  */
 export const DEFAULT_SENTRY_DSN =
 	"https://4a343e39f7439cb5669604657fca148e@o4509685010399232.ingest.us.sentry.io/4511293576839168";
@@ -29,9 +29,9 @@ export interface CreateErrorReporterParams {
  * Build the application's {@link ErrorReporter}.
  *
  * Order of resolution:
- *   1. If `CYRUS_SENTRY_DISABLED` is truthy → noop.
- *   2. If `CYRUS_TEAM_ID` is unset → noop. Both Issues and Logs require a
- *      tenant tag so we can slice/filter per Cyrus install in Sentry; without
+ *   1. If `ATMIKO_SENTRY_DISABLED` is truthy → noop.
+ *   2. If `ATMIKO_TEAM_ID` is unset → noop. Both Issues and Logs require a
+ *      tenant tag so we can slice/filter per Atmiko install in Sentry; without
  *      it we send nothing rather than emit untenanted noise.
  *   3. Else if a DSN is available (env var or compiled default) → Sentry.
  *   4. Else → noop.
@@ -44,19 +44,19 @@ export function createErrorReporter(
 ): ErrorReporter {
 	const env = params.env ?? process.env;
 
-	if (isTruthyEnv(env.CYRUS_SENTRY_DISABLED)) {
+	if (isTruthyEnv(env.ATMIKO_SENTRY_DISABLED)) {
 		return new NoopErrorReporter();
 	}
 
 	const tags = buildInitialTags(env);
-	// CYRUS_TEAM_ID is the single gate for *both* Issues and Logs — installs
+	// ATMIKO_TEAM_ID is the single gate for *both* Issues and Logs — installs
 	// without tenant tagging stay silent so the team's Sentry org isn't
 	// flooded with untenanted self-hosted noise we can't slice.
 	if (!tags?.team_id) {
 		return new NoopErrorReporter();
 	}
 
-	const dsn = env.CYRUS_SENTRY_DSN?.trim() || DEFAULT_SENTRY_DSN;
+	const dsn = env.ATMIKO_SENTRY_DSN?.trim() || DEFAULT_SENTRY_DSN;
 	if (!dsn) {
 		return new NoopErrorReporter();
 	}
@@ -66,17 +66,17 @@ export function createErrorReporter(
 	// not just events emitted directly via the Sentry SDK's initialScope.
 	setGlobalErrorTags(tags);
 
-	const environment = env.CYRUS_SENTRY_ENVIRONMENT?.trim() || "production";
+	const environment = env.ATMIKO_SENTRY_ENVIRONMENT?.trim() || "production";
 
 	return new SentryErrorReporter({
 		dsn,
 		release: params.release,
 		environment,
 		// Sentry SDK debug output is unrelated to app log level — gating it on
-		// CYRUS_LOG_LEVEL=DEBUG floods stdout with OpenTelemetry tracing
+		// ATMIKO_LOG_LEVEL=DEBUG floods stdout with OpenTelemetry tracing
 		// inheritance / client-report flush messages that belong to the SDK,
-		// not Cyrus. Use a dedicated opt-in env var.
-		debug: isTruthyEnv(env.CYRUS_SENTRY_DEBUG),
+		// not Atmiko. Use a dedicated opt-in env var.
+		debug: isTruthyEnv(env.ATMIKO_SENTRY_DEBUG),
 		tags,
 		structuredContext: buildStructuredContext({
 			env,
@@ -84,8 +84,8 @@ export function createErrorReporter(
 			release: params.release,
 			tags,
 		}),
-		sampleRate: parseSampleRate(env.CYRUS_SENTRY_SAMPLE_RATE),
-		// Always scrub. Cyrus' logger.error sites pass arbitrary args (request
+		sampleRate: parseSampleRate(env.ATMIKO_SENTRY_SAMPLE_RATE),
+		// Always scrub. Atmiko' logger.error sites pass arbitrary args (request
 		// bodies, configs, headers) that may carry tokens; we cannot trust call
 		// sites to redact, so we filter on the way out.
 		beforeSend: scrubSentryEvent,
@@ -97,7 +97,7 @@ export function createErrorReporter(
 }
 
 /**
- * Build the structured `cyrus` context block attached to every event. This is
+ * Build the structured `atmiko` context block attached to every event. This is
  * the structured-logging counterpart to {@link buildInitialTags}: tags get
  * the indexed/searchable subset (team_id), the context block carries the
  * richer typed fields that show up grouped in the Sentry UI.
@@ -113,9 +113,9 @@ function buildStructuredContext(input: {
 	};
 	if (input.release) ctx.release = input.release;
 	if (input.tags?.team_id) ctx.team_id = input.tags.team_id;
-	const linearWorkspace = input.env.CYRUS_LINEAR_WORKSPACE?.trim();
+	const linearWorkspace = input.env.ATMIKO_LINEAR_WORKSPACE?.trim();
 	if (linearWorkspace) ctx.linear_workspace = linearWorkspace;
-	const deployment = input.env.CYRUS_DEPLOYMENT_ID?.trim();
+	const deployment = input.env.ATMIKO_DEPLOYMENT_ID?.trim();
 	if (deployment) ctx.deployment_id = deployment;
 	return Object.keys(ctx).length > 1 || ctx.team_id ? ctx : undefined;
 }
@@ -133,8 +133,8 @@ function parseSampleRate(value: string | undefined): number | undefined {
 
 /**
  * Build the global tag set applied to every Sentry event. Currently picks up
- * `CYRUS_TEAM_ID` and exposes it as the `team_id` tag so events can be
- * filtered per Cyrus tenant in Sentry.
+ * `ATMIKO_TEAM_ID` and exposes it as the `team_id` tag so events can be
+ * filtered per Atmiko tenant in Sentry.
  *
  * Add additional process-wide tags here rather than at capture sites — keeps
  * call sites free of cross-cutting concerns.
@@ -143,7 +143,7 @@ function buildInitialTags(
 	env: NodeJS.ProcessEnv,
 ): Record<string, string> | undefined {
 	const tags: Record<string, string> = {};
-	const teamId = env.CYRUS_TEAM_ID?.trim();
+	const teamId = env.ATMIKO_TEAM_ID?.trim();
 	if (teamId) tags.team_id = teamId;
 	return Object.keys(tags).length > 0 ? tags : undefined;
 }

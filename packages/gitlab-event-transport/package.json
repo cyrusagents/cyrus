@@ -1,10 +1,10 @@
 {
-	"name": "cyrus-gitlab-event-transport",
+	"name": "atmiko-gitlab-event-transport",
 	"version": "0.2.72",
 	"description": "GitLab event transport for receiving and verifying forwarded GitLab webhooks",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cyrusagents/cyrus.git",
+		"url": "git+https://github.com/nexmoe/atmiko.git",
 		"directory": "packages/gitlab-event-transport"
 	},
 	"type": "module",
@@ -21,7 +21,7 @@
 		"test:run": "vitest run --passWithNoTests"
 	},
 	"dependencies": {
-		"cyrus-core": "workspace:*",
+		"atmiko-core": "workspace:*",
 		"fastify": "^5.12.1"
 	},
 	"devDependencies": {

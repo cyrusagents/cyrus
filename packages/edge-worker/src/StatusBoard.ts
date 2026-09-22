@@ -3,11 +3,11 @@ import { readFile } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import {
 	type AgentMessage,
-	type CyrusAgentSession,
-	type CyrusAgentSessionEntry,
+	type AtmikoAgentSession,
+	type AtmikoAgentSessionEntry,
 	type LocalLogRecord,
 	subscribeLocalLogs,
-} from "cyrus-core";
+} from "atmiko-core";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { BoardHistory, type BoardTask } from "./BoardHistory.js";
 
@@ -29,9 +29,11 @@ export interface BoardLog {
 
 export interface BoardOptions {
 	historyPath?: string;
-	onSessionRemoved?(listener: (session: CyrusAgentSession) => void): () => void;
-	getSessions(): CyrusAgentSession[];
-	getEntries(sessionId: string): CyrusAgentSessionEntry[];
+	onSessionRemoved?(
+		listener: (session: AtmikoAgentSession) => void,
+	): () => void;
+	getSessions(): AtmikoAgentSession[];
+	getEntries(sessionId: string): AtmikoAgentSessionEntry[];
 	getStatus(): "idle" | "busy";
 	getRepositoryName(id: string): string;
 	getLinearWorkspaceSlug?(repositoryId: string): string | undefined;
@@ -146,7 +148,7 @@ export function boardMessageLogs(
 }
 
 function savedEntryLog(
-	entry: CyrusAgentSessionEntry,
+	entry: AtmikoAgentSessionEntry,
 	fallbackTime: number,
 ): BoardLog | undefined {
 	const toolResult =
@@ -193,7 +195,7 @@ export class StatusBoard {
 	private observed = new Map<
 		string,
 		{
-			runner: CyrusAgentSession["agentRunner"];
+			runner: AtmikoAgentSession["agentRunner"];
 			running: boolean;
 			startedAt: number;
 			seen: boolean;
@@ -238,7 +240,7 @@ export class StatusBoard {
 	private recordLog(record: LocalLogRecord): void {
 		this.serviceLogs.push({
 			at: record.timestamp,
-			source: "cyrus",
+			source: "atmiko",
 			level: record.level,
 			kind: "service",
 			text: bounded(`[${record.component}] ${record.message}`),
@@ -398,7 +400,7 @@ export class StatusBoard {
 			};
 		});
 		return {
-			app: "cyrus-board",
+			app: "atmiko-board",
 			collectedAt: new Date(now).toISOString(),
 			stale: false,
 			service: { online: true, status: this.options.getStatus() },

@@ -1,12 +1,12 @@
 import {
 	LINEAR_DEFAULT_ALLOWED_TOOLS,
 	SLACK_DEFAULT_ALLOWED_TOOLS,
-} from "cyrus-core";
+} from "atmiko-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TEST_CYRUS_HOME } from "./test-dirs.js";
+import { TEST_ATMIKO_HOME } from "./test-dirs.js";
 
 // Mock dependencies BEFORE imports
-vi.mock("cyrus-claude-runner", () => ({
+vi.mock("atmiko-claude-runner", () => ({
 	ClaudeRunner: vi.fn(),
 	getSafeTools: vi.fn(() => [
 		"Read",
@@ -95,7 +95,7 @@ vi.mock("cyrus-claude-runner", () => ({
 	]),
 }));
 vi.mock("@linear/sdk");
-vi.mock("cyrus-linear-event-transport");
+vi.mock("atmiko-linear-event-transport");
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
 vi.mock("fs/promises", () => ({
@@ -107,8 +107,8 @@ vi.mock("fs/promises", () => ({
 
 import { readFile } from "node:fs/promises";
 import { LinearClient } from "@linear/sdk";
-import { getAllTools, getSafeTools } from "cyrus-claude-runner";
-import { LinearEventTransport } from "cyrus-linear-event-transport";
+import { getAllTools, getSafeTools } from "atmiko-claude-runner";
+import { LinearEventTransport } from "atmiko-linear-event-transport";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
@@ -134,7 +134,7 @@ describe("EdgeWorker - Dynamic Tools Configuration", () => {
 		// Create mock configuration
 		mockConfig = {
 			proxyUrl: "http://localhost:3000",
-			cyrusHome: TEST_CYRUS_HOME,
+			atmikoHome: TEST_ATMIKO_HOME,
 			linearAllowedTools: ["Read", "Write", "Edit"],
 			repositories: [
 				{
@@ -336,18 +336,18 @@ describe("EdgeWorker - Dynamic Tools Configuration", () => {
 
 			const tools = buildAllowedTools(repository);
 			// LINEAR_DEFAULT_ALLOWED_TOOLS already includes mcp__linear,
-			// mcp__cyrus-tools, mcp__cyrus-docs explicitly — no appending.
+			// mcp__atmiko-tools, mcp__atmiko-docs explicitly — no appending.
 			expect(tools).toEqual([...LINEAR_DEFAULT_ALLOWED_TOOLS]);
 			expect(tools).toContain("Bash");
 		});
 
 		it("LINEAR_DEFAULT_ALLOWED_TOOLS explicitly includes the workspace MCP prefixes", () => {
-			// The default lives in cyrus-core. This test pins the contract — if
+			// The default lives in atmiko-core. This test pins the contract — if
 			// the constant ever stops including these prefixes, repository
 			// sessions silently lose access to them and we should fail loud.
 			expect(LINEAR_DEFAULT_ALLOWED_TOOLS).toContain("mcp__linear");
-			expect(LINEAR_DEFAULT_ALLOWED_TOOLS).toContain("mcp__cyrus-tools");
-			expect(LINEAR_DEFAULT_ALLOWED_TOOLS).toContain("mcp__cyrus-docs");
+			expect(LINEAR_DEFAULT_ALLOWED_TOOLS).toContain("mcp__atmiko-tools");
+			expect(LINEAR_DEFAULT_ALLOWED_TOOLS).toContain("mcp__atmiko-docs");
 		});
 
 		it("should NOT auto-append mcp__slack regardless of SLACK_BOT_TOKEN — Slack uses its own platform list", () => {

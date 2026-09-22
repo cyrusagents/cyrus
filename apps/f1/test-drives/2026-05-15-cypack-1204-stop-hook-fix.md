@@ -3,7 +3,7 @@
 **Date**: 2026-05-15
 **Goal**: Validate that the rewritten Stop hook in `RunnerConfigBuilder.buildStopHook()` actually blocks the first stop attempt and delivers the commit/push/PR reminder to the agent on the next turn — vs. the previous no-op shape (`additionalContext` + `continue: true`) that the SDK silently dropped.
 **Test Repo**: `/tmp/f1-test-drive-cypack-1204-20260515-134527`
-**Branch**: `cypack-1204` (PR [#1210](https://github.com/cyrusagents/cyrus/pull/1210))
+**Branch**: `cypack-1204` (PR #1210)
 
 ## Verification Results
 
@@ -14,7 +14,7 @@
 
 ### EdgeWorker
 - [x] Session started (`session-1`, claude session `a12c5b28-d394-42f2-a1ac-99e88bce8150`)
-- [x] Worktree created at `/private/tmp/cyrus-f1-1778877932330/worktrees/DEF-1`
+- [x] Worktree created at `/private/tmp/atmiko-f1-1778877932330/worktrees/DEF-1`
 - [x] Activities tracked (25 activities across the lifecycle)
 - [x] Agent processed the issue: edited `src/index.ts`, ran lint/typecheck, committed change `889993f`
 
@@ -39,13 +39,13 @@
 ## Session Log
 
 ```
-$ CYRUS_PORT=3600 ./f1 ping                                    → server healthy (uptime 15s)
-$ CYRUS_PORT=3600 ./f1 create-issue --title "Add hello() function" --description "..."
+$ ATMIKO_PORT=3600 ./f1 ping                                    → server healthy (uptime 15s)
+$ ATMIKO_PORT=3600 ./f1 create-issue --title "Add hello() function" --description "..."
   → ID: issue-1, Identifier: DEF-1
-$ CYRUS_PORT=3600 ./f1 start-session --issue-id issue-1
+$ ATMIKO_PORT=3600 ./f1 start-session --issue-id issue-1
   → Session ID: session-1, Status: active
-$ CYRUS_PORT=3600 ./f1 view-session --session-id session-1     → elicitation: which repo?
-$ CYRUS_PORT=3600 ./f1 prompt-session --session-id session-1 --message "test-repo"
+$ ATMIKO_PORT=3600 ./f1 view-session --session-id session-1     → elicitation: which repo?
+$ ATMIKO_PORT=3600 ./f1 prompt-session --session-id session-1 --message "test-repo"
   → repo selected, claude session a12c5b28-… spun up
 
 … agent does the work …

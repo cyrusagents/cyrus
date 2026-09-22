@@ -15,9 +15,9 @@
 ### EdgeWorker
 - [x] Session started via `f1 start-session`
 - [x] Repository elicitation prompt presented and resolved via `f1 prompt-session`
-- [x] Worktree created at `/tmp/cyrus-f1-*/worktrees/DEF-1`
+- [x] Worktree created at `/tmp/atmiko-f1-*/worktrees/DEF-1`
 - [x] Label-based runner selection picked `cursor`
-- [x] **Cyrus permission hooks installed** at `<worktree>/.cursor/hooks.json` (allow=36, deny=836, backup=yes) — confirms the new `.cursor/hooks.json` + `cyrus-permission-check.mjs` artifacts land correctly
+- [x] **Atmiko permission hooks installed** at `<worktree>/.cursor/hooks.json` (allow=36, deny=836, backup=yes) — confirms the new `.cursor/hooks.json` + `atmiko-permission-check.mjs` artifacts land correctly
 - [x] **`Agent.create()` succeeded**, returned local agentId `agent-afbd9b56-c3e2-47f1-9ada-56e2850da01d`
 - [x] Streaming run flowed cleanly under Node (under Bun, HTTP/2 frame-size errors crashed the connection — see "Issue 1" below)
 - [x] `Read` tool invocations on real files (`package.json`, `tsconfig.json`, `src/index.ts`, `src/types.ts`, `src/rate-limiter.ts`, `README.md`) — file paths surfaced correctly in action payloads
@@ -69,7 +69,7 @@ After the fix, the next run logged `Model override via selector: composer-2` and
 ## Session Log (highlights)
 
 ```
-[CursorRunner] Installed Cyrus permission hooks at .../worktrees/DEF-1/.cursor/hooks.json (allow=36, deny=836, backup=yes)
+[CursorRunner] Installed Atmiko permission hooks at .../worktrees/DEF-1/.cursor/hooks.json (allow=36, deny=836, backup=yes)
 [CursorRunner] Sending prompt to agent agent-afbd9b56-c3e2-47f1-9ada-56e2850da01d (resume=false)
 [AgentSessionManager] Created thought activity activity-{4..16}     # streamed model output (fragmented — see Issue 2)
 [AgentSessionManager] Created action activity activity-{17..43+}    # Read tool calls on package.json, tsconfig.json, src/*, README.md
@@ -79,8 +79,8 @@ After the fix, the next run logged `Model override via selector: composer-2` and
 
 **PASS on the core migration.** The Cursor runner now goes through `@cursor/sdk` end-to-end:
 - Agent.create with `local: { cwd: [...], settingSources: ["project"] }` works.
-- Permission hooks (`.cursor/hooks.json` + `cyrus-permission-check.mjs`) install at session start.
-- Tool calls stream through and surface as Cyrus activities.
+- Permission hooks (`.cursor/hooks.json` + `atmiko-permission-check.mjs`) install at session start.
+- Tool calls stream through and surface as Atmiko activities.
 - Resume path validated by unit tests; live resume across F1 sessions is a follow-up.
 
 **Two follow-ups identified** (Issue 1 = environmental Bun bug, Issue 2 = text fragmentation polish). Neither blocks merging PR #1169.

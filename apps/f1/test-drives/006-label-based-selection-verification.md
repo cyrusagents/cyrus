@@ -1,7 +1,7 @@
 # Test Drive 006: Label-Based Selection Verification
 
 **Date:** 2026-01-09
-**Tester:** Cyrus
+**Tester:** Atmiko
 **Issue:** CYPACK-701
 
 ## Objective
@@ -138,13 +138,13 @@ Both label-based model selection and label-based orchestrator/mode selection are
 
 The F1 server was missing the `labelPrompts` configuration, which prevented label-based mode selection from being tested via F1. This has been fixed by adding the `labelPrompts` configuration to `apps/f1/server.ts`.
 
-**Note:** For production deployments, repositories must have `labelPrompts` configured in their `RepositoryConfig` to enable label-based orchestrator/debugger/builder/scoper mode selection. This is typically configured via `cyrus-config.json`.
+**Note:** For production deployments, repositories must have `labelPrompts` configured in their `RepositoryConfig` to enable label-based orchestrator/debugger/builder/scoper mode selection. This is typically configured via `atmiko-config.json`.
 
 ## Test Commands Used
 
 ```bash
 # Start F1 server
-CYRUS_PORT=3650 CYRUS_REPO_PATH=/tmp/f1-label-test-repo node dist/server.js
+ATMIKO_PORT=3650 ATMIKO_REPO_PATH=/tmp/f1-label-test-repo node dist/server.js
 
 # Create issues with labels
 ./f1 create-issue -t "Test opus model selection" -l "opus"

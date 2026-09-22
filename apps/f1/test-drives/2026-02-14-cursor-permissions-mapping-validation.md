@@ -26,7 +26,7 @@
 ## Session Log
 
 1. Start F1 server with Cursor mock mode:
-   - `CYRUS_CURSOR_MOCK=1 CYRUS_PORT=3605 CYRUS_REPO_PATH=/tmp/f1-test-drive-cypack-804-perms-20260213-173327 node dist/server.js`
+   - `ATMIKO_CURSOR_MOCK=1 ATMIKO_PORT=3605 ATMIKO_REPO_PATH=/tmp/f1-test-drive-cypack-804-perms-20260213-173327 node dist/server.js`
 2. Health check:
    - `./f1 ping` -> healthy
 3. Create issue + start cursor session:

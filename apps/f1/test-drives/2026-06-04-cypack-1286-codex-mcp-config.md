@@ -27,17 +27,17 @@
 ## Session Log
 
 ```bash
-pnpm --filter cyrus-f1 build
+pnpm --filter atmiko-f1 build
 apps/f1/f1 init-test-repo --path /tmp/f1-test-drive-cypack-1286-codex-mcp
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-cypack-1286-codex-mcp node apps/f1/dist/server.js
-CYRUS_PORT=3600 apps/f1/f1 ping
-CYRUS_PORT=3600 apps/f1/f1 status
-CYRUS_PORT=3600 apps/f1/f1 create-issue \
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-cypack-1286-codex-mcp node apps/f1/dist/server.js
+ATMIKO_PORT=3600 apps/f1/f1 ping
+ATMIKO_PORT=3600 apps/f1/f1 status
+ATMIKO_PORT=3600 apps/f1/f1 create-issue \
   --title "CYPACK-1286 Codex MCP smoke" \
   --description "[agent=codex] [repo=f1-test/primary-repo]\n\nReply with exactly: codex f1 smoke ok"
-CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 20
-CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 20
+ATMIKO_PORT=3600 apps/f1/f1 stop-session --session-id session-1
 ```
 
 Key server log evidence:
@@ -56,4 +56,4 @@ Fatal error: Codex cannot access session files at /Users/agentops/.codex/session
 
 ## Final Retrospective
 
-The F1 drive validates the Cyrus side of the Codex path: issue creation, repository routing, worktree creation, Codex runner selection, activity rendering, and Codex MCP config handoff. Full prompt processing was blocked by local filesystem permissions on the host Codex session store, not by Cyrus runner config assembly.
+The F1 drive validates the Atmiko side of the Codex path: issue creation, repository routing, worktree creation, Codex runner selection, activity rendering, and Codex MCP config handoff. Full prompt processing was blocked by local filesystem permissions on the host Codex session store, not by Atmiko runner config assembly.

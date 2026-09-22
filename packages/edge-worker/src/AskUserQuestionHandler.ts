@@ -21,8 +21,8 @@ import type {
 	AskUserQuestionResult,
 	IIssueTrackerService,
 	ILogger,
-} from "cyrus-core";
-import { AgentActivitySignal, createLogger } from "cyrus-core";
+} from "atmiko-core";
+import { AgentActivitySignal, createLogger } from "atmiko-core";
 
 /**
  * Pending question data stored while awaiting user response

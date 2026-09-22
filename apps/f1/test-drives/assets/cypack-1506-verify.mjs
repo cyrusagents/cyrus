@@ -9,13 +9,13 @@ const client = new Client({
 });
 await client.connect(
 	new StreamableHTTPClientTransport(
-		new URL("http://localhost:3600/mcp/cyrus-tools"),
+		new URL("http://localhost:3600/mcp/atmiko-tools"),
 		{
 			requestInit: {
 				headers: {
-					"x-cyrus-mcp-context-id": "f1-test-repo:session-1",
-					...(process.env.CYRUS_API_KEY
-						? { Authorization: `Bearer ${process.env.CYRUS_API_KEY}` }
+					"x-atmiko-mcp-context-id": "f1-test-repo:session-1",
+					...(process.env.ATMIKO_API_KEY
+						? { Authorization: `Bearer ${process.env.ATMIKO_API_KEY}` }
 						: {}),
 				},
 			},

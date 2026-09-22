@@ -2,7 +2,7 @@
 
 **Date**: 2026-01-13
 **Goal**: Validate that the orchestrator prompt includes repository routing context when multiple repositories are configured
-**Test Repo**: /Users/agentops/.cyrus/worktrees/CYPACK-711
+**Test Repo**: /Users/agentops/.atmiko/worktrees/CYPACK-711
 **Server Port**: 30111
 
 ---
@@ -10,7 +10,7 @@
 ## Test Objective
 
 Validate the acceptance criteria from CYPACK-711:
-> "use the f1 test driver to test your implementation, with an 'orchestrator' label. You'll need to enable a Cyrus 'edgeconfig' that has multiple repositories to see whether it can handle it."
+> "use the f1 test driver to test your implementation, with an 'orchestrator' label. You'll need to enable a Atmiko 'edgeconfig' that has multiple repositories to see whether it can handle it."
 
 Specifically, we want to confirm that when an orchestrator-labeled issue is processed in a multi-repo configuration, the orchestrator prompt includes the `<repository_routing_context>` section with information about all available repositories and their routing rules.
 
@@ -23,7 +23,7 @@ Specifically, we want to confirm that when an orchestrator-labeled issue is proc
    - Includes repository names, GitHub URLs, and routing methods (labels, teams, projects, description tags)
 
 2. **F1 server.ts**: Multi-repo mode support
-   - Environment variable: `CYRUS_REPO_PATH_2`
+   - Environment variable: `ATMIKO_REPO_PATH_2`
    - Creates two repository configurations in same workspace
 
 3. **label-prompt-template.md**: Template variable `{{routing_context}}`
@@ -40,17 +40,17 @@ Specifically, we want to confirm that when an orchestrator-labeled issue is proc
 
 ### 1. Build Project
 ```bash
-cd /Users/agentops/.cyrus/worktrees/CYPACK-711
+cd /Users/agentops/.atmiko/worktrees/CYPACK-711
 pnpm build
 ```
 **Result**: ✅ Build successful (all packages compiled)
 
 ### 2. Start F1 Server in Multi-Repo Mode
 ```bash
-cd /Users/agentops/.cyrus/worktrees/CYPACK-711/apps/f1
-CYRUS_PORT=30111 \
-CYRUS_REPO_PATH=/Users/agentops/.cyrus/worktrees/CYPACK-711 \
-CYRUS_REPO_PATH_2=/Users/agentops/.cyrus/worktrees/CYPACK-711 \
+cd /Users/agentops/.atmiko/worktrees/CYPACK-711/apps/f1
+ATMIKO_PORT=30111 \
+ATMIKO_REPO_PATH=/Users/agentops/.atmiko/worktrees/CYPACK-711 \
+ATMIKO_REPO_PATH_2=/Users/agentops/.atmiko/worktrees/CYPACK-711 \
 node dist/server.js
 ```
 
@@ -62,9 +62,9 @@ node dist/server.js
   Server:    http://localhost:30111
   RPC:       http://localhost:30111/cli/rpc
   Platform:  cli
-  Cyrus Home: /var/folders/.../cyrus-f1-1768338654921
-  Repository: /Users/agentops/.cyrus/worktrees/CYPACK-711
-  Multi-Repo: enabled (/Users/agentops/.cyrus/worktrees/CYPACK-711)
+  Atmiko Home: /var/folders/.../atmiko-f1-1768338654921
+  Repository: /Users/agentops/.atmiko/worktrees/CYPACK-711
+  Multi-Repo: enabled (/Users/agentops/.atmiko/worktrees/CYPACK-711)
   Routing context will be included in orchestrator prompts
 ```
 
@@ -72,8 +72,8 @@ node dist/server.js
 
 ### 3. Create Test Issue with Orchestrator Label
 ```bash
-cd /Users/agentops/.cyrus/worktrees/CYPACK-711/apps/f1
-CYRUS_PORT=30111 ./f1 create-issue \
+cd /Users/agentops/.atmiko/worktrees/CYPACK-711/apps/f1
+ATMIKO_PORT=30111 ./f1 create-issue \
   --title "Multi-repo orchestration test: Add logging to both frontend and backend" \
   --description "Test issue to validate multi-repository orchestration..." \
   --labels "orchestrator"
@@ -83,14 +83,14 @@ CYRUS_PORT=30111 ./f1 create-issue \
 
 ### 4. Assign Issue to Trigger Processing
 ```bash
-CYRUS_PORT=30111 ./f1 assign-issue --issue-id issue-2 --assignee-id user-default
+ATMIKO_PORT=30111 ./f1 assign-issue --issue-id issue-2 --assignee-id user-default
 ```
 
 **Result**: ✅ Issue assigned successfully
 
 ### 5. Start Agent Session
 ```bash
-CYRUS_PORT=30111 ./f1 start-session --issue-id issue-2
+ATMIKO_PORT=30111 ./f1 start-session --issue-id issue-2
 ```
 
 **Result**: ✅ Session started (session-1)
@@ -225,7 +225,7 @@ This proves that:
    - Test edge cases (single repo, no routing labels, etc.)
 
 3. **Document F1 multi-repo mode**:
-   - Add example to `apps/f1/README.md` showing how to use `CYRUS_REPO_PATH_2`
+   - Add example to `apps/f1/README.md` showing how to use `ATMIKO_REPO_PATH_2`
    - Explain when routing context appears in prompts
 
 4. **Fix branch name sanitization**:
@@ -264,4 +264,4 @@ The implementation is production-ready for the orchestrator use case.
 **Test Drive Complete**: 2026-01-13T21:15:00Z
 **Session Duration**: ~3 minutes
 **Session Cost**: $0.37 (Claude Opus 4.5)
-**Logs Preserved**: /var/folders/.../cyrus-f1-1768338654921/logs/DEF-2/
+**Logs Preserved**: /var/folders/.../atmiko-f1-1768338654921/logs/DEF-2/

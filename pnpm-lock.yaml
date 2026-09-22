@@ -57,22 +57,22 @@ importers:
       commander:
         specifier: ^14.0.2
         version: 14.0.3
-      cyrus-claude-runner:
+      atmiko-claude-runner:
         specifier: workspace:*
         version: link:../../packages/claude-runner
-      cyrus-cloudflare-tunnel-client:
+      atmiko-cloudflare-tunnel-client:
         specifier: workspace:*
         version: link:../../packages/cloudflare-tunnel-client
-      cyrus-config-updater:
+      atmiko-config-updater:
         specifier: workspace:*
         version: link:../../packages/config-updater
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../../packages/core
-      cyrus-edge-worker:
+      atmiko-edge-worker:
         specifier: workspace:*
         version: link:../../packages/edge-worker
-      cyrus-slack-event-transport:
+      atmiko-slack-event-transport:
         specifier: workspace:*
         version: link:../../packages/slack-event-transport
       dotenv:
@@ -121,16 +121,16 @@ importers:
       commander:
         specifier: ^14.0.2
         version: 14.0.3
-      cyrus-claude-runner:
+      atmiko-claude-runner:
         specifier: workspace:*
         version: link:../../packages/claude-runner
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../../packages/core
-      cyrus-edge-worker:
+      atmiko-edge-worker:
         specifier: workspace:*
         version: link:../../packages/edge-worker
-      cyrus-slack-event-transport:
+      atmiko-slack-event-transport:
         specifier: workspace:*
         version: link:../../packages/slack-event-transport
     devDependencies:
@@ -155,7 +155,7 @@ importers:
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
       dotenv:
@@ -208,10 +208,10 @@ importers:
       '@openai/codex-sdk':
         specifier: ^0.153.3
         version: 0.153.3
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
-      cyrus-simple-agent-runner:
+      atmiko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
     devDependencies:
@@ -230,7 +230,7 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: '>=1.30.0'
         version: 1.30.0(zod@4.3.6)
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
       fastify:
@@ -283,10 +283,10 @@ importers:
       '@cursor/sdk':
         specifier: ^1.0.31
         version: 1.0.31
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
-      cyrus-simple-agent-runner:
+      atmiko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
     devDependencies:
@@ -314,49 +314,49 @@ importers:
       chokidar:
         specifier: ^4.0.3
         version: 4.0.3
-      cyrus-claude-runner:
+      atmiko-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
-      cyrus-cloudflare-tunnel-client:
+      atmiko-cloudflare-tunnel-client:
         specifier: workspace:*
         version: link:../cloudflare-tunnel-client
-      cyrus-codex-runner:
+      atmiko-codex-runner:
         specifier: workspace:*
         version: link:../codex-runner
-      cyrus-config-updater:
+      atmiko-config-updater:
         specifier: workspace:*
         version: link:../config-updater
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
-      cyrus-cursor-runner:
+      atmiko-cursor-runner:
         specifier: workspace:*
         version: link:../cursor-runner
-      cyrus-gemini-runner:
+      atmiko-gemini-runner:
         specifier: workspace:*
         version: link:../gemini-runner
-      cyrus-github-event-transport:
+      atmiko-github-event-transport:
         specifier: workspace:*
         version: link:../github-event-transport
-      cyrus-gitlab-event-transport:
+      atmiko-gitlab-event-transport:
         specifier: workspace:*
         version: link:../gitlab-event-transport
-      cyrus-linear-event-transport:
+      atmiko-linear-event-transport:
         specifier: workspace:*
         version: link:../linear-event-transport
-      cyrus-mcp-tools:
+      atmiko-mcp-tools:
         specifier: workspace:*
         version: link:../mcp-tools
-      cyrus-opencode-runner:
+      atmiko-opencode-runner:
         specifier: workspace:*
         version: link:../opencode-runner
-      cyrus-simple-agent-runner:
+      atmiko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
-      cyrus-slack-event-transport:
+      atmiko-slack-event-transport:
         specifier: workspace:*
         version: link:../slack-event-transport
-      cyrus-zulip-event-transport:
+      atmiko-zulip-event-transport:
         specifier: workspace:*
         version: link:../zulip-event-transport
       fastify:
@@ -423,13 +423,13 @@ importers:
       '@linear/sdk':
         specifier: ^60.0.0
         version: 60.0.0(encoding@0.1.13)
-      cyrus-claude-runner:
+      atmiko-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
-      cyrus-simple-agent-runner:
+      atmiko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
       dotenv:
@@ -457,7 +457,7 @@ importers:
 
   packages/github-event-transport:
     dependencies:
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
       fastify:
@@ -476,7 +476,7 @@ importers:
 
   packages/gitlab-event-transport:
     dependencies:
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
       fastify:
@@ -498,7 +498,7 @@ importers:
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
       fastify:
@@ -548,10 +548,10 @@ importers:
 
   packages/opencode-runner:
     dependencies:
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
-      cyrus-simple-agent-runner:
+      atmiko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
     devDependencies:
@@ -570,10 +570,10 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.268
         version: 0.3.268(@anthropic-ai/sdk@0.125.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(zod@4.3.6)
-      cyrus-claude-runner:
+      atmiko-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -589,7 +589,7 @@ importers:
 
   packages/slack-event-transport:
     dependencies:
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
       fastify:
@@ -608,7 +608,7 @@ importers:
 
   packages/zulip-event-transport:
     dependencies:
-      cyrus-core:
+      atmiko-core:
         specifier: workspace:*
         version: link:../core
       fastify:

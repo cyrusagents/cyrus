@@ -14,7 +14,7 @@
 
 ### EdgeWorker
 - [x] Session started (session-1)
-- [x] Worktree created at /tmp/cyrus-f1-1776296216478/DEF-1
+- [x] Worktree created at /tmp/atmiko-f1-1776296216478/DEF-1
 - [x] Activities tracked (35 activities total)
 - [x] Agent processed issue successfully
 - [x] Repository selection elicitation worked correctly
@@ -36,16 +36,16 @@
 ```
 # Phase 1: Setup
 ./f1 init-test-repo --path /tmp/f1-test-drive-1776296116  # OK
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-1776296116 bun run server.ts  # OK
-CYRUS_PORT=3600 ./f1 ping  # OK
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-1776296116 bun run server.ts  # OK
+ATMIKO_PORT=3600 ./f1 ping  # OK
 
 # Phase 2: Issue Creation
-CYRUS_PORT=3600 ./f1 create-issue --title "Implement sliding window rate limiter algorithm"  # OK, issue-1/DEF-1
+ATMIKO_PORT=3600 ./f1 create-issue --title "Implement sliding window rate limiter algorithm"  # OK, issue-1/DEF-1
 
 # Phase 3: Session
-CYRUS_PORT=3600 ./f1 start-session --issue-id issue-1  # OK, session-1
+ATMIKO_PORT=3600 ./f1 start-session --issue-id issue-1  # OK, session-1
 # Elicitation: repo selection prompt appeared
-CYRUS_PORT=3600 ./f1 prompt-session --session-id session-1 --message "/tmp/f1-test-drive-1776296116"  # OK
+ATMIKO_PORT=3600 ./f1 prompt-session --session-id session-1 --message "/tmp/f1-test-drive-1776296116"  # OK
 
 # Phase 4: Monitoring
 # 35 activities generated over ~94 seconds

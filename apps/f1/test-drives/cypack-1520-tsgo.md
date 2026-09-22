@@ -76,7 +76,7 @@ Test repository: `/tmp/cypack-1520-f1-repo`, scaffolded with `apps/f1/f1 init-te
 
 1. Started the compiled server on port 3600 with the default Claude runner. Created an issue asking for a one-sentence README summary without code changes. Started the session and selected `F1 Test Repository` using `prompt-session`.
 2. Routing and session initialization succeeded, but Claude returned `401 OAuth access token has expired`. Stopped the session and server.
-3. Repeated on port 3601 with `CYRUS_DEFAULT_RUNNER=codex` after `codex login status` confirmed a ChatGPT login. Routing and activity rendering succeeded, but the runner returned `codex app-server exited (code=1, signal=null)` before doing the task. Stopped the session and server.
+3. Repeated on port 3601 with `ATMIKO_DEFAULT_RUNNER=codex` after `codex login status` confirmed a ChatGPT login. Routing and activity rendering succeeded, but the runner returned `codex app-server exited (code=1, signal=null)` before doing the task. Stopped the session and server.
 
 **Result:** Compiled runtime startup, issue tracking, worktree/session setup, activity rendering, pagination, and stopping passed. Full F1 agent completion did not pass; the two runner failures above remain validation limitations. Unit tests and compiler checks pass independently.
 

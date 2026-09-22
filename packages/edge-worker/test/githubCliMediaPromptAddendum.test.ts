@@ -22,8 +22,8 @@ for supported formats, limits, alt text, and more examples.
 	});
 
 	it("appends the guidance with a blank-line separator", () => {
-		expect(appendGitHubCliMediaAddendum("You are Cyrus.")).toBe(
-			`You are Cyrus.\n\n${GITHUB_CLI_MEDIA_PROMPT_ADDENDUM}`,
+		expect(appendGitHubCliMediaAddendum("You are Atmiko.")).toBe(
+			`You are Atmiko.\n\n${GITHUB_CLI_MEDIA_PROMPT_ADDENDUM}`,
 		);
 	});
 

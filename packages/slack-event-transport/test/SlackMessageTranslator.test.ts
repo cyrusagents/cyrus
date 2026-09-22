@@ -1,4 +1,4 @@
-import type { SlackSessionStartPlatformData } from "cyrus-core";
+import type { SlackSessionStartPlatformData } from "atmiko-core";
 import { describe, expect, it } from "vitest";
 import {
 	buildPromptText,

@@ -1,10 +1,10 @@
 {
-	"name": "cyrus-claude-runner",
+	"name": "atmiko-claude-runner",
 	"version": "0.2.72",
-	"description": "Claude CLI execution wrapper for Cyrus",
+	"description": "Claude CLI execution wrapper for Atmiko",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cyrusagents/cyrus.git",
+		"url": "git+https://github.com/nexmoe/atmiko.git",
 		"directory": "packages/claude-runner"
 	},
 	"type": "module",
@@ -24,7 +24,7 @@
 		"@anthropic-ai/claude-agent-sdk": "0.3.268",
 		"@anthropic-ai/sdk": "^0.125.0",
 		"@linear/sdk": "^64.0.0",
-		"cyrus-core": "workspace:*",
+		"atmiko-core": "workspace:*",
 		"dotenv": "^16.4.5",
 		"fs-extra": "^11.3.2",
 		"zod": "^4.3.6"

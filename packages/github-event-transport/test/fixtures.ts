@@ -41,7 +41,7 @@ export const testRepository: GitHubRepository = {
 
 export const testComment: GitHubComment = {
 	id: 999,
-	body: "@cyrusagent Please fix the failing tests",
+	body: "@atmikoagent Please fix the failing tests",
 	html_url: "https://github.com/testorg/my-repo/pull/42#issuecomment-999",
 	url: "https://api.github.com/repos/testorg/my-repo/issues/comments/999",
 	user: testUser,
@@ -51,7 +51,7 @@ export const testComment: GitHubComment = {
 
 export const testReviewComment: GitHubComment = {
 	id: 888,
-	body: "@cyrusagent This function needs better error handling",
+	body: "@atmikoagent This function needs better error handling",
 	html_url: "https://github.com/testorg/my-repo/pull/42#discussion_r888",
 	url: "https://api.github.com/repos/testorg/my-repo/pulls/comments/888",
 	user: testUser,

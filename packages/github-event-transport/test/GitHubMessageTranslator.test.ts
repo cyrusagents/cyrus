@@ -1,4 +1,4 @@
-import type { GitHubSessionStartPlatformData } from "cyrus-core";
+import type { GitHubSessionStartPlatformData } from "atmiko-core";
 import { describe, expect, it } from "vitest";
 import { GitHubMessageTranslator } from "../src/GitHubMessageTranslator.js";
 import type {
@@ -39,7 +39,7 @@ describe("GitHubMessageTranslator", () => {
 		},
 		comment: {
 			id: 456,
-			body: "@cyrus please review this PR",
+			body: "@atmiko please review this PR",
 			html_url: "https://github.com/owner/repo/pull/42#issuecomment-456",
 			url: "https://api.github.com/repos/owner/repo/issues/comments/456",
 			user: {
@@ -374,7 +374,7 @@ describe("GitHubMessageTranslator", () => {
 			const sessionStart = result.message;
 			if (sessionStart.action !== "session_start") return;
 
-			expect(sessionStart.initialPrompt).toBe("@cyrus please review this PR");
+			expect(sessionStart.initialPrompt).toBe("@atmiko please review this PR");
 			expect(sessionStart.title).toBe("Test PR");
 			expect(sessionStart.description).toBe("PR description");
 
@@ -383,7 +383,7 @@ describe("GitHubMessageTranslator", () => {
 				sessionStart.platformData as GitHubSessionStartPlatformData;
 			expect(platformData.eventType).toBe("issue_comment");
 			expect(platformData.repository.fullName).toBe("owner/repo");
-			expect(platformData.comment.body).toBe("@cyrus please review this PR");
+			expect(platformData.comment.body).toBe("@atmiko please review this PR");
 			expect(platformData.installationToken).toBe("token-abc");
 			expect(platformData.issue?.isPullRequest).toBe(true);
 		});
@@ -482,7 +482,7 @@ describe("GitHubMessageTranslator", () => {
 			const userPrompt = result.message;
 			if (userPrompt.action !== "user_prompt") return;
 
-			expect(userPrompt.content).toBe("@cyrus please review this PR");
+			expect(userPrompt.content).toBe("@atmiko please review this PR");
 			expect(userPrompt.author?.name).toBe("commenter");
 		});
 

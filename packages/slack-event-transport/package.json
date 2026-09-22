@@ -1,10 +1,10 @@
 {
-	"name": "cyrus-slack-event-transport",
+	"name": "atmiko-slack-event-transport",
 	"version": "0.2.72",
 	"description": "Slack event transport for receiving and verifying forwarded Slack webhooks",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cyrusagents/cyrus.git",
+		"url": "git+https://github.com/nexmoe/atmiko.git",
 		"directory": "packages/slack-event-transport"
 	},
 	"type": "module",
@@ -21,7 +21,7 @@
 		"test:run": "vitest run"
 	},
 	"dependencies": {
-		"cyrus-core": "workspace:*",
+		"atmiko-core": "workspace:*",
 		"fastify": "^5.12.1"
 	},
 	"devDependencies": {

@@ -4,7 +4,7 @@ This documentation provides guidance to Claude Code when working with the F1 tes
 
 ## Project Overview
 
-The F1 Testing Framework is an end-to-end observable testing platform for the Cyrus agent system. It provides a CLI-based issue tracker that simulates Linear's functionality without requiring external dependencies.
+The F1 Testing Framework is an end-to-end observable testing platform for the Atmiko agent system. It provides a CLI-based issue tracker that simulates Linear's functionality without requiring external dependencies.
 
 **Key Features:**
 - In-memory issue tracking (CLIIssueTrackerService)
@@ -89,7 +89,7 @@ cd apps/f1
 
 ```bash
 # Start server pointing to the test repo
-CYRUS_PORT=3458 CYRUS_REPO_PATH=/tmp/rate-limiter-test bun run server.ts
+ATMIKO_PORT=3458 ATMIKO_REPO_PATH=/tmp/rate-limiter-test bun run server.ts
 ```
 
 ### Step 3: Create a Test Issue
@@ -99,7 +99,7 @@ CYRUS_PORT=3458 CYRUS_REPO_PATH=/tmp/rate-limiter-test bun run server.ts
 cd apps/f1
 
 # Create an issue based on the rate limiter TODOs
-CYRUS_PORT=3458 ./f1 create-issue \
+ATMIKO_PORT=3458 ./f1 create-issue \
   --title "Implement sliding window rate limiter algorithm" \
   --description "The rate limiter library currently only supports the token bucket algorithm. 
 
@@ -120,13 +120,13 @@ See src/types.ts for the RateLimiterConfig interface and src/rate-limiter.ts for
 
 ```bash
 # Start a session on the issue (use the issue-id from create-issue output)
-CYRUS_PORT=3458 ./f1 start-session --issue-id issue-1
+ATMIKO_PORT=3458 ./f1 start-session --issue-id issue-1
 
 # Monitor the session
-CYRUS_PORT=3458 ./f1 view-session --session-id session-1
+ATMIKO_PORT=3458 ./f1 view-session --session-id session-1
 
 # Stop when done
-CYRUS_PORT=3458 ./f1 stop-session --session-id session-1
+ATMIKO_PORT=3458 ./f1 stop-session --session-id session-1
 ```
 
 ### Alternative Test Issues
@@ -135,21 +135,21 @@ Here are other realistic issues you can create based on the test repo:
 
 **Implement Fixed Window Algorithm:**
 ```bash
-CYRUS_PORT=3458 ./f1 create-issue \
+ATMIKO_PORT=3458 ./f1 create-issue \
   --title "Implement fixed window rate limiter algorithm" \
   --description "Add a FixedWindowRateLimiter class that resets the counter at fixed time intervals. Should implement the RateLimiter interface from src/types.ts."
 ```
 
 **Add Redis Storage Adapter:**
 ```bash
-CYRUS_PORT=3458 ./f1 create-issue \
+ATMIKO_PORT=3458 ./f1 create-issue \
   --title "Add Redis storage adapter for distributed rate limiting" \
   --description "Create a RedisStorageAdapter that implements a storage interface for the rate limiter, enabling distributed rate limiting across multiple instances. Define the storage interface and implement the Redis adapter."
 ```
 
 **Add Unit Tests:**
 ```bash
-CYRUS_PORT=3458 ./f1 create-issue \
+ATMIKO_PORT=3458 ./f1 create-issue \
   --title "Add comprehensive unit tests for rate limiter" \
   --description "Add Vitest unit tests for the TokenBucketRateLimiter class. Test edge cases like:
 - Requests within limit
@@ -170,18 +170,18 @@ bun run server.ts
 pnpm run server
 
 # Custom configuration
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/path/to/repo bun run server.ts
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/path/to/repo bun run server.ts
 
 # Development mode with auto-reload
 pnpm run server:dev
 ```
 
 **Environment Variables:**
-- `CYRUS_PORT` - Server port (default: 3600)
-- `CYRUS_REPO_PATH` - Repository path (default: current working directory)
+- `ATMIKO_PORT` - Server port (default: 3600)
+- `ATMIKO_REPO_PATH` - Repository path (default: current working directory)
 
 The server automatically:
-- Creates temporary directories in `/tmp/cyrus-f1-*`
+- Creates temporary directories in `/tmp/atmiko-f1-*`
 - Configures EdgeWorker with `platform: "cli"`
 - Starts Fastify server on the specified port
 - Registers RPC endpoints at `/cli/rpc`
@@ -237,8 +237,8 @@ The server creates an EdgeWorker with the following configuration:
 const config: EdgeWorkerConfig = {
   platform: "cli" as const,
   repositories: [repository],
-  cyrusHome: CYRUS_HOME,
-  serverPort: CYRUS_PORT,
+  atmikoHome: ATMIKO_HOME,
+  serverPort: ATMIKO_PORT,
   serverHost: "localhost",
   defaultModel: "sonnet",
   defaultFallbackModel: "haiku",
@@ -337,7 +337,7 @@ console.log(`${cyan('Status:')} ${bold('ready')}`);
 
 ### Server won't start
 - Check if port is already in use
-- Verify CYRUS_REPO_PATH exists
+- Verify ATMIKO_REPO_PATH exists
 - Ensure all packages are built (`pnpm build` from root)
 
 ### CLI can't connect to server
@@ -398,8 +398,8 @@ When running a comprehensive test drive, follow this checklist:
 ```bash
 # Build and start
 pnpm install && pnpm build
-export CYRUS_PORT=3600
-node dist/server.js --port $CYRUS_PORT
+export ATMIKO_PORT=3600
+node dist/server.js --port $ATMIKO_PORT
 
 # Create test issue
 ./f1 issue create --title "Add multiply and divide methods to Calculator" --labels sonnet

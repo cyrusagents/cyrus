@@ -11,13 +11,13 @@ import type {
 	SDKAssistantMessage,
 	SDKResultMessage,
 	SDKUserMessage,
-} from "cyrus-core";
+} from "atmiko-core";
 import { describe, expect, it, vi } from "vitest";
 import { OpenCodeRunner } from "../src/OpenCodeRunner.js";
 import { SimpleOpenCodeRunner } from "../src/SimpleOpenCodeRunner.js";
 
 function makeTempDir(): string {
-	return mkdtempSync(join(tmpdir(), "cyrus-opencode-runner-"));
+	return mkdtempSync(join(tmpdir(), "atmiko-opencode-runner-"));
 }
 
 function fixtureLines(
@@ -49,7 +49,7 @@ ${body}
 }
 
 describe("OpenCodeRunner", () => {
-	it("spawns opencode run with JSON output flags and maps replay events to Cyrus messages", async () => {
+	it("spawns opencode run with JSON output flags and maps replay events to Atmiko messages", async () => {
 		const dir = makeTempDir();
 		const captureFile = join(dir, "capture.json");
 		const opencodePath = writeFakeOpenCode(
@@ -61,7 +61,7 @@ describe("OpenCodeRunner", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			title: "NG-61 OpenCode runner",
 			model: "anthropic/claude-sonnet-4.5",
 			agent: "build",
@@ -167,7 +167,7 @@ describe("OpenCodeRunner", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			model: "openai/gpt-5.5",
 		});
 
@@ -185,7 +185,7 @@ describe("OpenCodeRunner", () => {
 		});
 	});
 
-	it("rejects Cyrus-style OpenCode model selectors before spawning OpenCode", async () => {
+	it("rejects Atmiko-style OpenCode model selectors before spawning OpenCode", async () => {
 		const dir = makeTempDir();
 		const captureFile = join(dir, "capture.json");
 		const opencodePath = writeFakeOpenCode(
@@ -197,7 +197,7 @@ describe("OpenCodeRunner", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			model: "opencode/kimi-k2.7-code",
 			onError: (error) => errors.push(error),
 		});
@@ -207,7 +207,7 @@ describe("OpenCodeRunner", () => {
 		expect(existsSync(captureFile)).toBe(false);
 		expect(errors).toHaveLength(1);
 		expect(errors[0]?.message).toBe(
-			'Invalid OpenCode model selector "opencode/kimi-k2.7-code". Use a provider-qualified OpenCode model such as "openai/gpt-5.5" in runner config or select it with the Cyrus label "opencode/openai/gpt-5.5".',
+			'Invalid OpenCode model selector "opencode/kimi-k2.7-code". Use a provider-qualified OpenCode model such as "openai/gpt-5.5" in runner config or select it with the Atmiko label "opencode/openai/gpt-5.5".',
 		);
 		const result = runner.getMessages().at(-1) as SDKResultMessage;
 		expect(result).toMatchObject({
@@ -228,7 +228,7 @@ describe("OpenCodeRunner", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			model: "openai/unknown-model",
 			onError: (error) => errors.push(error),
 		});
@@ -246,7 +246,7 @@ describe("OpenCodeRunner", () => {
 		expect(result.errors).toEqual([errors[0]?.message]);
 	});
 
-	it("coerces realistic OpenCode JSON events into Cyrus messages and final result", async () => {
+	it("coerces realistic OpenCode JSON events into Atmiko messages and final result", async () => {
 		const dir = makeTempDir();
 		const opencodePath = writeFakeOpenCode(
 			dir,
@@ -255,7 +255,7 @@ describe("OpenCodeRunner", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			model: "openai/gpt-5.5",
 		});
 
@@ -392,7 +392,7 @@ describe("OpenCodeRunner", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 		});
 
 		await runner.start("Replay aborted tool calls");
@@ -459,7 +459,7 @@ describe("OpenCodeRunner", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			title: "Resume OpenCode",
 			resumeSessionId: "oc_existing",
 		});
@@ -482,7 +482,7 @@ describe("OpenCodeRunner", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			appendSystemPrompt: "Use terse answers",
 		});
 
@@ -502,7 +502,7 @@ describe("OpenCodeRunner", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			maxTurns: 3,
 			fallbackModel: "anthropic/claude-haiku-4.5",
 		});
@@ -540,7 +540,7 @@ process.stdout.write(${JSON.stringify(fixtureLines())});
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			env: {
 				XDG_STATE_HOME: "/parent/state",
 				XDG_CACHE_HOME: "/parent/cache",
@@ -599,7 +599,7 @@ process.stdout.write(JSON.stringify({ type: "step_finish", result: "approve" }) 
 		);
 		const runner = new SimpleOpenCodeRunner({
 			validResponses: ["approve", "reject"] as const,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			workingDirectory: dir,
 			openCodePath: opencodePath,
 		} as any);
@@ -631,7 +631,7 @@ process.stdout.write(JSON.stringify({ type: "step_finish", result: "approve" }) 
 		);
 		const runner = new SimpleOpenCodeRunner({
 			validResponses: ["approve", "reject"] as const,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			workingDirectory: dir,
 			openCodePath: opencodePath,
 		} as any);
@@ -656,9 +656,9 @@ process.stdout.write(JSON.stringify({ type: "step_finish", result: "approve" }) 
 		});
 	});
 
-	it("does not copy Cyrus skills or synthesize bootstrap skills into OpenCode config", async () => {
+	it("does not copy Atmiko skills or synthesize bootstrap skills into OpenCode config", async () => {
 		const dir = makeTempDir();
-		const pluginPath = join(dir, "cyrus-skills-plugin");
+		const pluginPath = join(dir, "atmiko-skills-plugin");
 		const skillPath = join(pluginPath, "skills", "debug");
 		const captureFile = join(dir, "capture.json");
 		mkdirSync(skillPath, { recursive: true });
@@ -692,7 +692,7 @@ process.stdout.write(${JSON.stringify(fixtureLines())});
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			opencodeStateScope: "shared",
 			allowedTools: ["Skill"],
 			plugins: [{ type: "local", path: pluginPath } as any],
@@ -725,7 +725,7 @@ setTimeout(() => process.exit(0), 3000);
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 		});
 
 		const startPromise = runner.start("Long task");
@@ -755,7 +755,7 @@ setInterval(() => {}, 1000);
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			inactivityTimeoutMs: 25,
 			onError: (error) => errors.push(error),
 		});
@@ -788,7 +788,7 @@ setTimeout(() => process.exit(0), 60);
 		const runner = new OpenCodeRunner({
 			openCodePath: opencodePath,
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			inactivityTimeoutMs: 0,
 		});
 
@@ -811,7 +811,7 @@ setTimeout(() => process.exit(0), 60);
 		const runner = new OpenCodeRunner({
 			openCodePath: join(dir, "missing-opencode"),
 			workingDirectory: dir,
-			cyrusHome: dir,
+			atmikoHome: dir,
 			onError: (error) => errors.push(error),
 			onComplete: () => completeCount++,
 			onMessage: (message) => messages.push(message),

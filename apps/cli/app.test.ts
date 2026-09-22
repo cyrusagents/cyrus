@@ -165,7 +165,7 @@ describe("Git Worktree Creation - Windows Compatibility", () => {
 
 		// Test the exact command that would fail on Windows
 		const windowsWorkspaceDir =
-			"C:\\Users\\user\\.cyrus\\workspaces\\repo-name";
+			"C:\\Users\\user\\.atmiko\\workspaces\\repo-name";
 		const mkdirCommand = `mkdir -p "${windowsWorkspaceDir}"`;
 
 		// This should throw the Windows-specific error
@@ -206,7 +206,7 @@ describe("Git Worktree Creation - Windows Compatibility", () => {
 		});
 
 		// The problematic commands from app.ts lines 1165 and 1324
-		const workspaceCommand = `mkdir -p "C:\\Users\\user\\.cyrus\\workspaces\\repo-name"`;
+		const workspaceCommand = `mkdir -p "C:\\Users\\user\\.atmiko\\workspaces\\repo-name"`;
 		const fallbackCommand = `mkdir -p "C:\\workspace\\fallback\\ISSUE-123"`;
 
 		// Both should fail on Windows
@@ -257,8 +257,8 @@ describe("Git Worktree Creation - Windows Compatibility", () => {
 		// Test that the Node.js native mkdirSync works on all platforms
 		const testPaths = [
 			"/tmp/test/workspace",
-			"C:\\Users\\user\\.cyrus\\workspaces\\repo-name",
-			"/home/user/.cyrus/workspaces/project",
+			"C:\\Users\\user\\.atmiko\\workspaces\\repo-name",
+			"/home/user/.atmiko/workspaces/project",
 			"C:\\workspace\\fallback\\ISSUE-123",
 		];
 
@@ -290,11 +290,11 @@ describe("Git Worktree Creation - Windows Compatibility", () => {
 		// Simulate the two scenarios from the fixed code:
 
 		// 1. Main workspace creation (was line 1165)
-		const workspaceBaseDir = "/home/user/.cyrus/workspaces/repo-name";
+		const workspaceBaseDir = "/home/user/.atmiko/workspaces/repo-name";
 		mockMkdirSync(workspaceBaseDir, { recursive: true });
 
 		// 2. Fallback path creation (was line 1324)
-		const fallbackPath = "/home/user/.cyrus/workspaces/repo-name/ISSUE-123";
+		const fallbackPath = "/home/user/.atmiko/workspaces/repo-name/ISSUE-123";
 		mockMkdirSync(fallbackPath, { recursive: true });
 
 		// Verify both calls were made correctly
@@ -326,12 +326,12 @@ describe("Windows Bash Script Compatibility", () => {
 			configurable: true,
 		});
 
-		// Mock existsSync to simulate cyrus-setup.sh exists
+		// Mock existsSync to simulate atmiko-setup.sh exists
 		mockExistsSync.mockReturnValue(true);
 
 		// Mock Windows Command Prompt behavior where bash is not recognized
 		mockExecSync.mockImplementation((cmd: string) => {
-			if (cmd.includes("bash cyrus-setup.sh")) {
+			if (cmd.includes("bash atmiko-setup.sh")) {
 				const error = new Error(
 					"'bash' is not recognized as an internal or external command, operable program or batch file.",
 				);
@@ -342,7 +342,7 @@ describe("Windows Bash Script Compatibility", () => {
 		});
 
 		// The problematic command from app.ts line 1294
-		const bashCommand = "bash cyrus-setup.sh";
+		const bashCommand = "bash atmiko-setup.sh";
 
 		// This should fail on Windows without bash in PATH
 		expect(() =>
@@ -358,23 +358,23 @@ describe("Windows Bash Script Compatibility", () => {
 		const testScenarios = [
 			{
 				platform: "win32",
-				command: "bash cyrus-setup.sh",
+				command: "bash atmiko-setup.sh",
 				expectedError:
 					"'bash' is not recognized as an internal or external command",
 			},
 			{
 				platform: "win32",
-				command: "powershell -ExecutionPolicy Bypass -File cyrus-setup.ps1",
+				command: "powershell -ExecutionPolicy Bypass -File atmiko-setup.ps1",
 				expectedError: null, // PowerShell is available on Windows
 			},
 			{
 				platform: "darwin",
-				command: "bash cyrus-setup.sh",
+				command: "bash atmiko-setup.sh",
 				expectedError: null, // bash is available on macOS
 			},
 			{
 				platform: "linux",
-				command: "bash cyrus-setup.sh",
+				command: "bash atmiko-setup.sh",
 				expectedError: null, // bash is available on Linux
 			},
 		];
@@ -412,7 +412,7 @@ describe("Windows Bash Script Compatibility", () => {
 
 	it("should identify the exact problematic bash execution in app.ts", () => {
 		// This test documents the exact location where bash execution fails on Windows
-		// Line 1294: execSync("bash cyrus-setup.sh", { ... })
+		// Line 1294: execSync("bash atmiko-setup.sh", { ... })
 
 		// Mock Windows environment
 		Object.defineProperty(process, "platform", {
@@ -421,7 +421,7 @@ describe("Windows Bash Script Compatibility", () => {
 		});
 
 		mockExecSync.mockImplementation((cmd: string) => {
-			if (cmd === "bash cyrus-setup.sh") {
+			if (cmd === "bash atmiko-setup.sh") {
 				// Simulate Windows bash not found error
 				const error = new Error(
 					"'bash' is not recognized as an internal or external command, operable program or batch file.",
@@ -434,7 +434,7 @@ describe("Windows Bash Script Compatibility", () => {
 		});
 
 		// The exact command from line 1294 in app.ts
-		const problematicCommand = "bash cyrus-setup.sh";
+		const problematicCommand = "bash atmiko-setup.sh";
 		const execOptions = {
 			cwd: "C:\\workspace\\project\\ISSUE-123",
 			stdio: "inherit" as const,
@@ -460,39 +460,39 @@ describe("Windows Bash Script Compatibility", () => {
 		const testScenarios = [
 			{
 				platform: "win32",
-				availableScripts: ["cyrus-setup.ps1"],
+				availableScripts: ["atmiko-setup.ps1"],
 				expectedCommand:
-					"powershell -ExecutionPolicy Bypass -File cyrus-setup.ps1",
+					"powershell -ExecutionPolicy Bypass -File atmiko-setup.ps1",
 				description: "Windows with PowerShell script",
 			},
 			{
 				platform: "win32",
-				availableScripts: ["cyrus-setup.bat"],
-				expectedCommand: "cyrus-setup.bat",
+				availableScripts: ["atmiko-setup.bat"],
+				expectedCommand: "atmiko-setup.bat",
 				description: "Windows with batch script",
 			},
 			{
 				platform: "win32",
-				availableScripts: ["cyrus-setup.cmd"],
-				expectedCommand: "cyrus-setup.cmd",
+				availableScripts: ["atmiko-setup.cmd"],
+				expectedCommand: "atmiko-setup.cmd",
 				description: "Windows with cmd script",
 			},
 			{
 				platform: "darwin",
-				availableScripts: ["cyrus-setup.sh"],
-				expectedCommand: "bash cyrus-setup.sh",
+				availableScripts: ["atmiko-setup.sh"],
+				expectedCommand: "bash atmiko-setup.sh",
 				description: "macOS with bash script",
 			},
 			{
 				platform: "linux",
-				availableScripts: ["cyrus-setup.sh"],
-				expectedCommand: "bash cyrus-setup.sh",
+				availableScripts: ["atmiko-setup.sh"],
+				expectedCommand: "bash atmiko-setup.sh",
 				description: "Linux with bash script",
 			},
 			{
 				platform: "win32",
-				availableScripts: ["cyrus-setup.sh"], // Fallback on Windows
-				expectedCommand: "bash cyrus-setup.sh",
+				availableScripts: ["atmiko-setup.sh"], // Fallback on Windows
+				expectedCommand: "bash atmiko-setup.sh",
 				description: "Windows fallback to bash (Git Bash/WSL)",
 			},
 		];
@@ -525,23 +525,23 @@ describe("Windows Bash Script Compatibility", () => {
 			const isWindows = scenario.platform === "win32";
 			const setupScripts = [
 				{
-					file: "cyrus-setup.sh",
-					command: "bash cyrus-setup.sh",
+					file: "atmiko-setup.sh",
+					command: "bash atmiko-setup.sh",
 					platform: "unix",
 				},
 				{
-					file: "cyrus-setup.ps1",
-					command: "powershell -ExecutionPolicy Bypass -File cyrus-setup.ps1",
+					file: "atmiko-setup.ps1",
+					command: "powershell -ExecutionPolicy Bypass -File atmiko-setup.ps1",
 					platform: "windows",
 				},
 				{
-					file: "cyrus-setup.cmd",
-					command: "cyrus-setup.cmd",
+					file: "atmiko-setup.cmd",
+					command: "atmiko-setup.cmd",
 					platform: "windows",
 				},
 				{
-					file: "cyrus-setup.bat",
-					command: "cyrus-setup.bat",
+					file: "atmiko-setup.bat",
+					command: "atmiko-setup.bat",
 					platform: "windows",
 				},
 			];
@@ -588,7 +588,7 @@ describe("Windows Bash Script Compatibility", () => {
 	});
 
 	it("should verify the cross-platform fix replaces hardcoded bash execution", () => {
-		// Test that the fix no longer uses hardcoded "bash cyrus-setup.sh" command
+		// Test that the fix no longer uses hardcoded "bash atmiko-setup.sh" command
 		// Instead, it uses platform-specific script detection
 
 		// Mock Windows environment
@@ -599,11 +599,11 @@ describe("Windows Bash Script Compatibility", () => {
 
 		// Mock that only PowerShell script exists
 		mockExistsSync.mockImplementation((path: string) => {
-			return (path as string).endsWith("cyrus-setup.ps1");
+			return (path as string).endsWith("atmiko-setup.ps1");
 		});
 
 		mockExecSync.mockImplementation((cmd: string) => {
-			if (cmd === "powershell -ExecutionPolicy Bypass -File cyrus-setup.ps1") {
+			if (cmd === "powershell -ExecutionPolicy Bypass -File atmiko-setup.ps1") {
 				return "";
 			}
 			throw new Error(`Unexpected command: ${cmd}`);
@@ -611,7 +611,7 @@ describe("Windows Bash Script Compatibility", () => {
 
 		// Simulate the new cross-platform script execution
 		const powershellCommand =
-			"powershell -ExecutionPolicy Bypass -File cyrus-setup.ps1";
+			"powershell -ExecutionPolicy Bypass -File atmiko-setup.ps1";
 
 		// Should execute PowerShell command successfully on Windows
 		expect(() =>
@@ -624,7 +624,7 @@ describe("Windows Bash Script Compatibility", () => {
 
 		// Verify the hardcoded bash command is no longer used
 		expect(mockExecSync).not.toHaveBeenCalledWith(
-			"bash cyrus-setup.sh",
+			"bash atmiko-setup.sh",
 			expect.any(Object),
 		);
 
@@ -675,7 +675,7 @@ describe("ConfigService - Skill Migration", () => {
 		};
 
 		const configService = new ConfigService(
-			"/home/user/.cyrus",
+			"/home/user/.atmiko",
 			mockLogger as any,
 		);
 		const config = configService.load();
@@ -728,7 +728,7 @@ describe("ConfigService - Skill Migration", () => {
 		};
 
 		const configService = new ConfigService(
-			"/home/user/.cyrus",
+			"/home/user/.atmiko",
 			mockLogger as any,
 		);
 		const config = configService.load();
@@ -778,7 +778,7 @@ describe("ConfigService - Skill Migration", () => {
 		};
 
 		const configService = new ConfigService(
-			"/home/user/.cyrus",
+			"/home/user/.atmiko",
 			mockLogger as any,
 		);
 		const config = configService.load();
@@ -834,7 +834,7 @@ describe("ConfigService - Skill Migration", () => {
 		};
 
 		const configService = new ConfigService(
-			"/home/user/.cyrus",
+			"/home/user/.atmiko",
 			mockLogger as any,
 		);
 		const config = configService.load();
@@ -883,7 +883,7 @@ describe("ConfigService - Skill Migration", () => {
 		};
 
 		const configService = new ConfigService(
-			"/home/user/.cyrus",
+			"/home/user/.atmiko",
 			mockLogger as any,
 		);
 		const config = configService.load();

@@ -5,21 +5,21 @@ import type {
 	ILogger,
 	Issue,
 	LinearWorkspaceConfig,
-} from "cyrus-core";
+} from "atmiko-core";
 import { fileTypeFromBuffer } from "file-type";
 
 export class AttachmentService {
 	private logger: ILogger;
-	private cyrusHome: string;
+	private atmikoHome: string;
 	private linearWorkspaces: Record<string, LinearWorkspaceConfig>;
 
 	constructor(
 		logger: ILogger,
-		cyrusHome: string,
+		atmikoHome: string,
 		linearWorkspaces: Record<string, LinearWorkspaceConfig>,
 	) {
 		this.logger = logger;
-		this.cyrusHome = cyrusHome;
+		this.atmikoHome = atmikoHome;
 		this.linearWorkspaces = linearWorkspaces;
 	}
 
@@ -76,7 +76,7 @@ export class AttachmentService {
 		// Create attachments directory in home directory
 		const workspaceFolderName = basename(workspacePath);
 		const attachmentsDir = join(
-			this.cyrusHome,
+			this.atmikoHome,
 			workspaceFolderName,
 			"attachments",
 		);
@@ -481,7 +481,7 @@ export class AttachmentService {
 		if (totalFound === 0 && nativeAttachments.length === 0) {
 			manifest += "No attachments were found in this issue.\n\n";
 			manifest +=
-				"The attachments directory `~/.cyrus/<workspace>/attachments` has been created and is available for any future attachments that may be added to this issue.\n";
+				"The attachments directory `~/.atmiko/<workspace>/attachments` has been created and is available for any future attachments that may be added to this issue.\n";
 			return manifest;
 		}
 
@@ -503,7 +503,7 @@ export class AttachmentService {
 		}
 
 		manifest +=
-			"Attachments have been downloaded to the `~/.cyrus/<workspace>/attachments` directory:\n\n";
+			"Attachments have been downloaded to the `~/.atmiko/<workspace>/attachments` directory:\n\n";
 
 		// List images first
 		if (Object.keys(imageMap).length > 0) {

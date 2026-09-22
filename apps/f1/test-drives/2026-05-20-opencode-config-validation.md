@@ -2,11 +2,11 @@
 
 Date: 2026-05-20
 Branch: `opencode-cli-runner-support`
-Worktree: `/Users/jappy/.cyrus/worktrees/opencode-config-validation`
+Worktree: `/Users/jappy/.atmiko/worktrees/opencode-config-validation`
 
 ## Goal
 
-Validate that Cyrus can run an OpenCode-selected issue end to end after injecting OpenCode MCP and permission configuration through runtime config.
+Validate that Atmiko can run an OpenCode-selected issue end to end after injecting OpenCode MCP and permission configuration through runtime config.
 
 ## Environment
 
@@ -19,21 +19,21 @@ Validate that Cyrus can run an OpenCode-selected issue end to end after injectin
 ```bash
 apps/f1/f1 init-test-repo --path /tmp/f1-test-drive-opencode-config
 
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-opencode-config \
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-opencode-config \
   bun run apps/f1/server.ts
 
-CYRUS_PORT=3600 apps/f1/f1 ping
-CYRUS_PORT=3600 apps/f1/f1 status
+ATMIKO_PORT=3600 apps/f1/f1 ping
+ATMIKO_PORT=3600 apps/f1/f1 status
 
-CYRUS_PORT=3600 apps/f1/f1 create-issue \
+ATMIKO_PORT=3600 apps/f1/f1 create-issue \
   --title "OpenCode config validation" \
   --description $'Validate OpenCode MCP and permission config injection.\n\n[agent=opencode]\n\nPlease inspect src/index.ts and respond with a short summary. Do not modify files.' \
   --labels opencode
 
-CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3600 apps/f1/f1 prompt-session --session-id session-1 --message "test-repo"
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 120 --offset 0
-CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3600 apps/f1/f1 prompt-session --session-id session-1 --message "test-repo"
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 120 --offset 0
+ATMIKO_PORT=3600 apps/f1/f1 stop-session --session-id session-1
 ```
 
 ## Verification Results
@@ -67,8 +67,8 @@ action       {"type":"action","action":"Read","parameter":"/private/var/.../src/
 response     The file is a barrel export for a rate limiter library...
 ```
 
-Server logs showed unsupported Cyrus-only permission patterns being logged and skipped instead of silently ignored. OpenCode completed without the SQLite checkpoint failure seen in the runner-selection test drive, which confirms the XDG state isolation path is effective for this run.
+Server logs showed unsupported Atmiko-only permission patterns being logged and skipped instead of silently ignored. OpenCode completed without the SQLite checkpoint failure seen in the runner-selection test drive, which confirms the XDG state isolation path is effective for this run.
 
 ## Final Retrospective
 
-PASS: Cyrus routed the issue to OpenCode, injected runtime configuration, preserved timeline visibility, and received a final successful OpenCode response.
+PASS: Atmiko routed the issue to OpenCode, injected runtime configuration, preserved timeline visibility, and received a final successful OpenCode response.

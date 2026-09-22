@@ -1,5 +1,5 @@
 import type { LinearWebhookPayload } from "@linear/sdk/webhooks";
-import type { LinearSessionStartPlatformData } from "cyrus-core";
+import type { LinearSessionStartPlatformData } from "atmiko-core";
 import { describe, expect, it } from "vitest";
 import { LinearMessageTranslator } from "../src/LinearMessageTranslator.js";
 
@@ -149,7 +149,7 @@ describe("LinearMessageTranslator", () => {
 					},
 					comment: {
 						id: "comment-123",
-						body: "@cyrus please help me with this",
+						body: "@atmiko please help me with this",
 						user: {
 							id: "user-123",
 							name: "Test User",
@@ -168,7 +168,7 @@ describe("LinearMessageTranslator", () => {
 
 			// Mention trigger - should use comment body as initial prompt
 			expect(sessionStart.initialPrompt).toBe(
-				"@cyrus please help me with this",
+				"@atmiko please help me with this",
 			);
 
 			// Platform data (narrow type for Linear-specific properties)

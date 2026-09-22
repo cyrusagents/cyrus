@@ -1,12 +1,12 @@
 import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
-import { watch as chokidarWatch, type FSWatcher } from "chokidar";
 import type {
 	EdgeConfig,
 	EdgeWorkerConfig,
 	ILogger,
 	RepositoryConfig,
-} from "cyrus-core";
+} from "atmiko-core";
+import { watch as chokidarWatch, type FSWatcher } from "chokidar";
 
 // ------------------------------------------------------------------
 // Exhaustiveness guard for hot-reload key handling
@@ -30,7 +30,6 @@ import type {
 const RELOAD_MERGED_KEYS = [
 	"repositories",
 	"ngrokAuthToken",
-	"stripeCustomerId",
 	"global_setup_script",
 	"linearWorkspaces",
 	"claudeDefaultModel",
@@ -83,7 +82,6 @@ const RELOAD_EXEMPT_KEYS = [
 const GLOBAL_WATCH_EXEMPT_KEYS: ReadonlySet<keyof EdgeConfig> = new Set([
 	"repositories",
 	"ngrokAuthToken",
-	"stripeCustomerId",
 ]);
 
 type ClassifiedReloadKey =
@@ -375,8 +373,6 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.prReviewTrigger ?? this.config.prReviewTrigger,
 				userAccessControl:
 					parsedConfig.userAccessControl ?? this.config.userAccessControl,
-				stripeCustomerId:
-					parsedConfig.stripeCustomerId ?? this.config.stripeCustomerId,
 				global_setup_script:
 					parsedConfig.global_setup_script ?? this.config.global_setup_script,
 				// Sandbox / egress proxy config

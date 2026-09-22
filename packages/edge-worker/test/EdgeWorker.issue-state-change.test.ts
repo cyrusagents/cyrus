@@ -1,7 +1,7 @@
 import {
 	isIssueStateIdUpdateWebhook,
 	isIssueTitleOrDescriptionUpdateWebhook,
-} from "cyrus-core";
+} from "atmiko-core";
 import { describe, expect, it } from "vitest";
 
 describe("isIssueStateIdUpdateWebhook type guard", () => {

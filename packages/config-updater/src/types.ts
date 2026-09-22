@@ -1,9 +1,9 @@
-import { EdgeConfigPayloadSchema } from "cyrus-core";
+import { EdgeConfigPayloadSchema } from "atmiko-core";
 import { z } from "zod";
 
 /**
  * Repository configuration payload
- * Matches the format sent by cyrus-hosted
+ * Matches the format sent by atmiko-hosted
  */
 export interface RepositoryPayload {
 	repository_url: string; // Git clone URL
@@ -14,7 +14,7 @@ export interface RepositoryPayload {
 
 /**
  * Repository deletion payload
- * Sent by cyrus-hosted when removing a repository
+ * Sent by atmiko-hosted when removing a repository
  */
 export interface DeleteRepositoryPayload {
 	repository_name: string; // Repository name to delete
@@ -22,25 +22,25 @@ export interface DeleteRepositoryPayload {
 }
 
 /**
- * Cyrus config update payload schema
+ * Atmiko config update payload schema
  * Extends EdgeConfigPayloadSchema with operation flags for the update process.
  * Uses EdgeConfigPayloadSchema (not EdgeConfigSchema) because incoming payloads
  * may omit workspaceBaseDir - the handler applies a default value.
  */
-export const CyrusConfigPayloadSchema = EdgeConfigPayloadSchema.extend({
-	restartCyrus: z.boolean().optional(),
+export const AtmikoConfigPayloadSchema = EdgeConfigPayloadSchema.extend({
+	restartAtmiko: z.boolean().optional(),
 	backupConfig: z.boolean().optional(),
 });
 
-export type CyrusConfigPayload = z.infer<typeof CyrusConfigPayloadSchema>;
+export type AtmikoConfigPayload = z.infer<typeof AtmikoConfigPayloadSchema>;
 
 /**
- * Cyrus environment variables payload (for Claude token)
+ * Atmiko environment variables payload (for Claude token)
  */
-export interface CyrusEnvPayload {
+export interface AtmikoEnvPayload {
 	variables?: Record<string, string>;
 	ANTHROPIC_API_KEY?: string;
-	restartCyrus?: boolean;
+	restartAtmiko?: boolean;
 	backupEnv?: boolean;
 	[key: string]: string | boolean | Record<string, string> | undefined;
 }
@@ -104,7 +104,7 @@ export interface CheckGlabData {
 
 /**
  * GitHub installation tokens push payload schema.
- * Sent by cyrus-hosted with one short-lived GitHub App installation token
+ * Sent by atmiko-hosted with one short-lived GitHub App installation token
  * per installation (org or user account) the team has attached.
  */
 export const GitHubTokensPayloadSchema = z.object({
@@ -126,7 +126,7 @@ export const GitHubTokensPayloadSchema = z.object({
 export type GitHubTokensPayload = z.infer<typeof GitHubTokensPayloadSchema>;
 
 /**
- * Error response to send back to cyrus-hosted
+ * Error response to send back to atmiko-hosted
  */
 export interface ErrorResponse {
 	success: false;
@@ -135,7 +135,7 @@ export interface ErrorResponse {
 }
 
 /**
- * Success response to send back to cyrus-hosted
+ * Success response to send back to atmiko-hosted
  */
 export interface SuccessResponse {
 	success: true;
@@ -147,7 +147,7 @@ export type ApiResponse = SuccessResponse | ErrorResponse;
 
 /**
  * Create or update a user skill
- * Sent by cyrus-hosted when a user creates/edits a skill
+ * Sent by atmiko-hosted when a user creates/edits a skill
  */
 export interface UpdateSkillPayload {
 	/** Skill name — used as the directory name and invocation name */
@@ -169,7 +169,7 @@ export interface UpdateSkillPayload {
 
 /**
  * Delete a user skill
- * Sent by cyrus-hosted when a user removes a skill
+ * Sent by atmiko-hosted when a user removes a skill
  */
 export interface DeleteSkillPayload {
 	/** Skill name to delete */

@@ -28,7 +28,7 @@ function formatContext(context: LogContext): string {
 }
 
 function parseLevelFromEnv(): LogLevel | undefined {
-	const envLevel = process.env.CYRUS_LOG_LEVEL?.toUpperCase();
+	const envLevel = process.env.ATMIKO_LOG_LEVEL?.toUpperCase();
 	switch (envLevel) {
 		case "DEBUG":
 			return LogLevel.DEBUG;
@@ -165,7 +165,7 @@ class Logger implements ILogger {
 	 * {@link forwardLog} so call sites can opt specific lifecycle/audit-style
 	 * events into Sentry Logs without re-enabling the firehose of debug/info
 	 * logs. Reporter implementations gate this independently (e.g. the Sentry
-	 * reporter only ships logs when CYRUS_TEAM_ID is configured).
+	 * reporter only ships logs when ATMIKO_TEAM_ID is configured).
 	 */
 	private forwardEvent(name: string, attributes?: LogEventAttributes): void {
 		const reporter = getGlobalErrorReporter();
@@ -213,7 +213,7 @@ class Logger implements ILogger {
 		if (!reporter.isEnabled) return;
 
 		const error = extractError(args);
-		// Start with process-wide tags (e.g. team_id from CYRUS_TEAM_ID) so they
+		// Start with process-wide tags (e.g. team_id from ATMIKO_TEAM_ID) so they
 		// apply to every forwarded event. Per-call context wins on key collisions.
 		// Sentry tags are string-only — coerce primitives, drop nullish.
 		const baseAttrs = this.buildBaseAttributes();

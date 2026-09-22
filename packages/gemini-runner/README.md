@@ -1,6 +1,6 @@
-# @cyrus-ai/gemini-runner
+# @atmiko/gemini-runner
 
-A TypeScript wrapper around the Gemini CLI that provides a provider-agnostic interface for running Gemini AI sessions. This package mirrors the architecture of `@cyrus-ai/claude-runner` while adapting to Gemini CLI's streaming format and session management.
+A TypeScript wrapper around the Gemini CLI that provides a provider-agnostic interface for running Gemini AI sessions. This package mirrors the architecture of `@atmiko/claude-runner` while adapting to Gemini CLI's streaming format and session management.
 
 ## Overview
 
@@ -9,12 +9,12 @@ The `gemini-runner` package provides two main classes:
 - **GeminiRunner**: Full-featured wrapper around Gemini CLI with streaming support, event handling, and message format conversion
 - **SimpleGeminiRunner**: Simplified interface for enumerated response use cases (yes/no, multiple choice, etc.)
 
-Both classes implement standard interfaces from `cyrus-core`, making them interchangeable with other AI runner implementations like `ClaudeRunner`.
+Both classes implement standard interfaces from `atmiko-core`, making them interchangeable with other AI runner implementations like `ClaudeRunner`.
 
 ## Installation
 
 ```bash
-pnpm add @cyrus-ai/gemini-runner
+pnpm add @atmiko/gemini-runner
 ```
 
 ### Prerequisites
@@ -33,10 +33,10 @@ pnpm add @cyrus-ai/gemini-runner
 ### Basic Usage with GeminiRunner
 
 ```typescript
-import { GeminiRunner } from '@cyrus-ai/gemini-runner';
+import { GeminiRunner } from '@atmiko/gemini-runner';
 
 const runner = new GeminiRunner({
-  cyrusHome: '/path/to/.cyrus',
+  atmikoHome: '/path/to/.atmiko',
   workingDirectory: '/path/to/project',
   model: 'gemini-2.5-flash',
   autoApprove: true  // Enable --yolo flag
@@ -61,11 +61,11 @@ const messages = runner.getMessages();
 ### Simple Enumerated Responses with SimpleGeminiRunner
 
 ```typescript
-import { SimpleGeminiRunner } from '@cyrus-ai/gemini-runner';
+import { SimpleGeminiRunner } from '@atmiko/gemini-runner';
 
 const runner = new SimpleGeminiRunner({
   validResponses: ['yes', 'no', 'maybe'],
-  cyrusHome: '/path/to/.cyrus',
+  atmikoHome: '/path/to/.atmiko',
   workingDirectory: '/path/to/project',
   model: 'gemini-2.5-flash',
   maxTurns: 5,
@@ -132,7 +132,7 @@ interface GeminiRunnerConfig extends IAgentRunnerConfig {
 
   // Inherited from IAgentRunnerConfig
   model?: string;             // Model to use (e.g., 'gemini-2.5-flash')
-  cyrusHome: string;          // Home directory for logs
+  atmikoHome: string;          // Home directory for logs
   workingDirectory: string;   // Working directory for Gemini
   systemPrompt?: string;      // System prompt for session
   mcpServers?: MCPServerConfig[];  // MCP server configurations
@@ -192,7 +192,7 @@ interface GeminiRunnerConfig extends IAgentRunnerConfig {
 ```typescript
 interface SimpleGeminiRunnerConfig {
   validResponses: string[];   // REQUIRED: Valid response options
-  cyrusHome: string;          // REQUIRED: Home directory for logs
+  atmikoHome: string;          // REQUIRED: Home directory for logs
   workingDirectory?: string;  // Working directory (default: cwd)
   model?: string;             // Model to use (default: 'gemini-2.5-flash')
   systemPrompt?: string;      // Additional system prompt
@@ -220,7 +220,7 @@ interface SimpleAgentResult {
 
 ## Adapter Pattern
 
-The package uses an adapter pattern to translate between Gemini CLI's JSON streaming format and Claude SDK message types. This allows the runner to integrate seamlessly with other parts of the Cyrus ecosystem.
+The package uses an adapter pattern to translate between Gemini CLI's JSON streaming format and Claude SDK message types. This allows the runner to integrate seamlessly with other parts of the Atmiko ecosystem.
 
 ### Message Format Conversion
 
@@ -276,10 +276,10 @@ The package respects standard Gemini CLI environment variables for API credentia
 
 ### Log Files
 
-Both runners create detailed logs in the `cyrusHome` directory:
+Both runners create detailed logs in the `atmikoHome` directory:
 
-- `{cyrusHome}/logs/{workspaceName}/{sessionId}.ndjson` - NDJSON event log
-- `{cyrusHome}/logs/{workspaceName}/{sessionId}.log` - Human-readable log
+- `{atmikoHome}/logs/{workspaceName}/{sessionId}.ndjson` - NDJSON event log
+- `{atmikoHome}/logs/{workspaceName}/{sessionId}.log` - Human-readable log
 
 ### MCP Server Configuration
 
@@ -287,7 +287,7 @@ Configure Model Context Protocol servers for enhanced capabilities:
 
 ```typescript
 const runner = new GeminiRunner({
-  cyrusHome: '/path/to/.cyrus',
+  atmikoHome: '/path/to/.atmiko',
   workingDirectory: '/path/to/project',
   mcpServers: [
     {
@@ -337,7 +337,7 @@ node examples/basic-usage.js  # Or .ts with ts-node
 **Empty messages array**
 - The session may have errored before producing any messages
 - Check the `error` event for details
-- Review the log files in `{cyrusHome}/logs/`
+- Review the log files in `{atmikoHome}/logs/`
 
 **Response validation fails with SimpleGeminiRunner**
 - Increase `maxTurns` to allow more attempts
@@ -366,13 +366,13 @@ const runner = new GeminiRunner({
 Check the NDJSON log files for detailed event information:
 
 ```bash
-cat ~/.cyrus/logs/my-workspace/{session-id}.ndjson | jq .
+cat ~/.atmiko/logs/my-workspace/{session-id}.ndjson | jq .
 ```
 
 Or the human-readable log:
 
 ```bash
-cat ~/.cyrus/logs/my-workspace/{session-id}.log
+cat ~/.atmiko/logs/my-workspace/{session-id}.log
 ```
 
 ## Development
@@ -398,9 +398,9 @@ pnpm typecheck
 
 ## Related Packages
 
-- `@cyrus-ai/core` - Core types and interfaces
-- `@cyrus-ai/claude-runner` - Claude CLI wrapper (similar architecture)
-- `@cyrus-ai/simple-agent-runner` - Abstract base for simple enumerated responses
+- `@atmiko/core` - Core types and interfaces
+- `@atmiko/claude-runner` - Claude CLI wrapper (similar architecture)
+- `@atmiko/simple-agent-runner` - Abstract base for simple enumerated responses
 
 ## License
 

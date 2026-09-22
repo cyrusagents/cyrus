@@ -42,7 +42,7 @@ OAuth endpoints. No production Linear events or tokens are used.
 
 ```text
 f1 init-test-repo --path /tmp/f1-private-linear-apps
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-private-linear-apps CYRUS_DEFAULT_RUNNER=codex bun run apps/f1/server.ts
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-private-linear-apps ATMIKO_DEFAULT_RUNNER=codex bun run apps/f1/server.ts
 f1 ping                 -> healthy
 f1 status               -> ready
 f1 create-issue ... --labels primary -> issue-2 / DEF-2
@@ -54,7 +54,7 @@ f1 stop-session --session-id session-2 -> stopped
 
 ## Retrospective
 
-The first test issue omitted a routing label, so Cyrus correctly asked which
+The first test issue omitted a routing label, so Atmiko correctly asked which
 repository to use. That session was stopped; the labeled issue completed the
 read-only smoke test. Private-app verification is covered separately by the
 transport and EdgeWorker integration tests because F1 uses a local issue tracker.

@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "cyrus-monorepo",
+      "name": "atmiko-monorepo",
       "dependencies": {
         "@linear/sdk": "60.0.0",
       },

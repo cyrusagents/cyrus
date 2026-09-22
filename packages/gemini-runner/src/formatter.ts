@@ -15,7 +15,7 @@
  * - replace: Edit/replace content in files
  */
 
-import type { IMessageFormatter } from "cyrus-core";
+import type { IMessageFormatter } from "atmiko-core";
 import type { FormatterToolInput } from "./schemas.js";
 
 /**

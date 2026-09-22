@@ -46,8 +46,8 @@ for (const [childId, parentId] of this.childToParentAgentSession) {
 ## Test Environment
 
 - **Port**: 3700
-- **Repo Path**: `/Users/agentops/.cyrus/worktrees/CYPACK-922`
-- **F1 Cyrus Home**: `/var/folders/xv/c55x22nd6lv8kq9fccch04d40000gp/T/cyrus-f1-1773151797568`
+- **Repo Path**: `/Users/agentops/.atmiko/worktrees/CYPACK-922`
+- **F1 Atmiko Home**: `/var/folders/xv/c55x22nd6lv8kq9fccch04d40000gp/T/atmiko-f1-1773151797568`
 
 ---
 
@@ -105,7 +105,7 @@ for (const [childId, parentId] of this.childToParentAgentSession) {
 
 **The orchestrator did NOT create sub-issues in this test run.**
 
-The F1 CLI issue tracker (`CLIIssueTrackerService`) lacks the `mcp__linear__create_issue` Linear MCP tool. The cyrus-tools MCP (`linear_agent_session_create`) was connected but the orchestrator needed `mcp__linear__create_issue` to create a Linear sub-issue first — which wasn't available. Claude adapted and solved the task directly instead of creating a sub-issue.
+The F1 CLI issue tracker (`CLIIssueTrackerService`) lacks the `mcp__linear__create_issue` Linear MCP tool. The atmiko-tools MCP (`linear_agent_session_create`) was connected but the orchestrator needed `mcp__linear__create_issue` to create a Linear sub-issue first — which wasn't available. Claude adapted and solved the task directly instead of creating a sub-issue.
 
 This means the specific orchestrator→child→parent result-write-back path was **not exercised end-to-end** in this test drive.
 
@@ -197,10 +197,10 @@ The single-session (no sub-issue) flow completed correctly, with the result prop
 
 **Resolution**: Started the server with `CLAUDECODE=` unset:
 ```bash
-CLAUDECODE= CYRUS_PORT=3700 CYRUS_REPO_PATH=... bun run apps/f1/server.ts
+CLAUDECODE= ATMIKO_PORT=3700 ATMIKO_REPO_PATH=... bun run apps/f1/server.ts
 ```
 
-**Recommendation**: Consider having the F1 server or `ClaudeRunner` automatically unset `CLAUDECODE` when spawning child Claude processes, since nested sessions are a common pattern when running F1 from within Cyrus itself.
+**Recommendation**: Consider having the F1 server or `ClaudeRunner` automatically unset `CLAUDECODE` when spawning child Claude processes, since nested sessions are a common pattern when running F1 from within Atmiko itself.
 
 ### 2. Orchestrator Did Not Create Sub-Issues
 
@@ -220,7 +220,7 @@ CLAUDECODE= CYRUS_PORT=3700 CYRUS_REPO_PATH=... bun run apps/f1/server.ts
 - Build succeeded cleanly
 - Server started and handled sessions correctly
 - Orchestrator procedure selection worked via label routing
-- MCP tools (cyrus-tools) connected correctly
+- MCP tools (atmiko-tools) connected correctly
 - Session lifecycle (primary + concise-summary subroutines) completed as expected
 - Final result posted to the activity tracker
 

@@ -8,12 +8,12 @@ const execAsync = promisify(exec);
  * Check if GitLab CLI (glab) is installed and authenticated
  *
  * @param _payload - Empty payload (no parameters needed)
- * @param _cyrusHome - Cyrus home directory (not used)
+ * @param _atmikoHome - Atmiko home directory (not used)
  * @returns ApiResponse with installation and authentication status
  */
 export async function handleCheckGlab(
 	_payload: CheckGlabPayload,
-	_cyrusHome: string,
+	_atmikoHome: string,
 ): Promise<ApiResponse> {
 	try {
 		// Check if glab is installed

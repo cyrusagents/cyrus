@@ -1,5 +1,5 @@
 {
-	"$id": "https://atcyrus.com/schemas/RepositoryConfig.json",
+	"$id": "https://raw.githubusercontent.com/nexmoe/atmiko/main/packages/core/schemas/RepositoryConfig.json",
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"type": "object",
 	"properties": {

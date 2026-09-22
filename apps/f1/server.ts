@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 
 /**
- * F1 Server - Testing Framework Server for Cyrus
+ * F1 Server - Testing Framework Server for Atmiko
  *
  * This server starts the EdgeWorker in CLI platform mode, providing
- * a complete testing environment for the Cyrus agent system without
+ * a complete testing environment for the Atmiko agent system without
  * external dependencies.
  *
  * Features:
@@ -15,47 +15,47 @@
  * - Zero `any` types
  *
  * Usage:
- *   CYRUS_PORT=3600 CYRUS_REPO_PATH=/path/to/repo bun run server.ts
+ *   ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/path/to/repo bun run server.ts
  */
 
 import { existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getAllTools } from "cyrus-claude-runner";
+import { getAllTools } from "atmiko-claude-runner";
 import {
 	type EdgeWorkerConfig,
 	getDefaultReposDir,
 	getDefaultWorktreesDir,
 	type RepositoryConfig,
-} from "cyrus-core";
-import { EdgeWorker } from "cyrus-edge-worker";
-import type { SlackWebhookEvent } from "cyrus-slack-event-transport";
+} from "atmiko-core";
+import { EdgeWorker } from "atmiko-edge-worker";
+import type { SlackWebhookEvent } from "atmiko-slack-event-transport";
 import { bold, cyan, dim, gray, green, success } from "./src/utils/colors.js";
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
-const CYRUS_PORT = Number.parseInt(process.env.CYRUS_PORT || "3600", 10);
-const CYRUS_REPO_PATH = process.env.CYRUS_REPO_PATH || process.cwd();
-const CYRUS_HOME = join(tmpdir(), `cyrus-f1-${Date.now()}`);
-const DEFAULT_REPOS_BASE_DIR = getDefaultReposDir(CYRUS_HOME);
-const DEFAULT_WORKTREES_BASE_DIR = getDefaultWorktreesDir(CYRUS_HOME);
+const ATMIKO_PORT = Number.parseInt(process.env.ATMIKO_PORT || "3600", 10);
+const ATMIKO_REPO_PATH = process.env.ATMIKO_REPO_PATH || process.cwd();
+const ATMIKO_HOME = join(tmpdir(), `atmiko-f1-${Date.now()}`);
+const DEFAULT_REPOS_BASE_DIR = getDefaultReposDir(ATMIKO_HOME);
+const DEFAULT_WORKTREES_BASE_DIR = getDefaultWorktreesDir(ATMIKO_HOME);
 // Optional second repository path for multi-repo orchestration testing
-const CYRUS_REPO_PATH_2 = process.env.CYRUS_REPO_PATH_2;
-const MULTI_REPO_MODE = Boolean(CYRUS_REPO_PATH_2);
+const ATMIKO_REPO_PATH_2 = process.env.ATMIKO_REPO_PATH_2;
+const MULTI_REPO_MODE = Boolean(ATMIKO_REPO_PATH_2);
 
 // Validate port
-if (Number.isNaN(CYRUS_PORT) || CYRUS_PORT < 1 || CYRUS_PORT > 65535) {
-	console.error(`❌ Invalid CYRUS_PORT: ${process.env.CYRUS_PORT}`);
+if (Number.isNaN(ATMIKO_PORT) || ATMIKO_PORT < 1 || ATMIKO_PORT > 65535) {
+	console.error(`❌ Invalid ATMIKO_PORT: ${process.env.ATMIKO_PORT}`);
 	console.error("   Port must be between 1 and 65535");
 	process.exit(1);
 }
 
 // Validate repository path
-if (!existsSync(CYRUS_REPO_PATH)) {
-	console.error(`❌ Repository path does not exist: ${CYRUS_REPO_PATH}`);
-	console.error("   Set CYRUS_REPO_PATH to a valid directory");
+if (!existsSync(ATMIKO_REPO_PATH)) {
+	console.error(`❌ Repository path does not exist: ${ATMIKO_REPO_PATH}`);
+	console.error("   Set ATMIKO_REPO_PATH to a valid directory");
 	process.exit(1);
 }
 
@@ -68,11 +68,11 @@ if (!existsSync(CYRUS_REPO_PATH)) {
  */
 function setupDirectories(): void {
 	const requiredDirs = [
-		CYRUS_HOME,
+		ATMIKO_HOME,
 		DEFAULT_REPOS_BASE_DIR,
 		DEFAULT_WORKTREES_BASE_DIR,
-		join(CYRUS_HOME, "mcp-configs"),
-		join(CYRUS_HOME, "state"),
+		join(ATMIKO_HOME, "mcp-configs"),
+		join(ATMIKO_HOME, "state"),
 	];
 
 	for (const dir of requiredDirs) {
@@ -94,7 +94,7 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 	const repository: RepositoryConfig = {
 		id: "f1-test-repo",
 		name: "F1 Test Repository",
-		repositoryPath: CYRUS_REPO_PATH,
+		repositoryPath: ATMIKO_REPO_PATH,
 		baseBranch: "main",
 		githubUrl: "https://github.com/f1-test/primary-repo",
 		linearWorkspaceId: "cli-workspace",
@@ -130,11 +130,11 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 	const repositories: RepositoryConfig[] = [repository];
 
 	// Add second repository if multi-repo mode is enabled
-	if (MULTI_REPO_MODE && CYRUS_REPO_PATH_2) {
+	if (MULTI_REPO_MODE && ATMIKO_REPO_PATH_2) {
 		const secondaryRepository: RepositoryConfig = {
 			id: "f1-test-repo-secondary",
 			name: "F1 Secondary Repository",
-			repositoryPath: CYRUS_REPO_PATH_2,
+			repositoryPath: ATMIKO_REPO_PATH_2,
 			baseBranch: "main",
 			githubUrl: "https://github.com/f1-test/secondary-repo",
 			linearWorkspaceId: "cli-workspace", // Same workspace for routing test
@@ -159,15 +159,15 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 	const config: EdgeWorkerConfig = {
 		platform: "cli" as const,
 		repositories,
-		cyrusHome: CYRUS_HOME,
-		serverPort: CYRUS_PORT,
+		atmikoHome: ATMIKO_HOME,
+		serverPort: ATMIKO_PORT,
 		serverHost: "localhost",
 		claudeDefaultModel: "sonnet",
 		claudeDefaultFallbackModel: "haiku",
 		// Env-gated runner selection for harness validation (default unchanged).
-		// e.g. CYRUS_DEFAULT_RUNNER=codex to exercise the Codex (app-server) path.
-		...(process.env.CYRUS_DEFAULT_RUNNER && {
-			defaultRunner: process.env.CYRUS_DEFAULT_RUNNER as
+		// e.g. ATMIKO_DEFAULT_RUNNER=codex to exercise the Codex (app-server) path.
+		...(process.env.ATMIKO_DEFAULT_RUNNER && {
+			defaultRunner: process.env.ATMIKO_DEFAULT_RUNNER as
 				| "claude"
 				| "gemini"
 				| "codex"
@@ -183,22 +183,22 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 				linearToken: "cli-mode-no-token-needed",
 			},
 		},
-		// Enable egress proxy sandbox when CYRUS_SANDBOX=1 is set.
+		// Enable egress proxy sandbox when ATMIKO_SANDBOX=1 is set.
 		// The proxy only intercepts Bash-spawned subprocess traffic (git, gh, npm, etc.).
 		// Claude's inference API, MCP servers, and built-in file tools bypass the proxy.
 		//
 		// No networkPolicy = allow-all mode (passthrough with logging).
-		// To test deny-all + explicit allows with transforms, set CYRUS_SANDBOX_POLICY=1.
-		...(process.env.CYRUS_SANDBOX === "1" && {
+		// To test deny-all + explicit allows with transforms, set ATMIKO_SANDBOX_POLICY=1.
+		...(process.env.ATMIKO_SANDBOX === "1" && {
 			sandbox: {
 				enabled: true,
 				httpProxyPort: 19080,
 				socksProxyPort: 19081,
 				logRequests: true,
 				// User-defined policy: deny-all default, explicit allows with transforms.
-				// Only enabled with CYRUS_SANDBOX_POLICY=1 since F1 test repos lack
+				// Only enabled with ATMIKO_SANDBOX_POLICY=1 since F1 test repos lack
 				// GitHub remotes and don't need network restrictions.
-				...(process.env.CYRUS_SANDBOX_POLICY === "1" && {
+				...(process.env.ATMIKO_SANDBOX_POLICY === "1" && {
 					networkPolicy: {
 						allow: {
 							"github.com": [
@@ -206,7 +206,7 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 									transform: [
 										{
 											headers: {
-												"X-Cyrus-Egress": "verified",
+												"X-Atmiko-Egress": "verified",
 											},
 										},
 									],
@@ -217,7 +217,7 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 									transform: [
 										{
 											headers: {
-												"X-Cyrus-Egress": "verified",
+												"X-Atmiko-Egress": "verified",
 											},
 										},
 									],
@@ -251,17 +251,17 @@ function displayConnectionInfo(): void {
 	console.log(success("Server started successfully"));
 	console.log("");
 	console.log(
-		`  ${cyan("Server:")}    ${bold(`http://localhost:${CYRUS_PORT}`)}`,
+		`  ${cyan("Server:")}    ${bold(`http://localhost:${ATMIKO_PORT}`)}`,
 	);
 	console.log(
-		`  ${cyan("RPC:")}       ${bold(`http://localhost:${CYRUS_PORT}/cli/rpc`)}`,
+		`  ${cyan("RPC:")}       ${bold(`http://localhost:${ATMIKO_PORT}/cli/rpc`)}`,
 	);
 	console.log(`  ${cyan("Platform:")}  ${bold("cli")}`);
-	console.log(`  ${cyan("Cyrus Home:")} ${dim(CYRUS_HOME)}`);
-	console.log(`  ${cyan("Repository:")} ${dim(CYRUS_REPO_PATH)}`);
+	console.log(`  ${cyan("Atmiko Home:")} ${dim(ATMIKO_HOME)}`);
+	console.log(`  ${cyan("Repository:")} ${dim(ATMIKO_REPO_PATH)}`);
 	if (MULTI_REPO_MODE) {
 		console.log(
-			`  ${cyan("Multi-Repo:")} ${bold("enabled")} (${dim(CYRUS_REPO_PATH_2 || "")})`,
+			`  ${cyan("Multi-Repo:")} ${bold("enabled")} (${dim(ATMIKO_REPO_PATH_2 || "")})`,
 		);
 		console.log(
 			dim("  Routing context will be included in orchestrator prompts"),

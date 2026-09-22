@@ -447,7 +447,7 @@ export type JsonObject = { [key: string]: JsonValue };
  *   mcpConfig: {
  *     'linear': { command: 'npx', args: ['-y', '@linear/mcp-server'] }
  *   },
- *   cyrusHome: '/home/user/.cyrus'
+ *   atmikoHome: '/home/user/.atmiko'
  * };
  * ```
  */
@@ -482,13 +482,13 @@ export interface AgentRunnerConfig {
 	/** MCP server configurations (inline) */
 	mcpConfig?: Record<string, McpServerConfig>;
 	/**
-	 * Whether Claude should use only MCP servers explicitly supplied by Cyrus.
+	 * Whether Claude should use only MCP servers explicitly supplied by Atmiko.
 	 * Defaults to true for Claude sessions.
 	 */
 	strictMcpConfig?: boolean;
-	/** Global OpenCode runtime config overrides from Cyrus config */
+	/** Global OpenCode runtime config overrides from Atmiko config */
 	opencodeGlobalConfig?: JsonObject;
-	/** Repository OpenCode runtime config overrides from Cyrus config */
+	/** Repository OpenCode runtime config overrides from Atmiko config */
 	opencodeRepositoryConfig?: JsonObject;
 	/** OpenCode CLI config/state/cache scope. Defaults to inheriting parent env. */
 	opencodeStateScope?: OpenCodeStateScope;
@@ -502,8 +502,8 @@ export interface AgentRunnerConfig {
 	maxTurns?: number;
 	/** Built-in tools available in model context (empty array disables all tools) */
 	tools?: string[];
-	/** Cyrus home directory (required) */
-	cyrusHome: string;
+	/** Atmiko home directory (required) */
+	atmikoHome: string;
 	/**
 	 * Additional environment variables for the agent child process, merged on
 	 * top of the inherited process env. Used for per-session credentials

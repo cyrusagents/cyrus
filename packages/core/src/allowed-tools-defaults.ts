@@ -1,17 +1,17 @@
 /**
  * Per-platform default allowed-tool lists.
  *
- * These are the single source of truth for "what tools does Cyrus have access
- * to when a session is triggered by platform X". cyrus-hosted and any
+ * These are the single source of truth for "what tools does Atmiko have access
+ * to when a session is triggered by platform X". atmiko-hosted and any
  * self-host configuration imports these constants verbatim; the database
  * stores per-team overrides only, and falls back to these lists when a team
  * has not customized its allowed-tool set.
  *
  * Resolution is **additive only** — there is no implicit appending of
- * workspace MCP tools at runtime. Anything Cyrus needs (including
- * `mcp__linear`, `mcp__cyrus-tools`, `mcp__cyrus-docs`, `mcp__slack`, and
+ * workspace MCP tools at runtime. Anything Atmiko needs (including
+ * `mcp__linear`, `mcp__atmiko-tools`, `mcp__atmiko-docs`, `mcp__slack`, and
  * read access to repository paths) is listed here explicitly. If you remove
- * a tool from this list, Cyrus loses access to it. If you add a tool here,
+ * a tool from this list, Atmiko loses access to it. If you add a tool here,
  * existing teams whose column equals the previous verbatim default will be
  * migrated forward; teams who have customized their list are left alone.
  *
@@ -23,9 +23,9 @@
 /**
  * Default allowed tools for Linear-triggered agent sessions.
  *
- * Linear sessions are full engineering sessions — Cyrus opens worktrees,
+ * Linear sessions are full engineering sessions — Atmiko opens worktrees,
  * runs builds, edits files, and opens PRs. This list mirrors the full
- * Claude Agent SDK toolset plus the workspace MCP prefixes Cyrus needs
+ * Claude Agent SDK toolset plus the workspace MCP prefixes Atmiko needs
  * to read and write Linear state.
  */
 export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
@@ -83,11 +83,11 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"ReportFindings",
 
 	// Workspace MCP servers — explicit, no implicit appending. Linear
-	// sessions include `mcp__slack` so Cyrus can post status updates and
+	// sessions include `mcp__slack` so Atmiko can post status updates and
 	// follow-up messages to Slack while working on an issue.
 	"mcp__linear",
-	"mcp__cyrus-tools",
-	"mcp__cyrus-docs",
+	"mcp__atmiko-tools",
+	"mcp__atmiko-docs",
 	"mcp__slack",
 ] as const;
 
@@ -95,7 +95,7 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
  * Default allowed tools for Slack `@mention` chat sessions.
  *
  * Slack sessions are transient — no PRs opened, no worktree checkouts.
- * The default list grants read-only access to repository sources (so Cyrus
+ * The default list grants read-only access to repository sources (so Atmiko
  * can answer "look at the code in repo X" questions) plus the standard
  * planning/task tools, but no Edit/Write/general Bash. The single Bash
  * pattern allowed is `git -C * pull` so a chat session can refresh a
@@ -131,15 +131,15 @@ export const SLACK_DEFAULT_ALLOWED_TOOLS = [
 
 	// Workspace MCP servers Slack chat sessions need
 	"mcp__linear",
-	"mcp__cyrus-tools",
-	"mcp__cyrus-docs",
+	"mcp__atmiko-tools",
+	"mcp__atmiko-docs",
 	"mcp__slack",
 ] as const;
 
 /**
  * Default allowed tools for GitHub-triggered agent sessions.
  *
- * GitHub sessions are full engineering sessions like Linear (Cyrus opens
+ * GitHub sessions are full engineering sessions like Linear (Atmiko opens
  * PRs, edits files, runs builds), so the toolset mirrors the Linear
  * default — except `mcp__slack` is excluded since Slack is its own
  * platform with its own allowed-tool list.
@@ -204,8 +204,8 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 
 	// Workspace MCP servers GitHub sessions need
 	"mcp__linear",
-	"mcp__cyrus-tools",
-	"mcp__cyrus-docs",
+	"mcp__atmiko-tools",
+	"mcp__atmiko-docs",
 ] as const;
 
 /**

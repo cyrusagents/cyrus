@@ -1,43 +1,35 @@
-# Cyrus
+# Atmiko
 
 <div>
-  <a href="https://github.com/ceedaragents/cyrus/actions">
-    <img src="https://github.com/ceedaragents/cyrus/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <a href="https://github.com/nexmoe/atmiko/actions">
+    <img src="https://github.com/nexmoe/atmiko/actions/workflows/ci.yml/badge.svg" alt="CI">
   </a>
 
 </div>
 
-[![Discord](https://img.shields.io/discord/1443747721910685792?label=Discord&logo=discord&logoColor=white)](https://discord.gg/prrtADHYTt)
+Your (Claude Code|Codex|Cursor|Gemini|Opencode) powered (Linear|GitHub|GitLab|Slack) agent. Atmiko monitors (Linear|GitHub|GitLab|Slack) issues assigned to it, creates isolated Git worktrees for each issue, runs (Claude Code|Codex|Cursor|Gemini|Opencode) sessions to process them, and streams detailed agent activity updates back to (Linear|GitHub), along with rich interactions like dropdown selects and approvals.
 
-Your (Claude Code|Codex|Cursor|Gemini|Opencode) powered (Linear|GitHub|GitLab|Slack) agent. Cyrus monitors (Linear|GitHub|GitLab|Slack) issues assigned to it, creates isolated Git worktrees for each issue, runs (Claude Code|Codex|Cursor|Gemini|Opencode) sessions to process them, and streams detailed agent activity updates back to (Linear|GitHub), along with rich interactions like dropdown selects and approvals.
-
-**Note:** Cyrus is a BYOK platform (bring your keys / subscriptions) for tokens.
+**Note:** Atmiko is a BYOK platform (bring your keys / subscriptions) for tokens.
 
 ---
 
 ## Getting Started
 
-### End-to-End Self-Hosted (Community)
+### Self-Hosted Setup
 
-Zero cost option — host everything yourself with your own Linear OAuth app, GitHub App, and Slack App. An AI-guided setup skill handles the entire onboarding: installing dependencies, configuring auth, creating integration apps, and connecting repositories — so you don't have to follow a manual guide.
+Host everything yourself with your own Linear OAuth app, GitHub App, and Slack App. An AI-guided setup skill handles the entire onboarding: installing dependencies, configuring auth, creating integration apps, and connecting repositories — so you don't have to follow a manual guide.
 
 ```bash
-npx skills add nexmoe/cyrus -g
+npx skills add nexmoe/atmiko -g
 ```
 
 Then in any AI coding agent (Claude Code, Codex, Cursor, etc.):
 
 ```
-/cyrus-setup
+/atmiko-setup
 ```
 
-The skills install the **nexmoe/cyrus fork from a tested source commit**, including `/board` and task history. `skills add` itself only downloads the setup skills; `/cyrus-setup` runs their bundled source installer. The runtime is built with the checkout's pinned pnpm version and frozen lockfile, with no dependency on a global `cyrus-ai` installation.
-
-**Before this PR is merged into `main`, install its skills explicitly:**
-
-```bash
-npx skills add "nexmoe/cyrus#feat/integrated-status-board" -g
-```
+The skills install **Atmiko from source**, including `/board` and task history. `skills add` itself only downloads the setup skills; `/atmiko-setup` runs their bundled source installer. The runtime is built with the checkout's pinned pnpm version and frozen lockfile, with no dependency on a global `atmiko` installation.
 
 See **[Fork Installation](./docs/FORK_INSTALLATION.md)** for requirements, the verified launcher, updates and source commit verification. The existing npm version number alone does not identify a fork build.
 
@@ -45,42 +37,10 @@ Or follow the **[manual setup guide](./docs/SELF_HOSTING.md)** if you prefer.
 
 ---
 
-### Pro & Team Plans
-
-This section describes the upstream hosted service and its official npm package. For this fork's modified runtime, use the source installer above.
-
-Configure Cyrus through the dashboard at [app.atcyrus.com](https://app.atcyrus.com).
-
-#### For paid self-hosted deployments
-
-It is called 'self-hosted' because it uses a machine you control as the agent runtime. Networking layer and integrations are provided by the Cyrus cloud provider.
-
-```bash
-# Install Cyrus
-npm install -g cyrus-ai
-
-# Authenticate with your token (provided during onboarding)
-cyrus auth <your-token>
-```
-
-For Cyrus to create pull requests or merge requests, configure Git and your hosting CLI. See **[Git & GitHub Setup](./docs/GIT_GITHUB.md)** or **[Git & GitLab Setup](./docs/GIT_GITLAB.md)**.
-
-Keep Cyrus running as a persistent process:
-
-- **tmux**: `tmux new -s cyrus` then run `cyrus` (Ctrl+B, D to detach)
-- **pm2**: `pm2 start cyrus --name cyrus`
-- **systemd**: See [Running as a Service](./docs/SELF_HOSTING.md#running-as-a-service)
-
-#### For cloud-hosted deployments
-
-No installation required. Everything is managed through [app.atcyrus.com](https://app.atcyrus.com).
-
----
-
 ## More Documentation
 
 - **[Local Status Board](./docs/STATUS_BOARD.md)** - Live tasks and searchable logs at `/board`, on the same server as `/status`
-- **[End-to-End Community Guide](./docs/SELF_HOSTING.md)** - Complete community manual setup
+- **[Self-Hosting Guide](./docs/SELF_HOSTING.md)** - Complete community manual setup
 - **[Git & GitHub Setup](./docs/GIT_GITHUB.md)** - Git and GitHub CLI configuration for PRs
 - **[Git & GitLab Setup](./docs/GIT_GITLAB.md)** - Git and GitLab CLI configuration for MRs
 - **[Zulip Setup](./docs/ZULIP.md)** - Answer @mentions in Zulip topics and DMs

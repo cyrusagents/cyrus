@@ -1,18 +1,18 @@
 import { readFile } from "node:fs/promises";
 import { LinearClient } from "@linear/sdk";
-import { ClaudeRunner } from "cyrus-claude-runner";
-import type { LinearAgentSessionCreatedWebhook } from "cyrus-core";
+import { ClaudeRunner } from "atmiko-claude-runner";
+import type { LinearAgentSessionCreatedWebhook } from "atmiko-core";
 import {
 	isAgentSessionCreatedWebhook,
 	isAgentSessionPromptedWebhook,
-} from "cyrus-core";
-import { LinearEventTransport } from "cyrus-linear-event-transport";
+} from "atmiko-core";
+import { LinearEventTransport } from "atmiko-linear-event-transport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
 import type { EdgeWorkerConfig, RepositoryConfig } from "../src/types.js";
-import { TEST_CYRUS_HOME } from "./test-dirs.js";
+import { TEST_ATMIKO_HOME } from "./test-dirs.js";
 
 // Mock fs/promises
 vi.mock("fs/promises", () => ({
@@ -23,13 +23,13 @@ vi.mock("fs/promises", () => ({
 }));
 
 // Mock dependencies
-vi.mock("cyrus-claude-runner");
-vi.mock("cyrus-codex-runner");
-vi.mock("cyrus-linear-event-transport");
+vi.mock("atmiko-claude-runner");
+vi.mock("atmiko-codex-runner");
+vi.mock("atmiko-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
-vi.mock("cyrus-core", async (importOriginal) => {
+vi.mock("atmiko-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as any;
 	return {
 		...actual,
@@ -133,7 +133,7 @@ describe("EdgeWorker - Label-Based Prompt Command", () => {
 
 		// Mock AgentSessionManager
 		mockAgentSessionManager = {
-			createCyrusAgentSession: vi.fn(),
+			createAtmikoAgentSession: vi.fn(),
 			getSession: vi.fn().mockReturnValue({
 				claudeSessionId: "claude-session-123",
 				workspace: { path: "/test/workspaces/TEST-123" },
@@ -203,7 +203,7 @@ Issue: {{issue_identifier}}`;
 
 		mockConfig = {
 			proxyUrl: "http://localhost:3000",
-			cyrusHome: TEST_CYRUS_HOME,
+			atmikoHome: TEST_ATMIKO_HOME,
 			repositories: [mockRepository],
 			linearWorkspaces: {
 				"test-workspace": { linearToken: "test-token" },
@@ -250,7 +250,7 @@ Issue: {{issue_identifier}}`;
 					team: { key: "TEST" },
 				},
 				comment: {
-					body: "@cyrus /label-based-prompt can you work on this issue?",
+					body: "@atmiko /label-based-prompt can you work on this issue?",
 				},
 			},
 		};
@@ -293,7 +293,7 @@ Issue: {{issue_identifier}}`;
 					team: { key: "TEST" },
 				},
 				comment: {
-					body: "@cyrus can you help me with this issue?",
+					body: "@atmiko can you help me with this issue?",
 				},
 			},
 		};
@@ -312,7 +312,9 @@ Issue: {{issue_identifier}}`;
 		// Should use mention prompt template
 		expect(capturedPrompt).toContain("You were mentioned in a Linear comment");
 		expect(capturedPrompt).toContain("<mention_comment>");
-		expect(capturedPrompt).toContain("@cyrus can you help me with this issue?");
+		expect(capturedPrompt).toContain(
+			"@atmiko can you help me with this issue?",
+		);
 
 		// Should NOT contain label-based prompt template text
 		expect(capturedPrompt).not.toContain(
@@ -334,7 +336,7 @@ Issue: {{issue_identifier}}`;
 					team: { key: "TEST" },
 				},
 				comment: {
-					body: "@cyrus /label-based-prompt please debug this issue",
+					body: "@atmiko /label-based-prompt please debug this issue",
 				},
 			},
 		};
@@ -370,7 +372,7 @@ Issue: {{issue_identifier}}`;
 					team: { key: "TEST" },
 				},
 				comment: {
-					body: "@cyrus please help with this bug",
+					body: "@atmiko please help with this bug",
 				},
 			},
 		};

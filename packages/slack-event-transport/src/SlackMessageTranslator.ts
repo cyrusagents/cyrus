@@ -17,7 +17,7 @@ import type {
 	TranslationContext,
 	TranslationResult,
 	UserPromptMessage,
-} from "cyrus-core";
+} from "atmiko-core";
 import type {
 	SlackBlock,
 	SlackEventPayload,
@@ -145,7 +145,7 @@ export class SlackMessageTranslator
 		}
 
 		// A plain `message` event is always a follow-up in an existing thread —
-		// it can only reach here for a thread Cyrus is already bound to, so it
+		// it can only reach here for a thread Atmiko is already bound to, so it
 		// maps to a user prompt rather than a session start.
 		if (event.eventType === "message") {
 			return this.translateAppMentionAsUserPrompt(event, context);

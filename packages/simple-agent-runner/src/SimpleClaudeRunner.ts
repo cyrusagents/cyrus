@@ -1,11 +1,11 @@
-import { ClaudeRunner } from "cyrus-claude-runner";
-import type { SDKMessage } from "cyrus-core";
+import { ClaudeRunner } from "atmiko-claude-runner";
+import type { SDKMessage } from "atmiko-core";
 import { NoResponseError, SessionError } from "./errors.js";
 import { SimpleAgentRunner } from "./SimpleAgentRunner.js";
 import type { SimpleAgentQueryOptions } from "./types.js";
 
 /**
- * Concrete implementation using ClaudeRunner from cyrus-claude-runner package.
+ * Concrete implementation using ClaudeRunner from atmiko-claude-runner package.
  *
  * This implementation uses the Claude Agent SDK to execute queries and
  * constrains the responses to an enumerated set.
@@ -29,7 +29,7 @@ export class SimpleClaudeRunner<T extends string> extends SimpleAgentRunner<T> {
 		// Create ClaudeRunner with configuration
 		const runner = new ClaudeRunner({
 			workingDirectory: this.config.workingDirectory,
-			cyrusHome: this.config.cyrusHome,
+			atmikoHome: this.config.atmikoHome,
 			model: this.config.model,
 			fallbackModel: this.config.fallbackModel,
 			maxTurns: this.config.maxTurns,

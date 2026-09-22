@@ -29,15 +29,15 @@ apps/f1/f1 init-test-repo --path /private/tmp/f1-cypack-1400-security-20260723
 Result: test repository created successfully with initial git commit.
 
 ```bash
-CYRUS_PORT=3614 CYRUS_REPO_PATH=/private/tmp/f1-cypack-1400-security-20260723 bun run apps/f1/server.ts
+ATMIKO_PORT=3614 ATMIKO_REPO_PATH=/private/tmp/f1-cypack-1400-security-20260723 bun run apps/f1/server.ts
 ```
 
 Result: server started on `http://localhost:3614`; CLI RPC, event transports, config updater, MCP endpoint, status, and version routes registered successfully.
 
 ```bash
-CYRUS_PORT=3614 apps/f1/f1 ping
-CYRUS_PORT=3614 apps/f1/f1 status
-CYRUS_PORT=3614 apps/f1/f1 create-issue --title "CYPACK-1400 dependency smoke" --description "Verify F1 server health, status, and issue creation after security dependency patches."
+ATMIKO_PORT=3614 apps/f1/f1 ping
+ATMIKO_PORT=3614 apps/f1/f1 status
+ATMIKO_PORT=3614 apps/f1/f1 create-issue --title "CYPACK-1400 dependency smoke" --description "Verify F1 server health, status, and issue creation after security dependency patches."
 ```
 
 Result: ping succeeded, status returned `ready`, and issue `DEF-1` was created.

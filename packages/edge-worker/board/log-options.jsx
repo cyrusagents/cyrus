@@ -60,7 +60,7 @@ export function LogOptions({
 					>
 						<option value="all">All sources</option>
 						<option value="agent">Agent activity</option>
-						<option value="cyrus">Cyrus logs</option>
+						<option value="atmiko">Atmiko logs</option>
 					</select>
 				</label>
 				{[

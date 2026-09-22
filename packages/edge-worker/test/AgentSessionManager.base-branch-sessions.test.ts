@@ -18,7 +18,7 @@ describe("AgentSessionManager.getSessionsByBaseBranch", () => {
 	});
 
 	it("returns sessions tracking the specified base branch and repository", () => {
-		manager.createCyrusAgentSession(
+		manager.createAtmikoAgentSession(
 			"session-1",
 			"issue-1",
 			{
@@ -39,7 +39,7 @@ describe("AgentSessionManager.getSessionsByBaseBranch", () => {
 			],
 		);
 
-		manager.createCyrusAgentSession(
+		manager.createAtmikoAgentSession(
 			"session-2",
 			"issue-2",
 			{
@@ -66,7 +66,7 @@ describe("AgentSessionManager.getSessionsByBaseBranch", () => {
 	});
 
 	it("returns empty array when no sessions track the base branch", () => {
-		manager.createCyrusAgentSession(
+		manager.createAtmikoAgentSession(
 			"session-1",
 			"issue-1",
 			{
@@ -92,7 +92,7 @@ describe("AgentSessionManager.getSessionsByBaseBranch", () => {
 	});
 
 	it("filters by repository ID correctly", () => {
-		manager.createCyrusAgentSession(
+		manager.createAtmikoAgentSession(
 			"session-1",
 			"issue-1",
 			{
@@ -119,7 +119,7 @@ describe("AgentSessionManager.getSessionsByBaseBranch", () => {
 	});
 
 	it("returns multiple sessions tracking the same base branch", () => {
-		manager.createCyrusAgentSession(
+		manager.createAtmikoAgentSession(
 			"session-1",
 			"issue-1",
 			{
@@ -140,7 +140,7 @@ describe("AgentSessionManager.getSessionsByBaseBranch", () => {
 			],
 		);
 
-		manager.createCyrusAgentSession(
+		manager.createAtmikoAgentSession(
 			"session-2",
 			"issue-2",
 			{
@@ -166,7 +166,7 @@ describe("AgentSessionManager.getSessionsByBaseBranch", () => {
 	});
 
 	it("only returns active sessions (not completed ones)", async () => {
-		manager.createCyrusAgentSession(
+		manager.createAtmikoAgentSession(
 			"session-1",
 			"issue-1",
 			{

@@ -31,7 +31,7 @@ describe("spawnClaudeCodeProcess", () => {
 
 	const baseConfig: ClaudeRunnerConfig = {
 		workingDirectory: "/tmp/test",
-		cyrusHome: "/tmp/test-cyrus-home",
+		atmikoHome: "/tmp/test-atmiko-home",
 	};
 
 	function mockSuccessfulQuery() {

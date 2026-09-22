@@ -28,7 +28,9 @@ describe("JSON Schema export", () => {
 		});
 
 		it("has $id", () => {
-			expect(schema.$id).toBe("https://atcyrus.com/schemas/EdgeConfig.json");
+			expect(schema.$id).toBe(
+				"https://raw.githubusercontent.com/nexmoe/atmiko/main/packages/core/schemas/EdgeConfig.json",
+			);
 		});
 
 		it("requires repositories", () => {
@@ -65,7 +67,6 @@ describe("JSON Schema export", () => {
 				"promptDefaults",
 				"sandbox",
 				"ngrokAuthToken",
-				"stripeCustomerId",
 				"linearWorkspaceSlug",
 			];
 			for (const field of expectedFields) {
@@ -192,7 +193,7 @@ describe("JSON Schema export", () => {
 
 			for (const { name, schema } of pairs) {
 				const generated = {
-					$id: `https://atcyrus.com/schemas/${name}.json`,
+					$id: `https://raw.githubusercontent.com/nexmoe/atmiko/main/packages/core/schemas/${name}.json`,
 					...schema.toJSONSchema({ target: "draft-2020-12" }),
 				};
 				const committed = loadSchema(name);

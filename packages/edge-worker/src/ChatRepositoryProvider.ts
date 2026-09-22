@@ -1,4 +1,4 @@
-import type { RepositoryConfig } from "cyrus-core";
+import type { RepositoryConfig } from "atmiko-core";
 
 /**
  * Abstraction for accessing the current set of chat-accessible repositories.

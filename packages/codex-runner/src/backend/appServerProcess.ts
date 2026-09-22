@@ -6,7 +6,7 @@ import {
 import { resolveCodexAppServerLaunch } from "./codexBinary.js";
 import type { ResolvedCodexConfig } from "./types.js";
 
-const CLIENT_INFO = { name: "cyrus-codex-runner", version: "1.0.0" };
+const CLIENT_INFO = { name: "atmiko-codex-runner", version: "1.0.0" };
 const DEFAULT_IDLE_CLOSE_MS = 30_000;
 
 export interface AppServerThreadHandler {

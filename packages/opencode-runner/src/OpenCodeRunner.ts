@@ -9,7 +9,7 @@ import type {
 	SDKMessage,
 	SDKResultMessage,
 	SDKUserMessage,
-} from "cyrus-core";
+} from "atmiko-core";
 import {
 	buildOpenCodeConfig,
 	buildOpenCodeRuntimeEnv,
@@ -533,7 +533,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 		}
 
 		return new Error(
-			`Invalid OpenCode model selector "${model}". Use a provider-qualified OpenCode model such as "openai/gpt-5.5" in runner config or select it with the Cyrus label "opencode/openai/gpt-5.5".`,
+			`Invalid OpenCode model selector "${model}". Use a provider-qualified OpenCode model such as "openai/gpt-5.5" in runner config or select it with the Atmiko label "opencode/openai/gpt-5.5".`,
 		);
 	}
 
@@ -558,7 +558,7 @@ export class OpenCodeRunner extends EventEmitter implements IAgentRunner {
 			"--dir",
 			this.config.workingDirectory || cwd(),
 			"--title",
-			this.config.title || "Cyrus OpenCode session",
+			this.config.title || "Atmiko OpenCode session",
 		];
 
 		if (this.config.model) {

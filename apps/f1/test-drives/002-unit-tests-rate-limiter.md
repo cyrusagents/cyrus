@@ -50,14 +50,14 @@
 ### 18:08:17 - Phase 1: Start Server
 
 **Action**: Start F1 server
-**Command**: `CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-1764900471 bun run server.ts &`
+**Command**: `ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-1764900471 bun run server.ts &`
 **Output**: Server started on port 3600
 **Status**: PASS
 
 ### 18:08:30 - Phase 1: Health Check
 
 **Action**: Verify server health
-**Command**: `CYRUS_PORT=3600 ./f1 ping && ./f1 status`
+**Command**: `ATMIKO_PORT=3600 ./f1 ping && ./f1 status`
 **Output**:
 ```
 ✓ Server is healthy

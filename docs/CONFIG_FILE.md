@@ -1,8 +1,8 @@
-# Cyrus Configuration File
+# Atmiko Configuration File
 
-Cyrus stores configuration in `~/.cyrus/config.json`. This file is created automatically during initial setup and can be edited manually to customize behavior.
+Atmiko stores configuration in `~/.atmiko/config.json`. This file is created automatically during initial setup and can be edited manually to customize behavior.
 
-Editing this manually only applies to those running the fully end-to-end self-hosted. Those who are paying for Cyrus, management of config.json is automated.
+Configure your self-hosted Atmiko instance in this file or use the setup commands below.
 
 ---
 
@@ -52,19 +52,19 @@ Learn more about MCP: https://code.claude.com/docs/en/mcp
 
 ### `opencode` (object)
 
-OpenCode sessions run with Cyrus-managed inline runtime config for generated MCP servers and permission rules. By default, Cyrus otherwise inherits the parent process environment for CLI config, state, and cache paths, matching the behavior of other agent providers and allowing tools such as `gh` and `glab` to use your normal terminal authentication. You can opt into dedicated Cyrus-managed OpenCode state globally or per repository with `opencode.stateScope`.
+OpenCode sessions run with Atmiko-managed inline runtime config for generated MCP servers and permission rules. By default, Atmiko otherwise inherits the parent process environment for CLI config, state, and cache paths, matching the behavior of other agent providers and allowing tools such as `gh` and `glab` to use your normal terminal authentication. You can opt into dedicated Atmiko-managed OpenCode state globally or per repository with `opencode.stateScope`.
 
 Use `opencode.config` when an OpenCode session needs OpenCode-native runtime configuration such as plugins, instructions, formatters, providers, themes, or other OpenCode config keys. It can be configured globally or per repository.
 
-Cyrus does not automatically import your existing global OpenCode config or plugin list into agent sessions. Copy only the OpenCode-native settings you want Cyrus sessions to use into `opencode.config`; Cyrus then merges those explicit settings with its generated MCP and permission rules.
+Atmiko does not automatically import your existing global OpenCode config or plugin list into agent sessions. Copy only the OpenCode-native settings you want Atmiko sessions to use into `opencode.config`; Atmiko then merges those explicit settings with its generated MCP and permission rules.
 
 Use `opencode.stateScope` to control how OpenCode-launched CLI tools store config/state/cache:
 
-- `inherit` (default): do not override `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`, or `OPENCODE_CONFIG_DIR`; CLI tools inherit the same storage your Cyrus process has.
-- `shared`: use one dedicated Cyrus OpenCode state root for all OpenCode sessions: `~/.cyrus/opencode-state/shared/`.
-- `repository`: use one dedicated Cyrus OpenCode state root per configured repository: `~/.cyrus/opencode-state/repositories/<repository-id>/`.
+- `inherit` (default): do not override `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`, or `OPENCODE_CONFIG_DIR`; CLI tools inherit the same storage your Atmiko process has.
+- `shared`: use one dedicated Atmiko OpenCode state root for all OpenCode sessions: `~/.atmiko/opencode-state/shared/`.
+- `repository`: use one dedicated Atmiko OpenCode state root per configured repository: `~/.atmiko/opencode-state/repositories/<repository-id>/`.
 
-`repository` settings override global settings. Cyrus always keeps `OPENCODE_CONFIG_CONTENT` for generated MCP and permission rules regardless of state scope.
+`repository` settings override global settings. Atmiko always keeps `OPENCODE_CONFIG_CONTENT` for generated MCP and permission rules regardless of state scope.
 
 **Global OpenCode config example:**
 
@@ -74,7 +74,7 @@ Use `opencode.stateScope` to control how OpenCode-launched CLI tools store confi
     "stateScope": "inherit",
     "config": {
       "plugin": ["opencode-wakatime"],
-      "instructions": ["~/.config/opencode/CYRUS.md"],
+      "instructions": ["~/.config/opencode/ATMIKO.md"],
       "share": "disabled"
     }
   },
@@ -110,26 +110,26 @@ Use `opencode.stateScope` to control how OpenCode-launched CLI tools store confi
 }
 ```
 
-Within the Cyrus-generated inline OpenCode config, values are merged in this order:
+Within the Atmiko-generated inline OpenCode config, values are merged in this order:
 
 1. Global `opencode.config`
 2. Repository `opencode.config`
-3. Cyrus-generated MCP configuration
-4. Cyrus-generated permission configuration
+3. Atmiko-generated MCP configuration
+4. Atmiko-generated permission configuration
 
 Merge behavior:
 
 - Objects deep-merge.
 - Arrays replace earlier arrays instead of concatenating.
 - Repository values override global values for the same non-object key.
-- Cyrus-generated MCP servers win over user-provided MCP servers with the same name.
-- Cyrus-generated permissions replace user-provided OpenCode permissions because they are Cyrus safety controls.
+- Atmiko-generated MCP servers win over user-provided MCP servers with the same name.
+- Atmiko-generated permissions replace user-provided OpenCode permissions because they are Atmiko safety controls.
 
-This describes Cyrus's inline config merge order, not OpenCode's complete config-loading precedence. OpenCode applies Cyrus's inline config after project config, so the managed inline config can still override OpenCode settings that were loaded earlier.
+This describes Atmiko's inline config merge order, not OpenCode's complete config-loading precedence. OpenCode applies Atmiko's inline config after project config, so the managed inline config can still override OpenCode settings that were loaded earlier.
 
-This explicit merge path is intentional: it keeps Cyrus-launched OpenCode sessions predictable and reviewable while still allowing opt-in OpenCode plugins, instructions, and provider/runtime settings.
+This explicit merge path is intentional: it keeps Atmiko-launched OpenCode sessions predictable and reviewable while still allowing opt-in OpenCode plugins, instructions, and provider/runtime settings.
 
-For MCP servers that should work across runners, prefer `mcpConfigPath`. Cyrus reads those MCP server definitions and translates them for Claude, OpenCode, and other supported runners. Use `opencode.config` for OpenCode-native runtime config that only applies to OpenCode.
+For MCP servers that should work across runners, prefer `mcpConfigPath`. Atmiko reads those MCP server definitions and translates them for Claude, OpenCode, and other supported runners. Use `opencode.config` for OpenCode-native runtime config that only applies to OpenCode.
 
 **OpenCode MCP OAuth authentication:**
 
@@ -139,9 +139,9 @@ Some OpenCode MCP servers require an interactive OAuth setup step, such as:
 opencode mcp auth sentry
 ```
 
-Cyrus leaves OpenCode's data home unchanged, so OAuth credentials created by the OpenCode CLI remain available to Cyrus-launched OpenCode sessions. The MCP server name must match between the authentication command and the Cyrus config.
+Atmiko leaves OpenCode's data home unchanged, so OAuth credentials created by the OpenCode CLI remain available to Atmiko-launched OpenCode sessions. The MCP server name must match between the authentication command and the Atmiko config.
 
-If the MCP server is only defined in Cyrus `opencode.config` and not in your normal global OpenCode config, create a temporary OpenCode config file with the same server definition and authenticate through it:
+If the MCP server is only defined in Atmiko `opencode.config` and not in your normal global OpenCode config, create a temporary OpenCode config file with the same server definition and authenticate through it:
 
 ```json
 {
@@ -162,23 +162,23 @@ Then run:
 OPENCODE_CONFIG=/path/to/opencode-auth-config.json opencode mcp auth sentry
 ```
 
-After authentication, keep the same MCP server name (`sentry` in this example) in Cyrus `opencode.config.mcp` or `mcpConfigPath`. OpenCode stores the OAuth credentials in its data home, while Cyrus supplies the runtime MCP config for agent sessions.
+After authentication, keep the same MCP server name (`sentry` in this example) in Atmiko `opencode.config.mcp` or `mcpConfigPath`. OpenCode stores the OAuth credentials in its data home, while Atmiko supplies the runtime MCP config for agent sessions.
 
 **Authenticating other CLI tools for OpenCode sessions:**
 
-With the default `opencode.stateScope: "inherit"`, OpenCode-launched tools use the same CLI auth storage as the Cyrus process, so authenticate them normally before starting Cyrus, for example:
+With the default `opencode.stateScope: "inherit"`, OpenCode-launched tools use the same CLI auth storage as the Atmiko process, so authenticate them normally before starting Atmiko, for example:
 
 ```bash
 glab auth login
 ```
 
-If you set `opencode.stateScope` to `shared` or `repository`, CLIs that store auth under XDG paths, such as `glab`, will use the dedicated Cyrus root instead. To pre-authenticate one of these tools exactly where the agent will look, run the CLI with the matching environment shape.
+If you set `opencode.stateScope` to `shared` or `repository`, CLIs that store auth under XDG paths, such as `glab`, will use the dedicated Atmiko root instead. To pre-authenticate one of these tools exactly where the agent will look, run the CLI with the matching environment shape.
 
 For `shared`:
 
 ```bash
-CYRUS_HOME="${CYRUS_HOME:-$HOME/.cyrus}"
-STATE_ROOT="$CYRUS_HOME/opencode-state/shared"
+ATMIKO_HOME="${ATMIKO_HOME:-$HOME/.atmiko}"
+STATE_ROOT="$ATMIKO_HOME/opencode-state/shared"
 
 mkdir -p "$STATE_ROOT/opencode-config" "$STATE_ROOT/state" "$STATE_ROOT/cache" "$STATE_ROOT/config"
 
@@ -189,11 +189,11 @@ XDG_CONFIG_HOME="$STATE_ROOT/config" \
 glab auth login
 ```
 
-For `repository`, replace `shared` with `repositories/<repository-id>`, for example `~/.cyrus/opencode-state/repositories/main-app/`. Credentials written this way persist in the configured Cyrus OpenCode state root and are available to later OpenCode sessions using the same scope.
+For `repository`, replace `shared` with `repositories/<repository-id>`, for example `~/.atmiko/opencode-state/repositories/main-app/`. Credentials written this way persist in the configured Atmiko OpenCode state root and are available to later OpenCode sessions using the same scope.
 
 ### `teamKeys` (array of strings)
 
-Routes Linear issues from specific teams to this repository. When specified, only issues from matching teams trigger Cyrus.
+Routes Linear issues from specific teams to this repository. When specified, only issues from matching teams trigger Atmiko.
 
 Example: `["CEE", "FRONT", "BACK"]` - Only process issues from teams CEE, FRONT, and BACK
 
@@ -215,7 +215,7 @@ Example: `["backend", "api"]` - Only process issues that have the "backend" or "
 
 ## Routing Priority Order
 
-When multiple routing configurations are present, Cyrus evaluates them in the following priority order:
+When multiple routing configurations are present, Atmiko evaluates them in the following priority order:
 
 1. **Description selectors** (highest priority) - Explicit `[repo=...]` or `[repos=...]` routing
 2. **`routingLabels`** - Label-based routing
@@ -311,7 +311,7 @@ Note: Linear MCP tools (`mcp__linear`) are always included automatically. Slack 
 
 ## User Access Control
 
-Control which Linear users can delegate issues to Cyrus. Supports both global configuration and per-repository overrides.
+Control which Linear users can delegate issues to Atmiko. Supports both global configuration and per-repository overrides.
 
 ### `userAccessControl` (object)
 
@@ -457,9 +457,9 @@ When `networkPolicy.allow` is specified (or expanded from a preset), all domains
 
 ### CA Certificate Trust
 
-The egress proxy generates a CA certificate at `~/.cyrus/certs/cyrus-egress-ca.pem` for TLS interception of domains with transform rules. This cert is stable across restarts — once trusted, it stays trusted.
+The egress proxy generates a CA certificate at `~/.atmiko/certs/atmiko-egress-ca.pem` for TLS interception of domains with transform rules. This cert is stable across restarts — once trusted, it stays trusted.
 
-**Automatic (per-session, when `systemWideCert: false`):** Cyrus sets the following env vars automatically for every agent session:
+**Automatic (per-session, when `systemWideCert: false`):** Atmiko sets the following env vars automatically for every agent session:
 
 | Env Var | Covers |
 |---------|--------|
@@ -473,7 +473,7 @@ The egress proxy generates a CA certificate at `~/.cyrus/certs/cyrus-egress-ca.p
 | `AWS_CA_BUNDLE` | AWS CLI, boto3 |
 | `DENO_CERT` | Deno |
 
-If `NODE_EXTRA_CA_CERTS` is already set in the host environment (e.g., corporate proxy), Cyrus merges both certs into a combined bundle.
+If `NODE_EXTRA_CA_CERTS` is already set in the host environment (e.g., corporate proxy), Atmiko merges both certs into a combined bundle.
 
 **Not covered by env vars (require system-wide trust):**
 
@@ -487,10 +487,10 @@ For these tools, system-wide trust is required.
 
 ```bash
 # macOS
-sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/.cyrus/certs/cyrus-egress-ca.pem
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/.atmiko/certs/atmiko-egress-ca.pem
 
 # Linux
-sudo cp ~/.cyrus/certs/cyrus-egress-ca.pem /usr/local/share/ca-certificates/cyrus-egress-ca.crt
+sudo cp ~/.atmiko/certs/atmiko-egress-ca.pem /usr/local/share/ca-certificates/atmiko-egress-ca.crt
 sudo update-ca-certificates
 ```
 
@@ -505,7 +505,7 @@ Then update config.json:
 }
 ```
 
-On startup, Cyrus checks whether the cert is trusted system-wide (macOS keychain or Linux CA certificates) and logs the result:
+On startup, Atmiko checks whether the cert is trusted system-wide (macOS keychain or Linux CA certificates) and logs the result:
 
 ```
 🛡️  CA certificate is trusted system-wide ✓
@@ -516,7 +516,7 @@ or, if not yet trusted:
 
 ```
 [WARN] 🛡️  CA certificate is NOT trusted in the macOS System keychain. To trust (requires sudo):
-[WARN] 🛡️  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/.cyrus/certs/cyrus-egress-ca.pem
+[WARN] 🛡️  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/.atmiko/certs/atmiko-egress-ca.pem
 ```
 
 ---
@@ -553,7 +553,7 @@ Path to a script that runs for all repositories when creating new worktrees. See
 
 ## Tool Configuration Priority
 
-When determining allowed tools, Cyrus follows this priority order:
+When determining allowed tools, Atmiko follows this priority order:
 
 1. Repository-specific prompt configuration (`labelPrompts.debugger.allowedTools`)
 2. Global prompt defaults (`promptDefaults.debugger.allowedTools`)
@@ -616,7 +616,7 @@ Each repository configuration includes these required fields:
 - `isActive` - Whether the repository is active
 - `linearWorkspaceId` - Linear workspace UUID (references a key in `linearWorkspaces`)
 
-These fields are managed automatically during setup. For self-hosted instances, use the `cyrus self-auth-linear` and `cyrus self-add-repo` commands.
+These fields are managed automatically during setup. For self-hosted instances, use the `atmiko self-auth-linear` and `atmiko self-add-repo` commands.
 
 ## Private Linear App Credentials
 
@@ -631,3 +631,20 @@ app without replacing the existing environment, use a separate `--env-file` as
 described in [Self Hosting](./SELF_HOSTING.md#additional-private-linear-apps).
 Legacy workspace entries without `linearOAuth` keep using the global Linear app
 credentials. Token refresh preserves app credentials and workspace metadata.
+
+## Optional operator-owned services
+
+Atmiko has no default hosted control plane or OAuth proxy. Direct integrations use
+`atmiko self-auth-linear`, `atmiko self-add-repo`, and your own webhook credentials.
+Only set `ATMIKO_APP_URL` if you operate a compatible control plane yourself.
+Remote session storage additionally requires `ATMIKO_API_KEY` and `ATMIKO_TEAM_ID`;
+without an explicit URL, transcripts remain local. `PROXY_URL` is only needed
+when you intentionally use your own OAuth proxy.
+
+## Configuration namespace
+
+Atmiko uses `~/.atmiko`, `ATMIKO_*` environment variables, and the `--atmiko-home`
+flag. When replacing an earlier installation, back up its configuration and state,
+copy them into the new directory, update environment variable prefixes and embedded
+paths, and update your service command to the Atmiko launcher. Existing service
+processes and data directories are not automatically modified.

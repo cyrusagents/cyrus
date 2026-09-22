@@ -17,7 +17,7 @@ import type {
 	TranslationContext,
 	TranslationResult,
 	UserPromptMessage,
-} from "cyrus-core";
+} from "atmiko-core";
 import type {
 	GitLabMergeRequestPayload,
 	GitLabNotePayload,

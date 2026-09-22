@@ -13,7 +13,7 @@
 
 ### EdgeWorker
 - [x] Created an isolated worktree and ran Claude Sonnet.
-- [x] Agent discovered `mcp__cyrus-tools__get_agent_session_contents` with ToolSearch.
+- [x] Agent discovered `mcp__atmiko-tools__get_agent_session_contents` with ToolSearch.
 - [x] Agent called the tool with `first: 2`, then followed the returned cursor.
 - [x] Both calls returned actual F1 session activities through the Linear SDK.
 - [x] Agent posted a final response confirming successful calls and `F1_GET_AGENT_SESSION_CONTENTS_OK`.
@@ -33,7 +33,7 @@ F1's CLI tracker does not normally expose a Linear client. The committed test-on
 ```bash
 pnpm build
 apps/f1/f1 init-test-repo --path /tmp/f1-cypack-1506-contents
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-cypack-1506-contents \
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-cypack-1506-contents \
   bun run apps/f1/test-drives/assets/cypack-1506-server.mjs
 ```
 
@@ -44,7 +44,7 @@ apps/f1/f1 ping
 apps/f1/f1 status
 apps/f1/f1 create-issue --labels primary \
   --title 'CYPACK-1506 read session contents' \
-  --description 'Use mcp__cyrus-tools__get_agent_session_contents with sessionId session-1 and first 2. Report its status and returned activity contents. If pageInfo.hasNextPage is true, call again with after set to pageInfo.endCursor and first 2. Do not edit files or use other Linear tools. Finish with F1_GET_AGENT_SESSION_CONTENTS_OK only if both calls succeed.'
+  --description 'Use mcp__atmiko-tools__get_agent_session_contents with sessionId session-1 and first 2. Report its status and returned activity contents. If pageInfo.hasNextPage is true, call again with after set to pageInfo.endCursor and first 2. Do not edit files or use other Linear tools. Finish with F1_GET_AGENT_SESSION_CONTENTS_OK only if both calls succeed.'
 apps/f1/f1 start-session --issue-id issue-1
 apps/f1/f1 view-session --session-id session-1 --limit 4 --offset 0
 apps/f1/f1 view-session --session-id session-1 --search F1_GET_AGENT_SESSION_CONTENTS_OK

@@ -1,13 +1,8 @@
 import { join } from "node:path";
 
 /**
- * Shared constants used across Cyrus packages
+ * Shared constants used across Atmiko packages
  */
-
-/**
- * Default proxy URL for Cyrus hosted services
- */
-export const DEFAULT_PROXY_URL = "https://cyrus-proxy.ceedar.workers.dev";
 
 /**
  * Default directory name for git worktrees
@@ -20,21 +15,21 @@ export const DEFAULT_WORKTREES_DIR = "worktrees";
 export const DEFAULT_REPOS_DIR = "repos";
 
 /**
- * Resolves the repos directory, preferring CYRUS_REPOS_DIR env var over the default.
+ * Resolves the repos directory, preferring ATMIKO_REPOS_DIR env var over the default.
  */
-export function getDefaultReposDir(cyrusHome: string): string {
+export function getDefaultReposDir(atmikoHome: string): string {
 	return (
-		process.env.CYRUS_REPOS_DIR?.trim() || join(cyrusHome, DEFAULT_REPOS_DIR)
+		process.env.ATMIKO_REPOS_DIR?.trim() || join(atmikoHome, DEFAULT_REPOS_DIR)
 	);
 }
 
 /**
- * Resolves the worktrees directory, preferring CYRUS_WORKTREES_DIR env var over the default.
+ * Resolves the worktrees directory, preferring ATMIKO_WORKTREES_DIR env var over the default.
  */
-export function getDefaultWorktreesDir(cyrusHome: string): string {
+export function getDefaultWorktreesDir(atmikoHome: string): string {
 	return (
-		process.env.CYRUS_WORKTREES_DIR?.trim() ||
-		join(cyrusHome, DEFAULT_WORKTREES_DIR)
+		process.env.ATMIKO_WORKTREES_DIR?.trim() ||
+		join(atmikoHome, DEFAULT_WORKTREES_DIR)
 	);
 }
 

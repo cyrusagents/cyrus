@@ -50,10 +50,10 @@ function validateSkillName(
  * Prevents path traversal even if validation is bypassed.
  */
 function resolveSkillDir(
-	cyrusHome: string,
+	atmikoHome: string,
 	skillName: string,
 ): { path: string } | { error: ApiResponse } {
-	const skillsRoot = resolve(cyrusHome, USER_SKILLS_DIR);
+	const skillsRoot = resolve(atmikoHome, USER_SKILLS_DIR);
 	const skillDir = resolve(skillsRoot, skillName);
 
 	if (!skillDir.startsWith(`${skillsRoot}/`)) {
@@ -116,11 +116,11 @@ function yamlEscape(value: string): string {
 
 /**
  * Handle creating or updating a user skill.
- * Writes a SKILL.md file to ~/.cyrus/user-skills-plugin/skills/<name>/SKILL.md
+ * Writes a SKILL.md file to ~/.atmiko/user-skills-plugin/skills/<name>/SKILL.md
  */
 export async function handleUpdateSkill(
 	payload: UpdateSkillPayload,
-	cyrusHome: string,
+	atmikoHome: string,
 ): Promise<ApiResponse> {
 	try {
 		const nameResult = validateSkillName(payload.name);
@@ -142,7 +142,7 @@ export async function handleUpdateSkill(
 			};
 		}
 
-		const dirResult = resolveSkillDir(cyrusHome, nameResult.name);
+		const dirResult = resolveSkillDir(atmikoHome, nameResult.name);
 		if ("error" in dirResult) return dirResult.error;
 
 		const skillPath = join(dirResult.path, "SKILL.md");
@@ -195,17 +195,17 @@ export async function handleUpdateSkill(
 
 /**
  * Handle deleting a user skill.
- * Removes the skill directory from ~/.cyrus/user-skills-plugin/skills/<name>/
+ * Removes the skill directory from ~/.atmiko/user-skills-plugin/skills/<name>/
  */
 export async function handleDeleteSkill(
 	payload: DeleteSkillPayload,
-	cyrusHome: string,
+	atmikoHome: string,
 ): Promise<ApiResponse> {
 	try {
 		const nameResult = validateSkillName(payload.name);
 		if (!nameResult.valid) return nameResult.error;
 
-		const dirResult = resolveSkillDir(cyrusHome, nameResult.name);
+		const dirResult = resolveSkillDir(atmikoHome, nameResult.name);
 		if ("error" in dirResult) return dirResult.error;
 
 		try {
@@ -237,15 +237,15 @@ export async function handleDeleteSkill(
 
 /**
  * Handle listing all user skills.
- * Reads skill directories from ~/.cyrus/user-skills-plugin/skills/
+ * Reads skill directories from ~/.atmiko/user-skills-plugin/skills/
  * and returns name + description from each SKILL.md frontmatter.
  */
 export async function handleListSkills(
 	_payload: Record<string, never>,
-	cyrusHome: string,
+	atmikoHome: string,
 ): Promise<ApiResponse> {
 	try {
-		const skillsDir = join(cyrusHome, USER_SKILLS_DIR);
+		const skillsDir = join(atmikoHome, USER_SKILLS_DIR);
 
 		let entries: { isDirectory(): boolean; name: string }[];
 		try {

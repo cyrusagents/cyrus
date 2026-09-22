@@ -1,12 +1,12 @@
 import crypto from "node:crypto";
 import { cwd } from "node:process";
-import type { SDKSystemMessage } from "cyrus-claude-runner";
+import type { SDKSystemMessage } from "atmiko-claude-runner";
 import type {
 	SDKAssistantMessage,
 	SDKMessage,
 	SDKResultMessage,
 	SDKUserMessage,
-} from "cyrus-core";
+} from "atmiko-core";
 import type {
 	GeminiInitEvent,
 	GeminiMessageEvent,
@@ -67,9 +67,9 @@ function createBetaMessage(
 }
 
 /**
- * Convert a Gemini stream event to cyrus-core SDKMessage format
+ * Convert a Gemini stream event to atmiko-core SDKMessage format
  *
- * This adapter maps Gemini CLI's streaming events to the cyrus-core SDKMessage
+ * This adapter maps Gemini CLI's streaming events to the atmiko-core SDKMessage
  * format, allowing GeminiRunner to implement the IAgentRunner interface.
  *
  * NOTE: This adapter is stateless and creates a separate SDK message for each event.
@@ -343,7 +343,7 @@ export function geminiEventToSDKMessage(
 }
 
 /**
- * Create a Cyrus Core SDK UserMessage from a plain string prompt
+ * Create a Atmiko Core SDK UserMessage from a plain string prompt
  *
  * Helper function to create properly formatted SDKUserMessage objects
  * for the Gemini CLI input.

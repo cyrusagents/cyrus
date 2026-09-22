@@ -1,7 +1,7 @@
 /**
  * F1-only bridge: exercise the real Linear SDK over HTTP against live F1 state.
  * Run from the repo root after pnpm build:
- * CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-cypack-1506 bun run apps/f1/test-drives/assets/cypack-1506-server.mjs
+ * ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-cypack-1506 bun run apps/f1/test-drives/assets/cypack-1506-server.mjs
  * No production Linear requests or mutations are made by this bridge.
  */
 
@@ -83,7 +83,7 @@ const linear = new LinearClient({
 	apiKey: "f1-test-only",
 	apiUrl: `http://127.0.0.1:${api.port}/graphql`,
 });
-// F1 normally omits cyrus-tools because its tracker has no Linear client.
+// F1 normally omits atmiko-tools because its tracker has no Linear client.
 // This test-only method enables the production McpConfigService wiring.
 CLIIssueTrackerService.prototype.getClient = function () {
 	tracker = this;

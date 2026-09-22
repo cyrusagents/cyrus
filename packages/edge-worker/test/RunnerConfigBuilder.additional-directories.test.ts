@@ -1,4 +1,8 @@
-import type { CyrusAgentSession, ILogger, RepositoryConfig } from "cyrus-core";
+import type {
+	AtmikoAgentSession,
+	ILogger,
+	RepositoryConfig,
+} from "atmiko-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -45,16 +49,16 @@ function makeRepository(): RepositoryConfig {
 }
 
 function makeSession(
-	workspace: CyrusAgentSession["workspace"],
-): CyrusAgentSession {
+	workspace: AtmikoAgentSession["workspace"],
+): AtmikoAgentSession {
 	return {
 		issueId: "issue-1",
 		issue: { identifier: "ABC-1" },
 		workspace,
-	} as unknown as CyrusAgentSession;
+	} as unknown as AtmikoAgentSession;
 }
 
-function buildIssueConfig(session: CyrusAgentSession) {
+function buildIssueConfig(session: AtmikoAgentSession) {
 	return makeBuilder().buildIssueConfig({
 		session,
 		repository: makeRepository(),
@@ -63,7 +67,7 @@ function buildIssueConfig(session: CyrusAgentSession) {
 		allowedTools: ["Read(**)"],
 		allowedDirectories: ["/repos/repo-a"],
 		disallowedTools: [],
-		cyrusHome: "/tmp/cyrus-home",
+		atmikoHome: "/tmp/atmiko-home",
 		linearWorkspaceId: "ws-1",
 		logger: silentLogger,
 		onMessage: () => {},
@@ -81,7 +85,7 @@ describe("RunnerConfigBuilder additionalDirectories (multi-repo skill discovery)
 				"repo-a": "/ws/root/repo-a",
 				"repo-b": "/ws/root/repo-b",
 			},
-		} as unknown as CyrusAgentSession["workspace"]);
+		} as unknown as AtmikoAgentSession["workspace"]);
 
 		const { config } = buildIssueConfig(session);
 
@@ -96,7 +100,7 @@ describe("RunnerConfigBuilder additionalDirectories (multi-repo skill discovery)
 		const session = makeSession({
 			path: "/ws/repo-a-worktree",
 			isGitWorktree: true,
-		} as unknown as CyrusAgentSession["workspace"]);
+		} as unknown as AtmikoAgentSession["workspace"]);
 
 		const { config } = buildIssueConfig(session);
 
@@ -114,7 +118,7 @@ describe("RunnerConfigBuilder additionalDirectories (multi-repo skill discovery)
 				"repo-a": "/ws/root",
 				"repo-b": "/ws/root/repo-b",
 			},
-		} as unknown as CyrusAgentSession["workspace"]);
+		} as unknown as AtmikoAgentSession["workspace"]);
 
 		const { config } = buildIssueConfig(session);
 
@@ -127,11 +131,11 @@ describe("resolveIssueMcpConfigPath", () => {
 		const repository = makeRepository();
 		const result = resolveIssueMcpConfigPath(
 			repository,
-			["/home/user/.cyrus/mcp-configs/mcp-supabase.json"],
+			["/home/user/.atmiko/mcp-configs/mcp-supabase.json"],
 			() => "/repo/.mcp.json",
 		);
 
-		expect(result).toBe("/home/user/.cyrus/mcp-configs/mcp-supabase.json");
+		expect(result).toBe("/home/user/.atmiko/mcp-configs/mcp-supabase.json");
 	});
 
 	it("uses repo MCP config when the repo owns an allowedTools override", () => {
@@ -142,7 +146,7 @@ describe("resolveIssueMcpConfigPath", () => {
 		} as unknown as RepositoryConfig;
 		const result = resolveIssueMcpConfigPath(
 			repository,
-			["/home/user/.cyrus/mcp-configs/mcp-supabase.json"],
+			["/home/user/.atmiko/mcp-configs/mcp-supabase.json"],
 			(repo) => (repo as RepositoryConfig).mcpConfigPath,
 		);
 

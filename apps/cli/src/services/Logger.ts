@@ -4,10 +4,10 @@ import {
 	type LogContext,
 	type LogEventAttributes,
 	type LogLevel,
-} from "cyrus-core";
+} from "atmiko-core";
 
-// Re-export LogLevel from cyrus-core so existing consumers don't break
-export { LogLevel } from "cyrus-core";
+// Re-export LogLevel from atmiko-core so existing consumers don't break
+export { LogLevel } from "atmiko-core";
 
 /**
  * Logger configuration options

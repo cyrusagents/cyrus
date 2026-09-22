@@ -6,8 +6,8 @@
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"paths": {
-			"cyrus-core": ["../../packages/core/dist/index.d.ts"],
-			"cyrus-edge-worker": [
+			"atmiko-core": ["../../packages/core/dist/index.d.ts"],
+			"atmiko-edge-worker": [
 				"../../packages/edge-worker/dist/edge-worker/src/index.d.ts"
 			]
 		}

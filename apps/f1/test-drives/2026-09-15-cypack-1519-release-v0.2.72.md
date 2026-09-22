@@ -35,7 +35,7 @@ Built the F1 app and all required workspace dependencies:
 
 ```bash
 pnpm install
-pnpm --filter cyrus-f1... build
+pnpm --filter atmiko-f1... build
 ```
 
 Result: the install left the lockfile unchanged and all selected projects built successfully.
@@ -45,12 +45,12 @@ Created a fresh repository, copied the existing local Codex authentication into 
 ```bash
 apps/f1/f1 init-test-repo --path /private/tmp/f1-release-v0.2.72-XiM1RU/repo-codex
 CODEX_HOME=/private/tmp/f1-release-v0.2.72-XiM1RU/codex-home \
-CYRUS_PORT=3601 \
-CYRUS_DEFAULT_RUNNER=codex \
-CYRUS_REPO_PATH=/private/tmp/f1-release-v0.2.72-XiM1RU/repo-codex \
+ATMIKO_PORT=3601 \
+ATMIKO_DEFAULT_RUNNER=codex \
+ATMIKO_REPO_PATH=/private/tmp/f1-release-v0.2.72-XiM1RU/repo-codex \
 bun run apps/f1/server.ts
-CYRUS_PORT=3601 apps/f1/f1 ping
-CYRUS_PORT=3601 apps/f1/f1 status
+ATMIKO_PORT=3601 apps/f1/f1 ping
+ATMIKO_PORT=3601 apps/f1/f1 status
 ```
 
 Result: the server started cleanly and `status` returned `ready`. `ping` succeeded but printed `Status: undefined`, the established F1 CLI/RPC field-name mismatch.
@@ -58,24 +58,24 @@ Result: the server started cleanly and `status` returned `ready`. `ping` succeed
 Created an inspection-only issue, started a session, and resolved repository selection:
 
 ```bash
-CYRUS_PORT=3601 apps/f1/f1 create-issue \
+ATMIKO_PORT=3601 apps/f1/f1 create-issue \
   --title "Release v0.2.72 F1 validation" \
   --description "Inspect the configured F1 test repository and report its current implementation status. Do not edit files."
-CYRUS_PORT=3601 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3601 apps/f1/f1 prompt-session \
+ATMIKO_PORT=3601 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3601 apps/f1/f1 prompt-session \
   --session-id session-1 \
   --message "Use the configured F1 Test Repository for this issue."
 ```
 
-Result: F1 created `issue-1` / `DEF-1` and `session-1`, selected the configured repository, created `/tmp/cyrus-f1-1789508504486/worktrees/DEF-1`, and ran Codex with `gpt-5.5`. The session completed with `success` and rendered 16 coherent timeline activities plus a final response.
+Result: F1 created `issue-1` / `DEF-1` and `session-1`, selected the configured repository, created `/tmp/atmiko-f1-1789508504486/worktrees/DEF-1`, and ran Codex with `gpt-5.5`. The session completed with `success` and rendered 16 coherent timeline activities plus a final response.
 
 Verified renderer output and pagination:
 
 ```bash
-CYRUS_PORT=3601 apps/f1/f1 view-session --session-id session-1
-CYRUS_PORT=3601 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 0
-CYRUS_PORT=3601 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 10
-CYRUS_PORT=3601 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3601 apps/f1/f1 view-session --session-id session-1
+ATMIKO_PORT=3601 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 0
+ATMIKO_PORT=3601 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 10
+ATMIKO_PORT=3601 apps/f1/f1 stop-session --session-id session-1
 ```
 
 Result: the full view returned 16 activities; the two pagination windows returned 10 and 6 activities. The stop command succeeded and the server shut down gracefully after saving EdgeWorker state.

@@ -28,13 +28,13 @@ describe("OpenCodeMessageFormatter replay", () => {
 	it("formats todowrite parameters as a readable checklist", () => {
 		const formatter = new OpenCodeMessageFormatter();
 
-		// Real payload from https://github.com/cyrusagents/cyrus/pull/1263#issuecomment-4713658025
+		// Real payload from upstream PR #1263
 		expect(
 			formatter.formatToolParameter("todowrite", {
 				todos: [
 					{
 						content:
-							"Explore cyrus-hosted /settings/tools page and current platform selector",
+							"Explore atmiko-hosted /settings/tools page and current platform selector",
 						priority: "high",
 						status: "completed",
 					},
@@ -50,20 +50,20 @@ describe("OpenCodeMessageFormatter replay", () => {
 					},
 					{
 						content:
-							"Add toolsets to cyrus-core EdgeConfig schema + regenerate JSON schemas",
+							"Add toolsets to atmiko-core EdgeConfig schema + regenerate JSON schemas",
 						priority: "high",
 						status: "in_progress",
 					},
 					{
 						content:
-							"Wire toolsets through cyrus ConfigManager and ToolPermissionResolver",
+							"Wire toolsets through atmiko ConfigManager and ToolPermissionResolver",
 						priority: "high",
 						status: "pending",
 					},
 				],
 			}),
 		).toBe(
-			"- [x] Explore cyrus-hosted /settings/tools page and current platform selector\n- [x] Explore cypack edgeconfig schema for allowed tools\n- [x] Design toolset data model and product decisions\n- [ ] Add toolsets to cyrus-core EdgeConfig schema + regenerate JSON schemas (in progress)\n- [ ] Wire toolsets through cyrus ConfigManager and ToolPermissionResolver (pending)",
+			"- [x] Explore atmiko-hosted /settings/tools page and current platform selector\n- [x] Explore cypack edgeconfig schema for allowed tools\n- [x] Design toolset data model and product decisions\n- [ ] Add toolsets to atmiko-core EdgeConfig schema + regenerate JSON schemas (in progress)\n- [ ] Wire toolsets through atmiko ConfigManager and ToolPermissionResolver (pending)",
 		);
 	});
 

@@ -33,7 +33,7 @@ describe("ClaudeRunner", () => {
 
 	const defaultConfig: ClaudeRunnerConfig = {
 		workingDirectory: "/tmp/test",
-		cyrusHome: "/tmp/test-cyrus-home",
+		atmikoHome: "/tmp/test-atmiko-home",
 	};
 
 	beforeEach(() => {

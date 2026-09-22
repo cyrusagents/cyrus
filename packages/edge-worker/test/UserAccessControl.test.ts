@@ -1,4 +1,4 @@
-import type { UserAccessControlConfig } from "cyrus-core";
+import type { UserAccessControlConfig } from "atmiko-core";
 import { describe, expect, it } from "vitest";
 import {
 	DEFAULT_BLOCK_MESSAGE,

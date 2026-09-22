@@ -25,15 +25,15 @@
 
 ## Session log
 
-Started the server on port 3600 with a fresh temporary Cyrus home and only the configured Cursor credential. No production webhook integrations were loaded.
+Started the server on port 3600 with a fresh temporary Atmiko home and only the configured Cursor credential. No production webhook integrations were loaded.
 
 ```sh
-CYRUS_PORT=3600 apps/f1/f1 ping
-CYRUS_PORT=3600 apps/f1/f1 create-issue --title 'GitHub feedback smoke with configured Cursor credential' --description 'Read-only F1 validation. [repo=f1-test-repo] [agent=cursor] Read README.md and answer with one short sentence stating the package name. Do not modify files, commit, push, create pull requests, or send messages.'
-CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 3 --offset 3
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 20 --offset 0
-CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3600 apps/f1/f1 ping
+ATMIKO_PORT=3600 apps/f1/f1 create-issue --title 'GitHub feedback smoke with configured Cursor credential' --description 'Read-only F1 validation. [repo=f1-test-repo] [agent=cursor] Read README.md and answer with one short sentence stating the package name. Do not modify files, commit, push, create pull requests, or send messages.'
+ATMIKO_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 3 --offset 3
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 20 --offset 0
+ATMIKO_PORT=3600 apps/f1/f1 stop-session --session-id session-1
 ```
 
 The authenticated run started at 10:47:45 UTC and posted its final response at 10:48:05 UTC. The initial attempt without loading the existing Cursor credential failed with `Invalid User API Key`; it was stopped before the authenticated retry. No secret was logged.

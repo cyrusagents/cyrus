@@ -29,7 +29,7 @@
 1. Built the F1 application and all transitive workspace packages:
 
    ```text
-   pnpm --filter cyrus-f1... build
+   pnpm --filter atmiko-f1... build
    Scope: 16 of 18 workspace projects
    apps/f1 build: Done
    ```
@@ -46,9 +46,9 @@
    ```text
    ./apps/f1/f1 init-test-repo --path /private/tmp/cypack-1494-f1-gpt6-20260904-1606
    CODEX_HOME=/private/tmp/cypack-1494-codex-home \
-     CYRUS_PORT=3600 \
-     CYRUS_REPO_PATH=/private/tmp/cypack-1494-f1-gpt6-20260904-1606 \
-     CYRUS_DEFAULT_RUNNER=codex \
+     ATMIKO_PORT=3600 \
+     ATMIKO_REPO_PATH=/private/tmp/cypack-1494-f1-gpt6-20260904-1606 \
+     ATMIKO_DEFAULT_RUNNER=codex \
      CODEX_MODEL=gpt-6-astra \
      bun run apps/f1/server.ts
    ```
@@ -83,4 +83,4 @@ This prevented the F1 agent from reading the test repository through its shell t
 
 ## Final Retrospective
 
-The GPT-6-specific path passed: Cyrus routed the issue to Codex, launched bundled Codex 0.153.3, selected `gpt-6-astra`, streamed coherent activity, and received a successful model response. The only incomplete portion is file/command tool execution, which is blocked by the test host's nested sandbox rather than by the Codex upgrade or model selection.
+The GPT-6-specific path passed: Atmiko routed the issue to Codex, launched bundled Codex 0.153.3, selected `gpt-6-astra`, streamed coherent activity, and received a successful model response. The only incomplete portion is file/command tool execution, which is blocked by the test host's nested sandbox rather than by the Codex upgrade or model selection.

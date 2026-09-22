@@ -33,20 +33,20 @@
 Created a fresh test repository with initial commit on `main`.
 
 ```bash
-CYRUS_PORT=3601 CYRUS_REPO_PATH=/private/tmp/f1-cypack-1311-20260611 bun run apps/f1/server.ts
+ATMIKO_PORT=3601 ATMIKO_REPO_PATH=/private/tmp/f1-cypack-1311-20260611 bun run apps/f1/server.ts
 ```
 
 Server started successfully on `http://localhost:3601`. Port `3600` was already occupied.
 
 ```bash
-CYRUS_PORT=3601 ./f1 ping
-CYRUS_PORT=3601 ./f1 status
+ATMIKO_PORT=3601 ./f1 ping
+ATMIKO_PORT=3601 ./f1 status
 ```
 
 Health check passed. Server status was `ready`.
 
 ```bash
-CYRUS_PORT=3601 ./f1 create-issue \
+ATMIKO_PORT=3601 ./f1 create-issue \
   --title "CYPACK-1311 release smoke" \
   --description "Validate the release branch can create issues, start a session, and render activities during the v0.2.64 release process. Keep changes minimal; report status only."
 ```
@@ -54,13 +54,13 @@ CYRUS_PORT=3601 ./f1 create-issue \
 Created issue `issue-1` / `DEF-1`.
 
 ```bash
-CYRUS_PORT=3601 ./f1 start-session --issue-id issue-1
+ATMIKO_PORT=3601 ./f1 start-session --issue-id issue-1
 ```
 
 Started `session-1`.
 
 ```bash
-CYRUS_PORT=3601 ./f1 view-session --session-id session-1 --limit 10 --offset 0
+ATMIKO_PORT=3601 ./f1 view-session --session-id session-1 --limit 10 --offset 0
 ```
 
 Observed one activity:
@@ -70,7 +70,7 @@ Observed one activity:
 | `elicitation` | `Which repository should I work in for this issue?` |
 
 ```bash
-CYRUS_PORT=3601 ./f1 stop-session --session-id session-1
+ATMIKO_PORT=3601 ./f1 stop-session --session-id session-1
 ```
 
 Session stopped successfully. Server then stopped gracefully via SIGINT.

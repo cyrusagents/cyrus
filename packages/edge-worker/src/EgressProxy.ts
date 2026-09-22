@@ -14,8 +14,8 @@ import {
 	connect as netConnect,
 } from "node:net";
 import { join } from "node:path";
-import type { NetworkPolicy, SandboxConfig } from "cyrus-core";
-import { createLogger, type ILogger, TRUSTED_DOMAINS } from "cyrus-core";
+import type { NetworkPolicy, SandboxConfig } from "atmiko-core";
+import { createLogger, type ILogger, TRUSTED_DOMAINS } from "atmiko-core";
 import forge from "node-forge";
 
 /**
@@ -85,7 +85,7 @@ export class EgressProxy {
 
 	private isRunning = false;
 
-	constructor(config: SandboxConfig, cyrusHome: string, logger?: ILogger) {
+	constructor(config: SandboxConfig, atmikoHome: string, logger?: ILogger) {
 		this.httpProxyPort = config.httpProxyPort ?? 9080;
 		this.socksProxyPort = config.socksProxyPort ?? 9081;
 		this.networkPolicy = config.networkPolicy;
@@ -93,8 +93,8 @@ export class EgressProxy {
 		this.logger = logger ?? createLogger({ component: "EgressProxy" });
 
 		// Generate CA cert and store path
-		this.certsDir = join(cyrusHome, "certs");
-		this.caCertPath = join(this.certsDir, "cyrus-egress-ca.pem");
+		this.certsDir = join(atmikoHome, "certs");
+		this.caCertPath = join(this.certsDir, "atmiko-egress-ca.pem");
 		this.generateCA(this.certsDir);
 
 		// Parse policy into fast-lookup structures
@@ -128,12 +128,12 @@ export class EgressProxy {
 		// If pointing at our own cert or bundle, no merge needed
 		if (
 			certPath === this.caCertPath ||
-			certPath === join(this.certsDir, "cyrus-ca-bundle.pem")
+			certPath === join(this.certsDir, "atmiko-ca-bundle.pem")
 		) {
 			return this.caCertPath;
 		}
 
-		const bundlePath = join(this.certsDir, "cyrus-ca-bundle.pem");
+		const bundlePath = join(this.certsDir, "atmiko-ca-bundle.pem");
 		const existingCerts = readFileSync(certPath, "utf8");
 		const bundle = `${existingCerts.trimEnd()}\n${this.caCertPem}`;
 		writeFileSync(bundlePath, bundle);
@@ -267,7 +267,7 @@ export class EgressProxy {
 
 	private generateCA(certsDir: string): void {
 		// Reuse existing CA if present
-		const caKeyPath = join(certsDir, "cyrus-egress-ca-key.pem");
+		const caKeyPath = join(certsDir, "atmiko-egress-ca-key.pem");
 		if (existsSync(this.caCertPath) && existsSync(caKeyPath)) {
 			this.caCertPem = readFileSync(this.caCertPath, "utf8");
 			this.caKeyPem = readFileSync(caKeyPath, "utf8");
@@ -299,8 +299,8 @@ export class EgressProxy {
 		);
 
 		const attrs = [
-			{ name: "commonName", value: "Cyrus Egress Proxy CA" },
-			{ name: "organizationName", value: "Cyrus" },
+			{ name: "commonName", value: "Atmiko Egress Proxy CA" },
+			{ name: "organizationName", value: "Atmiko" },
 		];
 		cert.setSubject(attrs);
 		cert.setIssuer(attrs);

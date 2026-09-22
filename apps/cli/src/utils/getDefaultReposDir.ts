@@ -1,1 +1,1 @@
-export { getDefaultReposDir } from "cyrus-core";
+export { getDefaultReposDir } from "atmiko-core";

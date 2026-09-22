@@ -1,4 +1,4 @@
-import { AgentSessionStatus } from "cyrus-core";
+import { AgentSessionStatus } from "atmiko-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
 import type { IActivitySink } from "../src/sinks/IActivitySink";
@@ -21,7 +21,7 @@ describe("AgentSessionManager stop-session behavior", () => {
 
 		manager = new AgentSessionManager();
 
-		manager.createCyrusAgentSession(
+		manager.createAtmikoAgentSession(
 			sessionId,
 			issueId,
 			{

@@ -6,13 +6,13 @@
  */
 
 import type {
+	AtmikoAgentSession,
 	BaseBranchResolution,
-	CyrusAgentSession,
 	GuidanceRule,
 	Issue,
 	RepositoryConfig,
 	WebhookAgentSession,
-} from "cyrus-core";
+} from "atmiko-core";
 
 /**
  * Output structure from buildPrompt - contains everything needed to start a Claude session
@@ -64,8 +64,8 @@ export type PromptType =
  */
 export interface PromptAssemblyInput {
 	// ===== Session Context =====
-	/** The Cyrus agent session */
-	session: CyrusAgentSession;
+	/** The Atmiko agent session */
+	session: AtmikoAgentSession;
 
 	/** Full issue details */
 	fullIssue: Issue;

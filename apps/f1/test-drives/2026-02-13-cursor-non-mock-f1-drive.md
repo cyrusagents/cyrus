@@ -14,7 +14,7 @@
 
 ### EdgeWorker
 - [x] Session started with `start-session` (`session-1`)
-- [x] Worktree created under temp Cyrus home
+- [x] Worktree created under temp Atmiko home
 - [x] Activities tracked in timeline
 - [x] Agent processed issue with non-mock Cursor runner
 
@@ -28,7 +28,7 @@
 1. Initialized fresh repo:
    - `apps/f1/f1 init-test-repo --path /tmp/f1-test-drive-cursor-1770951895`
 2. Started F1 server:
-   - `CYRUS_PORT=3611 CYRUS_REPO_PATH=/tmp/f1-test-drive-cursor-1770951895 bun run apps/f1/server.ts`
+   - `ATMIKO_PORT=3611 ATMIKO_REPO_PATH=/tmp/f1-test-drive-cursor-1770951895 bun run apps/f1/server.ts`
 3. Confirmed health:
    - `apps/f1/f1 ping`
 4. Created and started non-mock Cursor issue:

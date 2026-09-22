@@ -1,10 +1,10 @@
 {
-	"name": "cyrus-cursor-runner",
+	"name": "atmiko-cursor-runner",
 	"version": "0.2.72",
-	"description": "Cursor Agent CLI process wrapper for Cyrus",
+	"description": "Cursor Agent CLI process wrapper for Atmiko",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cyrusagents/cyrus.git",
+		"url": "git+https://github.com/nexmoe/atmiko.git",
 		"directory": "packages/cursor-runner"
 	},
 	"type": "module",
@@ -22,8 +22,8 @@
 	},
 	"dependencies": {
 		"@cursor/sdk": "^1.0.31",
-		"cyrus-core": "workspace:*",
-		"cyrus-simple-agent-runner": "workspace:*"
+		"atmiko-core": "workspace:*",
+		"atmiko-simple-agent-runner": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",

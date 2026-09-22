@@ -32,29 +32,29 @@ apps/f1/f1 init-test-repo --path /tmp/f1-test-drive-cypack-1342-0.2.66
 Result: created a fresh git repository with initial commit on `main`.
 
 ```bash
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-cypack-1342-0.2.66 bun run apps/f1/server.ts
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-cypack-1342-0.2.66 bun run apps/f1/server.ts
 ```
 
 Result: failed because port `3600` was already in use.
 
 ```bash
-CYRUS_PORT=3612 CYRUS_REPO_PATH=/tmp/f1-test-drive-cypack-1342-0.2.66 bun run apps/f1/server.ts
-CYRUS_PORT=3612 apps/f1/f1 ping
-CYRUS_PORT=3612 apps/f1/f1 status
+ATMIKO_PORT=3612 ATMIKO_REPO_PATH=/tmp/f1-test-drive-cypack-1342-0.2.66 bun run apps/f1/server.ts
+ATMIKO_PORT=3612 apps/f1/f1 ping
+ATMIKO_PORT=3612 apps/f1/f1 status
 ```
 
 Result: server started on `http://localhost:3612`; ping returned healthy; status returned `ready`.
 
 ```bash
-CYRUS_PORT=3612 apps/f1/f1 create-issue \
+ATMIKO_PORT=3612 apps/f1/f1 create-issue \
   --title "Release smoke validation" \
-  --description "Validate that Cyrus can create an issue, start a session, and render activities for the v0.2.66 release."
+  --description "Validate that Atmiko can create an issue, start a session, and render activities for the v0.2.66 release."
 ```
 
 Result: created issue `issue-1` / `DEF-1`.
 
 ```bash
-CYRUS_PORT=3612 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3612 apps/f1/f1 start-session --issue-id issue-1
 ```
 
 Result: started `session-1`.
@@ -68,7 +68,7 @@ Which repository should I work in for this issue?
 Answered with:
 
 ```bash
-CYRUS_PORT=3612 apps/f1/f1 prompt-session \
+ATMIKO_PORT=3612 apps/f1/f1 prompt-session \
   --session-id session-1 \
   --message "Use the configured test repository for this issue."
 ```
@@ -76,14 +76,14 @@ CYRUS_PORT=3612 apps/f1/f1 prompt-session \
 Result: EdgeWorker selected the F1 test repository, created the worktree, assigned a Claude session id, emitted model notification, thought activities, and tool action activities.
 
 ```bash
-CYRUS_PORT=3612 apps/f1/f1 view-session --session-id session-1
-CYRUS_PORT=3612 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 0
+ATMIKO_PORT=3612 apps/f1/f1 view-session --session-id session-1
+ATMIKO_PORT=3612 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 0
 ```
 
 Result: both commands rendered session details and activities. The full view showed 10 activities at the time checked, including `elicitation`, `prompt`, `thought`, and `action` rows.
 
 ```bash
-CYRUS_PORT=3612 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3612 apps/f1/f1 stop-session --session-id session-1
 ```
 
 Result: session stopped successfully.

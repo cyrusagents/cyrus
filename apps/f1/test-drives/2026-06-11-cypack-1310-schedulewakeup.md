@@ -1,12 +1,12 @@
 # Test Drive: ScheduleWakeup Tool Delivery (CYPACK-1310)
 
 **Date**: 2026-06-11
-**Goal**: Determine whether the `ScheduleWakeup` tool is operational for Cyrus Claude agent sessions, and whether `CYRUS_ENABLE_WARM_SESSIONS=false` (the default) breaks wakeup delivery by letting the SDK subprocess exit at turn end.
+**Goal**: Determine whether the `ScheduleWakeup` tool is operational for Atmiko Claude agent sessions, and whether `ATMIKO_ENABLE_WARM_SESSIONS=false` (the default) breaks wakeup delivery by letting the SDK subprocess exit at turn end.
 **Test Repo**: `/tmp/f1-wakeup-test-1310` (cold), `/tmp/f1-wakeup-test-1310-warm` (warm)
 
 ## Hypothesis
 
-When `CYRUS_ENABLE_WARM_SESSIONS` is unset, `ClaudeRunner` calls
+When `ATMIKO_ENABLE_WARM_SESSIONS` is unset, `ClaudeRunner` calls
 `streamingPrompt.complete()` as soon as the SDK emits a `result` message
 (`packages/claude-runner/src/ClaudeRunner.ts:815-821`). The Claude Code CLI
 subprocess then exits at end of turn. The ScheduleWakeup timer lives inside
@@ -24,7 +24,7 @@ Each run creates an F1 issue instructing the agent to:
 Then observe (a) the tool result, (b) the subprocess lifecycle, (c) whether
 any wakeup activity occurs after the scheduled deadline.
 
-## Run 1: Cold mode (`CYRUS_ENABLE_WARM_SESSIONS` unset) — port 3611
+## Run 1: Cold mode (`ATMIKO_ENABLE_WARM_SESSIONS` unset) — port 3611
 
 Timeline (PDT / UTC-7, server log `2026-06-11`):
 
@@ -42,7 +42,7 @@ Timeline (PDT / UTC-7, server log `2026-06-11`):
 
 **Verdict: ScheduleWakeup is NOT operational in cold mode.** The CLI accepted
 the schedule and even reported `session_state_changed: idle` (it intends to
-stay resident and wait for the timer), but Cyrus completes the streaming
+stay resident and wait for the timer), but Atmiko completes the streaming
 prompt on `result`, the subprocess exits, and the timer dies with it.
 
 Notable detail: the CLI emits `result` *before* going idle to wait for a
@@ -55,14 +55,14 @@ wakeup time.
 
 ### Meta-evidence from the orchestrating session itself
 
-The Cyrus session running this very test drive called `ScheduleWakeup`
+The Atmiko session running this very test drive called `ScheduleWakeup`
 (delay 284s) at the end of a turn. The wakeup prompt was never delivered;
 the session was only revived later by a human comment. Additionally, ending
 that turn killed the SDK subprocess and with it the (non-detached) F1 server
 background processes — direct production evidence of both the bug and the
 subprocess-exit mechanism.
 
-## Run 2: Warm mode (`CYRUS_ENABLE_WARM_SESSIONS=1`) — port 3613
+## Run 2: Warm mode (`ATMIKO_ENABLE_WARM_SESSIONS=1`) — port 3613
 
 Timeline (UTC, session jsonl `session-ddd6c07f-*`):
 
@@ -189,7 +189,7 @@ record the latest `session_crons`/`background_tasks`, and on `result` only
 complete the streaming prompt when both are empty — otherwise hold the
 prompt open until a later turn's Stop hook reports them empty. Policy
 decisions remain for `recurring: true` crons (never empty — needs a cap or
-warm-mode-only support) and for Cyrus restarts (in-process timers die with
+warm-mode-only support) and for Atmiko restarts (in-process timers die with
 the daemon either way, which still argues for EdgeWorker-level scheduling as
 the robust long-term design).
 
@@ -201,7 +201,7 @@ mode only completes the streaming prompt on a success `result` when both are
 empty. `AgentSessionManager` formats wakeup-JSON responses readably and posts
 a "⏳ Standing by" thought after the response.
 
-Cold-mode F1 validation run (`CYRUS_ENABLE_WARM_SESSIONS` unset, port 3614):
+Cold-mode F1 validation run (`ATMIKO_ENABLE_WARM_SESSIONS` unset, port 3614):
 
 ```
 13:12:21  action    ScheduleWakeup(delaySeconds=60) — turn ends ON the bare tool call
@@ -247,7 +247,7 @@ Two decisive observations from the probe:
 2. **Bare `&` is invisible by design.** The Bash *tool call* `sleep 120 &`
    completes the instant the shell forks, so the SDK reports the tool done and
    `background_tasks` is empty. The orphaned process keeps running but neither
-   the CLI nor Cyrus has any handle on it — there is no signal to detect, and
+   the CLI nor Atmiko has any handle on it — there is no signal to detect, and
    scanning the host process tree for unattributed orphans is not a robust or
    safe basis for keeping a session alive.
 
@@ -259,12 +259,12 @@ the detector's scope.
 ## Final Retrospective
 
 **Answer to CYPACK-1310: the intuition is correct.** ScheduleWakeup is NOT
-operational under the default configuration (`CYRUS_ENABLE_WARM_SESSIONS`
+operational under the default configuration (`ATMIKO_ENABLE_WARM_SESSIONS`
 unset). The root cause is exactly the suspected one: when warm sessions are
 off, `ClaudeRunner` completes the streaming prompt as soon as the SDK emits a
 `result` message (`ClaudeRunner.ts:815-821`, behavior introduced in
 CYPACK-1116), the Claude Code subprocess exits at turn end, and the
-in-process wakeup timer dies with it. With `CYRUS_ENABLE_WARM_SESSIONS=1`
+in-process wakeup timer dies with it. With `ATMIKO_ENABLE_WARM_SESSIONS=1`
 the identical scenario works perfectly.
 
 Fix considerations (for a follow-up issue):
@@ -272,13 +272,13 @@ Fix considerations (for a follow-up issue):
 - The CLI emits `result` *before* idling with a pending wakeup, so
   "complete-on-result" cannot distinguish "turn finished, nothing pending"
   from "turn finished, wakeup pending". A correct cold-mode fix must track
-  `ScheduleWakeup` tool_use during the turn (Cyrus already parses every
+  `ScheduleWakeup` tool_use during the turn (Atmiko already parses every
   message) and keep the streaming prompt open until the wakeup fires or is
   superseded — or
 - Implement wakeups at the EdgeWorker level: intercept the `ScheduleWakeup`
   call, let the subprocess exit, and re-prompt the session via `--resume`
   with the wakeup prompt when the timer elapses (mirrors how Linear comments
-  resume sessions today). This also survives Cyrus restarts, which the
+  resume sessions today). This also survives Atmiko restarts, which the
   in-process timer does not — even in warm mode.
 - Same concern likely applies to the sibling scheduling tools (`CronCreate`
   timers, `Monitor`, background Bash tasks): all of them die with the

@@ -51,7 +51,7 @@
 ### 04:29:12 - Phase 1: Start Server
 
 **Action**: Start F1 server
-**Command**: `CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-003 bun run server.ts`
+**Command**: `ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-003 bun run server.ts`
 **Output**: Server started on port 3600
 **Status**: ✅ PASS
 
@@ -137,7 +137,7 @@ drwxr-xr-x@ 5 agentops  staff   160  4 Dec 20:29 src
 2. **All Tools Enabled** (F1 server.ts)
    - Previously: No `allowedTools` configured
    - Now: `defaultAllowedTools: getAllTools()` enables Edit, Bash, etc.
-   - Dependency: Added `cyrus-claude-runner` to F1 package.json
+   - Dependency: Added `atmiko-claude-runner` to F1 package.json
 
 ### Comparison: Before vs After
 
@@ -171,7 +171,7 @@ drwxr-xr-x@ 5 agentops  staff   160  4 Dec 20:29 src
 ### Changes Made in This PR
 - `packages/edge-worker/src/EdgeWorker.ts`: Added `createDefaultGitWorktree()` method (~180 lines)
 - `apps/f1/server.ts`: Added `defaultAllowedTools: getAllTools()`
-- `apps/f1/package.json`: Added `cyrus-claude-runner` dependency
+- `apps/f1/package.json`: Added `atmiko-claude-runner` dependency
 - `apps/f1/README.md`: Fixed port from 3457 to 3600
 
 ### Overall Score

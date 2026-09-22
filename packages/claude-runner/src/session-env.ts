@@ -16,7 +16,7 @@ const AUTH_ENV_KEYS = [
 ] as const;
 
 /**
- * Cyrus-specific env vars injected into every Claude Code subprocess.
+ * Atmiko-specific env vars injected into every Claude Code subprocess.
  * Both `ClaudeRunner.start()` and `EdgeWorker.warmupRecentSessions()`
  * must use the same set — keep this as the single source of truth.
  *
@@ -27,7 +27,7 @@ const AUTH_ENV_KEYS = [
  * - MCP_CONNECTION_NONBLOCKING lets MCP servers connect in the background so
  *   both cold-start and pre-warm sessions return faster.
  */
-export const CYRUS_SESSION_ENV = {
+export const ATMIKO_SESSION_ENV = {
 	CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
 	CLAUDE_CODE_ENABLE_TASKS: "true",
 	CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1",
@@ -41,7 +41,7 @@ export const CYRUS_SESSION_ENV = {
  * Overlays the full parent `process.env` so HOME (and other inherited vars) are
  * available to tools that depend on them — GPG-signed commits, `gh` CLI auth,
  * etc. claude-agent-sdk v0.2.113 reverted to no longer overlaying process.env
- * itself, so we must do it here. Then applies the shared Cyrus session flags
+ * itself, so we must do it here. Then applies the shared Atmiko session flags
  * on top. Callers can spread additional vars on top (e.g., repository .env
  * for live runs).
  */
@@ -67,7 +67,7 @@ export function buildBaseSessionEnv(
 
 	return {
 		...env,
-		...CYRUS_SESSION_ENV,
+		...ATMIKO_SESSION_ENV,
 		...extra,
 	};
 }

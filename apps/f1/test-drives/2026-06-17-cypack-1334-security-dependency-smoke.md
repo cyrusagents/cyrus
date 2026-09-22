@@ -30,21 +30,21 @@ cd apps/f1 && ./f1 init-test-repo --path /private/tmp/f1-cypack-1334-security
 Result: fresh test repository created with an initial `main` commit.
 
 ```bash
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/private/tmp/f1-cypack-1334-security bun run apps/f1/server.ts
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/private/tmp/f1-cypack-1334-security bun run apps/f1/server.ts
 ```
 
 Result: failed because port `3600` was already in use.
 
 ```bash
-CYRUS_PORT=3601 CYRUS_REPO_PATH=/private/tmp/f1-cypack-1334-security bun run apps/f1/server.ts
+ATMIKO_PORT=3601 ATMIKO_REPO_PATH=/private/tmp/f1-cypack-1334-security bun run apps/f1/server.ts
 ```
 
 Result: server started successfully on `http://localhost:3601`.
 
 ```bash
-CYRUS_PORT=3601 ./apps/f1/f1 ping
-CYRUS_PORT=3601 ./apps/f1/f1 status
-CYRUS_PORT=3601 ./apps/f1/f1 create-issue --title "CYPACK-1334 dependency smoke" --description "Verify F1 issue-tracker RPC still works after security dependency patches."
+ATMIKO_PORT=3601 ./apps/f1/f1 ping
+ATMIKO_PORT=3601 ./apps/f1/f1 status
+ATMIKO_PORT=3601 ./apps/f1/f1 create-issue --title "CYPACK-1334 dependency smoke" --description "Verify F1 issue-tracker RPC still works after security dependency patches."
 ```
 
 Result: ping succeeded, status returned `ready`, and issue `DEF-1` was created.

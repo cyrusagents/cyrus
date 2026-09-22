@@ -32,27 +32,27 @@ apps/f1/f1 init-test-repo --path /private/tmp/cypack-1503-f1.UjOvFI/repo
 Result: the test repository was created successfully with an initial commit.
 
 ```bash
-CYRUS_PORT=3600 CYRUS_REPO_PATH=/private/tmp/cypack-1503-f1.UjOvFI/repo bun run apps/f1/server.ts
-CYRUS_PORT=3600 apps/f1/f1 ping
-CYRUS_PORT=3600 apps/f1/f1 status
+ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/private/tmp/cypack-1503-f1.UjOvFI/repo bun run apps/f1/server.ts
+ATMIKO_PORT=3600 apps/f1/f1 ping
+ATMIKO_PORT=3600 apps/f1/f1 status
 ```
 
 Result: the server started on `http://localhost:3600`, RPC health passed, and status reported `ready`.
 
 ```bash
-CYRUS_PORT=3600 apps/f1/f1 create-issue \
+ATMIKO_PORT=3600 apps/f1/f1 create-issue \
   --title "CYPACK-1503 dependency smoke" \
   --description "Add a concise SECURITY-NOTE.md stating that the dependency-patched CLI smoke test passed. Keep the change limited to that file." \
   --labels primary
-CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-2
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-2 --limit 10 --offset 0
+ATMIKO_PORT=3600 apps/f1/f1 start-session --issue-id issue-2
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-2 --limit 10 --offset 0
 ```
 
 Result: label routing selected `F1 Test Repository`, the EdgeWorker created the `DEF-2` worktree, Claude started, and the session emitted thought and action activities while processing the requested file.
 
 ```bash
-CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-2
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-2 --limit 5 --offset 5
+ATMIKO_PORT=3600 apps/f1/f1 stop-session --session-id session-2
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-2 --limit 5 --offset 5
 ```
 
 Result: the session reached `complete`, pagination returned five of fifteen activities, and SIGINT shut down the F1 server gracefully without an unhandled error.

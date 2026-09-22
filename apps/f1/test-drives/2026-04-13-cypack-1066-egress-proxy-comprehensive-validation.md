@@ -1,10 +1,10 @@
 # Test Drive: CYPACK-1066 — Comprehensive Egress Proxy Sandboxing Validation (Round 2)
 
 **Date**: 2026-04-13
-**Goal**: Validate end-to-end that TLS termination (MITM), branch name sanitization, McpConfigService CLI mode fix, and HTTP/SOCKS proxy startup all work correctly under `CYRUS_SANDBOX=1`.
+**Goal**: Validate end-to-end that TLS termination (MITM), branch name sanitization, McpConfigService CLI mode fix, and HTTP/SOCKS proxy startup all work correctly under `ATMIKO_SANDBOX=1`.
 **Test Repo**: `/tmp/f1-test-drive-20260413172903`
 **Server Log**: `/tmp/f1-server-20260413172903.log`
-**Cyrus Home**: `/var/folders/xv/c55x22nd6lv8kq9fccch04d40000gp/T/cyrus-f1-1776126549297`
+**Atmiko Home**: `/var/folders/xv/c55x22nd6lv8kq9fccch04d40000gp/T/atmiko-f1-1776126549297`
 
 ## Verification Results
 
@@ -30,7 +30,7 @@
 
 #### TLS Termination / Egress Proxy (createHttpsServer fix)
 - [x] `Generating CA certificate for egress proxy TLS termination...` logged at startup
-- [x] `CA certificate written to .../cyrus-egress-ca.pem` — cert file confirmed present on disk
+- [x] `CA certificate written to .../atmiko-egress-ca.pem` — cert file confirmed present on disk
 - [x] `Egress proxy started (HTTP: 19080, SOCKS: 19081)` logged immediately after cert generation
 - [x] `Updated /Users/agentops/.claude/settings.json sandbox.network (HTTP: 19080, SOCKS: 19081)` logged
 - [x] Session proceeded through 75 messages with proxy active — Claude communicated via egress proxy successfully
@@ -43,7 +43,7 @@
 
 #### McpConfigService getClient() Fix (CLI Mode)
 - [x] Zero occurrences of `getClient` error in full server log
-- [x] `✅ CLI RPC server registered` logged (cyrus-tools MCP endpoint registered without crashing)
+- [x] `✅ CLI RPC server registered` logged (atmiko-tools MCP endpoint registered without crashing)
 - [x] Session started without any MCP initialization errors
 - [x] All 75 messages processed cleanly
 
@@ -78,14 +78,14 @@ $ ./f1 init-test-repo --path /tmp/f1-test-drive-20260413172903
 ✓ Test repository created successfully!
 ```
 
-### Phase 3: Server Start (with CYRUS_SANDBOX=1)
+### Phase 3: Server Start (with ATMIKO_SANDBOX=1)
 
 ```
-$ CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-20260413172903 CYRUS_SANDBOX=1 bun run server.ts &
+$ ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-20260413172903 ATMIKO_SANDBOX=1 bun run server.ts &
 Server PID: 80068
 
 [INFO ] [EdgeWorker] Generating CA certificate for egress proxy TLS termination...
-[INFO ] [EdgeWorker] CA certificate written to .../cyrus-egress-ca.pem
+[INFO ] [EdgeWorker] CA certificate written to .../atmiko-egress-ca.pem
 [INFO ] [EdgeWorker] Egress proxy started (HTTP: 19080, SOCKS: 19081)
 [INFO ] [EdgeWorker] Updated /Users/agentops/.claude/settings.json sandbox.network (HTTP: 19080, SOCKS: 19081)
 [INFO ] [EdgeWorker] ✅ CLI RPC server registered
@@ -95,10 +95,10 @@ Server PID: 80068
 
 Health check:
 ```
-$ CYRUS_PORT=3600 ./f1 ping
+$ ATMIKO_PORT=3600 ./f1 ping
 ✓ Server is healthy
 
-$ CYRUS_PORT=3600 ./f1 status
+$ ATMIKO_PORT=3600 ./f1 status
 ✓ Server Status
   Status: ready
   Server: CLIRPCServer
@@ -108,7 +108,7 @@ $ CYRUS_PORT=3600 ./f1 status
 ### Phase 4: Issue Creation (colon in title)
 
 ```
-$ CYRUS_PORT=3600 ./f1 create-issue \
+$ ATMIKO_PORT=3600 ./f1 create-issue \
   --title "Feature: add rate-limiting middleware with sliding window" \
   --description "[repo=f1-test-repo] ..."
 
@@ -121,7 +121,7 @@ $ CYRUS_PORT=3600 ./f1 create-issue \
 ### Phase 5: Session Start
 
 ```
-$ CYRUS_PORT=3600 ./f1 start-session --issue-id issue-1
+$ ATMIKO_PORT=3600 ./f1 start-session --issue-id issue-1
 
 ✓ Session started successfully
   Session ID: session-1
@@ -184,7 +184,7 @@ Implementation committed with correct branch name, no colon in branch ref.
 ### Phase 8: Cleanup
 
 ```
-$ CYRUS_PORT=3600 ./f1 stop-session --session-id session-1
+$ ATMIKO_PORT=3600 ./f1 stop-session --session-id session-1
 ✓ Session stopped successfully
 
 $ kill 80068
@@ -212,11 +212,11 @@ Only non-error warnings:
 
 ### What Worked
 
-1. **TLS termination / createHttpsServer fix**: Server started with CYRUS_SANDBOX=1 and immediately generated the CA certificate (both .pem and key files confirmed on disk). Egress proxy on HTTP:19080 and SOCKS:19081 was ready before the first session started. Claude processed 75 messages successfully through the proxy — no TLS errors, no connection failures.
+1. **TLS termination / createHttpsServer fix**: Server started with ATMIKO_SANDBOX=1 and immediately generated the CA certificate (both .pem and key files confirmed on disk). Egress proxy on HTTP:19080 and SOCKS:19081 was ready before the first session started. Claude processed 75 messages successfully through the proxy — no TLS errors, no connection failures.
 
 2. **Branch name sanitization**: Issue title `Feature: add rate-limiting middleware with sliding window` contains a colon after "Feature". The resulting worktree branch was `def-1-feature-add-rate-limiting-mid` — the colon was stripped, all remaining characters are valid git ref chars, and the worktree was created without error.
 
-3. **McpConfigService CLI mode fix**: Zero `getClient()` errors across the entire session (75 messages). The CLI RPC server registered successfully, the cyrus-tools MCP endpoint appeared at `/mcp/cyrus-tools`, and the session processed cleanly from first message to completion.
+3. **McpConfigService CLI mode fix**: Zero `getClient()` errors across the entire session (75 messages). The CLI RPC server registered successfully, the atmiko-tools MCP endpoint appeared at `/mcp/atmiko-tools`, and the session processed cleanly from first message to completion.
 
 4. **Full session lifecycle**: Session ran to completion (`subtype: success`) in ~112 seconds. Agent loaded full-development skill, read source files, implemented SlidingWindowRateLimiter, passed TypeScript type check twice, committed the implementation, and transitioned to verifications — all with the egress proxy active.
 

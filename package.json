@@ -1,12 +1,12 @@
 {
-	"name": "cyrus-monorepo",
+	"name": "atmiko-monorepo",
 	"version": "1.0.1",
 	"private": true,
-	"description": "Monorepo for Cyrus - Linear Claude Agent integration",
+	"description": "Monorepo for Atmiko - Linear Claude Agent integration",
 	"packageManager": "pnpm@10.33.1",
 	"type": "module",
 	"scripts": {
-		"build": "pnpm -r --filter='!@cyrus/electron' build",
+		"build": "pnpm -r --filter='!@atmiko/electron' build",
 		"dev": "pnpm -r --parallel dev",
 		"test": "pnpm -r test",
 		"lint": "biome check",
@@ -21,17 +21,17 @@
 		"linear",
 		"claude",
 		"linear-agent",
-		"cyrus",
+		"atmiko",
 		"anthropic",
 		"ai",
 		"agent",
 		"monorepo"
 	],
-	"author": "Ceedar",
+	"author": "nexmoe",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cyrusagents/cyrus"
+		"url": "https://github.com/nexmoe/atmiko"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.1.3",

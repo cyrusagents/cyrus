@@ -1,4 +1,4 @@
-# cyrus-simple-agent-runner
+# atmiko-simple-agent-runner
 
 A simple, type-safe abstraction for agent interactions that return enumerated responses.
 
@@ -14,13 +14,13 @@ A simple, type-safe abstraction for agent interactions that return enumerated re
 ## Installation
 
 ```bash
-pnpm add cyrus-simple-agent-runner
+pnpm add atmiko-simple-agent-runner
 ```
 
 ## Quick Start
 
 ```typescript
-import { SimpleClaudeRunner } from "cyrus-simple-agent-runner";
+import { SimpleClaudeRunner } from "atmiko-simple-agent-runner";
 
 // Define valid responses as a const array for type safety
 const VALID_RESPONSES = ["yes", "no"] as const;
@@ -29,7 +29,7 @@ type YesNoResponse = typeof VALID_RESPONSES[number]; // "yes" | "no"
 // Create runner
 const runner = new SimpleClaudeRunner<YesNoResponse>({
   validResponses: VALID_RESPONSES,
-  cyrusHome: "/Users/me/.cyrus",
+  atmikoHome: "/Users/me/.atmiko",
   maxTurns: 3,
   timeoutMs: 30000, // 30 seconds
 });
@@ -56,7 +56,7 @@ The concrete implementation using Claude Agent SDK.
 interface SimpleAgentRunnerConfig<T extends string> {
   // Required
   validResponses: readonly T[];  // Valid response options
-  cyrusHome: string;              // Cyrus home directory
+  atmikoHome: string;              // Atmiko home directory
 
   // Optional
   systemPrompt?: string;          // Custom system prompt
@@ -107,7 +107,7 @@ import {
   MaxTurnsExceededError,
   SessionError,
   SimpleAgentErrorCode,
-} from "cyrus-simple-agent-runner";
+} from "atmiko-simple-agent-runner";
 
 try {
   const result = await runner.query("Should we deploy to production?");
@@ -151,7 +151,7 @@ type YesNo = typeof VALID_RESPONSES[number];
 
 const runner = new SimpleClaudeRunner<YesNo>({
   validResponses: VALID_RESPONSES,
-  cyrusHome: process.env.CYRUS_HOME!,
+  atmikoHome: process.env.ATMIKO_HOME!,
   systemPrompt: "You are a helpful assistant. Answer questions concisely.",
 });
 
@@ -174,7 +174,7 @@ type ApprovalDecision = typeof APPROVAL_OPTIONS[number];
 
 const approvalRunner = new SimpleClaudeRunner<ApprovalDecision>({
   validResponses: APPROVAL_OPTIONS,
-  cyrusHome: process.env.CYRUS_HOME!,
+  atmikoHome: process.env.ATMIKO_HOME!,
   systemPrompt: "You are a code reviewer. Review PRs carefully.",
   maxTurns: 5,
 });
@@ -202,7 +202,7 @@ switch (result.response) {
 ```typescript
 const runner = new SimpleClaudeRunner({
   validResponses: ["high", "medium", "low"] as const,
-  cyrusHome: process.env.CYRUS_HOME!,
+  atmikoHome: process.env.ATMIKO_HOME!,
   onProgress: (event) => {
     switch (event.type) {
       case "started":
@@ -234,7 +234,7 @@ const result = await runner.query(
 ```typescript
 const runner = new SimpleClaudeRunner({
   validResponses: ["safe", "unsafe"] as const,
-  cyrusHome: process.env.CYRUS_HOME!,
+  atmikoHome: process.env.ATMIKO_HOME!,
   systemPrompt: `You are a security analyzer.
   Analyze code for security vulnerabilities.
   Consider: injection attacks, authentication issues, data exposure.
@@ -252,7 +252,7 @@ const result = await runner.query(
 To create implementations for other agent SDKs (e.g., OpenAI, Anthropic Direct API):
 
 ```typescript
-import { SimpleAgentRunner } from "cyrus-simple-agent-runner";
+import { SimpleAgentRunner } from "atmiko-simple-agent-runner";
 
 export class SimpleGPTRunner<T extends string> extends SimpleAgentRunner<T> {
   protected async executeAgent(
@@ -280,7 +280,7 @@ The package has two layers:
    - Defines the contract for implementations
 
 2. **`SimpleClaudeRunner`** (concrete implementation)
-   - Uses `cyrus-claude-runner` for execution
+   - Uses `atmiko-claude-runner` for execution
    - Handles message parsing
    - Cleans and normalizes responses
    - Manages tool restrictions

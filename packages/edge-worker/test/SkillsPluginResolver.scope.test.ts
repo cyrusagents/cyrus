@@ -1,7 +1,7 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ILogger } from "cyrus-core";
+import type { ILogger } from "atmiko-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SkillsPluginResolver } from "../src/SkillsPluginResolver.js";
 
@@ -25,11 +25,11 @@ function createTestLogger(): ILogger {
 }
 
 async function writeUserSkill(
-	cyrusHome: string,
+	atmikoHome: string,
 	name: string,
 	scope?: Record<string, string[]>,
 ): Promise<void> {
-	const skillDir = join(cyrusHome, "user-skills-plugin", "skills", name);
+	const skillDir = join(atmikoHome, "user-skills-plugin", "skills", name);
 	await mkdir(skillDir, { recursive: true });
 	await writeFile(
 		join(skillDir, "SKILL.md"),
@@ -45,8 +45,8 @@ async function writeUserSkill(
 	}
 }
 
-async function writeManifest(cyrusHome: string): Promise<void> {
-	const manifestDir = join(cyrusHome, "user-skills-plugin", ".claude-plugin");
+async function writeManifest(atmikoHome: string): Promise<void> {
+	const manifestDir = join(atmikoHome, "user-skills-plugin", ".claude-plugin");
 	await mkdir(manifestDir, { recursive: true });
 	await writeFile(
 		join(manifestDir, "plugin.json"),
@@ -62,7 +62,7 @@ describe("SkillsPluginResolver scope filtering", () => {
 	beforeEach(async () => {
 		home = join(
 			tmpdir(),
-			`cyrus-scope-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+			`atmiko-scope-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		);
 		await mkdir(home, { recursive: true });
 		await writeManifest(home);
@@ -218,7 +218,7 @@ describe("SkillsPluginResolver.ensureUserPluginScaffolded", () => {
 	beforeEach(async () => {
 		home = join(
 			tmpdir(),
-			`cyrus-scaffold-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+			`atmiko-scaffold-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		);
 		await mkdir(home, { recursive: true });
 	});

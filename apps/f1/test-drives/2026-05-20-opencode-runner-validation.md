@@ -8,13 +8,13 @@
 ## Environment
 
 - F1 server: `http://localhost:3600`
-- Cyrus home: `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/cyrus-f1-1779269986448`
+- Atmiko home: `/var/folders/_r/fld8l71j7ts635hlb5vtgnb80000gn/T/atmiko-f1-1779269986448`
 - OpenCode CLI: `/opt/homebrew/bin/opencode`, version `1.15.5`
 - Live probe command:
 
 ```bash
 OPENCODE_LIVE=1 OPENCODE_PROBE_MODEL=openai/gpt-5.5 \
-  pnpm --filter cyrus-edge-worker exec vitest run test/opencode-cli-probe.live.test.ts
+  pnpm --filter atmiko-edge-worker exec vitest run test/opencode-cli-probe.live.test.ts
 ```
 
 ## Verification Results
@@ -46,24 +46,24 @@ OPENCODE_LIVE=1 OPENCODE_PROBE_MODEL=openai/gpt-5.5 \
 apps/f1/f1 init-test-repo \
   --path /tmp/f1-test-drive-opencode-validation-20260520-1139
 
-CYRUS_PORT=3600 \
-CYRUS_REPO_PATH=/tmp/f1-test-drive-opencode-validation-20260520-1139 \
+ATMIKO_PORT=3600 \
+ATMIKO_REPO_PATH=/tmp/f1-test-drive-opencode-validation-20260520-1139 \
   bun run apps/f1/server.ts
 
-CYRUS_PORT=3600 apps/f1/f1 ping
-CYRUS_PORT=3600 apps/f1/f1 status
+ATMIKO_PORT=3600 apps/f1/f1 ping
+ATMIKO_PORT=3600 apps/f1/f1 status
 
-CYRUS_PORT=3600 apps/f1/f1 create-issue \
+ATMIKO_PORT=3600 apps/f1/f1 create-issue \
   --title "OpenCode runner validation" \
   --description $'Validate OpenCode runner end to end.\n\n[agent=opencode]\n\nPlease inspect src/index.ts using a read tool and respond with one concise sentence describing what it exports. Do not modify files.' \
   --labels opencode
 
-CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 80 --offset 0
-CYRUS_PORT=3600 apps/f1/f1 prompt-session --session-id session-1 --message "test-repo"
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 120 --offset 0
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 3 --offset 0
-CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 80 --offset 0
+ATMIKO_PORT=3600 apps/f1/f1 prompt-session --session-id session-1 --message "test-repo"
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 120 --offset 0
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 3 --offset 0
+ATMIKO_PORT=3600 apps/f1/f1 stop-session --session-id session-1
 ```
 
 Key timeline entries:
@@ -93,4 +93,4 @@ Server stopped gracefully
 
 ## Final Retrospective
 
-PASS: Cyrus routed an F1 issue to OpenCode, isolated OpenCode state through the runner configuration, displayed OpenCode model selection and tool activity in the session timeline, rendered the final OpenCode response, and stopped the session cleanly.
+PASS: Atmiko routed an F1 issue to OpenCode, isolated OpenCode state through the runner configuration, displayed OpenCode model selection and tool activity in the session timeline, rendered the final OpenCode response, and stopped the session cleanly.

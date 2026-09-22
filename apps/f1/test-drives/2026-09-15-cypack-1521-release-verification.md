@@ -6,7 +6,7 @@ uploads and that all registry artifacts pass before tagging/releasing.
 
 ## Baseline: completed v0.2.72 release (read-only measurement)
 
-Source: [run 35032067991](https://github.com/cyrusagents/cyrus/actions/runs/35032067991),
+Source: [run 35032067991](https://github.com/nexmoe/atmiko/actions/runs/35032067991),
 job `104592610582`, SHA `5b3e38bdff77f560f2f3d5c47bc17d8d0fe55e08`.
 GitHub reports success. No workflow was retried and no release was published
 for this benchmark.
@@ -16,7 +16,7 @@ for this benchmark.
 | Total run | 22:39:42–23:15:20 UTC = **35m38s** |
 | Publish/verify step | 22:42:41–23:15:13 UTC = **32m32s** |
 | Fresh uploads | **16** `+ package@0.2.72` completion markers |
-| Recovery | **1**, `cyrus-zulip-event-transport`, skip logged 23:01:24.939620 UTC |
+| Recovery | **1**, `atmiko-zulip-event-transport`, skip logged 23:01:24.939620 UTC |
 | Explicit propagation waits | **177** actual `Waiting for ...` lines, each followed by `sleep 10` = **29m30s scheduled sleep** |
 | Logged publication intervals | **63.431496s aggregate**, from each `npm notice 📦` to its `+ package@version` marker |
 | Remaining step time | About **118.57s**, including registry lookups, npm startup, recovery download/comparison, and shell overhead; not separately attributable from these logs |
@@ -30,7 +30,7 @@ excluding the echoed shell script. These confirm Connor's approximately
 
 Logged intervals by fresh package (seconds):
 
-| Package suffix (`cyrus-`) | Seconds |
+| Package suffix (`atmiko-`) | Seconds |
 | --- | ---: |
 | cloudflare-tunnel-client | 3.737434 |
 | mcp-tools | 3.959473 |
@@ -100,12 +100,12 @@ The branch was rebased onto main `8056c529cc36` before validation.
 
 - `pnpm build`: passed.
 - `pnpm test:packages:run`: 1,878 passed, 2 skipped.
-- `pnpm --filter cyrus-ai test:run`: 125 passed, including 16 executable
+- `pnpm --filter atmiko test:run`: 125 passed, including 16 executable
   release-gate scenarios and 8 static workflow checks.
 - `pnpm typecheck`: passed.
 - `pnpm lint`: passed with 12 pre-existing warnings; changed files are clean.
-- `pnpm --filter cyrus-f1 test:run`: no test files; pipeline checked live below.
-- Read-only `npm view cyrus-core@0.2.72 --json` confirmed the real registry's
+- `pnpm --filter atmiko-f1 test:run`: no test files; pipeline checked live below.
+- Read-only `npm view atmiko-core@0.2.72 --json` confirmed the real registry's
   identity, tag, and dist metadata shape consumed by the script.
 
 ### F1 issue/session/activity protocol
@@ -116,19 +116,19 @@ The branch was rebased onto main `8056c529cc36` before validation.
 
 ```sh
 apps/f1/f1 init-test-repo --path /tmp/f1-cypack-1521/repo
-CYRUS_PORT=3600 CYRUS_DEFAULT_RUNNER=codex \
-  CYRUS_REPO_PATH=/tmp/f1-cypack-1521/repo bun run apps/f1/server.ts
-CYRUS_PORT=3600 apps/f1/f1 ping
-CYRUS_PORT=3600 apps/f1/f1 status
-CYRUS_PORT=3600 apps/f1/f1 create-issue \
+ATMIKO_PORT=3600 ATMIKO_DEFAULT_RUNNER=codex \
+  ATMIKO_REPO_PATH=/tmp/f1-cypack-1521/repo bun run apps/f1/server.ts
+ATMIKO_PORT=3600 apps/f1/f1 ping
+ATMIKO_PORT=3600 apps/f1/f1 status
+ATMIKO_PORT=3600 apps/f1/f1 create-issue \
   --title 'CYPACK-1521 release workflow F1 smoke' \
   --description 'Inspect the configured F1 test repository and briefly report its implementation status. Do not edit files or publish anything.'
-CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3600 apps/f1/f1 prompt-session --session-id session-1 \
+ATMIKO_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3600 apps/f1/f1 prompt-session --session-id session-1 \
   --message 'Use the configured F1 Test Repository. This is a read-only smoke test; inspect its implementation and give a short final response.'
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 0
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 10
-CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 0
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 10
+ATMIKO_PORT=3600 apps/f1/f1 stop-session --session-id session-1
 ```
 
 Codex used an isolated temporary state/auth directory. Server readiness, issue

@@ -1,4 +1,8 @@
-import type { CyrusAgentSession, ILogger, RepositoryConfig } from "cyrus-core";
+import type {
+	AtmikoAgentSession,
+	ILogger,
+	RepositoryConfig,
+} from "atmiko-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -46,14 +50,14 @@ describe("RunnerConfigBuilder Codex managed skills", () => {
 				path: "/ws/repo-a",
 				isGitWorktree: true,
 			},
-		} as unknown as CyrusAgentSession;
+		} as unknown as AtmikoAgentSession;
 		const repository = {
 			id: "repo-a",
 			name: "Repo A",
 			repositoryPath: "/repos/repo-a",
 			allowedTools: [],
 		} as unknown as RepositoryConfig;
-		const plugins = [{ type: "local" as const, path: "/cyrus/user-skills" }];
+		const plugins = [{ type: "local" as const, path: "/atmiko/user-skills" }];
 
 		const { config, runnerType } = makeBuilder(expectedRunner).buildIssueConfig(
 			{
@@ -64,7 +68,7 @@ describe("RunnerConfigBuilder Codex managed skills", () => {
 				allowedTools: ["Read(**)"],
 				allowedDirectories: ["/repos/repo-a"],
 				disallowedTools: [],
-				cyrusHome: "/tmp/cyrus-home",
+				atmikoHome: "/tmp/atmiko-home",
 				linearWorkspaceId: "ws-1",
 				logger: silentLogger,
 				onMessage: () => {},

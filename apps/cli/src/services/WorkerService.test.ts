@@ -3,8 +3,8 @@ import {
 	EdgeConfigSchema,
 	type EdgeWorkerConfig,
 	type RepositoryConfig,
-} from "cyrus-core";
-import type { GitService } from "cyrus-edge-worker";
+} from "atmiko-core";
+import type { GitService } from "atmiko-edge-worker";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConfigService } from "./ConfigService.js";
 import type { Logger } from "./Logger.js";
@@ -16,7 +16,7 @@ const edgeWorkerInstances: Array<{
 	start: ReturnType<typeof vi.fn>;
 }> = [];
 
-vi.mock("cyrus-edge-worker", () => ({
+vi.mock("atmiko-edge-worker", () => ({
 	EdgeWorker: vi.fn().mockImplementation(function (config: EdgeWorkerConfig) {
 		const instance = {
 			config,
@@ -29,11 +29,11 @@ vi.mock("cyrus-edge-worker", () => ({
 	}),
 }));
 
-vi.mock("cyrus-cloudflare-tunnel-client", () => ({
-	getCyrusAppUrl: vi.fn(),
+vi.mock("atmiko-cloudflare-tunnel-client", () => ({
+	getAtmikoAppUrl: vi.fn(),
 }));
 
-vi.mock("cyrus-slack-event-transport", () => ({
+vi.mock("atmiko-slack-event-transport", () => ({
 	SlackEventTransport: vi.fn(),
 }));
 
@@ -58,7 +58,7 @@ describe("WorkerService", () => {
 	function createWorkerService(edgeConfig: EdgeConfig) {
 		const configService = {
 			load: () => edgeConfig,
-			getConfigPath: () => "/tmp/cyrus/config.json",
+			getConfigPath: () => "/tmp/atmiko/config.json",
 		} as unknown as ConfigService;
 		const gitService = { createGitWorktree: vi.fn() } as unknown as GitService;
 		const logger = {
@@ -71,7 +71,7 @@ describe("WorkerService", () => {
 		return new WorkerService(
 			configService,
 			gitService,
-			"/tmp/cyrus",
+			"/tmp/atmiko",
 			logger,
 			"test-version",
 		);
@@ -97,7 +97,6 @@ describe("WorkerService", () => {
 			linearWorkspaces: { "ws-1": { linearToken: "lin_token" } },
 			linearWorkspaceSlug: "legacy-slug",
 			ngrokAuthToken: "ngrok-token",
-			stripeCustomerId: "cus_123",
 			claudeDefaultModel: "opus",
 			claudeDefaultFallbackModel: "sonnet",
 			geminiDefaultModel: "gemini-2.5-pro",
@@ -194,8 +193,8 @@ describe("WorkerService", () => {
 	});
 
 	it("prefers OpenCode model environment defaults over config defaults", async () => {
-		vi.stubEnv("CYRUS_OPENCODE_DEFAULT_MODEL", "openai/gpt-5.5");
-		vi.stubEnv("CYRUS_OPENCODE_DEFAULT_FALLBACK_MODEL", "openai/gpt-5-mini");
+		vi.stubEnv("ATMIKO_OPENCODE_DEFAULT_MODEL", "openai/gpt-5.5");
+		vi.stubEnv("ATMIKO_OPENCODE_DEFAULT_FALLBACK_MODEL", "openai/gpt-5-mini");
 
 		const config = await startService({
 			repositories: [],
@@ -208,7 +207,7 @@ describe("WorkerService", () => {
 	});
 
 	it("prefers OpenCode provider/model inference environment default over config default", async () => {
-		vi.stubEnv("CYRUS_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL", "true");
+		vi.stubEnv("ATMIKO_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL", "true");
 
 		const config = await startService({
 			repositories: [],

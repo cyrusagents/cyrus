@@ -11,10 +11,10 @@
 ### Issue tracker and EdgeWorker
 
 - [x] Built the monorepo and initialized a fresh repository with the built F1 CLI.
-- [x] Started `apps/f1/server.ts` with `CYRUS_DEFAULT_RUNNER=codex` and `CODEX_MODEL=gpt-6-astra`.
+- [x] Started `apps/f1/server.ts` with `ATMIKO_DEFAULT_RUNNER=codex` and `CODEX_MODEL=gpt-6-astra`.
 - [x] F1 `ping` and `status` succeeded.
 - [x] Created `DEF-2` with label `primary`; repository label routing selected the test repository.
-- [x] Started `session-2`; Cyrus created its worktree and ran Codex.
+- [x] Started `session-2`; Atmiko created its worktree and ran Codex.
 - [x] The read-only task inspected README.md and returned the requested phrase, without changing files or creating a commit/PR.
 - [x] `view-session --session-id session-2 --limit 3 --offset 1` returned three of six activities with timestamps and readable content.
 - [x] Both test sessions stopped successfully, the disposable server was terminated, and the test repository remained clean.
@@ -38,8 +38,8 @@ Use `bun run apps/f1/dist/src/cli.js` for the built F1 CLI on Windows. Its sourc
 ```sh
 pnpm build
 pnpm typecheck
-pnpm --filter cyrus-core test:run test/log-publisher.test.ts
-pnpm --filter cyrus-edge-worker test:run test/StatusBoard.test.ts test/BoardViewer.test.ts
+pnpm --filter atmiko-core test:run test/log-publisher.test.ts
+pnpm --filter atmiko-edge-worker test:run test/StatusBoard.test.ts test/BoardViewer.test.ts
 pnpm -r --no-bail --filter './packages/*' test:run
 pnpm audit --registry=https://registry.npmjs.org
 ```
@@ -67,7 +67,7 @@ Validation: all 17 board/logger tests pass; full build and typecheck pass. The w
 
 The left task list still lost completed issues because terminal-state cleanup removes both the session and its entries. A regression test reproduced the empty task list after `removeSession`, independently of whether the page had ever been opened.
 
-The session manager now emits a removal event before deleting entries, including age-based cleanup. The board captures allowlisted task metadata and recent public output, then saves an atomic, bounded archive under the configured Cyrus home. Archived rows and per-task log retrieval survive restart; live sessions override an archive with the same ID. Archive errors do not interrupt task cleanup. Other runners retain their observed start times when a task is archived.
+The session manager now emits a removal event before deleting entries, including age-based cleanup. The board captures allowlisted task metadata and recent public output, then saves an atomic, bounded archive under the configured Atmiko home. Archived rows and per-task log retrieval survive restart; live sessions override an archive with the same ID. Archive errors do not interrupt task cleanup. Other runners retain their observed start times when a task is archived.
 
 An additional F1 drive used a fresh disposable repository on port 3600 and a real Codex runner. The labeled issue `DEF-1` read README.md and returned `Archive lifecycle verified.` Six tracker activities were verified with pagination. `terminate-issue --issue-id issue-1 --action completed` then ran actual terminal cleanup. The first board request was made only after cleanup: it returned the task with `archived=true`, `status=completed`, and five archived agent entries including the final result. The repository remained clean and the test server was stopped.
 
@@ -81,20 +81,20 @@ The setup skills previously installed the official npm package, so changing only
 
 Validation on Windows / Node 24.9.0:
 
-- A fresh installation directory containing a space was populated by fetching the pinned commit from GitHub, installing its frozen lockfile using pnpm 10.33.1, and building the CLI dependency graph. No global Cyrus artifacts were copied into it.
+- A fresh installation directory containing a space was populated by fetching the pinned commit from GitHub, installing its frozen lockfile using pnpm 10.33.1, and building the CLI dependency graph. No global Atmiko artifacts were copied into it.
 - `--installation` reported the expected repository and commit, with worker/core resolving to the source workspace packages. The launcher passed through ordinary CLI options and `--version`.
-- The launcher started an actual worker on isolated port 3600 with an empty, separate Cyrus home. `/status`, `/board` and `/board/api/snapshot` succeeded. A console interrupt ran normal state persistence and server shutdown. The production worker on 3456 was not restarted.
+- The launcher started an actual worker on isolated port 3600 with an empty, separate Atmiko home. `/status`, `/board` and `/board/api/snapshot` succeeded. A console interrupt ran normal state persistence and server shutdown. The production worker on 3456 was not restarted.
 - Reinstalling the immutable pin reused the verified build. A real fetch of a nonexistent ref failed without changing `current.json`.
 - Four Node tests passed: CLI argument forwarding, rejection of an in-tree published-package substitute, missing assets/path escapes, and preservation of the selected runtime on invalid input or concurrent installation. Five modified skills passed the skill validator; installer files passed Biome. Existing board/history/viewer tests remained 20/20 passing.
 - After the launcher smoke test stopped, F1's additional development dependencies were installed in the disposable source release. A real Codex task read README.md and returned `Fresh fork verified.` Its six activities were checked with pagination. Terminal cleanup retained an archived completed task with five log entries and the final result. The test repository stayed clean.
 
 The installer has explicit macOS/Linux execution paths, but this host only exercised Windows. It retains prior release directories and does not automatically migrate existing service commands; the launch skill performs that switch when the worker is idle.
 
-The distribution path was also exercised with skills 1.5.26: installing `nexmoe/cyrus#feat/integrated-status-board` into a disposable project downloaded all five changed skills, including the installer, launcher and source pin. The downloaded installer verified the existing smoke installation successfully. The README uses this tested `#ref` syntax because a GitHub `/tree/` URL incorrectly split the slash-containing branch name.
+The distribution path was also exercised with skills 1.5.26: installing `nexmoe/atmiko#feat/integrated-status-board` into a disposable project downloaded all five changed skills, including the installer, launcher and source pin. The downloaded installer verified the existing smoke installation successfully. The README uses this tested `#ref` syntax because a GitHub `/tree/` URL incorrectly split the slash-containing branch name.
 
 ## Compact activity UI follow-up
 
-The default log view now uses single-line, color-coded activity rows with expandable details, paired tool input/results, error highlighting, full-text search and a three-lane event strip. The Raw view retains the bundled React LogViewer. Pairing requires an opaque ID derived from the runner session and tool call, plus the same Cyrus task; older unlinked archives remain readable as separate rows. Empty tool results are retained. Statistics describe only the loaded log window, and strip markers represent event order rather than execution duration.
+The default log view now uses single-line, color-coded activity rows with expandable details, paired tool input/results, error highlighting, full-text search and a three-lane event strip. The Raw view retains the bundled React LogViewer. Pairing requires an opaque ID derived from the runner session and tool call, plus the same Atmiko task; older unlinked archives remain readable as separate rows. Empty tool results are retained. Statistics describe only the loaded log window, and strip markers represent event order rather than execution duration.
 
 A fresh disposable F1 repository on port 3600 ran a real Codex task that read README.md and returned `Activity pairing verified.` The tracker recorded six activities; pagination returned three entries at offset one. The board exposed two assistant entries, one tool call, one tool result and one completion entry. After terminal cleanup, the archived task was completed and its five entries projected into four rows with one correctly paired tool/result. The repository stayed clean and the idle test server was stopped.
 
@@ -127,7 +127,7 @@ The board build and changed-file Biome checks pass. Rectangle intersection and a
 
 Removed the breadcrumb and separate service/filter bars. One toolbar now contains the view switch, search, selection actions when needed, and a Log options disclosure. Source/error filters, wrapping, Follow, pause, refresh, task details and loaded-window statistics live in the disclosure. The service state is available from the status dot beside Tasks. Vanilla frontend state and React controls communicate through callbacks instead of reading controls by DOM ID.
 
-Edge verification measured a 48px toolbar at the normal 1912px viewport and at 600px with a selected log row. All toolbar controls fit without horizontal overflow. Source and error filtering, pause/resume through refresh, and switching to Raw worked; the options panel closed on an outside click. The page reported no console errors and the viewport override was reset afterward. No breadcrumb or separate filter bar remains. HTML, JavaScript and CSS were deployed locally without restarting Cyrus.
+Edge verification measured a 48px toolbar at the normal 1912px viewport and at 600px with a selected log row. All toolbar controls fit without horizontal overflow. Source and error filtering, pause/resume through refresh, and switching to Raw worked; the options panel closed on an outside click. The page reported no console errors and the viewport override was reset afterward. No breadcrumb or separate filter bar remains. HTML, JavaScript and CSS were deployed locally without restarting Atmiko.
 
 The board build, changed-file Biome checks and 10 activity/selection/viewer regressions pass. The full worker suite remains at 822 passing tests, one skip and the same 52 Windows failures, with no changed failing test names. No backend or dependency changes were needed.
 
@@ -143,7 +143,7 @@ Esc clears activity row selection, the Shift-selection anchor and copy feedback 
 
 In Edge, selecting all 140 rows followed by Esc cleared every row, reset the select-all checkbox and removed the copy actions. Esc from the search field cleared a filtered selection while preserving its query. A single-row selection with the options panel open was also cleared, and the panel closed. No console errors were recorded. In-progress marquee cancellation was reviewed in code rather than separately exercised in the browser.
 
-The board build and changed-file Biome checks pass. The complete worker suite remains at 822 passes, one skip and the same 52 baseline failing test names. Only the local JavaScript asset was replaced; Cyrus was not restarted.
+The board build and changed-file Biome checks pass. The complete worker suite remains at 822 passes, one skip and the same 52 baseline failing test names. Only the local JavaScript asset was replaced; Atmiko was not restarted.
 
 ## Full-row highlighting follow-up
 
@@ -155,7 +155,7 @@ Edge mouse movement over the checkbox and summary produced the same `rgb(248, 24
 
 Both Activity and Raw provide a floating Hugeicons down-arrow button when the log viewport is more than two pixels above its bottom. Clicking it jumps to the latest output and enables Follow, using the same search-reset behavior as the existing Follow control. Task, source/error filters and pause state are retained. Activity also rechecks its position after content, expansion, wrapping and viewport-size changes; Raw uses the log viewer's scroll callback.
 
-The board build, changed-file Biome checks and 10 existing activity/selection/viewer regressions pass. Local static assets were updated without restarting Cyrus, and `/status` still returns HTTP 200. Browser interaction verification could not be completed in this follow-up: the existing Edge tab's debugger connection timed out, and opening a fresh local-board tab was blocked by the browser. No successful click or visual verification is claimed for this button.
+The board build, changed-file Biome checks and 10 existing activity/selection/viewer regressions pass. Local static assets were updated without restarting Atmiko, and `/status` still returns HTTP 200. Browser interaction verification could not be completed in this follow-up: the existing Edge tab's debugger connection timed out, and opening a fresh local-board tab was blocked by the browser. No successful click or visual verification is claimed for this button.
 
 ## Linear issue shortcut follow-up
 

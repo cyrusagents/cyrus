@@ -79,7 +79,7 @@ describe("GitHubCommentService", () => {
 				id: 12345,
 				html_url:
 					"https://github.com/testorg/my-repo/pull/42#issuecomment-12345",
-				body: "Hello from Cyrus!",
+				body: "Hello from Atmiko!",
 			};
 
 			mockFetch.mockResolvedValueOnce({
@@ -92,7 +92,7 @@ describe("GitHubCommentService", () => {
 				owner: "testorg",
 				repo: "my-repo",
 				issueNumber: 42,
-				body: "Hello from Cyrus!",
+				body: "Hello from Atmiko!",
 			});
 
 			expect(mockFetch).toHaveBeenCalledWith(
@@ -105,7 +105,7 @@ describe("GitHubCommentService", () => {
 						"Content-Type": "application/json",
 						"X-GitHub-Api-Version": "2022-11-28",
 					},
-					body: JSON.stringify({ body: "Hello from Cyrus!" }),
+					body: JSON.stringify({ body: "Hello from Atmiko!" }),
 				},
 			);
 

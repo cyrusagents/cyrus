@@ -28,7 +28,7 @@
 ## Session Log
 
 1. Started F1 server with cursor mock mode:
-   - `CYRUS_CURSOR_MOCK=1 CYRUS_PORT=3603 CYRUS_REPO_PATH=/tmp/f1-test-drive-cypack-804-20260213-150310 node apps/f1/dist/server.js`
+   - `ATMIKO_CURSOR_MOCK=1 ATMIKO_PORT=3603 ATMIKO_REPO_PATH=/tmp/f1-test-drive-cypack-804-20260213-150310 node apps/f1/dist/server.js`
 2. Health checks passed:
    - `./f1 ping` -> `Server is healthy`
    - `./f1 status` -> `Status: ready`

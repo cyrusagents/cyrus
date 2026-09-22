@@ -3,7 +3,7 @@ import {
 	type IncomingMessage,
 	type ServerResponse,
 } from "node:http";
-import { createLogger, type ILogger } from "cyrus-core";
+import { createLogger, type ILogger } from "atmiko-core";
 
 /**
  * Shared webhook server that can handle multiple Linear tokens

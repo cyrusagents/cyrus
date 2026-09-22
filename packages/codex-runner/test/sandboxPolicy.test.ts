@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-	CYRUS_SANDBOX_PROFILE_ID,
+	ATMIKO_SANDBOX_PROFILE_ID,
 	resolveCodexSandbox,
 } from "../src/config/sandboxPolicy.js";
 
@@ -36,7 +36,7 @@ describe("resolveCodexSandbox", () => {
 			}),
 		).toEqual({
 			kind: "profile",
-			profileId: CYRUS_SANDBOX_PROFILE_ID,
+			profileId: ATMIKO_SANDBOX_PROFILE_ID,
 			networkAccess: false,
 			filesystem: {
 				":minimal": "read",
@@ -61,7 +61,7 @@ describe("resolveCodexSandbox", () => {
 			}),
 		).toEqual({
 			kind: "profile",
-			profileId: CYRUS_SANDBOX_PROFILE_ID,
+			profileId: ATMIKO_SANDBOX_PROFILE_ID,
 			networkAccess: true,
 			filesystem: {
 				":minimal": "read",
@@ -82,7 +82,7 @@ describe("resolveCodexSandbox", () => {
 			}),
 		).toEqual({
 			kind: "profile",
-			profileId: CYRUS_SANDBOX_PROFILE_ID,
+			profileId: ATMIKO_SANDBOX_PROFILE_ID,
 			networkAccess: true,
 			filesystem: { ":root": "write" },
 		});
@@ -99,7 +99,7 @@ describe("resolveCodexSandbox", () => {
 			}),
 		).toEqual({
 			kind: "profile",
-			profileId: CYRUS_SANDBOX_PROFILE_ID,
+			profileId: ATMIKO_SANDBOX_PROFILE_ID,
 			networkAccess: true,
 			filesystem: {
 				":minimal": "read",

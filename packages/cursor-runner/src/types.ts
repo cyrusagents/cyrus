@@ -2,7 +2,7 @@ import type {
 	AgentRunnerConfig,
 	AgentSessionInfo,
 	SDKMessage,
-} from "cyrus-core";
+} from "atmiko-core";
 import type { CursorSandboxInput } from "./sandbox.js";
 
 export interface CursorRunnerConfig extends AgentRunnerConfig {
@@ -10,11 +10,11 @@ export interface CursorRunnerConfig extends AgentRunnerConfig {
 	cursorApiKey?: string;
 
 	/**
-	 * Sandbox settings, structurally compatible with Cyrus / Claude SDK
+	 * Sandbox settings, structurally compatible with Atmiko / Claude SDK
 	 * `SandboxSettings`. When `enabled: true`, the runner engages Cursor's
 	 * `local.sandboxOptions` and writes a `.cursor/sandbox.json` policy
 	 * mirroring `filesystem.allowRead/Write` and `network.allowed/deniedDomains`.
-	 * If the Cyrus egress proxy is active (`network.httpProxyPort` set), the
+	 * If the Atmiko egress proxy is active (`network.httpProxyPort` set), the
 	 * runner also adds `127.0.0.1` to the network allow-list and sets the
 	 * proxy env vars on `process.env` so child shell tools route through it.
 	 */

@@ -17,7 +17,7 @@ interface ViewThreadResponse {
 }
 
 function getUrl(threadKey: string): string {
-	const port = process.env.CYRUS_PORT || "3600";
+	const port = process.env.ATMIKO_PORT || "3600";
 	const params = new URLSearchParams({ threadKey });
 	return `http://localhost:${port}/cli/chat-thread?${params.toString()}`;
 }

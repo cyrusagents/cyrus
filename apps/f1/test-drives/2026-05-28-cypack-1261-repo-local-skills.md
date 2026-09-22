@@ -16,13 +16,13 @@ Drove the bundled `@anthropic-ai/claude-agent-sdk` `query()` directly and read t
 |---|---|---|
 | No `additionalDirectories` | **false** — cwd scan does not recurse | false |
 | `additionalDirectories:[sub_added]`, `skills:'all'` | **true** — discovered | false |
-| `additionalDirectories:[sub_added]`, `skills:['canary-added-skill']` (Cyrus's shape) | **true** — discovered + enabled | false |
+| `additionalDirectories:[sub_added]`, `skills:['canary-added-skill']` (Atmiko's shape) | **true** — discovered + enabled | false |
 
 **Conclusion**: `--add-dir <dir>` auto-loads `<dir>/.claude/skills`, *even when `<dir>` is a subdirectory of cwd and cwd has no skills*, and it is *necessary* (no add-dir → not discovered). The subdir nuance I flagged is confirmed safe.
 
 ## Part B — Live single-repo F1 session
 
-`CYRUS_REPO_PATH=<primary>` (ships `primary-canary-skill`), issue created, session started, repo selection resolved.
+`ATMIKO_REPO_PATH=<primary>` (ships `primary-canary-skill`), issue created, session started, repo selection resolved.
 
 Captured the `claude_query_options` the EdgeWorker passed to the runner:
 

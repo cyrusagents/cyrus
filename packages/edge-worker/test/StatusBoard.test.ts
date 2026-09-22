@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
 	type AgentMessage,
-	type CyrusAgentSession,
-	type CyrusAgentSessionEntry,
+	type AtmikoAgentSession,
+	type AtmikoAgentSessionEntry,
 	createLogger,
 	type IAgentRunner,
-} from "cyrus-core";
+} from "atmiko-core";
 import Fastify from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
@@ -24,7 +24,7 @@ afterEach(async () => {
 	for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-function session(id = "session-1", running = false): CyrusAgentSession {
+function session(id = "session-1", running = false): AtmikoAgentSession {
 	return {
 		id,
 		type: "commentThread",
@@ -44,9 +44,9 @@ function session(id = "session-1", running = false): CyrusAgentSession {
 			isRunning: () => running,
 			getMessages: () => [],
 		} as unknown as IAgentRunner,
-	} as CyrusAgentSession;
+	} as AtmikoAgentSession;
 }
-function options(sessions: CyrusAgentSession[] = []): BoardOptions {
+function options(sessions: AtmikoAgentSession[] = []): BoardOptions {
 	return {
 		getSessions: () => sessions,
 		getEntries: () => [],
@@ -54,7 +54,7 @@ function options(sessions: CyrusAgentSession[] = []): BoardOptions {
 		getRepositoryName: () => "example/repo",
 	};
 }
-function board(sessions: CyrusAgentSession[] = []) {
+function board(sessions: AtmikoAgentSession[] = []) {
 	const result = new StatusBoard(options(sessions));
 	cleanups.push(() => result.close());
 	return result;
@@ -143,7 +143,7 @@ describe("status board snapshots", () => {
 		const removed = session("removed");
 		let running = false;
 		ongoing.agentRunner!.isRunning = () => running;
-		let remove!: (session: CyrusAgentSession) => void;
+		let remove!: (session: AtmikoAgentSession) => void;
 		const sessions = [ongoing, removed];
 		const view = new StatusBoard({
 			...options(sessions),
@@ -170,7 +170,7 @@ describe("status board snapshots", () => {
 		cleanups.push(() => rm(directory, { recursive: true, force: true }));
 		const manager = new AgentSessionManager();
 		const task = session("old-task");
-		task.status = "complete" as CyrusAgentSession["status"];
+		task.status = "complete" as AtmikoAgentSession["status"];
 		manager.restoreState(
 			{ [task.id]: task },
 			{
@@ -231,7 +231,7 @@ describe("status board snapshots", () => {
 				errors: ["New turn failed"],
 			}),
 		];
-		const entries: CyrusAgentSessionEntry[] = [
+		const entries: AtmikoAgentSessionEntry[] = [
 			{
 				type: "assistant",
 				content: "Previous investigation",
@@ -314,7 +314,7 @@ describe("status board snapshots", () => {
 	});
 	it("uses each live runner, not a stale session status or the process-wide busy flag", () => {
 		const running = session("running", true);
-		running.status = "error" as CyrusAgentSession["status"];
+		running.status = "error" as AtmikoAgentSession["status"];
 		const idle = session("idle", false);
 		const result = board([idle, running]).snapshot();
 		expect(result.tasks.map((task) => [task.id, task.status])).toEqual([
@@ -395,7 +395,7 @@ describe("status board snapshots", () => {
 				expect.objectContaining({ text: "Done", kind: "lifecycle" }),
 				expect.objectContaining({
 					sessionId: task.id,
-					source: "cyrus",
+					source: "atmiko",
 					text: "[BoardTest] GH_TOKEN=[REDACTED]",
 				}),
 			]),
@@ -405,7 +405,7 @@ describe("status board snapshots", () => {
 
 async function server() {
 	const app = Fastify({ trustProxy: true });
-	const directory = await mkdtemp(join(tmpdir(), "cyrus-board-test-"));
+	const directory = await mkdtemp(join(tmpdir(), "atmiko-board-test-"));
 	await writeFile(
 		join(directory, "index.html"),
 		'<html lang="en">Board</html>',
@@ -437,7 +437,7 @@ describe("status board routes", () => {
 			remoteAddress: "::1",
 		});
 		expect(snapshot.json()).toMatchObject({
-			app: "cyrus-board",
+			app: "atmiko-board",
 			tasks: [],
 			service: { status: "busy" },
 		});

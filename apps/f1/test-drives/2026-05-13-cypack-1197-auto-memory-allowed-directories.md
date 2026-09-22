@@ -3,7 +3,7 @@
 **Date**: 2026-05-13
 **Goal**: Verify that the shared auto-memory directory is now included in `allowedDirectories` for Slack chat sessions and is no longer covered by the home-directory `Read(...)` deny rule.
 **Test Repo**: `/tmp/f1-test-drive-1778699666`
-**F1 cyrusHome**: `/tmp/cyrus-f1-1778699670468`
+**F1 atmikoHome**: `/tmp/atmiko-f1-1778699670468`
 
 ## Verification Results
 
@@ -19,38 +19,38 @@ Telemetry from `[event:claude_query_options]` after dispatching a synthetic Slac
 cqo.allowedDirectoryCount: 3
 cqo.allowedToolsPreview:
   ...
-  Read(//tmp/cyrus-f1-1778699670468/slack-workspaces/C_TEST_CYPACK1197_1778699684.723/**)
-  Read(//tmp/cyrus-f1-1778699670468/slack-memory/**)
+  Read(//tmp/atmiko-f1-1778699670468/slack-workspaces/C_TEST_CYPACK1197_1778699684.723/**)
+  Read(//tmp/atmiko-f1-1778699670468/slack-memory/**)
   Read(//tmp/f1-test-drive-1778699666/**)
-cqo.settingsAutoMemoryDirectory: /tmp/cyrus-f1-1778699670468/slack-memory
+cqo.settingsAutoMemoryDirectory: /tmp/atmiko-f1-1778699670468/slack-memory
 ```
 
 Full chat config dump from `EdgeWorker` debug log:
 
 ```
 allowedDirectories: [
-  "/tmp/cyrus-f1-1778699670468/slack-workspaces/C_TEST_CYPACK1197_1778699684.723",
-  "/tmp/cyrus-f1-1778699670468/slack-memory",
+  "/tmp/atmiko-f1-1778699670468/slack-workspaces/C_TEST_CYPACK1197_1778699684.723",
+  "/tmp/atmiko-f1-1778699670468/slack-memory",
   "/tmp/f1-test-drive-1778699666"
 ]
 settings: {
-  autoMemoryDirectory: "/tmp/cyrus-f1-1778699670468/slack-memory"
+  autoMemoryDirectory: "/tmp/atmiko-f1-1778699670468/slack-memory"
 }
 ```
 
 ### Home-directory deny rule — before/after comparison
 
-F1 uses `/tmp/cyrus-f1-*` as `cyrusHome`, which is **outside** the user home directory, so `buildHomeDirectoryDisallowedTools` returns `[]` in F1 and does not exercise the original bug. To validate the actual fix, the helper was invoked directly with real home-directory paths simulating the production case (`cyrusHome = ~/.cyrus`):
+F1 uses `/tmp/atmiko-f1-*` as `atmikoHome`, which is **outside** the user home directory, so `buildHomeDirectoryDisallowedTools` returns `[]` in F1 and does not exercise the original bug. To validate the actual fix, the helper was invoked directly with real home-directory paths simulating the production case (`atmikoHome = ~/.atmiko`):
 
 ```js
-const workspace   = "~/.cyrus/slack-workspaces/thread-x";
-const slackMemory = "~/.cyrus/slack-memory";
+const workspace   = "~/.atmiko/slack-workspaces/thread-x";
+const slackMemory = "~/.atmiko/slack-memory";
 const repoPath    = "/tmp/some-repo";
 
 // BEFORE — allowedDirectories = [workspace, repoPath]
 buildHomeDirectoryDisallowedTools(workspace, [workspace, repoPath])
   .filter(p => p.includes("slack-memory"))
-// → ["Read(//Users/agentops/.cyrus/slack-memory/**)"]   ← bug
+// → ["Read(//Users/agentops/.atmiko/slack-memory/**)"]   ← bug
 
 // AFTER — allowedDirectories = [workspace, slackMemory, repoPath]
 buildHomeDirectoryDisallowedTools(workspace, [workspace, slackMemory, repoPath])
@@ -62,8 +62,8 @@ This is the deterministic proof that the fix removes the `Read(.../slack-memory/
 
 ### Workspace isolation alongside shared memory
 
-- [x] Per-thread workspace exists at `/tmp/cyrus-f1-1778699670468/slack-workspaces/C_TEST_CYPACK1197_1778699684.723/` (sanitized thread key, isolated).
-- [x] Shared memory directory exists at `/tmp/cyrus-f1-1778699670468/slack-memory/` (single dir, not per-thread).
+- [x] Per-thread workspace exists at `/tmp/atmiko-f1-1778699670468/slack-workspaces/C_TEST_CYPACK1197_1778699684.723/` (sanitized thread key, isolated).
+- [x] Shared memory directory exists at `/tmp/atmiko-f1-1778699670468/slack-memory/` (single dir, not per-thread).
 
 ## Session Log
 
@@ -71,12 +71,12 @@ This is the deterministic proof that the fix removes the `Read(.../slack-memory/
 $ ./f1 init-test-repo --path /tmp/f1-test-drive-1778699666
 ✓ Test repository created
 
-$ CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-1778699666 \
+$ ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-1778699666 \
     bun run apps/f1/server.ts &
-$ CYRUS_PORT=3600 ./f1 ping
+$ ATMIKO_PORT=3600 ./f1 ping
 ✓ Server is healthy
 
-$ CYRUS_PORT=3600 ./f1 start-chat-session \
+$ ATMIKO_PORT=3600 ./f1 start-chat-session \
     --channel C_TEST_CYPACK1197 \
     --user U_TEST \
     --text "..."
@@ -84,7 +84,7 @@ $ CYRUS_PORT=3600 ./f1 start-chat-session \
   Event ID: f1-1778699684.723
   Thread Key: C_TEST_CYPACK1197:1778699684.723
 
-$ CYRUS_PORT=3600 ./f1 list-chat-threads
+$ ATMIKO_PORT=3600 ./f1 list-chat-threads
 ✓ Found 1 chat thread(s):
   C_TEST_CYPACK1197:1778699684.723: slack-f1-1778699684.723
 ```
@@ -98,7 +98,7 @@ What worked:
 - The direct invocation of `buildHomeDirectoryDisallowedTools` with home-directory paths conclusively shows the deny rule no longer covers the auto-memory directory.
 
 Gaps:
-- F1's `/tmp`-based `cyrusHome` means the home-directory deny rule never fires inside F1 itself; the regression-relevant assertion has to be made out-of-band. Worth considering whether F1 should optionally allow a home-directory-relative `cyrusHome` for tests like this, or whether the unit test in `packages/edge-worker/test/RunnerConfigBuilder.chat-config.test.ts` (added in this PR) plus the direct helper invocation above are sufficient coverage.
+- F1's `/tmp`-based `atmikoHome` means the home-directory deny rule never fires inside F1 itself; the regression-relevant assertion has to be made out-of-band. Worth considering whether F1 should optionally allow a home-directory-relative `atmikoHome` for tests like this, or whether the unit test in `packages/edge-worker/test/RunnerConfigBuilder.chat-config.test.ts` (added in this PR) plus the direct helper invocation above are sufficient coverage.
 
 Outcome: **Pass.** All three acceptance criteria from the issue that are testable without a live Claude login are confirmed:
 - `Read` and `Glob` over the auto-memory directory will no longer be denied by the home-dir helper.

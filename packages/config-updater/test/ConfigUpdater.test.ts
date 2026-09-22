@@ -2,11 +2,11 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigUpdater } from "../src/ConfigUpdater.js";
 
-vi.mock("../src/handlers/cyrusConfig.js", () => ({
-	handleCyrusConfig: vi.fn().mockResolvedValue({ success: true }),
+vi.mock("../src/handlers/atmikoConfig.js", () => ({
+	handleAtmikoConfig: vi.fn().mockResolvedValue({ success: true }),
 }));
-vi.mock("../src/handlers/cyrusEnv.js", () => ({
-	handleCyrusEnv: vi.fn().mockResolvedValue({ success: true }),
+vi.mock("../src/handlers/atmikoEnv.js", () => ({
+	handleAtmikoEnv: vi.fn().mockResolvedValue({ success: true }),
 }));
 vi.mock("../src/handlers/repository.js", () => ({
 	handleRepository: vi.fn().mockResolvedValue({ success: true }),
@@ -45,14 +45,14 @@ describe("ConfigUpdater auth", () => {
 		let currentKey = "first-key";
 		const updater = new ConfigUpdater(
 			fastify,
-			"/tmp/cyrus-home",
+			"/tmp/atmiko-home",
 			() => currentKey,
 		);
 		updater.register();
 
 		const withFirst = await fastify.inject({
 			method: "POST",
-			url: "/api/update/cyrus-config",
+			url: "/api/update/atmiko-config",
 			headers: { authorization: "Bearer first-key" },
 			payload: { repositories: [] },
 		});
@@ -62,7 +62,7 @@ describe("ConfigUpdater auth", () => {
 
 		const withOld = await fastify.inject({
 			method: "POST",
-			url: "/api/update/cyrus-config",
+			url: "/api/update/atmiko-config",
 			headers: { authorization: "Bearer first-key" },
 			payload: { repositories: [] },
 		});
@@ -70,7 +70,7 @@ describe("ConfigUpdater auth", () => {
 
 		const withRotated = await fastify.inject({
 			method: "POST",
-			url: "/api/update/cyrus-config",
+			url: "/api/update/atmiko-config",
 			headers: { authorization: "Bearer rotated-key" },
 			payload: { repositories: [] },
 		});
@@ -78,12 +78,12 @@ describe("ConfigUpdater auth", () => {
 	});
 
 	it("rejects requests when the getter returns an empty string", async () => {
-		const updater = new ConfigUpdater(fastify, "/tmp/cyrus-home", () => "");
+		const updater = new ConfigUpdater(fastify, "/tmp/atmiko-home", () => "");
 		updater.register();
 
 		const withEmpty = await fastify.inject({
 			method: "POST",
-			url: "/api/update/cyrus-config",
+			url: "/api/update/atmiko-config",
 			headers: { authorization: "Bearer anything" },
 			payload: { repositories: [] },
 		});
@@ -91,7 +91,7 @@ describe("ConfigUpdater auth", () => {
 
 		const withBearerEmpty = await fastify.inject({
 			method: "POST",
-			url: "/api/update/cyrus-config",
+			url: "/api/update/atmiko-config",
 			headers: { authorization: "Bearer " },
 			payload: { repositories: [] },
 		});
@@ -102,7 +102,7 @@ describe("ConfigUpdater auth", () => {
 		let currentKey = "k1";
 		const updater = new ConfigUpdater(
 			fastify,
-			"/tmp/cyrus-home",
+			"/tmp/atmiko-home",
 			() => currentKey,
 		);
 		updater.register();

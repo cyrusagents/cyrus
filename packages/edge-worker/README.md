@@ -1,11 +1,11 @@
-# @cyrus/edge-worker
+# @atmiko/edge-worker
 
 Unified edge worker for processing Linear issues with Claude. Handles webhook events, manages Claude sessions, and posts comments back to Linear.
 
 ## Installation
 
 ```bash
-pnpm add @cyrus/edge-worker
+pnpm add @atmiko/edge-worker
 ```
 
 ## Usage
@@ -18,7 +18,7 @@ The EdgeWorker supports multiple repository/Linear workspace pairs. Each reposit
 ### Single Repository Example (CLI)
 
 ```typescript
-import { EdgeWorker } from '@cyrus/edge-worker'
+import { EdgeWorker } from '@atmiko/edge-worker'
 
 const edgeWorker = new EdgeWorker({
   // Connection
@@ -36,7 +36,7 @@ const edgeWorker = new EdgeWorker({
     baseBranch: 'main',
     linearWorkspaceId: 'workspace-123',
     linearToken: await oauthHelper.getAccessToken(),
-    workspaceBaseDir: '/home/user/.cyrus/workspaces/main'
+    workspaceBaseDir: '/home/user/.atmiko/workspaces/main'
   }],
   
   // Optional handlers
@@ -71,7 +71,7 @@ await edgeWorker.start()
 ### Multi-Repository Example (Electron)
 
 ```typescript
-import { EdgeWorker } from '@cyrus/edge-worker'
+import { EdgeWorker } from '@atmiko/edge-worker'
 
 // Load repository configurations from user settings
 const repositories = userSettings.repositories.map(repo => ({

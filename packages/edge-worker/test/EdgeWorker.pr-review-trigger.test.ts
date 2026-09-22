@@ -1,26 +1,26 @@
 import { EventEmitter } from "node:events";
 import { LinearClient } from "@linear/sdk";
-import { ClaudeRunner } from "cyrus-claude-runner";
-import type { EdgeWorkerConfig, RepositoryConfig } from "cyrus-core";
-import { LinearEventTransport } from "cyrus-linear-event-transport";
-import { createCyrusToolsServer } from "cyrus-mcp-tools";
+import { ClaudeRunner } from "atmiko-claude-runner";
+import type { EdgeWorkerConfig, RepositoryConfig } from "atmiko-core";
+import { LinearEventTransport } from "atmiko-linear-event-transport";
+import { createAtmikoToolsServer } from "atmiko-mcp-tools";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { getAutomaticReviewId } from "../src/GitHubFeedback.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
-import { TEST_CYRUS_HOME } from "./test-dirs.js";
+import { TEST_ATMIKO_HOME } from "./test-dirs.js";
 
 // Mock all dependencies (mirrors EdgeWorker.issue-update-multiple-sessions.test.ts)
 vi.mock("fs/promises");
-vi.mock("cyrus-claude-runner");
-vi.mock("cyrus-mcp-tools");
-vi.mock("cyrus-codex-runner");
-vi.mock("cyrus-linear-event-transport");
+vi.mock("atmiko-claude-runner");
+vi.mock("atmiko-mcp-tools");
+vi.mock("atmiko-codex-runner");
+vi.mock("atmiko-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
-vi.mock("cyrus-core", async (importOriginal) => {
+vi.mock("atmiko-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as any;
 	return {
 		...actual,
@@ -124,7 +124,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 	function buildConfig(prReviewTrigger: boolean | undefined): EdgeWorkerConfig {
 		return {
 			proxyUrl: "http://localhost:3000",
-			cyrusHome: TEST_CYRUS_HOME,
+			atmikoHome: TEST_ATMIKO_HOME,
 			repositories: [mockRepository],
 			linearWorkspaces: {
 				"test-workspace": { linearToken: "test-token" },
@@ -162,7 +162,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		vi.spyOn(console, "error").mockImplementation(() => {});
 		vi.stubEnv("GITHUB_BOT_USERNAME", undefined);
 
-		vi.mocked(createCyrusToolsServer).mockImplementation(() => {
+		vi.mocked(createAtmikoToolsServer).mockImplementation(() => {
 			return { server: {} } as any;
 		});
 
@@ -178,7 +178,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		mockAgentSessionManager = {
 			getActiveMultiRepoSessionForRepository: vi.fn().mockReturnValue(null),
 			getActiveSessionsByBranchName: vi.fn().mockReturnValue([]),
-			createCyrusAgentSession: vi.fn(),
+			createAtmikoAgentSession: vi.fn(),
 			getSession: vi.fn().mockReturnValue(null),
 			setActivitySink: vi.fn(),
 			addAgentRunner: vi.fn(),
@@ -281,7 +281,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		);
 	});
 
-	it("replies to the root of an inline thread while reacting to the comment that mentioned Cyrus", async () => {
+	it("replies to the root of an inline thread while reacting to the comment that mentioned Atmiko", async () => {
 		configureReplyRunner("success");
 		const event = createPrCommentEvent(
 			"pull_request_review_comment",
@@ -348,7 +348,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 			true,
 		);
 		expect(
-			mockAgentSessionManager.createCyrusAgentSession,
+			mockAgentSessionManager.createAtmikoAgentSession,
 		).not.toHaveBeenCalled();
 	});
 
@@ -369,7 +369,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		expect((edgeWorker as any).resolveGitHubToken).not.toHaveBeenCalled();
 		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
 		expect(
-			mockAgentSessionManager.createCyrusAgentSession,
+			mockAgentSessionManager.createAtmikoAgentSession,
 		).not.toHaveBeenCalled();
 	});
 
@@ -424,7 +424,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		).toEqual(["eyes", "confused"]);
 		expect(mockGitHubCommentService.postIssueComment).toHaveBeenCalledWith(
 			expect.objectContaining({
-				body: "The task did not complete successfully. Please check the Cyrus session logs before retrying.",
+				body: "The task did not complete successfully. Please check the Atmiko session logs before retrying.",
 			}),
 		);
 	});
@@ -474,7 +474,7 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		expect((edgeWorker as any).resolveGitHubToken).not.toHaveBeenCalled();
 		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
 		expect(
-			mockAgentSessionManager.createCyrusAgentSession,
+			mockAgentSessionManager.createAtmikoAgentSession,
 		).not.toHaveBeenCalled();
 	});
 
@@ -524,8 +524,8 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 	});
 
 	const expectedReplyDelivery = `## Reply delivery
-- Handle only the triggering request above. Other PR comments and reviews are context, not additional assignments; Cyrus schedules those requests separately.
-- Cyrus publishes your final answer as the reply to this request. Do not post receipt, progress, or completion comments yourself with gh pr comment, the GitHub API, or MCP tools.
+- Handle only the triggering request above. Other PR comments and reviews are context, not additional assignments; Atmiko schedules those requests separately.
+- Atmiko publishes your final answer as the reply to this request. Do not post receipt, progress, or completion comments yourself with gh pr comment, the GitHub API, or MCP tools.
 - If the request explicitly requires a formal PR review or an inline review-thread reply, create that requested artifact, but do not add a separate status comment.
 - Return one concise final answer describing the concrete outcome and validation. If a stop hook asks you to check shipping, verify it and keep the final answer about the original task, not local tracking housekeeping.`;
 
@@ -605,7 +605,7 @@ ${expectedReplyDelivery}`);
 		);
 		expect(runner.start).not.toHaveBeenCalled();
 		expect(
-			mockAgentSessionManager.createCyrusAgentSession,
+			mockAgentSessionManager.createAtmikoAgentSession,
 		).not.toHaveBeenCalled();
 		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
 		expect(
@@ -689,7 +689,7 @@ ${expectedReplyDelivery}`);
 
 		await (edgeWorker as any).handleGitHubWebhook(secondEvent);
 		expect(
-			mockAgentSessionManager.createCyrusAgentSession,
+			mockAgentSessionManager.createAtmikoAgentSession,
 		).toHaveBeenCalledTimes(1);
 		expect(secondRunner.start).not.toHaveBeenCalled();
 
@@ -698,7 +698,7 @@ ${expectedReplyDelivery}`);
 		await vi.waitFor(() => expect(secondRunner.start).toHaveBeenCalledOnce());
 
 		expect(
-			mockAgentSessionManager.createCyrusAgentSession,
+			mockAgentSessionManager.createAtmikoAgentSession,
 		).toHaveBeenCalledTimes(2);
 	});
 

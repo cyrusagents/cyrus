@@ -28,21 +28,21 @@
 
 ```bash
 apps/f1/f1 init-test-repo --path /tmp/f1-release-v0.2.70-23d794e4/repo
-CYRUS_PORT=3600 CYRUS_DEFAULT_RUNNER=claude \
-  CYRUS_REPO_PATH=/tmp/f1-release-v0.2.70-23d794e4/repo \
+ATMIKO_PORT=3600 ATMIKO_DEFAULT_RUNNER=claude \
+  ATMIKO_REPO_PATH=/tmp/f1-release-v0.2.70-23d794e4/repo \
   bun run apps/f1/server.ts
-CYRUS_PORT=3600 apps/f1/f1 ping
-CYRUS_PORT=3600 apps/f1/f1 status
+ATMIKO_PORT=3600 apps/f1/f1 ping
+ATMIKO_PORT=3600 apps/f1/f1 status
 ```
 
 Result: port 3600 was confirmed free before starting; the fresh test repository was initialized (token-bucket implemented, sliding/fixed window + Redis adapter + tests left as TODOs, matching the standard F1 scaffold); the server started cleanly on port 3600 with no startup errors or warnings in the boot log. `status` returned `ready`. `ping` returned success but printed `Status: undefined` — this is a pre-existing F1 CLI/RPC field-name mismatch (`CLIRPCServer.handlePing` returns `{message: "pong", timestamp}` while `apps/f1/src/commands/ping.ts` reads `result.status`), unrelated to the CYPACK-1478 changes; not a regression and not release-blocking.
 
 ```bash
-CYRUS_PORT=3600 apps/f1/f1 create-issue \
+ATMIKO_PORT=3600 apps/f1/f1 create-issue \
   --title "Release v0.2.70 F1 validation" \
-  --description "Validate the Cyrus v0.2.70 release by inspecting the configured repository and reporting its current implementation status. Do not edit files."
-CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
-CYRUS_PORT=3600 apps/f1/f1 prompt-session \
+  --description "Validate the Atmiko v0.2.70 release by inspecting the configured repository and reporting its current implementation status. Do not edit files."
+ATMIKO_PORT=3600 apps/f1/f1 start-session --issue-id issue-1
+ATMIKO_PORT=3600 apps/f1/f1 prompt-session \
   --session-id session-1 \
   --message "Use the configured test repository for this issue."
 ```
@@ -52,9 +52,9 @@ Result: F1 created `issue-1` / `DEF-1` and `session-1`. The session immediately 
 One benign SDK-level warning was observed in the server log during runner startup: `canUseTool will not be invoked for: Bash, Task, WebFetch, ... (code: CLAUDE_SDK_CAN_USE_TOOL_SHADOWED)`. This is an informational warning from the bundled `@anthropic-ai/claude-agent-sdk` about bare `allowedTools` entries bypassing the `canUseTool` callback; it did not block or degrade the session (all 16 timeline activities and the final response rendered correctly afterward), and is unrelated to the strictMcpConfig fix under test.
 
 ```bash
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 0
-CYRUS_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 10
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 0
+ATMIKO_PORT=3600 apps/f1/f1 view-session --session-id session-1 --limit 10 --offset 10
 ```
 
 Result: the Claude-backed inspection completed successfully (`Session completed (subtype: success)`, 42 raw SDK messages). The session rendered 16 coherent timeline activities: `elicitation` → `prompt` → 3x `thought` (acknowledgement, routing decision, model selection) → 10x `action` (Bash/Read tool calls exploring the repo) → final `response`. The final response was a well-structured Markdown status report covering implemented features (token bucket algorithm, in-memory storage adapter, public API/types), explicitly TODO'd features (sliding window, fixed window, Redis adapter, tests), a build-tooling caveat (no `node_modules` installed, so `tsc --noEmit` could not be run), and confirmation that no files were modified — correctly honoring the inspection-only instruction. Pagination with `--limit 10 --offset 0` returned the first 10 activities plus a "Showing 10 of 16 activities / Use --limit and --offset to view more" footer; `--offset 10` returned the remaining 6 activities including the final response, confirming correct windowing.
@@ -62,7 +62,7 @@ Result: the Claude-backed inspection completed successfully (`Session completed 
 Post-session filesystem check confirmed `git status --short` was empty in the `DEF-1` worktree (still at the single scaffold commit `b6f816c`) — the agent made no edits, consistent with the inspection-only task.
 
 ```bash
-CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1
+ATMIKO_PORT=3600 apps/f1/f1 stop-session --session-id session-1
 ```
 
 Result: the session stop request succeeded (`Session stopped successfully`, EdgeWorker logged "Stopped session session-1 (interrupt not supported)" since the session had already completed). The server was then sent `SIGTERM` and shut down gracefully, logging `✅ Saved EdgeWorker state for 1 sessions` and `✅ Server stopped gracefully`.

@@ -1,4 +1,4 @@
-import { createLogger, LogLevel } from "cyrus-core";
+import { createLogger, LogLevel } from "atmiko-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
@@ -62,7 +62,7 @@ function makeConfig(
 	logger.debug = debugSpy;
 	return {
 		workingDirectory: "/repo-a",
-		cyrusHome: "/tmp/test-cyrus-home",
+		atmikoHome: "/tmp/test-atmiko-home",
 		logger,
 	};
 }

@@ -25,9 +25,9 @@
 
 ### Fix-Specific Checks
 - [x] **Egress proxy started**: `Egress proxy started (HTTP: 19080, SOCKS: 19081)` in server logs
-- [x] **CA cert generated**: `CA certificate written to .../cyrus-egress-ca.pem`
+- [x] **CA cert generated**: `CA certificate written to .../atmiko-egress-ca.pem`
 - [x] **settings.json updated**: `Updated /Users/agentops/.claude/settings.json sandbox.network`
-- [x] **No getClient() error**: Zero occurrences of `getClient` error in server logs; cyrus-tools MCP registered and session started cleanly
+- [x] **No getClient() error**: Zero occurrences of `getClient` error in server logs; atmiko-tools MCP registered and session started cleanly
 - [x] **No invalid branch name error**: Worktree created successfully for issue with colon in title
 
 ## Session Log
@@ -40,13 +40,13 @@ $ bun run dist/src/cli.js init-test-repo --path /tmp/f1-test-drive-2026041317175
 ✓ Test repository created successfully!
 ```
 
-### Phase 2: Server Start (with CYRUS_SANDBOX=1)
+### Phase 2: Server Start (with ATMIKO_SANDBOX=1)
 
 ```
-$ CYRUS_PORT=3600 CYRUS_REPO_PATH=/tmp/f1-test-drive-20260413171756 CYRUS_SANDBOX=1 bun run server.ts &
+$ ATMIKO_PORT=3600 ATMIKO_REPO_PATH=/tmp/f1-test-drive-20260413171756 ATMIKO_SANDBOX=1 bun run server.ts &
 
 [INFO] Generating CA certificate for egress proxy TLS termination...
-[INFO] CA certificate written to .../cyrus-egress-ca.pem
+[INFO] CA certificate written to .../atmiko-egress-ca.pem
 [INFO] Egress proxy started (HTTP: 19080, SOCKS: 19081)
 [INFO] Updated /Users/agentops/.claude/settings.json sandbox.network (HTTP: 19080, SOCKS: 19081)
 [INFO] CLI RPC server registered
@@ -58,7 +58,7 @@ Ping and status confirmed healthy.
 ### Phase 3: Issue Creation (colon in title)
 
 ```
-$ CYRUS_PORT=3600 ./f1 create-issue \
+$ ATMIKO_PORT=3600 ./f1 create-issue \
   --title "Bug fix: implement sliding window rate limiter" \
   --description "[repo=f1-test-repo] ..."
 
@@ -70,7 +70,7 @@ First issue (issue-1) was created without a `[repo=...]` tag and triggered the r
 ### Phase 4: Session Start
 
 ```
-$ CYRUS_PORT=3600 ./f1 start-session --issue-id issue-2
+$ ATMIKO_PORT=3600 ./f1 start-session --issue-id issue-2
 ✓ Session started: session-2
 
 Server logs:
@@ -106,7 +106,7 @@ Git log in worktree:
 ### Phase 6: Cleanup
 
 ```
-$ CYRUS_PORT=3600 ./f1 stop-session --session-id session-2
+$ ATMIKO_PORT=3600 ./f1 stop-session --session-id session-2
 ✓ Session stopped successfully
 
 $ kill <server-pid>
@@ -125,11 +125,11 @@ Results:
 
 ### What Worked
 
-1. **Egress proxy sandboxing**: Server started cleanly with `CYRUS_SANDBOX=1`. CA cert generated, proxy listening on ports 19080/19081, and `settings.json` updated — all in under 100ms.
+1. **Egress proxy sandboxing**: Server started cleanly with `ATMIKO_SANDBOX=1`. CA cert generated, proxy listening on ports 19080/19081, and `settings.json` updated — all in under 100ms.
 
 2. **Branch name sanitization**: Issue title "Bug fix: implement sliding window rate limiter" contains a colon. The worktree branch `def-2-bug-fix-implement-sliding-win` was created without error, confirming invalid git ref characters are now stripped.
 
-3. **McpConfigService getClient() fix**: No `getClient()` errors appeared during session startup or throughout the 36-activity session. CLI mode now gracefully skips cyrus-tools MCP initialization.
+3. **McpConfigService getClient() fix**: No `getClient()` errors appeared during session startup or throughout the 36-activity session. CLI mode now gracefully skips atmiko-tools MCP initialization.
 
 4. **Session quality**: Agent produced 36 coherent activities, made multiple file edits, ran TypeScript type checking, and committed a working implementation — all with the egress proxy active.
 

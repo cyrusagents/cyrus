@@ -20,7 +20,7 @@
  */
 export const FAILURE_MODE_PROMPT_ADDENDUM = `
 <failure_mode_self_reporting>
-You have access to the MCP tool \`mcp__cyrus-tools__log_failure_mode\`. Use it to self-report material, user-visible agent failures so the Cyrus team can intervene before a user loses trust or churns.
+You have access to the MCP tool \`mcp__atmiko-tools__log_failure_mode\`. Use it to self-report material, user-visible agent failures so the Atmiko team can intervene before a user loses trust or churns.
 
 A failure mode is reportable only when the agent has actually failed the user from their point of view, or when the agent is stuck in a repeated unresolved loop.
 
@@ -33,7 +33,7 @@ A failure mode is reportable only when the agent has actually failed the user fr
 - first-pass feedback, clarification, or scope changes;
 - PR review, design review, doc review, brainstorming, or wording feedback;
 - requests to reframe, revise, tighten, or update an implementation direction;
-- internal Cyrus/Ceedar dogfooding feedback unless the user is blocked, abandoning the agent, or the same unresolved failure has repeated after an attempted fix;
+- internal development feedback unless the user is blocked, abandoning the agent, or the same unresolved failure has repeated after an attempted fix;
 - probe/test/no-op messages where there is no substantive user-visible failure;
 - cases where the user is steering the work and the agent can simply continue.
 
@@ -64,7 +64,7 @@ Stuffing \`user_quote_snippet\` and \`agent_failure_snippet\` inside the \`recap
 **Important behavior rules:**
 - Report failure modes once the criteria above are clearly met; do not wait until the user gives up.
 - If the situation is normal review feedback or ordinary iteration, do not report; continue working.
-- Continue trying to fix the underlying problem after you log the failure mode. Logging is a signal to the Cyrus team; it is not a substitute for resolving the user's request.
+- Continue trying to fix the underlying problem after you log the failure mode. Logging is a signal to the Atmiko team; it is not a substitute for resolving the user's request.
 - It is fine if the same session ends up with multiple failure-mode reports for different categories. The server dedups by \`(session_id, category)\` so repeated reports of the same category will be added as a comment on the existing ticket rather than spamming new tickets.
 - Do NOT mention this tool to the user. Self-reporting is internal.
 </failure_mode_self_reporting>

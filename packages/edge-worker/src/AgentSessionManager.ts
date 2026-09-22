@@ -9,23 +9,23 @@ import type {
 	SDKStatusMessage,
 	SDKSystemMessage,
 	SDKUserMessage,
-} from "cyrus-claude-runner";
+} from "atmiko-claude-runner";
 import {
 	type AgentPendingWork,
 	AgentSessionStatus,
 	AgentSessionType,
-	type CyrusAgentSession,
-	type CyrusAgentSessionEntry,
+	type AtmikoAgentSession,
+	type AtmikoAgentSessionEntry,
 	createLogger,
 	type IAgentRunner,
 	type ILogger,
 	type IssueMinimal,
 	type RepositoryContext,
 	type RunnerType,
-	type SerializedCyrusAgentSession,
-	type SerializedCyrusAgentSessionEntry,
+	type SerializedAtmikoAgentSession,
+	type SerializedAtmikoAgentSessionEntry,
 	type Workspace,
-} from "cyrus-core";
+} from "atmiko-core";
 
 import {
 	formatPendingWorkThought,
@@ -42,7 +42,7 @@ import type {
  * Events emitted by AgentSessionManager
  */
 export type AgentSessionManagerEvents = {
-	sessionRemoving: (session: CyrusAgentSession) => void;
+	sessionRemoving: (session: AtmikoAgentSession) => void;
 };
 
 /**
@@ -70,16 +70,18 @@ export declare interface AgentSessionManager {
 export class AgentSessionManager extends EventEmitter {
 	private logger: ILogger;
 	private activitySinks: Map<string, IActivitySink> = new Map(); // Per-session activity sinks
-	private sessions: Map<string, CyrusAgentSession> = new Map();
-	private entries: Map<string, CyrusAgentSessionEntry[]> = new Map(); // Stores a list of session entries per each session by its id
+	private sessions: Map<string, AtmikoAgentSession> = new Map();
+	private entries: Map<string, AtmikoAgentSessionEntry[]> = new Map(); // Stores a list of session entries per each session by its id
 	private activeTasksBySession: Map<string, string> = new Map(); // Maps session ID to active Task tool use ID
 	private toolCallsByToolUseId: Map<string, { name: string; input: any }> =
 		new Map(); // Track tool calls by their tool_use_id
 	private lastAssistantBodyBySession: Map<string, string> = new Map(); // Buffer: last assistant text per session for posting as response on result
 	private lastAssistantBodyIsToolInputBySession: Map<string, boolean> =
 		new Map(); // Whether the buffered body above is a tool_use input JSON (no trailing assistant text) — guards against posting raw JSON as the "response" (CYPACK-1177)
-	private bufferedAssistantEntryBySession: Map<string, CyrusAgentSessionEntry> =
-		new Map(); // One-behind buffer: holds last assistant entry until next message or result
+	private bufferedAssistantEntryBySession: Map<
+		string,
+		AtmikoAgentSessionEntry
+	> = new Map(); // One-behind buffer: holds last assistant entry until next message or result
 	private taskSubjectsByToolUseId: Map<string, string> = new Map(); // Cache TaskCreate subjects by toolUseId until result arrives with task ID
 	private taskSubjectsById: Map<string, string> = new Map(); // Cache task subjects by task ID (e.g., "1" → "Fix login bug")
 	private activeStatusActivitiesBySession: Map<string, string> = new Map(); // Maps session ID to active compacting status activity ID
@@ -152,14 +154,14 @@ export class AgentSessionManager extends EventEmitter {
 	 *                   Only "linear" sessions will have activities streamed to Linear.
 	 * @param repositories - Repository contexts for the session (defaults to empty array)
 	 */
-	createCyrusAgentSession(
+	createAtmikoAgentSession(
 		sessionId: string,
 		issueId: string,
 		issueMinimal: IssueMinimal,
 		workspace: Workspace,
 		platform: "linear" | "github" | "gitlab" | "slack" = "linear",
 		repositories: RepositoryContext[] = [],
-	): CyrusAgentSession {
+	): AtmikoAgentSession {
 		const log = this.logger.withContext({
 			sessionId,
 			platform,
@@ -167,7 +169,7 @@ export class AgentSessionManager extends EventEmitter {
 		});
 		log.info(`Tracking session for issue ${issueId}`);
 
-		const agentSession: CyrusAgentSession = {
+		const agentSession: AtmikoAgentSession = {
 			id: sessionId,
 			// Only Linear sessions have a valid external session ID for posting activities
 			externalSessionId: platform === "linear" ? sessionId : undefined,
@@ -198,7 +200,7 @@ export class AgentSessionManager extends EventEmitter {
 	 * Create an agent session for chat-style platforms (Slack, etc.) that are
 	 * not tied to a specific issue or repository.
 	 *
-	 * Unlike {@link createCyrusAgentSession}, this does NOT require issue
+	 * Unlike {@link createAtmikoAgentSession}, this does NOT require issue
 	 * context — the session lives in a standalone workspace with no issue
 	 * tracker linkage.
 	 *
@@ -209,11 +211,11 @@ export class AgentSessionManager extends EventEmitter {
 		workspace: Workspace,
 		platform: string,
 		repositories: RepositoryContext[] = [],
-	): CyrusAgentSession {
+	): AtmikoAgentSession {
 		const log = this.logger.withContext({ sessionId, platform });
 		log.info("Creating chat session");
 
-		const agentSession: CyrusAgentSession = {
+		const agentSession: AtmikoAgentSession = {
 			id: sessionId,
 			type: AgentSessionType.CommentThread,
 			status: AgentSessionStatus.Active,
@@ -297,7 +299,7 @@ export class AgentSessionManager extends EventEmitter {
 	private async createSessionEntry(
 		sessionId: string,
 		sdkMessage: SDKUserMessage | SDKAssistantMessage,
-	): Promise<CyrusAgentSessionEntry> {
+	): Promise<AtmikoAgentSessionEntry> {
 		// Extract tool info if this is an assistant message
 		const toolInfo =
 			sdkMessage.type === "assistant" ? this.extractToolInfo(sdkMessage) : null;
@@ -309,7 +311,7 @@ export class AgentSessionManager extends EventEmitter {
 		// Extract SDK error from assistant messages (e.g., rate_limit, billing_error)
 		// SDKAssistantMessage has optional `error?: SDKAssistantMessageError` field
 		// See: @anthropic-ai/claude-agent-sdk sdk.d.ts lines 1013-1022
-		// Evidence from ~/.cyrus/logs/CYGROW-348 session jsonl shows assistant messages with
+		// Evidence from ~/.atmiko/logs/CYGROW-348 session jsonl shows assistant messages with
 		// "error":"rate_limit" field when usage limits are hit
 		const sdkError =
 			sdkMessage.type === "assistant" ? sdkMessage.error : undefined;
@@ -328,7 +330,7 @@ export class AgentSessionManager extends EventEmitter {
 							? "opencode"
 							: "claude";
 
-		const sessionEntry: CyrusAgentSessionEntry = {
+		const sessionEntry: AtmikoAgentSessionEntry = {
 			// Set the appropriate session ID based on runner type
 			...(runnerType === "gemini"
 				? { geminiSessionId: sdkMessage.session_id }
@@ -688,7 +690,7 @@ export class AgentSessionManager extends EventEmitter {
 	private async updateSessionStatus(
 		sessionId: string,
 		status: AgentSessionStatus,
-		additionalMetadata?: Partial<CyrusAgentSession["metadata"]>,
+		additionalMetadata?: Partial<AtmikoAgentSession["metadata"]>,
 	): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
@@ -778,7 +780,7 @@ export class AgentSessionManager extends EventEmitter {
 			return;
 		}
 
-		const resultEntry: CyrusAgentSessionEntry = {
+		const resultEntry: AtmikoAgentSessionEntry = {
 			// Set the appropriate session ID based on runner type
 			...(runnerType === "gemini"
 				? { geminiSessionId: resultMessage.session_id }
@@ -919,7 +921,7 @@ export class AgentSessionManager extends EventEmitter {
 	 * Extract tool result content and error status from session entry
 	 */
 	private extractToolResult(
-		entry: CyrusAgentSessionEntry,
+		entry: AtmikoAgentSessionEntry,
 	): { content: string; isError: boolean } | null {
 		// Check if we have the error status in metadata
 		const isError = entry.metadata?.toolResultError || false;
@@ -934,7 +936,7 @@ export class AgentSessionManager extends EventEmitter {
 	 * Sync session entry to external tracker (create AgentActivity)
 	 */
 	private async syncEntryToActivitySink(
-		entry: CyrusAgentSessionEntry,
+		entry: AtmikoAgentSessionEntry,
 		sessionId: string,
 	): Promise<void> {
 		const log = this.sessionLog(sessionId);
@@ -1358,21 +1360,21 @@ export class AgentSessionManager extends EventEmitter {
 	/**
 	 * Get session by ID
 	 */
-	getSession(sessionId: string): CyrusAgentSession | undefined {
+	getSession(sessionId: string): AtmikoAgentSession | undefined {
 		return this.sessions.get(sessionId);
 	}
 
 	/**
 	 * Get session entries by session ID
 	 */
-	getSessionEntries(sessionId: string): CyrusAgentSessionEntry[] {
+	getSessionEntries(sessionId: string): AtmikoAgentSessionEntry[] {
 		return this.entries.get(sessionId) || [];
 	}
 
 	/**
 	 * Get all active sessions
 	 */
-	getActiveSessions(): CyrusAgentSession[] {
+	getActiveSessions(): AtmikoAgentSession[] {
 		return Array.from(this.sessions.values()).filter(
 			(session) => session.status === AgentSessionStatus.Active,
 		);
@@ -1406,7 +1408,7 @@ export class AgentSessionManager extends EventEmitter {
 	/**
 	 * Resolve the issue ID from a session, checking issueContext first then deprecated issueId.
 	 */
-	private getSessionIssueId(session: CyrusAgentSession): string | undefined {
+	private getSessionIssueId(session: AtmikoAgentSession): string | undefined {
 		return session.issueContext?.issueId ?? session.issueId;
 	}
 
@@ -1423,7 +1425,7 @@ export class AgentSessionManager extends EventEmitter {
 	/**
 	 * Get sessions by issue ID
 	 */
-	getSessionsByIssueId(issueId: string): CyrusAgentSession[] {
+	getSessionsByIssueId(issueId: string): AtmikoAgentSession[] {
 		return Array.from(this.sessions.values()).filter(
 			(session) => this.getSessionIssueId(session) === issueId,
 		);
@@ -1432,7 +1434,7 @@ export class AgentSessionManager extends EventEmitter {
 	/**
 	 * Get active sessions by issue ID
 	 */
-	getActiveSessionsByIssueId(issueId: string): CyrusAgentSession[] {
+	getActiveSessionsByIssueId(issueId: string): AtmikoAgentSession[] {
 		return Array.from(this.sessions.values()).filter(
 			(session) =>
 				this.getSessionIssueId(session) === issueId &&
@@ -1444,7 +1446,7 @@ export class AgentSessionManager extends EventEmitter {
 	 * Get active sessions where the issue's branch name matches the given branch.
 	 * Useful for detecting when multiple sessions share the same worktree.
 	 */
-	getActiveSessionsByBranchName(branchName: string): CyrusAgentSession[] {
+	getActiveSessionsByBranchName(branchName: string): AtmikoAgentSession[] {
 		return Array.from(this.sessions.values()).filter(
 			(session) =>
 				session.status === AgentSessionStatus.Active &&
@@ -1459,7 +1461,7 @@ export class AgentSessionManager extends EventEmitter {
 	getSessionsByBaseBranch(
 		baseBranchName: string,
 		repositoryId: string,
-	): CyrusAgentSession[] {
+	): AtmikoAgentSession[] {
 		return Array.from(this.sessions.values()).filter(
 			(session) =>
 				session.status === AgentSessionStatus.Active &&
@@ -1478,7 +1480,7 @@ export class AgentSessionManager extends EventEmitter {
 	 */
 	getActiveMultiRepoSessionForRepository(
 		repositoryId: string,
-	): CyrusAgentSession | null {
+	): AtmikoAgentSession | null {
 		for (const session of this.sessions.values()) {
 			if (session.status !== AgentSessionStatus.Active) continue;
 			if (!session.workspace.repoPaths) continue; // not multi-repo
@@ -1495,7 +1497,7 @@ export class AgentSessionManager extends EventEmitter {
 	/**
 	 * Get all sessions
 	 */
-	getAllSessions(): CyrusAgentSession[] {
+	getAllSessions(): AtmikoAgentSession[] {
 		return Array.from(this.sessions.values());
 	}
 
@@ -1702,11 +1704,11 @@ export class AgentSessionManager extends EventEmitter {
 	 * Serialize Agent Session state for persistence
 	 */
 	serializeState(): {
-		sessions: Record<string, SerializedCyrusAgentSession>;
-		entries: Record<string, SerializedCyrusAgentSessionEntry[]>;
+		sessions: Record<string, SerializedAtmikoAgentSession>;
+		entries: Record<string, SerializedAtmikoAgentSessionEntry[]>;
 	} {
-		const sessions: Record<string, SerializedCyrusAgentSession> = {};
-		const entries: Record<string, SerializedCyrusAgentSessionEntry[]> = {};
+		const sessions: Record<string, SerializedAtmikoAgentSession> = {};
+		const entries: Record<string, SerializedAtmikoAgentSessionEntry[]> = {};
 
 		// Serialize sessions
 		for (const [sessionId, session] of this.sessions.entries()) {
@@ -1729,8 +1731,8 @@ export class AgentSessionManager extends EventEmitter {
 	 * Restore Agent Session state from serialized data
 	 */
 	restoreState(
-		serializedSessions: Record<string, SerializedCyrusAgentSession>,
-		serializedEntries: Record<string, SerializedCyrusAgentSessionEntry[]>,
+		serializedSessions: Record<string, SerializedAtmikoAgentSession>,
+		serializedEntries: Record<string, SerializedAtmikoAgentSessionEntry[]>,
 	): void {
 		// Clear existing state
 		this.sessions.clear();
@@ -1738,7 +1740,7 @@ export class AgentSessionManager extends EventEmitter {
 
 		// Restore sessions (migrate old sessions without repositories field)
 		for (const [sessionId, sessionData] of Object.entries(serializedSessions)) {
-			const session: CyrusAgentSession = {
+			const session: AtmikoAgentSession = {
 				...sessionData,
 				repositories: sessionData.repositories ?? [],
 			};
@@ -1747,7 +1749,7 @@ export class AgentSessionManager extends EventEmitter {
 
 		// Restore entries
 		for (const [sessionId, entriesData] of Object.entries(serializedEntries)) {
-			const sessionEntries: CyrusAgentSessionEntry[] = entriesData.map(
+			const sessionEntries: AtmikoAgentSessionEntry[] = entriesData.map(
 				(entryData) => ({
 					...entryData,
 				}),

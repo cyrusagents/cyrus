@@ -10,7 +10,7 @@ import {
 import { dirname, join } from "node:path";
 
 /**
- * A short-lived GitHub App installation token pushed by cyrus-hosted.
+ * A short-lived GitHub App installation token pushed by atmiko-hosted.
  * One entry per GitHub App installation (org or user account) the team
  * has attached.
  */
@@ -28,7 +28,7 @@ export interface GitHubInstallationToken {
 }
 
 /**
- * On-disk shape of `<cyrusHome>/github-tokens.json`.
+ * On-disk shape of `<atmikoHome>/github-tokens.json`.
  */
 export interface GitHubTokensFile {
 	version: 1;
@@ -36,7 +36,7 @@ export interface GitHubTokensFile {
 	tokens: GitHubInstallationToken[];
 }
 
-/** Filename of the token store inside the Cyrus home directory */
+/** Filename of the token store inside the Atmiko home directory */
 export const GITHUB_TOKENS_FILENAME = "github-tokens.json";
 
 /**
@@ -87,7 +87,7 @@ function isExpired(token: GitHubInstallationToken, now: number): boolean {
 /**
  * Persistent store for per-installation GitHub App tokens, keyed by org.
  *
- * Tokens are pushed by cyrus-hosted via the `/api/update/github-tokens`
+ * Tokens are pushed by atmiko-hosted via the `/api/update/github-tokens`
  * ConfigUpdater route and consumed lazily by the EdgeWorker (token
  * resolution, session env) and by the git credential helper script.
  *
@@ -97,18 +97,18 @@ function isExpired(token: GitHubInstallationToken, now: number): boolean {
  * external writer.
  */
 export class GitHubTokenStore {
-	private cyrusHome: string;
+	private atmikoHome: string;
 	private cachedTokens: GitHubInstallationToken[] | null = null;
 	private cachedMtimeMs: number | null = null;
 	private cachedSize: number | null = null;
 
-	constructor(cyrusHome: string) {
-		this.cyrusHome = cyrusHome;
+	constructor(atmikoHome: string) {
+		this.atmikoHome = atmikoHome;
 	}
 
 	/** Absolute path of the token store file */
 	get filePath(): string {
-		return join(this.cyrusHome, GITHUB_TOKENS_FILENAME);
+		return join(this.atmikoHome, GITHUB_TOKENS_FILENAME);
 	}
 
 	/**

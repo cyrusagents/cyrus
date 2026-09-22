@@ -3,11 +3,11 @@ import {
 	extractRepoFullName,
 	type GitHubCommentWebhookEvent,
 	isIssueCommentPayload,
-} from "cyrus-github-event-transport";
+} from "atmiko-github-event-transport";
 
 export const GITHUB_REPLY_INSTRUCTIONS = `## Reply delivery
-- Handle only the triggering request above. Other PR comments and reviews are context, not additional assignments; Cyrus schedules those requests separately.
-- Cyrus publishes your final answer as the reply to this request. Do not post receipt, progress, or completion comments yourself with gh pr comment, the GitHub API, or MCP tools.
+- Handle only the triggering request above. Other PR comments and reviews are context, not additional assignments; Atmiko schedules those requests separately.
+- Atmiko publishes your final answer as the reply to this request. Do not post receipt, progress, or completion comments yourself with gh pr comment, the GitHub API, or MCP tools.
 - If the request explicitly requires a formal PR review or an inline review-thread reply, create that requested artifact, but do not add a separate status comment.
 - Return one concise final answer describing the concrete outcome and validation. If a stop hook asks you to check shipping, verify it and keep the final answer about the original task, not local tracking housekeeping.`;
 

@@ -1,10 +1,10 @@
 {
-	"name": "cyrus-cloudflare-tunnel-client",
+	"name": "atmiko-cloudflare-tunnel-client",
 	"version": "0.2.72",
-	"description": "Cloudflare tunnel client for receiving config updates and webhooks from cyrus-hosted",
+	"description": "Cloudflare tunnel client for receiving config updates and webhooks from atmiko-hosted",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cyrusagents/cyrus.git",
+		"url": "git+https://github.com/nexmoe/atmiko.git",
 		"directory": "packages/cloudflare-tunnel-client"
 	},
 	"type": "module",
@@ -39,8 +39,8 @@
 		"tunnel",
 		"webhook",
 		"linear",
-		"cyrus"
+		"atmiko"
 	],
-	"author": "Cyrus Team",
+	"author": "Atmiko Team",
 	"license": "MIT"
 }

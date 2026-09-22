@@ -13,15 +13,15 @@ import { fileURLToPath } from "node:url";
  * Supports parallel execution by using unique file paths per workspace.
  */
 export class SystemPromptManager {
-	private cyrusHome: string;
+	private atmikoHome: string;
 	private systemPromptPath: string;
 
-	constructor(cyrusHome: string, workspaceName: string) {
-		this.cyrusHome = cyrusHome;
+	constructor(atmikoHome: string, workspaceName: string) {
+		this.atmikoHome = atmikoHome;
 		// Use workspace-specific path to support parallel execution
-		// Format: ~/.cyrus/gemini-system-prompts/<workspace-name>.md
+		// Format: ~/.atmiko/gemini-system-prompts/<workspace-name>.md
 		// NOTE: Workspace-name is the Linear issue identifier
-		const promptsDir = join(this.cyrusHome, "gemini-system-prompts");
+		const promptsDir = join(this.atmikoHome, "gemini-system-prompts");
 		this.systemPromptPath = join(promptsDir, `${workspaceName}.md`);
 	}
 
@@ -31,7 +31,7 @@ export class SystemPromptManager {
 	async prepareSystemPrompt(dynamicSystemPrompt: string): Promise<string> {
 		try {
 			// Ensure prompts directory exists
-			const promptsDir = join(this.cyrusHome, "gemini-system-prompts");
+			const promptsDir = join(this.atmikoHome, "gemini-system-prompts");
 			await mkdir(promptsDir, { recursive: true });
 
 			// Get Gemini system prompt, which we will append

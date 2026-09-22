@@ -2,7 +2,7 @@
 /**
  * Export Zod schemas to JSON Schema files.
  *
- * Pipeline:  Zod (cyrus-core) → JSON Schema → Go structs (cyrus-update-server)
+ * Pipeline:  Zod (atmiko-core) → JSON Schema → Go structs (atmiko-update-server)
  *
  * Run:  npx tsx scripts/export-json-schema.ts
  * Or:   pnpm generate:json-schema
@@ -34,7 +34,7 @@ for (const { name, schema } of schemas) {
 
 	// Add a top-level $id for consumers that need it
 	const output = {
-		$id: `https://atcyrus.com/schemas/${name}.json`,
+		$id: `https://raw.githubusercontent.com/nexmoe/atmiko/main/packages/core/schemas/${name}.json`,
 		...jsonSchema,
 	};
 

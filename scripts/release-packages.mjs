@@ -4,49 +4,49 @@ import { fileURLToPath } from "node:url";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-export const repositoryUrl = "git+https://github.com/cyrusagents/cyrus.git";
+export const repositoryUrl = "git+https://github.com/nexmoe/atmiko.git";
 
 // Keep this dependency ordered. validateRelease() rejects internal workspace
 // dependencies that appear at or after their consumer.
 export const releasePackages = [
 	{
 		directory: "packages/cloudflare-tunnel-client",
-		name: "cyrus-cloudflare-tunnel-client",
+		name: "atmiko-cloudflare-tunnel-client",
 	},
-	{ directory: "packages/mcp-tools", name: "cyrus-mcp-tools" },
-	{ directory: "packages/core", name: "cyrus-core" },
-	{ directory: "packages/claude-runner", name: "cyrus-claude-runner" },
-	{ directory: "packages/config-updater", name: "cyrus-config-updater" },
+	{ directory: "packages/mcp-tools", name: "atmiko-mcp-tools" },
+	{ directory: "packages/core", name: "atmiko-core" },
+	{ directory: "packages/claude-runner", name: "atmiko-claude-runner" },
+	{ directory: "packages/config-updater", name: "atmiko-config-updater" },
 	{
 		directory: "packages/linear-event-transport",
-		name: "cyrus-linear-event-transport",
+		name: "atmiko-linear-event-transport",
 	},
 	{
 		directory: "packages/github-event-transport",
-		name: "cyrus-github-event-transport",
+		name: "atmiko-github-event-transport",
 	},
 	{
 		directory: "packages/gitlab-event-transport",
-		name: "cyrus-gitlab-event-transport",
+		name: "atmiko-gitlab-event-transport",
 	},
 	{
 		directory: "packages/slack-event-transport",
-		name: "cyrus-slack-event-transport",
+		name: "atmiko-slack-event-transport",
 	},
 	{
 		directory: "packages/zulip-event-transport",
-		name: "cyrus-zulip-event-transport",
+		name: "atmiko-zulip-event-transport",
 	},
 	{
 		directory: "packages/simple-agent-runner",
-		name: "cyrus-simple-agent-runner",
+		name: "atmiko-simple-agent-runner",
 	},
-	{ directory: "packages/opencode-runner", name: "cyrus-opencode-runner" },
-	{ directory: "packages/codex-runner", name: "cyrus-codex-runner" },
-	{ directory: "packages/cursor-runner", name: "cyrus-cursor-runner" },
-	{ directory: "packages/gemini-runner", name: "cyrus-gemini-runner" },
-	{ directory: "packages/edge-worker", name: "cyrus-edge-worker" },
-	{ directory: "apps/cli", name: "cyrus-ai" },
+	{ directory: "packages/opencode-runner", name: "atmiko-opencode-runner" },
+	{ directory: "packages/codex-runner", name: "atmiko-codex-runner" },
+	{ directory: "packages/cursor-runner", name: "atmiko-cursor-runner" },
+	{ directory: "packages/gemini-runner", name: "atmiko-gemini-runner" },
+	{ directory: "packages/edge-worker", name: "atmiko-edge-worker" },
+	{ directory: "apps/cli", name: "atmiko" },
 ];
 
 const exactSemver =

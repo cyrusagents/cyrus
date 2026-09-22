@@ -50,7 +50,7 @@ describe("PersistenceManager atomic writes", () => {
 	let manager: PersistenceManager;
 
 	beforeEach(async () => {
-		dir = await mkdtemp(join(tmpdir(), "cyrus-persistence-test-"));
+		dir = await mkdtemp(join(tmpdir(), "atmiko-persistence-test-"));
 		logger = stubLogger();
 		manager = new PersistenceManager(dir, logger);
 	});

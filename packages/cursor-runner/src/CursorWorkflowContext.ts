@@ -11,9 +11,9 @@ import {
 	symlinkSync,
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import type { AgentRunnerConfig } from "cyrus-core";
+import type { AgentRunnerConfig } from "atmiko-core";
 
-/** Expose Cyrus instructions and scoped skills on every turn and through Cursor's skill directory. */
+/** Expose Atmiko instructions and scoped skills on every turn and through Cursor's skill directory. */
 export class CursorWorkflowContext {
 	private skills = new Map<string, string>();
 	private availableSkills = new Set<string>();
@@ -70,13 +70,13 @@ export class CursorWorkflowContext {
 			`Working directory: ${workspace}. Use this directory explicitly for shell commands and file operations.`,
 			instructions,
 			this.availableSkills.size
-				? "Cyrus workflow skills (read the relevant SKILL.md with file tools):\n" +
+				? "Atmiko workflow skills (read the relevant SKILL.md with file tools):\n" +
 					[...this.availableSkills]
 						.map((path) => `- ${join(path, "SKILL.md")}`)
 						.join("\n")
 				: undefined,
 		].filter(Boolean);
-		return `<cyrus_session_context>\n${parts.join("\n\n")}\n</cyrus_session_context>\n\n${prompt}`;
+		return `<atmiko_session_context>\n${parts.join("\n\n")}\n</atmiko_session_context>\n\n${prompt}`;
 	}
 
 	getSkillNames(): string[] {

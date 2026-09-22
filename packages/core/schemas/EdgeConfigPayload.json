@@ -1,5 +1,5 @@
 {
-	"$id": "https://atcyrus.com/schemas/EdgeConfigPayload.json",
+	"$id": "https://raw.githubusercontent.com/nexmoe/atmiko/main/packages/core/schemas/EdgeConfigPayload.json",
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"type": "object",
 	"properties": {
@@ -548,9 +548,6 @@
 			"type": "string"
 		},
 		"ngrokAuthToken": {
-			"type": "string"
-		},
-		"stripeCustomerId": {
 			"type": "string"
 		},
 		"claudeDefaultModel": {

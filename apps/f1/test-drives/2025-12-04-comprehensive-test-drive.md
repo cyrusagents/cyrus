@@ -7,7 +7,7 @@
 ## Setup
 
 - Server port: 3462
-- Repository: /Users/agentops/.cyrus/worktrees/CYPACK-514
+- Repository: /Users/agentops/.atmiko/worktrees/CYPACK-514
 - Server version: CLIRPCServer
 - CLI version: 0.1.0
 
@@ -126,6 +126,6 @@ The F1 Testing Framework is **production-ready for its intended purpose**. Core 
 - Error handling with helpful messages
 - Professional CLI experience
 
-The minor issues found are cosmetic or edge cases that don't block normal testing workflows. The framework successfully provides a complete testing environment for the Cyrus agent system without external dependencies.
+The minor issues found are cosmetic or edge cases that don't block normal testing workflows. The framework successfully provides a complete testing environment for the Atmiko agent system without external dependencies.
 
 **Overall Rating: 🏎️ Ready to Race!**

@@ -5,11 +5,11 @@ import type {
 	ResolvedCodexSandbox,
 } from "../backend/types.js";
 
-/** Stable id for the per-thread permission profile Cyrus builds. */
-export const CYRUS_SANDBOX_PROFILE_ID = "cyrus-sandbox";
+/** Stable id for the per-thread permission profile Atmiko builds. */
+export const ATMIKO_SANDBOX_PROFILE_ID = "atmiko-sandbox";
 
 /**
- * Cyrus filesystem sandbox intent (subset of the agent SDK `SandboxSettings`).
+ * Atmiko filesystem sandbox intent (subset of the agent SDK `SandboxSettings`).
  * Paths are expected absolute by the time they reach here (the EdgeWorker layer
  * resolves `~`/`.`/relative entries before plumbing them in).
  *
@@ -18,9 +18,9 @@ export const CYRUS_SANDBOX_PROFILE_ID = "cyrus-sandbox";
  * `allowRead`/`allowWrite`. Anything else (e.g. the home directory) is denied.
  * `denyRead` is honored by omission — a denied path simply never appears in the
  * allow-list. Sub-path denies inside an allowed root are not expressible (and
- * not needed by Cyrus's deny-broad / allow-narrow posture).
+ * not needed by Atmiko's deny-broad / allow-narrow posture).
  */
-export interface CyrusSandboxFilesystem {
+export interface AtmikoSandboxFilesystem {
 	allowRead?: string[];
 	allowWrite?: string[];
 	denyRead?: string[];
@@ -35,7 +35,7 @@ export interface SandboxResolveInput {
 	writableRoots: string[];
 	networkAccess: boolean;
 	/** When present, produces a granular `profile`; otherwise a `workspace-mode`. */
-	sandboxSettings?: CyrusSandboxFilesystem;
+	sandboxSettings?: AtmikoSandboxFilesystem;
 }
 
 function uniqueAbsolute(paths: string[]): string[] {
@@ -98,7 +98,7 @@ export function resolveCodexSandbox(
 
 	return {
 		kind: "profile",
-		profileId: CYRUS_SANDBOX_PROFILE_ID,
+		profileId: ATMIKO_SANDBOX_PROFILE_ID,
 		filesystem,
 		networkAccess,
 	};

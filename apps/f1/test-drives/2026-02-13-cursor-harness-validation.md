@@ -1,7 +1,7 @@
 # Test Drive: Cursor Harness Validation (Offline)
 
 **Date**: 2026-02-13
-**Goal**: Prove Cyrus can run a full session with `cursor` selected as the agent via F1 harness.
+**Goal**: Prove Atmiko can run a full session with `cursor` selected as the agent via F1 harness.
 **Driver**: `apps/f1/test-drives/cursor-offline-drive.ts`
 
 ## Verification Results

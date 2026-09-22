@@ -9,7 +9,7 @@ import { buildHomeDirectoryDisallowedTools } from "../src/home-directory-restric
 //
 //   mockHome("/home/alice", {
 //     ".ssh": dir({ "id_rsa": file() }),
-//     ".cyrus": dir({ "worktrees": dir({ "ENG-1": dir({ "repo": dir() }) }) }),
+//     ".atmiko": dir({ "worktrees": dir({ "ENG-1": dir({ "repo": dir() }) }) }),
 //     ".gitconfig": file(),
 //   });
 
@@ -76,7 +76,7 @@ vi.mock("node:os", async (importOriginal) => {
 //
 //   check(denied, HOME)
 //     .denies(".ssh")          // → Read(//home/alice/.ssh/**) is in the list
-//     .allows(".cyrus");       // → nothing matching .cyrus is in the list
+//     .allows(".atmiko");       // → nothing matching .atmiko is in the list
 
 class Assertions {
 	constructor(
@@ -123,7 +123,7 @@ describe("single cwd", () => {
 			".aws": dir({ credentials: file() }),
 			".gitconfig": file(),
 			Documents: dir(),
-			".cyrus": dir({
+			".atmiko": dir({
 				worktrees: dir({
 					"ENG-1": dir({ repo: dir() }),
 				}),
@@ -131,23 +131,23 @@ describe("single cwd", () => {
 		});
 
 		const denied = buildHomeDirectoryDisallowedTools(
-			`${HOME}/.cyrus/worktrees/ENG-1/repo`,
+			`${HOME}/.atmiko/worktrees/ENG-1/repo`,
 		);
 
 		check(denied, HOME)
-			.denies(".ssh") // sibling of .cyrus — sensitive credentials
-			.denies(".aws") // sibling of .cyrus — sensitive credentials
-			.denies(".gitconfig") // sibling of .cyrus — a file, not a dir
-			.denies("Documents") // sibling of .cyrus — unrelated dir
-			.allows(".cyrus") // ancestor of cwd — must be traversable
-			.allows(".cyrus/worktrees") // ancestor of cwd
-			.allows(".cyrus/worktrees/ENG-1") // ancestor of cwd
-			.allows(".cyrus/worktrees/ENG-1/repo"); // the cwd itself
+			.denies(".ssh") // sibling of .atmiko — sensitive credentials
+			.denies(".aws") // sibling of .atmiko — sensitive credentials
+			.denies(".gitconfig") // sibling of .atmiko — a file, not a dir
+			.denies("Documents") // sibling of .atmiko — unrelated dir
+			.allows(".atmiko") // ancestor of cwd — must be traversable
+			.allows(".atmiko/worktrees") // ancestor of cwd
+			.allows(".atmiko/worktrees/ENG-1") // ancestor of cwd
+			.allows(".atmiko/worktrees/ENG-1/repo"); // the cwd itself
 	});
 
 	it("denies siblings at every level of the path, not just at home", () => {
 		mockHome(HOME, {
-			".cyrus": dir({
+			".atmiko": dir({
 				worktrees: dir({
 					"ENG-1": dir({ repo: dir() }),
 					"ENG-2": dir({ repo: dir() }), // sibling of the target worktree
@@ -159,18 +159,18 @@ describe("single cwd", () => {
 		});
 
 		const denied = buildHomeDirectoryDisallowedTools(
-			`${HOME}/.cyrus/worktrees/ENG-1/repo`,
+			`${HOME}/.atmiko/worktrees/ENG-1/repo`,
 		);
 
 		check(denied, HOME)
 			.denies(".gitconfig")
-			.denies(".cyrus/certs") // inside .cyrus but not on path to cwd
-			.denies(".cyrus/logs") // inside .cyrus but not on path to cwd
-			.denies(".cyrus/worktrees/ENG-2") // different worktree — should stay private
-			.allows(".cyrus")
-			.allows(".cyrus/worktrees")
-			.allows(".cyrus/worktrees/ENG-1")
-			.allows(".cyrus/worktrees/ENG-1/repo");
+			.denies(".atmiko/certs") // inside .atmiko but not on path to cwd
+			.denies(".atmiko/logs") // inside .atmiko but not on path to cwd
+			.denies(".atmiko/worktrees/ENG-2") // different worktree — should stay private
+			.allows(".atmiko")
+			.allows(".atmiko/worktrees")
+			.allows(".atmiko/worktrees/ENG-1")
+			.allows(".atmiko/worktrees/ENG-1/repo");
 	});
 
 	it("returns empty when cwd is outside home", () => {
@@ -183,13 +183,13 @@ describe("single cwd", () => {
 describe("with allowedDirectories (attachments dir, repo paths, etc.)", () => {
 	it("allows the attachments dir even though it is a sibling of the worktrees dir", () => {
 		// In production the layout is:
-		//   ~/.cyrus/worktrees/ENG-1/repo   ← cwd (the worktree)
-		//   ~/.cyrus/ENG-1/attachments      ← where ticket attachments are stored
+		//   ~/.atmiko/worktrees/ENG-1/repo   ← cwd (the worktree)
+		//   ~/.atmiko/ENG-1/attachments      ← where ticket attachments are stored
 		// Without passing allowedDirectories, the attachments dir would be denied
-		// because .cyrus/ENG-1 is a sibling of .cyrus/worktrees.
+		// because .atmiko/ENG-1 is a sibling of .atmiko/worktrees.
 		mockHome(HOME, {
 			".ssh": dir({ id_rsa: file() }),
-			".cyrus": dir({
+			".atmiko": dir({
 				worktrees: dir({
 					"ENG-1": dir({ repo: dir() }),
 				}),
@@ -198,17 +198,17 @@ describe("with allowedDirectories (attachments dir, repo paths, etc.)", () => {
 			}),
 		});
 
-		const cwd = `${HOME}/.cyrus/worktrees/ENG-1/repo`;
-		const attachments = `${HOME}/.cyrus/ENG-1/attachments`;
+		const cwd = `${HOME}/.atmiko/worktrees/ENG-1/repo`;
+		const attachments = `${HOME}/.atmiko/ENG-1/attachments`;
 
 		const denied = buildHomeDirectoryDisallowedTools(cwd, [attachments]);
 
 		check(denied, HOME)
 			.denies(".ssh")
-			.denies(".cyrus/certs") // still denied — not needed by any allowed path
-			.allows(".cyrus/worktrees/ENG-1/repo") // cwd
-			.allows(".cyrus/ENG-1") // ancestor of attachments dir
-			.allows(".cyrus/ENG-1/attachments"); // the attachments dir itself
+			.denies(".atmiko/certs") // still denied — not needed by any allowed path
+			.allows(".atmiko/worktrees/ENG-1/repo") // cwd
+			.allows(".atmiko/ENG-1") // ancestor of attachments dir
+			.allows(".atmiko/ENG-1/attachments"); // the attachments dir itself
 	});
 
 	it("allows multiple disjoint additional paths within home", () => {
@@ -220,14 +220,14 @@ describe("with allowedDirectories (attachments dir, repo paths, etc.)", () => {
 				"project-b": dir(),
 				"project-c": dir(), // not in any allowed path
 			}),
-			".cyrus": dir({
+			".atmiko": dir({
 				"ENG-1": dir({ attachments: dir() }),
 			}),
 		});
 
 		const denied = buildHomeDirectoryDisallowedTools(
 			`${HOME}/repos/project-a`,
-			[`${HOME}/.cyrus/ENG-1/attachments`, `${HOME}/repos/project-b`],
+			[`${HOME}/.atmiko/ENG-1/attachments`, `${HOME}/repos/project-b`],
 		);
 
 		check(denied, HOME)
@@ -236,24 +236,24 @@ describe("with allowedDirectories (attachments dir, repo paths, etc.)", () => {
 			.denies("repos/project-c") // not in any allowed path
 			.allows("repos/project-a") // cwd
 			.allows("repos/project-b") // explicit allowed path
-			.allows(".cyrus/ENG-1/attachments"); // explicit allowed path
+			.allows(".atmiko/ENG-1/attachments"); // explicit allowed path
 	});
 
 	it("ignores additional paths outside home — they have no effect on the output", () => {
 		mockHome(HOME, {
 			".ssh": dir(),
-			".cyrus": dir({
+			".atmiko": dir({
 				worktrees: dir({ "ENG-1": dir({ repo: dir() }) }),
 			}),
 		});
 
 		const denied = buildHomeDirectoryDisallowedTools(
-			`${HOME}/.cyrus/worktrees/ENG-1/repo`,
+			`${HOME}/.atmiko/worktrees/ENG-1/repo`,
 			[
 				"/tmp/outside-home", // lives outside home, irrelevant
 			],
 		);
 
-		check(denied, HOME).denies(".ssh").allows(".cyrus/worktrees/ENG-1/repo");
+		check(denied, HOME).denies(".ssh").allows(".atmiko/worktrees/ENG-1/repo");
 	});
 });

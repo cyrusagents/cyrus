@@ -18,7 +18,7 @@ function formatLogs(logs) {
 						: log.kind === "output"
 							? "RESULT"
 							: "AGENT"
-					: "CYRUS";
+					: "ATMIKO";
 			const level =
 				log.level === "error"
 					? "ERROR"

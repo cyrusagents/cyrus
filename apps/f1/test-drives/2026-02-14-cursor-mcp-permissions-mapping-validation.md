@@ -14,7 +14,7 @@
 
 ### EdgeWorker
 - [x] Session routed with `cursor` agent selection (`[agent=cursor]`)
-- [x] Allowed tools include MCP entries (`mcp__linear`, `mcp__cyrus-tools`)
+- [x] Allowed tools include MCP entries (`mcp__linear`, `mcp__atmiko-tools`)
 - [x] Cursor runner synced project permissions before session execution
 - [x] MCP preflight enable flow added for project-listed + inline MCP servers
 
@@ -26,26 +26,26 @@
 1. Initialize fresh F1 test repository:
    - `apps/f1/f1 init-test-repo -p /tmp/f1-test-drive-cypack-804-mcp-20260213-185103`
 2. Start F1 server (Cursor mock mode):
-   - `CYRUS_CURSOR_MOCK=1 CYRUS_PORT=3606 CYRUS_REPO_PATH=/tmp/f1-test-drive-cypack-804-mcp-20260213-185103 node dist/server.js`
+   - `ATMIKO_CURSOR_MOCK=1 ATMIKO_PORT=3606 ATMIKO_REPO_PATH=/tmp/f1-test-drive-cypack-804-mcp-20260213-185103 node dist/server.js`
 3. Health checks:
-   - `CYRUS_PORT=3606 apps/f1/f1 ping`
-   - `CYRUS_PORT=3606 apps/f1/f1 status`
+   - `ATMIKO_PORT=3606 apps/f1/f1 ping`
+   - `ATMIKO_PORT=3606 apps/f1/f1 status`
 4. Create and run issue:
-   - `CYRUS_PORT=3606 apps/f1/f1 create-issue -t "Cursor MCP permission mapping" -d "[agent=cursor] ..."`
-   - `CYRUS_PORT=3606 apps/f1/f1 start-session -i issue-1`
+   - `ATMIKO_PORT=3606 apps/f1/f1 create-issue -t "Cursor MCP permission mapping" -d "[agent=cursor] ..."`
+   - `ATMIKO_PORT=3606 apps/f1/f1 start-session -i issue-1`
 5. Evidence captured from server output:
    - `Label-based runner selection for new session: cursor (session session-1)`
-   - `Configured allowed tools ... 'mcp__linear', 'mcp__cyrus-tools'`
+   - `Configured allowed tools ... 'mcp__linear', 'mcp__atmiko-tools'`
    - `[CursorRunner] Synced project permissions .../.cursor/cli.json (allow=3, deny=0)`
 
 ## Additional Automated Validation
 
-- `pnpm --filter cyrus-cursor-runner test:run -- CursorRunner.permissions.test.ts`
+- `pnpm --filter atmiko-cursor-runner test:run -- CursorRunner.permissions.test.ts`
   - Confirms Claude MCP tool patterns map to Cursor permissions:
     - `mcp__trigger__search_docs` -> `Mcp(trigger:search_docs)`
     - `mcp__linear` -> `Mcp(linear:*)`
     - `mcp__linear__create_issue` -> `Mcp(linear:create_issue)`
-- `pnpm --filter cyrus-cursor-runner test:run -- CursorRunner.mcp-enable.test.ts`
+- `pnpm --filter atmiko-cursor-runner test:run -- CursorRunner.mcp-enable.test.ts`
   - Confirms pre-run MCP enable commands use both sources:
     - project/server list output from `agent mcp list`
     - inline runner `mcpConfig` server names

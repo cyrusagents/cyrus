@@ -54,7 +54,7 @@ export interface ErrorReporterContext {
 /**
  * Abstraction over error-tracking backends.
  *
- * Cyrus depends only on this interface so that:
+ * Atmiko depends only on this interface so that:
  *   - alternative backends (Sentry, Bugsnag, Honeycomb, Noop) can be swapped
  *     without touching call sites,
  *   - the bulk of the codebase compiles without a backend SDK in scope, and

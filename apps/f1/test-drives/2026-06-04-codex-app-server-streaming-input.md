@@ -3,7 +3,7 @@
 **Date**: 2026-06-04
 **Goal**: Validate the new Codex `app-server` backend end-to-end through the real EdgeWorker pipeline, including mid-turn comment steering (`turn/steer`).
 **Test Repo**: `/tmp/f1-codex-appserver-<ts>` (rate-limiter scaffold)
-**Config**: `CYRUS_DEFAULT_RUNNER=codex CODEX_USE_APP_SERVER=1 CODEX_MODEL=gpt-5.5` (env-gated F1 server runner selection)
+**Config**: `ATMIKO_DEFAULT_RUNNER=codex CODEX_USE_APP_SERVER=1 CODEX_MODEL=gpt-5.5` (env-gated F1 server runner selection)
 
 ## Verification Results
 

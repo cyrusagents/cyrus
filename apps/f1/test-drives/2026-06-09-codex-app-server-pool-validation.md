@@ -3,7 +3,7 @@
 **Date**: 2026-06-09
 **Goal**: Validate the Codex app-server path end-to-end for PR #1293 — runner selection, app-server launch via the `@openai/codex` bin-shim (0.137 SDK), per-thread permission-profile sandbox, the pooled shared app-server with concurrent-session isolation, and resume-across-turns.
 **Test Repo**: `/tmp/f1-codex-pool-20260609-170916`
-**Server**: `CYRUS_PORT=3607 CYRUS_DEFAULT_RUNNER=codex CODEX_MODEL=gpt-5.5 CODEX_HOME=~/.codex bun run apps/f1/server.ts`
+**Server**: `ATMIKO_PORT=3607 ATMIKO_DEFAULT_RUNNER=codex CODEX_MODEL=gpt-5.5 CODEX_HOME=~/.codex bun run apps/f1/server.ts`
 
 ## Verification Results
 
@@ -47,23 +47,23 @@ Issue: create `F1POOL.txt` containing `F1-POOL-OK`, then reply `F1-POOL-OK`.
 ```bash
 cd apps/f1
 ./f1 init-test-repo --path /tmp/f1-codex-pool-20260609-170916
-CYRUS_PORT=3607 CYRUS_REPO_PATH=/tmp/f1-codex-pool-20260609-170916 \
-  CYRUS_DEFAULT_RUNNER=codex CODEX_MODEL=gpt-5.5 CODEX_HOME=~/.codex \
+ATMIKO_PORT=3607 ATMIKO_REPO_PATH=/tmp/f1-codex-pool-20260609-170916 \
+  ATMIKO_DEFAULT_RUNNER=codex CODEX_MODEL=gpt-5.5 CODEX_HOME=~/.codex \
   bun run apps/f1/server.ts &
 
-CYRUS_PORT=3607 ./f1 create-issue -t "...create a file" -d "...F1POOL.txt...F1-POOL-OK"
-CYRUS_PORT=3607 ./f1 start-session --issue-id issue-1
-CYRUS_PORT=3607 ./f1 prompt-session --session-id session-1 --message "F1 Test Repository"
-CYRUS_PORT=3607 ./f1 view-session --session-id session-1     # → response F1-POOL-OK
+ATMIKO_PORT=3607 ./f1 create-issue -t "...create a file" -d "...F1POOL.txt...F1-POOL-OK"
+ATMIKO_PORT=3607 ./f1 start-session --issue-id issue-1
+ATMIKO_PORT=3607 ./f1 prompt-session --session-id session-1 --message "F1 Test Repository"
+ATMIKO_PORT=3607 ./f1 view-session --session-id session-1     # → response F1-POOL-OK
 
 # concurrent
-CYRUS_PORT=3607 ./f1 start-session --issue-id issue-2 && ./f1 start-session --issue-id issue-3
-CYRUS_PORT=3607 ./f1 prompt-session -s session-2 -m "F1 Test Repository"
-CYRUS_PORT=3607 ./f1 prompt-session -s session-3 -m "F1 Test Repository"
+ATMIKO_PORT=3607 ./f1 start-session --issue-id issue-2 && ./f1 start-session --issue-id issue-3
+ATMIKO_PORT=3607 ./f1 prompt-session -s session-2 -m "F1 Test Repository"
+ATMIKO_PORT=3607 ./f1 prompt-session -s session-3 -m "F1 Test Repository"
 # → session-2 ALPHA-CONCURRENT-111, session-3 BRAVO-CONCURRENT-222 (isolated)
 
 # resume
-CYRUS_PORT=3607 ./f1 prompt-session -s session-2 -m "What token did you just reply with?"
+ATMIKO_PORT=3607 ./f1 prompt-session -s session-2 -m "What token did you just reply with?"
 # → ALPHA-CONCURRENT-111 (context recalled across turns)
 ```
 

@@ -1,8 +1,8 @@
 import type {
 	ZulipMessage,
 	ZulipWebhookEvent,
-} from "cyrus-zulip-event-transport";
-import { ZulipMessageService } from "cyrus-zulip-event-transport";
+} from "atmiko-zulip-event-transport";
+import { ZulipMessageService } from "atmiko-zulip-event-transport";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
 import { ZulipChatAdapter } from "../src/ZulipChatAdapter.js";

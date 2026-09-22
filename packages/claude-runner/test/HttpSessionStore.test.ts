@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import {
-	CYRUS_TEAM_ID_HEADER,
+	ATMIKO_TEAM_ID_HEADER,
 	HttpSessionStore,
 } from "../src/HttpSessionStore.js";
 import { runSessionStoreConformance } from "./sessionStoreConformance.js";
@@ -11,9 +11,9 @@ type StoredRow = { entry: SessionStoreEntry; mtime: number };
 /**
  * In-memory server that implements the HTTP contract the HttpSessionStore
  * speaks to. Used to run the 13-check conformance suite against the real
- * `HttpSessionStore` class without needing a live cyrus-hosted backend.
+ * `HttpSessionStore` class without needing a live atmiko-hosted backend.
  *
- * Also asserts that every incoming request carries the `X-Cyrus-Team-Id`
+ * Also asserts that every incoming request carries the `X-Atmiko-Team-Id`
  * header the real server requires — that way, if a future refactor forgot
  * to send it, the conformance suite would fail loudly rather than silently.
  */
@@ -45,7 +45,7 @@ class FakeSessionServer {
 		// Mirror the real server's requirement: the team id header must be
 		// present on every request. Missing header ⇒ 401.
 		const teamId = request.headers
-			.get(CYRUS_TEAM_ID_HEADER.toLowerCase())
+			.get(ATMIKO_TEAM_ID_HEADER.toLowerCase())
 			?.trim();
 		if (!teamId) {
 			return new Response("missing team id", { status: 401 });
@@ -202,7 +202,7 @@ describe("HttpSessionStore - transport", () => {
 		expect(observedAuth).toBe("Bearer secret-key");
 	});
 
-	test("sends X-Cyrus-Team-Id on every request", async () => {
+	test("sends X-Atmiko-Team-Id on every request", async () => {
 		let observedTeamId: string | undefined;
 		const store = new HttpSessionStore({
 			baseUrl: "http://fake.invalid",
@@ -211,7 +211,7 @@ describe("HttpSessionStore - transport", () => {
 			fetch: (async (_input: unknown, init?: RequestInit) => {
 				const headers = new Headers(init?.headers);
 				observedTeamId =
-					headers.get(CYRUS_TEAM_ID_HEADER.toLowerCase()) ?? undefined;
+					headers.get(ATMIKO_TEAM_ID_HEADER.toLowerCase()) ?? undefined;
 				return new Response(JSON.stringify({ entries: null }), {
 					status: 200,
 					headers: { "Content-Type": "application/json" },

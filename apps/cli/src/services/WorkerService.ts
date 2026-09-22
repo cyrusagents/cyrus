@@ -1,13 +1,12 @@
-import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
 import type {
 	EdgeWorkerConfig,
 	Issue,
 	RepoSetupHookEventHandler,
 	RepositoryConfig,
-} from "cyrus-core";
-import type { GitService, SharedApplicationServer } from "cyrus-edge-worker";
-import { EdgeWorker } from "cyrus-edge-worker";
-import { SlackEventTransport } from "cyrus-slack-event-transport";
+} from "atmiko-core";
+import type { GitService, SharedApplicationServer } from "atmiko-edge-worker";
+import { EdgeWorker } from "atmiko-edge-worker";
+import { SlackEventTransport } from "atmiko-slack-event-transport";
 import { DEFAULT_SERVER_PORT, parsePort } from "../config/constants.js";
 import type { Workspace } from "../config/types.js";
 import type { ConfigService } from "./ConfigService.js";
@@ -39,7 +38,7 @@ export class WorkerService {
 	constructor(
 		private configService: ConfigService,
 		private gitService: GitService,
-		private cyrusHome: string,
+		private atmikoHome: string,
 		private logger: Logger,
 		private version?: string,
 	) {}
@@ -65,9 +64,8 @@ export class WorkerService {
 	async startSetupWaitingMode(): Promise<void> {
 		await this.startPreWorkerServer({
 			headerLine: "⏳ Waiting for configuration from server...",
-			footerLines: (appUrl) => [
-				"Your Cyrus instance is ready to receive configuration.",
-				`Complete setup at: ${appUrl}/onboarding`,
+			footerLines: [
+				"Configure ~/.atmiko/config.json and add repositories with atmiko self-add-repo <git-url>.",
 			],
 		});
 	}
@@ -79,13 +77,7 @@ export class WorkerService {
 	async startIdleMode(): Promise<void> {
 		await this.startPreWorkerServer({
 			headerLine: "⏸️  No repositories configured",
-			footerLines: (appUrl) =>
-				process.env.LINEAR_CLIENT_ID
-					? ["Add a repository with: cyrus self-add-repo <git-url>"]
-					: [
-							`Waiting for repository configuration from ${appUrl}`,
-							`Add repositories at: ${appUrl}/repos`,
-						],
+			footerLines: ["Add a repository with: atmiko self-add-repo <git-url>"],
 		});
 	}
 
@@ -96,15 +88,15 @@ export class WorkerService {
 	 */
 	private async startPreWorkerServer(banner: {
 		headerLine: string;
-		footerLines: (appUrl: string) => string[];
+		footerLines: string[];
 	}): Promise<void> {
-		const { SharedApplicationServer } = await import("cyrus-edge-worker");
-		const { ConfigUpdater } = await import("cyrus-config-updater");
+		const { SharedApplicationServer } = await import("atmiko-edge-worker");
+		const { ConfigUpdater } = await import("atmiko-config-updater");
 
 		const isExternalHost =
-			process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 		const serverPort = parsePort(
-			process.env.CYRUS_SERVER_PORT,
+			process.env.ATMIKO_SERVER_PORT,
 			DEFAULT_SERVER_PORT,
 		);
 		const serverHost = isExternalHost ? "0.0.0.0" : "localhost";
@@ -117,14 +109,14 @@ export class WorkerService {
 
 		const configUpdater = new ConfigUpdater(
 			this.setupWaitingServer.getFastifyInstance(),
-			this.cyrusHome,
-			() => process.env.CYRUS_API_KEY || "",
+			this.atmikoHome,
+			() => process.env.ATMIKO_API_KEY || "",
 		);
 		configUpdater.register();
 
 		this.logger.info("✅ Config updater registered");
 		this.logger.info(
-			"   Routes: /api/update/cyrus-config, /api/update/cyrus-env,",
+			"   Routes: /api/update/atmiko-config, /api/update/atmiko-env,",
 		);
 		this.logger.info(
 			"           /api/update/repository, /api/update/test-mcp, /api/update/configure-mcp",
@@ -146,7 +138,7 @@ export class WorkerService {
 
 		this.logger.info("📡 Config updater: Ready");
 		this.logger.raw("");
-		for (const line of banner.footerLines(getCyrusAppUrl())) {
+		for (const line of banner.footerLines) {
 			this.logger.info(line);
 		}
 		this.logger.divider(70);
@@ -155,11 +147,11 @@ export class WorkerService {
 	/**
 	 * Register webhook endpoints that don't require repositories.
 	 * Called from both idle and setup-waiting modes so that external services
-	 * (e.g. Slack URL verification) can reach Cyrus during onboarding.
+	 * (e.g. Slack URL verification) can reach Atmiko during onboarding.
 	 */
 	private registerWebhookTransports(server: SharedApplicationServer): void {
 		const isExternalHost =
-			process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 		const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
 		const hasSlackSigningSecret =
 			slackSigningSecret != null && slackSigningSecret !== "";
@@ -204,7 +196,7 @@ export class WorkerService {
 
 		// Determine if using external host
 		const isExternalHost =
-			process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 
 		// Load config once for model defaults
 		const edgeConfig = this.configService.load();
@@ -223,7 +215,7 @@ export class WorkerService {
 			...edgeConfig,
 			version: this.version,
 			repositories,
-			cyrusHome: this.cyrusHome,
+			atmikoHome: this.atmikoHome,
 			linearAllowedTools:
 				parseToolEnv(process.env.LINEAR_ALLOWED_TOOLS) ??
 				edgeConfig.linearAllowedTools,
@@ -233,39 +225,43 @@ export class WorkerService {
 			// Model configuration: environment variables take precedence over config file.
 			// Legacy env vars/keys are still accepted for backwards compatibility.
 			claudeDefaultModel:
-				process.env.CYRUS_CLAUDE_DEFAULT_MODEL ||
-				process.env.CYRUS_DEFAULT_MODEL ||
+				process.env.ATMIKO_CLAUDE_DEFAULT_MODEL ||
+				process.env.ATMIKO_DEFAULT_MODEL ||
 				edgeConfig.claudeDefaultModel ||
 				edgeConfig.defaultModel,
 			claudeDefaultFallbackModel:
-				process.env.CYRUS_CLAUDE_DEFAULT_FALLBACK_MODEL ||
-				process.env.CYRUS_DEFAULT_FALLBACK_MODEL ||
+				process.env.ATMIKO_CLAUDE_DEFAULT_FALLBACK_MODEL ||
+				process.env.ATMIKO_DEFAULT_FALLBACK_MODEL ||
 				edgeConfig.claudeDefaultFallbackModel ||
 				edgeConfig.defaultFallbackModel,
 			geminiDefaultModel:
-				process.env.CYRUS_GEMINI_DEFAULT_MODEL || edgeConfig.geminiDefaultModel,
+				process.env.ATMIKO_GEMINI_DEFAULT_MODEL ||
+				edgeConfig.geminiDefaultModel,
 			codexDefaultModel:
-				process.env.CYRUS_CODEX_DEFAULT_MODEL || edgeConfig.codexDefaultModel,
+				process.env.ATMIKO_CODEX_DEFAULT_MODEL || edgeConfig.codexDefaultModel,
 			opencodeDefaultModel:
-				process.env.CYRUS_OPENCODE_DEFAULT_MODEL ||
+				process.env.ATMIKO_OPENCODE_DEFAULT_MODEL ||
 				edgeConfig.opencodeDefaultModel,
 			opencodeDefaultFallbackModel:
-				process.env.CYRUS_OPENCODE_DEFAULT_FALLBACK_MODEL ||
+				process.env.ATMIKO_OPENCODE_DEFAULT_FALLBACK_MODEL ||
 				edgeConfig.opencodeDefaultFallbackModel,
 			inferOpenCodeRunnerFromProviderModel:
 				parseBooleanEnv(
-					process.env.CYRUS_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL,
+					process.env.ATMIKO_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL,
 				) ?? edgeConfig.inferOpenCodeRunnerFromProviderModel,
 			defaultRunner:
-				(process.env.CYRUS_DEFAULT_RUNNER as
+				(process.env.ATMIKO_DEFAULT_RUNNER as
 					| "claude"
 					| "gemini"
 					| "codex"
 					| "cursor"
 					| "opencode"
 					| undefined) || edgeConfig.defaultRunner,
-			webhookBaseUrl: process.env.CYRUS_BASE_URL,
-			serverPort: parsePort(process.env.CYRUS_SERVER_PORT, DEFAULT_SERVER_PORT),
+			webhookBaseUrl: process.env.ATMIKO_BASE_URL,
+			serverPort: parsePort(
+				process.env.ATMIKO_SERVER_PORT,
+				DEFAULT_SERVER_PORT,
+			),
 			serverHost: isExternalHost ? "0.0.0.0" : "localhost",
 			ngrokAuthToken,
 			handlers: {

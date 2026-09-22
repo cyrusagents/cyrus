@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	buildAtmikoPermissionsConfig,
 	buildAutoDenyPatterns,
-	buildCyrusPermissionsConfig,
 } from "../src/permissions.js";
 
 const tempDirs: string[] = [];
 
 function tempWorkspace(): string {
-	const dir = mkdtempSync(join(tmpdir(), "cyrus-perms-"));
+	const dir = mkdtempSync(join(tmpdir(), "atmiko-perms-"));
 	tempDirs.push(dir);
 	return dir;
 }
@@ -21,10 +21,10 @@ afterEach(() => {
 	}
 });
 
-describe("buildCyrusPermissionsConfig", () => {
+describe("buildAtmikoPermissionsConfig", () => {
 	it("maps Claude-style tool patterns to Cursor hook patterns", () => {
 		const ws = tempWorkspace();
-		const cfg = buildCyrusPermissionsConfig({
+		const cfg = buildAtmikoPermissionsConfig({
 			workspace: ws,
 			allowedTools: [
 				"Read(src/**)",
@@ -64,7 +64,7 @@ describe("buildCyrusPermissionsConfig", () => {
 
 	it("scopes wildcard read/write to workspace via auto-deny", () => {
 		const ws = tempWorkspace();
-		const cfg = buildCyrusPermissionsConfig({
+		const cfg = buildAtmikoPermissionsConfig({
 			workspace: ws,
 			allowedTools: ["Read", "Edit", "Write"],
 		});
@@ -83,7 +83,7 @@ describe("buildCyrusPermissionsConfig", () => {
 
 	it("returns no auto-deny patterns when only narrow Read/Write are allowed", () => {
 		const ws = tempWorkspace();
-		const cfg = buildCyrusPermissionsConfig({
+		const cfg = buildAtmikoPermissionsConfig({
 			workspace: ws,
 			allowedTools: ["Read(src/**)", "Write(src/**)"],
 		});
@@ -92,7 +92,7 @@ describe("buildCyrusPermissionsConfig", () => {
 
 	it("drops unrecognized patterns silently", () => {
 		const ws = tempWorkspace();
-		const cfg = buildCyrusPermissionsConfig({
+		const cfg = buildAtmikoPermissionsConfig({
 			workspace: ws,
 			allowedTools: ["NonsenseTool(garbage)", "Read(src/**)"],
 		});
@@ -112,7 +112,7 @@ describe("buildCyrusPermissionsConfig", () => {
 	// every file read and shell command after passing the preToolUse gate.
 	it("expands bare Read/Write/Bash to both Tool(...) and path-level allows", () => {
 		const ws = tempWorkspace();
-		const cfg = buildCyrusPermissionsConfig({
+		const cfg = buildAtmikoPermissionsConfig({
 			workspace: ws,
 			allowedTools: [
 				"Read",

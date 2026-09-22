@@ -1,17 +1,17 @@
 import type { LinearClient } from "@linear/sdk";
-import type { McpServerConfig } from "cyrus-claude-runner";
-import type { IIssueTrackerService, RepositoryConfig } from "cyrus-core";
+import type { McpServerConfig } from "atmiko-claude-runner";
+import type { IIssueTrackerService, RepositoryConfig } from "atmiko-core";
 import {
-	type CyrusToolsOptions,
-	createCyrusToolsServer,
-} from "cyrus-mcp-tools";
+	type AtmikoToolsOptions,
+	createAtmikoToolsServer,
+} from "atmiko-mcp-tools";
 
-type CyrusToolsMcpContextEntry = {
+type AtmikoToolsMcpContextEntry = {
 	contextId: string;
 	linearToken: string;
 	linearClient: LinearClient;
 	parentSessionId?: string;
-	prebuiltServer?: ReturnType<typeof createCyrusToolsServer>;
+	prebuiltServer?: ReturnType<typeof createAtmikoToolsServer>;
 	createdAt: number;
 };
 
@@ -25,34 +25,34 @@ export interface McpConfigServiceDeps {
 	getIssueTracker: (
 		workspaceId: string,
 	) => (IIssueTrackerService & { getClient?: () => LinearClient }) | undefined;
-	/** Get the HTTP URL where the cyrus-tools MCP endpoint is registered */
-	getCyrusToolsMcpUrl: () => string;
-	/** Factory that creates CyrusToolsOptions with session callbacks */
-	createCyrusToolsOptions: (parentSessionId?: string) => CyrusToolsOptions;
+	/** Get the HTTP URL where the atmiko-tools MCP endpoint is registered */
+	getAtmikoToolsMcpUrl: () => string;
+	/** Factory that creates AtmikoToolsOptions with session callbacks */
+	createAtmikoToolsOptions: (parentSessionId?: string) => AtmikoToolsOptions;
 }
 
 /**
  * Single source of truth for MCP server configuration assembly.
  *
  * Handles:
- * - Building inline MCP server configs (Linear, cyrus-tools, Slack)
+ * - Building inline MCP server configs (Linear, atmiko-tools, Slack)
  * - Merging file-based MCP config paths from repositories
- * - Cyrus-tools MCP context lifecycle management
+ * - Atmiko-tools MCP context lifecycle management
  *
  * Both EdgeWorker (issue sessions) and ChatSessionHandler (chat sessions)
  * consume this service instead of duplicating MCP config logic.
  */
 export class McpConfigService {
 	private deps: McpConfigServiceDeps;
-	private contexts = new Map<string, CyrusToolsMcpContextEntry>();
+	private contexts = new Map<string, AtmikoToolsMcpContextEntry>();
 
 	constructor(deps: McpConfigServiceDeps) {
 		this.deps = deps;
 	}
 
 	/**
-	 * Build MCP configuration with automatic Linear server injection and cyrus-tools over Fastify MCP.
-	 * Workspace-level servers (Linear, cyrus-tools, Slack) are configured once using workspace-level token.
+	 * Build MCP configuration with automatic Linear server injection and atmiko-tools over Fastify MCP.
+	 * Workspace-level servers (Linear, atmiko-tools, Slack) are configured once using workspace-level token.
 	 *
 	 * Whether the agent can actually CALL into any of these servers is gated
 	 * by the per-platform allowed-tools array (`teams.{linear,slack,github}_allowed_tools`),
@@ -62,7 +62,7 @@ export class McpConfigService {
 	 *
 	 * @param repoId - Repository ID for MCP context scoping
 	 * @param linearWorkspaceId - Linear workspace ID (from webhook.organizationId or repo config)
-	 * @param parentSessionId - Parent session ID for cyrus-tools context
+	 * @param parentSessionId - Parent session ID for atmiko-tools context
 	 */
 	buildMcpConfig(
 		repoId: string,
@@ -75,19 +75,19 @@ export class McpConfigService {
 		const linearToken = this.deps.getLinearTokenForWorkspace(linearWorkspaceId);
 		const issueTracker = this.deps.getIssueTracker(linearWorkspaceId);
 		if (!linearToken || !issueTracker?.getClient) {
-			// CLI platform mode — no Linear client available, return config without cyrus-tools
+			// CLI platform mode — no Linear client available, return config without atmiko-tools
 			const mcpConfig: Record<string, McpServerConfig> = {
-				"cyrus-docs": {
+				"atmiko-docs": {
 					type: "http",
-					url: "https://atcyrus.com/docs/mcp",
+					url: "https://github.com/nexmoe/atmiko/blob/main/docs/CONFIG_FILE.md",
 				},
 			};
 			return mcpConfig;
 		}
 		const linearClient = issueTracker.getClient();
-		const prebuiltServer = createCyrusToolsServer(
+		const prebuiltServer = createAtmikoToolsServer(
 			linearClient,
-			this.deps.createCyrusToolsOptions(parentSessionId),
+			this.deps.createAtmikoToolsOptions(parentSessionId),
 		);
 
 		this.contexts.set(contextId, {
@@ -100,7 +100,7 @@ export class McpConfigService {
 		});
 		this.pruneContexts();
 
-		const cyrusToolsAuthorizationHeader = this.getAuthorizationHeaderValue();
+		const atmikoToolsAuthorizationHeader = this.getAuthorizationHeaderValue();
 
 		// Workspace-level MCP servers — configured once regardless of repo count
 		// https://linear.app/docs/mcp
@@ -112,21 +112,21 @@ export class McpConfigService {
 					Authorization: `Bearer ${linearToken}`,
 				},
 			},
-			"cyrus-tools": {
+			"atmiko-tools": {
 				type: "http",
-				url: this.deps.getCyrusToolsMcpUrl(),
+				url: this.deps.getAtmikoToolsMcpUrl(),
 				headers: {
-					"x-cyrus-mcp-context-id": contextId,
-					...(cyrusToolsAuthorizationHeader
+					"x-atmiko-mcp-context-id": contextId,
+					...(atmikoToolsAuthorizationHeader
 						? {
-								Authorization: cyrusToolsAuthorizationHeader,
+								Authorization: atmikoToolsAuthorizationHeader,
 							}
 						: {}),
 				},
 			},
-			"cyrus-docs": {
+			"atmiko-docs": {
 				type: "http",
-				url: "https://atcyrus.com/docs/mcp",
+				url: "https://github.com/nexmoe/atmiko/blob/main/docs/CONFIG_FILE.md",
 			},
 		};
 
@@ -179,10 +179,10 @@ export class McpConfigService {
 	}
 
 	/**
-	 * Look up a stored cyrus-tools MCP context by its ID.
+	 * Look up a stored atmiko-tools MCP context by its ID.
 	 * Used by the MCP endpoint handler to retrieve prebuilt servers.
 	 */
-	getContext(contextId: string): CyrusToolsMcpContextEntry | undefined {
+	getContext(contextId: string): AtmikoToolsMcpContextEntry | undefined {
 		return this.contexts.get(contextId);
 	}
 
@@ -204,10 +204,10 @@ export class McpConfigService {
 	}
 
 	/**
-	 * Get the authorization header value for cyrus-tools MCP requests.
+	 * Get the authorization header value for atmiko-tools MCP requests.
 	 */
 	getAuthorizationHeaderValue(): string | undefined {
-		const apiKey = process.env.CYRUS_API_KEY?.trim();
+		const apiKey = process.env.ATMIKO_API_KEY?.trim();
 		if (!apiKey) {
 			return undefined;
 		}

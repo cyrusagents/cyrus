@@ -1120,7 +1120,7 @@ export class CLIIssueTrackerService
 	 * deleted) and emit an {@link IssueStateChangeMessage} on the unified message
 	 * bus. This mirrors what {@link LinearMessageTranslator} does for real Linear
 	 * `issueStatusChanged` / `Issue.remove` webhooks, so the EdgeWorker's
-	 * terminal-state cleanup path (worktree removal, `cyrus-teardown.sh`, etc.)
+	 * terminal-state cleanup path (worktree removal, `atmiko-teardown.sh`, etc.)
 	 * is exercised the same way in F1 as it is in production.
 	 *
 	 * For `"deleted"` the issue is removed from the in-memory state; for
@@ -1166,7 +1166,7 @@ export class CLIIssueTrackerService
 
 		// Emit IssueStateChangeMessage on the unified message bus so that
 		// EdgeWorker.handleIssueStateChangeMessage runs the terminal-state
-		// cleanup (stop sessions, run cyrus-teardown.sh, remove worktrees).
+		// cleanup (stop sessions, run atmiko-teardown.sh, remove worktrees).
 		if (this.eventTransport) {
 			const platformData: LinearIssueStateChangePlatformData = {
 				issue: {

@@ -1,4 +1,4 @@
-import type { IIssueTrackerService, ILogger } from "cyrus-core";
+import type { IIssueTrackerService, ILogger } from "atmiko-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ActivityPoster } from "../src/ActivityPoster.js";
 
@@ -33,7 +33,7 @@ describe("ActivityPoster", () => {
 		await poster.postRepoSetupHookActivity("session-1", "workspace-1", {
 			status: "failed",
 			issueIdentifier: "ENG-97",
-			scriptName: "cyrus-setup.sh",
+			scriptName: "atmiko-setup.sh",
 			repositoryName: "test-repo",
 			durationMs: 1_200,
 			exitCode: 1,
@@ -48,14 +48,14 @@ describe("ActivityPoster", () => {
 			"The setup script does not run with sudo privileges.",
 		);
 		expect(result).toContain("Settings > Packages (`/settings/packages`)");
-		expect(result).toContain("self-hosted Cyrus");
+		expect(result).toContain("self-hosted Atmiko");
 	});
 
 	it("does not add sudo guidance to non-sudo repo setup hook failures", async () => {
 		await poster.postRepoSetupHookActivity("session-1", "workspace-1", {
 			status: "failed",
 			issueIdentifier: "ENG-97",
-			scriptName: "cyrus-setup.sh",
+			scriptName: "atmiko-setup.sh",
 			repositoryName: "test-repo",
 			durationMs: 1_200,
 			exitCode: 42,

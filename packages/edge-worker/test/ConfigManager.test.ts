@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { EdgeWorkerConfig, ILogger, RepositoryConfig } from "cyrus-core";
+import type { EdgeWorkerConfig, ILogger, RepositoryConfig } from "atmiko-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConfigManager } from "../src/ConfigManager.js";
 
@@ -30,7 +30,7 @@ describe("ConfigManager", () => {
 	});
 
 	it("reloads top-level OpenCode config and emits it as a global config change", async () => {
-		tempDir = await mkdtemp(join(tmpdir(), "cyrus-config-manager-"));
+		tempDir = await mkdtemp(join(tmpdir(), "atmiko-config-manager-"));
 		const configPath = join(tempDir, "config.json");
 		const opencode = {
 			config: {
@@ -66,7 +66,7 @@ describe("ConfigManager", () => {
 	});
 
 	it("reloads strictMcpConfig=false and emits it as a global config change", async () => {
-		tempDir = await mkdtemp(join(tmpdir(), "cyrus-config-manager-"));
+		tempDir = await mkdtemp(join(tmpdir(), "atmiko-config-manager-"));
 		const configPath = join(tempDir, "config.json");
 		const initialConfig: EdgeWorkerConfig = {
 			repositories: [repo],

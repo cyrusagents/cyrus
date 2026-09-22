@@ -2,7 +2,7 @@ import type {
 	AgentPendingWork,
 	BackgroundTaskSummary,
 	SessionCronSummary,
-} from "cyrus-core";
+} from "atmiko-core";
 
 /**
  * Formatting helpers for sessions that end a turn with work still scheduled

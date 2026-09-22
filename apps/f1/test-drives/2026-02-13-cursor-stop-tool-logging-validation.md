@@ -23,11 +23,11 @@
 ## Session Log (Key Commands)
 
 ```bash
-CYRUS_PORT=3626 ./f1 create-issue --title "CYPACK-804 acceptance proof 2" --description "... [agent=cursor] [model=gpt-5]"
-CYRUS_PORT=3626 ./f1 start-session --issue-id issue-2
+ATMIKO_PORT=3626 ./f1 create-issue --title "CYPACK-804 acceptance proof 2" --description "... [agent=cursor] [model=gpt-5]"
+ATMIKO_PORT=3626 ./f1 start-session --issue-id issue-2
 sleep 10
-CYRUS_PORT=3626 ./f1 stop-session --session-id session-2
-CYRUS_PORT=3626 ./f1 view-session --session-id session-2 --limit 200
+ATMIKO_PORT=3626 ./f1 stop-session --session-id session-2
+ATMIKO_PORT=3626 ./f1 view-session --session-id session-2 --limit 200
 ```
 
 ## Evidence

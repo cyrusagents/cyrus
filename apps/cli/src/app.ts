@@ -4,11 +4,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setGlobalErrorReporter } from "atmiko-core";
 import { Command } from "commander";
-import { setGlobalErrorReporter } from "cyrus-core";
 import dotenv from "dotenv";
 import { Application } from "./Application.js";
-import { AuthCommand } from "./commands/AuthCommand.js";
 import { CheckTokensCommand } from "./commands/CheckTokensCommand.js";
 import { RefreshTokenCommand } from "./commands/RefreshTokenCommand.js";
 import { SelfAddRepoCommand } from "./commands/SelfAddRepoCommand.js";
@@ -26,9 +25,9 @@ const packageJsonPath = resolve(__dirname, "..", "..", "package.json");
 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
 
 // Pre-load env vars from the resolved .env file before initialising Sentry, so
-// that CYRUS_SENTRY_DISABLED / CYRUS_SENTRY_DSN take effect on the first run.
+// that ATMIKO_SENTRY_DISABLED / ATMIKO_SENTRY_DSN take effect on the first run.
 // We re-resolve the path inside Application using the same precedence (CLI
-// flag wins); this preliminary load only honours CYRUS_HOME and the default.
+// flag wins); this preliminary load only honours ATMIKO_HOME and the default.
 preloadEnvForBootstrap();
 
 // Initialise the error reporter as early as possible so that exceptions
@@ -42,13 +41,13 @@ setGlobalErrorReporter(errorReporter);
 const program = new Command();
 
 program
-	.name("cyrus")
+	.name("atmiko")
 	.description("AI-powered Linear issue automation using Claude")
 	.version(packageJson.version)
 	.option(
-		"--cyrus-home <path>",
-		"Specify custom Cyrus config directory",
-		resolve(homedir(), ".cyrus"),
+		"--atmiko-home <path>",
+		"Specify custom Atmiko config directory",
+		resolve(homedir(), ".atmiko"),
 	)
 	.option("--env-file <path>", "Path to environment variables file");
 
@@ -59,27 +58,12 @@ program
 	.action(async () => {
 		const opts = program.opts();
 		const app = new Application(
-			opts.cyrusHome,
+			opts.atmikoHome,
 			opts.envFile,
 			packageJson.version,
 			errorReporter,
 		);
 		await new StartCommand(app).execute([]);
-	});
-
-// Auth command
-program
-	.command("auth <auth-key>")
-	.description("Authenticate with Cyrus using auth key")
-	.action(async (authKey: string) => {
-		const opts = program.opts();
-		const app = new Application(
-			opts.cyrusHome,
-			opts.envFile,
-			packageJson.version,
-			errorReporter,
-		);
-		await new AuthCommand(app).execute([authKey]);
 	});
 
 // Check tokens command
@@ -89,7 +73,7 @@ program
 	.action(async () => {
 		const opts = program.opts();
 		const app = new Application(
-			opts.cyrusHome,
+			opts.atmikoHome,
 			opts.envFile,
 			packageJson.version,
 			errorReporter,
@@ -104,7 +88,7 @@ program
 	.action(async () => {
 		const opts = program.opts();
 		const app = new Application(
-			opts.cyrusHome,
+			opts.atmikoHome,
 			opts.envFile,
 			packageJson.version,
 			errorReporter,
@@ -119,7 +103,7 @@ program
 	.action(async () => {
 		const opts = program.opts();
 		const app = new Application(
-			opts.cyrusHome,
+			opts.atmikoHome,
 			opts.envFile,
 			packageJson.version,
 			errorReporter,
@@ -149,7 +133,7 @@ program
 		) => {
 			const opts = program.opts();
 			const app = new Application(
-				opts.cyrusHome,
+				opts.atmikoHome,
 				opts.envFile,
 				packageJson.version,
 			);
@@ -180,20 +164,20 @@ program
  * Best-effort env preload so the error reporter can read its config before the
  * full {@link Application} bootstrap. We honour `--env-file` only as a literal
  * argv lookup (Commander hasn't parsed yet) and otherwise fall back to the
- * default `<cyrus-home>/.env` path.
+ * default `<atmiko-home>/.env` path.
  */
 function preloadEnvForBootstrap(): void {
 	const argv = process.argv.slice(2);
 	const flagIdx = argv.indexOf("--env-file");
-	const cyrusHomeIdx = argv.indexOf("--cyrus-home");
+	const atmikoHomeIdx = argv.indexOf("--atmiko-home");
 
 	const envFile = flagIdx >= 0 ? argv[flagIdx + 1] : undefined;
-	const cyrusHome =
-		cyrusHomeIdx >= 0 && argv[cyrusHomeIdx + 1]
-			? (argv[cyrusHomeIdx + 1] as string)
-			: resolve(homedir(), ".cyrus");
+	const atmikoHome =
+		atmikoHomeIdx >= 0 && argv[atmikoHomeIdx + 1]
+			? (argv[atmikoHomeIdx + 1] as string)
+			: resolve(homedir(), ".atmiko");
 
-	const path = envFile ?? join(cyrusHome, ".env");
+	const path = envFile ?? join(atmikoHome, ".env");
 	if (existsSync(path)) {
 		dotenv.config({ path, override: false });
 	}

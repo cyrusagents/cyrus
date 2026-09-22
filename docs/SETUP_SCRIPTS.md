@@ -1,19 +1,19 @@
 # Setup Scripts
 
-Cyrus supports optional setup scripts that run automatically when creating new git worktrees for issues. This allows you to perform repository-specific or global initialization tasks.
+Atmiko supports optional setup scripts that run automatically when creating new git worktrees for issues. This allows you to perform repository-specific or global initialization tasks.
 
 ---
 
 ## Repository Setup Script
 
-Place a `cyrus-setup.sh` script in your repository root to run repository-specific initialization.
+Place a `atmiko-setup.sh` script in your repository root to run repository-specific initialization.
 
 ### How it works
 
-1. Place a `cyrus-setup.sh` script in your repository root
-2. When Cyrus processes an issue, it creates a new git worktree
-3. Cyrus discovers the setup script from the newly-created issue worktree, so the script version matches the checked-out code for that task
-4. If the setup script exists, Cyrus runs it in the new worktree with these environment variables:
+1. Place a `atmiko-setup.sh` script in your repository root
+2. When Atmiko processes an issue, it creates a new git worktree
+3. Atmiko discovers the setup script from the newly-created issue worktree, so the script version matches the checked-out code for that task
+4. If the setup script exists, Atmiko runs it in the new worktree with these environment variables:
    - `LINEAR_ISSUE_ID` - The Linear issue ID
    - `LINEAR_ISSUE_IDENTIFIER` - The issue identifier (e.g., "CEA-123")
    - `LINEAR_ISSUE_TITLE` - The issue title
@@ -22,7 +22,7 @@ Place a `cyrus-setup.sh` script in your repository root to run repository-specif
 
 ```bash
 #!/bin/bash
-# cyrus-setup.sh - Repository initialization script
+# atmiko-setup.sh - Repository initialization script
 
 # Copy environment files from a central location
 cp /path/to/shared/.env packages/app/.env
@@ -34,7 +34,7 @@ cp /path/to/shared/.env packages/app/.env
 echo "Repository setup complete for issue: $LINEAR_ISSUE_IDENTIFIER"
 ```
 
-Make sure the script is executable: `chmod +x cyrus-setup.sh`
+Make sure the script is executable: `chmod +x atmiko-setup.sh`
 
 ---
 
@@ -44,12 +44,12 @@ In addition to repository-specific scripts, you can configure a global setup scr
 
 ### Configuration
 
-Add `global_setup_script` to your `~/.cyrus/config.json`:
+Add `global_setup_script` to your `~/.atmiko/config.json`:
 
 ```json
 {
   "repositories": [...],
-  "global_setup_script": "/opt/cyrus/bin/global-setup.sh"
+  "global_setup_script": "/opt/atmiko/bin/global-setup.sh"
 }
 ```
 
@@ -58,9 +58,9 @@ Add `global_setup_script` to your `~/.cyrus/config.json`:
 When creating a new worktree:
 
 1. **Global script** runs first (if configured)
-2. **Repository script** (`cyrus-setup.sh`) runs second (if exists)
+2. **Repository script** (`atmiko-setup.sh`) runs second (if exists)
 
-Both scripts receive the same environment variables and run in the worktree directory. The global script path comes from Cyrus configuration; repository scripts are discovered from the issue worktree after checkout.
+Both scripts receive the same environment variables and run in the worktree directory. The global script path comes from Atmiko configuration; repository scripts are discovered from the issue worktree after checkout.
 
 ### Use Cases
 
@@ -68,11 +68,11 @@ Both scripts receive the same environment variables and run in the worktree dire
 - **Shared credential** setup
 - **Common environment** configuration
 
-Make sure the script is executable: `chmod +x /opt/cyrus/bin/global-setup.sh`
+Make sure the script is executable: `chmod +x /opt/atmiko/bin/global-setup.sh`
 
 ### Error Handling
 
-- If the global script fails, Cyrus logs the error but continues with repository script execution
+- If the global script fails, Atmiko logs the error but continues with repository script execution
 - Both scripts have a 5-minute timeout to prevent hanging
 - Script failures don't prevent worktree creation
 
@@ -80,26 +80,26 @@ Make sure the script is executable: `chmod +x /opt/cyrus/bin/global-setup.sh`
 
 ## Repository Teardown Script
 
-Place a `cyrus-teardown.sh` script in your repository root to run repository-specific cleanup when an issue reaches a terminal state (completed, canceled, or deleted). Auto-detected from the issue worktree the same way as `cyrus-setup.sh` — no configuration needed.
+Place a `atmiko-teardown.sh` script in your repository root to run repository-specific cleanup when an issue reaches a terminal state (completed, canceled, or deleted). Auto-detected from the issue worktree the same way as `atmiko-setup.sh` — no configuration needed.
 
 ### How it works
 
-1. Place a `cyrus-teardown.sh` script in your repository root
-2. When the Linear issue reaches a terminal state, Cyrus runs the script inside the issue's worktree directory, then removes the worktree
+1. Place a `atmiko-teardown.sh` script in your repository root
+2. When the Linear issue reaches a terminal state, Atmiko runs the script inside the issue's worktree directory, then removes the worktree
 3. Only `LINEAR_ISSUE_IDENTIFIER` is guaranteed in the environment — the id and title are not available on the terminal-state cleanup path
 
 ### Multi-repo issues
 
-For issues that span multiple repositories, each repo's `cyrus-teardown.sh` runs independently with `cwd` set to that repo's worktree subdirectory. Repos without a teardown script are silently skipped. A failure in one repo's teardown does not prevent the other repos' teardowns from running or block worktree removal.
+For issues that span multiple repositories, each repo's `atmiko-teardown.sh` runs independently with `cwd` set to that repo's worktree subdirectory. Repos without a teardown script are silently skipped. A failure in one repo's teardown does not prevent the other repos' teardowns from running or block worktree removal.
 
 ### Example: identifier-based naming
 
 ```bash
 #!/bin/bash
-# cyrus-teardown.sh
+# atmiko-teardown.sh
 slug="${LINEAR_ISSUE_IDENTIFIER//-/_}"
 dropdb --if-exists "db_${slug}"
-docker compose -p "cyrus_${slug}" down -v
+docker compose -p "atmiko_${slug}" down -v
 ```
 
 ### Example: breadcrumb file in the worktree
@@ -107,17 +107,17 @@ docker compose -p "cyrus_${slug}" down -v
 For resources whose names aren't naturally identifier-keyed (random container IDs, dynamically allocated ports), have setup leave a breadcrumb file inside the worktree. Teardown runs before the worktree is removed, so the file is still readable:
 
 ```bash
-# cyrus-setup.sh
+# atmiko-setup.sh
 port=$(shuf -i 49152-65535 -n 1)
-PROJECT="cyrus_${LINEAR_ISSUE_IDENTIFIER//-/_}"
+PROJECT="atmiko_${LINEAR_ISSUE_IDENTIFIER//-/_}"
 docker compose -p "$PROJECT" up -d
-printf '{"port": %d, "project": "%s"}\n' "$port" "$PROJECT" > .cyrus-cleanup.json
+printf '{"port": %d, "project": "%s"}\n' "$port" "$PROJECT" > .atmiko-cleanup.json
 ```
 
 ```bash
-# cyrus-teardown.sh
-[ -f .cyrus-cleanup.json ] || exit 0
-project=$(jq -r .project .cyrus-cleanup.json)
+# atmiko-teardown.sh
+[ -f .atmiko-cleanup.json ] || exit 0
+project=$(jq -r .project .atmiko-cleanup.json)
 docker compose -p "$project" down -v
 ```
 
@@ -131,4 +131,4 @@ Cleanup may be retried, so write the script idempotently (`--if-exists`, `docker
 - Script failures are logged but do not block worktree removal
 - In multi-repo issues, one repo's teardown failure does not skip other repos' teardowns
 
-Make sure the script is executable: `chmod +x cyrus-teardown.sh`
+Make sure the script is executable: `chmod +x atmiko-teardown.sh`

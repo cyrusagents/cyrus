@@ -5,11 +5,11 @@
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"paths": {
-			"cyrus-core": ["../../packages/core/src"],
-			"cyrus-claude-runner": ["../../packages/claude-runner/src"],
-			"cyrus-simple-agent-runner": ["../../packages/simple-agent-runner/src"],
-			"cyrus-config-updater": ["../../packages/config-updater/src"],
-			"cyrus-edge-worker": [
+			"atmiko-core": ["../../packages/core/src"],
+			"atmiko-claude-runner": ["../../packages/claude-runner/src"],
+			"atmiko-simple-agent-runner": ["../../packages/simple-agent-runner/src"],
+			"atmiko-config-updater": ["../../packages/config-updater/src"],
+			"atmiko-edge-worker": [
 				"../../packages/edge-worker/dist/edge-worker/src/index.d.ts"
 			]
 		},
