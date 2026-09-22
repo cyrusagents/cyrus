@@ -60,7 +60,6 @@ export const availableTools = [
 	"Monitor",
 	"LSP",
 	"RemoteTrigger",
-	"TaskOutput",
 	"TaskStop",
 
 	// Tool discovery
@@ -96,7 +95,6 @@ export const readOnlyTools: ToolName[] = [
 	"Skill",
 	"Monitor",
 	"LSP",
-	"TaskOutput",
 	"ToolSearch",
 ];
 
