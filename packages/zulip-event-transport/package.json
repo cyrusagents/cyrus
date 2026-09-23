@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-zulip-event-transport",
-	"version": "0.2.72",
+	"version": "0.2.73-cypack1502.0",
 	"description": "Zulip event transport for receiving and verifying Zulip outgoing webhooks",
 	"repository": {
 		"type": "git",

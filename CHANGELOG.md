@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.73-cypack1502.0] - 2026-09-23
+
+Local prerelease candidate only; not published. Source `89337bab1c08c616ef58f55ef82bc2f53c52892a`.
+
+### Added
+
+- Personal credentials and Git identities selected by the triggering user. Strict-reject fixture checks passed; live shared-fallback/default-pin, remaining provider and review gates are unverified. ([CYPACK-1502](https://linear.app/ceedar/issue/CYPACK-1502), [#1472](https://github.com/cyrusagents/cyrus/pull/1472))
+
+### Coordinated candidate packages
+
+- `cyrus-cloudflare-tunnel-client@0.2.73-cypack1502.0`
+- `cyrus-mcp-tools@0.2.73-cypack1502.0`
+- `cyrus-core@0.2.73-cypack1502.0`
+- `cyrus-claude-runner@0.2.73-cypack1502.0`
+- `cyrus-config-updater@0.2.73-cypack1502.0`
+- `cyrus-linear-event-transport@0.2.73-cypack1502.0`
+- `cyrus-github-event-transport@0.2.73-cypack1502.0`
+- `cyrus-gitlab-event-transport@0.2.73-cypack1502.0`
+- `cyrus-slack-event-transport@0.2.73-cypack1502.0`
+- `cyrus-zulip-event-transport@0.2.73-cypack1502.0`
+- `cyrus-simple-agent-runner@0.2.73-cypack1502.0`
+- `cyrus-opencode-runner@0.2.73-cypack1502.0`
+- `cyrus-codex-runner@0.2.73-cypack1502.0`
+- `cyrus-cursor-runner@0.2.73-cypack1502.0`
+- `cyrus-gemini-runner@0.2.73-cypack1502.0`
+- `cyrus-edge-worker@0.2.73-cypack1502.0`
+- `cyrus-ai@0.2.73-cypack1502.0`
+
 ## [Unreleased]
 
 ### Added

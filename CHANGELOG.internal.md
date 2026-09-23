@@ -2,6 +2,14 @@
 
 This changelog documents internal development changes, refactors, tooling updates, and other non-user-facing modifications.
 
+## [0.2.73-cypack1502.0] - 2026-09-23
+
+Local prerelease candidate only; not published. Source `89337bab1c08c616ef58f55ef82bc2f53c52892a`.
+
+### Added
+
+- Personal credentials and Git identities selected by the triggering user. Strict-reject fixture checks passed; live shared-fallback/default-pin, remaining provider and review gates are unverified. ([CYPACK-1502](https://linear.app/ceedar/issue/CYPACK-1502), [#1472](https://github.com/cyrusagents/cyrus/pull/1472))
+
 ## [Unreleased]
 
 ### Changed
