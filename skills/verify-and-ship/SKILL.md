@@ -48,7 +48,14 @@ git diff <base_branch> -- CHANGELOG.md CHANGELOG.internal.md 2>/dev/null
 
 - Stage all relevant changes (including changelog updates)
 - Commit with clear, descriptive messages following the project's commit conventions
+- For GitHub PRs, append this exact trailer to every commit you create for the task, including follow-up fixes and changelog commits, separated from the message body by a blank line:
+  ```text
+  Co-authored-by: mikoagent <332957360+mikoagent@users.noreply.github.com>
+  ```
+  Preserve the original author and any other co-author trailers; include the mikoagent trailer only once. This is commit metadata, not PR description text. Do not change `git user.name` or `git user.email` to impersonate mikoagent.
 - Push to the remote repository
+
+Before creating or updating a GitHub PR, inspect the commit messages on the task branch relative to the base branch and verify that every commit you created for this task includes the trailer above. Fix missing attribution on your own unpushed commits before pushing. Do not rewrite other contributors' commits or force-push published history solely to add attribution; report any already-published commits that are missing it.
 
 ## 5. Create or Update PR/MR
 

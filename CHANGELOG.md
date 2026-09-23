@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - Removed Pro / Team plans, paid onboarding, billing configuration, hosted-runtime prompts, and default connections to the former hosted service. Self-hosted integrations remain available. ([#10](https://github.com/nexmoe/atmiko/pull/10))
 
 ### Added
+- GitHub PR commits created by Atmiko now credit `mikoagent` as a co-author, including follow-up fixes and changelog updates. ([#12](https://github.com/nexmoe/atmiko/pull/12))
 - Task cards show a Fast marker only when enabled; Cursor sessions retain the selected setting in task history. ([#6](https://github.com/nexmoe/atmiko/pull/6))
 - Task cards show the recorded reasoning effort beside the model, including archived sessions. Codex reports the effective model and effort when starting or resuming a thread; older records display unknown. ([#4](https://github.com/nexmoe/atmiko/pull/4))
 - Use bracketed selectors consistently in issue descriptions: `[repos=frontend,backend]` now selects multiple repositories alongside `[agent=...]` and `[model=...]`. Existing repository selectors remain compatible. ([#3](https://github.com/nexmoe/atmiko/pull/3))
