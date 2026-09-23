@@ -73,6 +73,21 @@ export function buildBaseSessionEnv(
 }
 
 /**
+ * Build an env overlay that UNSETS the given keys in the child process.
+ * The SDK treats `undefined` values as "remove from env", which is what we
+ * need to keep a host-level credential from overriding a per-session one.
+ */
+export function buildOmitEnv(
+	keys: readonly string[] | undefined,
+): Record<string, undefined> {
+	const out: Record<string, undefined> = {};
+	for (const key of keys ?? []) {
+		out[key] = undefined;
+	}
+	return out;
+}
+
+/**
  * Normalize MCP server configs loaded from JSON files.
  *
  * Config files (.mcp.json, mcp-*.json) often omit the `type` field,

@@ -507,10 +507,16 @@ export interface AgentRunnerConfig {
 	/**
 	 * Additional environment variables for the agent child process, merged on
 	 * top of the inherited process env. Used for per-session credentials
-	 * (e.g. org-matched GH_TOKEN) and sandbox CA cert paths. Currently only
-	 * the Claude runner consumes this.
+	 * (per-prompter Claude/GitHub tokens, git identity) and sandbox CA cert
+	 * paths. Consumed by all runners.
 	 */
 	additionalEnv?: Record<string, string>;
+	/**
+	 * Host environment variable names that must NOT be inherited by the agent
+	 * child process (applied after `additionalEnv`). Used to keep a host-level
+	 * `ANTHROPIC_API_KEY` from overriding a per-prompter OAuth token.
+	 */
+	omitEnv?: string[];
 	/**
 	 * Custom directory path for Claude's auto-memory storage. Forwarded to the
 	 * Claude SDK as settings.autoMemoryDirectory. When unset, the SDK falls

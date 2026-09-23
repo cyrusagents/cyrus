@@ -1,0 +1,47 @@
+#!/usr/bin/env node
+"use strict";
+const fs = require("node:fs");
+const path = require("node:path");
+const own = fs.realpathSync(__dirname);
+const dirs = (process.env.PATH || "")
+	.split(path.delimiter)
+	.filter((p) => {
+		try { return fs.realpathSync(p || ".") !== own; } catch { return true; }
+	});
+process.env.PATH = dirs.join(path.delimiter);
+
+// An older Cyrus wrapper can strip GH_TOKEN or select an installation token
+// again. Find the underlying gh instead, including with a custom Cyrus home.
+// Read only the executable's header, never an entire native gh binary.
+function isCyrusWrapper(file) {
+	const fd = fs.openSync(file, "r");
+	try {
+		const buffer = Buffer.alloc(4096);
+		const text = buffer.subarray(0, fs.readSync(fd, buffer, 0, buffer.length, 0)).toString();
+		return text.startsWith("#!") && (
+			text.includes("gh-cyrus.cjs") ||
+			(text.includes("/usr/bin/gh") && (
+				text.includes("CYRUS_GH_TOKEN") || /-u\s+(?:GH|GITHUB)_TOKEN/.test(text)
+			))
+		);
+	} finally {
+		fs.closeSync(fd);
+	}
+}
+
+if (!process.env.CYRUS_GH_REAL_BIN) {
+	const bin = dirs.map((p) => path.join(p, "gh")).find((p) => {
+		try {
+			fs.accessSync(p, fs.constants.X_OK);
+			return fs.statSync(p).isFile() && !isCyrusWrapper(p);
+		} catch {
+			return false;
+		}
+	});
+	if (!bin) {
+		console.error("GitHub CLI is not installed on PATH beyond the Cyrus wrappers");
+		process.exit(127);
+	}
+	process.env.CYRUS_GH_REAL_BIN = bin;
+}
+require("../gh-cyrus.cjs");

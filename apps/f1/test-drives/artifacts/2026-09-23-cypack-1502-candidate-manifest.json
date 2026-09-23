@@ -1,0 +1,127 @@
+{
+	"status": "LOCAL CANDIDATE ONLY - NOT PUBLISHED",
+	"featureSource": "89337bab1c08c616ef58f55ef82bc2f53c52892a",
+	"candidateSource": "bd45d03ae855d4148257cfeb93d026f88d886626",
+	"version": "0.2.73-cypack1502.0",
+	"packages": [
+		{
+			"name": "cyrus-cloudflare-tunnel-client",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-cloudflare-tunnel-client-0.2.73-cypack1502.0.tgz",
+			"sha256": "17ac18e99f957af08d941e1a16fa2040595133981fbce3179488ca6ae328b879",
+			"bytes": 10257
+		},
+		{
+			"name": "cyrus-mcp-tools",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-mcp-tools-0.2.73-cypack1502.0.tgz",
+			"sha256": "da76b3f7e87547884c6d64c7f2d4b359cbbc13c0d1aa3e900babfe6bf1535cf7",
+			"bytes": 26089
+		},
+		{
+			"name": "cyrus-core",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-core-0.2.73-cypack1502.0.tgz",
+			"sha256": "566b6ed3c39fa52a48bfcb72f26306aeddf076610092c1c2cf87392dd784676b",
+			"bytes": 166547
+		},
+		{
+			"name": "cyrus-claude-runner",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-claude-runner-0.2.73-cypack1502.0.tgz",
+			"sha256": "bc5446b2f605880bbfb7bb026db503e2c21edeb0623161701e635173d2bac3d6",
+			"bytes": 54149
+		},
+		{
+			"name": "cyrus-config-updater",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-config-updater-0.2.73-cypack1502.0.tgz",
+			"sha256": "4fc1461cabc752d9507aa89914fed2ee19056c47ee07faf9e031c71d24bf45de",
+			"bytes": 33970
+		},
+		{
+			"name": "cyrus-linear-event-transport",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-linear-event-transport-0.2.73-cypack1502.0.tgz",
+			"sha256": "c6034ecd126d480763d99a0d5f8339f31c04c05ba2a6055f25e49fc92eaa33dd",
+			"bytes": 27877
+		},
+		{
+			"name": "cyrus-github-event-transport",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-github-event-transport-0.2.73-cypack1502.0.tgz",
+			"sha256": "f02cba467d4181173bbb498cd08a9e639a81b90eb352a54f4a4286160b0c405d",
+			"bytes": 24546
+		},
+		{
+			"name": "cyrus-gitlab-event-transport",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-gitlab-event-transport-0.2.73-cypack1502.0.tgz",
+			"sha256": "bdab01146f394824d4f81bb0410d7ad62658ff5cf06544a0037e5e751aa4a1b6",
+			"bytes": 19302
+		},
+		{
+			"name": "cyrus-slack-event-transport",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-slack-event-transport-0.2.73-cypack1502.0.tgz",
+			"sha256": "9fecdc39e7d9977f6a90a9c375257d98e2d9d6ce7e5c5177e0415552eca005dc",
+			"bytes": 24797
+		},
+		{
+			"name": "cyrus-zulip-event-transport",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-zulip-event-transport-0.2.73-cypack1502.0.tgz",
+			"sha256": "ed2b3fb3fcb11e11f05e8e7ccf7a39b68d58043b2dc84da08c6608ab947a9c58",
+			"bytes": 15688
+		},
+		{
+			"name": "cyrus-simple-agent-runner",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-simple-agent-runner-0.2.73-cypack1502.0.tgz",
+			"sha256": "2f34d58feb54866b08f9ffc328f3fb920266a2ffaa181b6c0dbeb1a334d1be41",
+			"bytes": 16523
+		},
+		{
+			"name": "cyrus-opencode-runner",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-opencode-runner-0.2.73-cypack1502.0.tgz",
+			"sha256": "627b2a017dcacf744777bbd3507220b397653a646573465c103fc34bbc7b750b",
+			"bytes": 27803
+		},
+		{
+			"name": "cyrus-codex-runner",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-codex-runner-0.2.73-cypack1502.0.tgz",
+			"sha256": "3e263342cf6c9650672f0b7f5e077ab08d2b10f22f6d3fe64feeb9471b16e929",
+			"bytes": 62139
+		},
+		{
+			"name": "cyrus-cursor-runner",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-cursor-runner-0.2.73-cypack1502.0.tgz",
+			"sha256": "9ed5798fb78676e546e10c7ce326a214241505d674fdd17758ad96d76c99336c",
+			"bytes": 40379
+		},
+		{
+			"name": "cyrus-gemini-runner",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-gemini-runner-0.2.73-cypack1502.0.tgz",
+			"sha256": "1cb5165692f4833188f26d5591e4bbd64facbc18d8946dc0f18cbfd5d67bdc0c",
+			"bytes": 67572
+		},
+		{
+			"name": "cyrus-edge-worker",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-edge-worker-0.2.73-cypack1502.0.tgz",
+			"sha256": "977140ad41241ea5245ab7b2826c04fcdd8810ba4f705ba1aad809c8cc4b8aae",
+			"bytes": 374379
+		},
+		{
+			"name": "cyrus-ai",
+			"version": "0.2.73-cypack1502.0",
+			"filename": "cyrus-ai-0.2.73-cypack1502.0.tgz",
+			"sha256": "33efd14d21ed8b0049004e43a46e8e17a7ba0fbeeb4808b807383260673dc20d",
+			"bytes": 71691
+		}
+	]
+}

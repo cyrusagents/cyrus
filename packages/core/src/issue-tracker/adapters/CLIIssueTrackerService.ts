@@ -491,7 +491,82 @@ export class CLIIssueTrackerService
 		if (!commentData) {
 			throw new Error(`Comment ${commentId} not found`);
 		}
-		return createCLIComment(commentData);
+		return createCLIComment(commentData, (userId) => this.resolveUser(userId));
+	}
+
+	/** Synchronous user lookup for relationship getters (undefined if unknown). */
+	private resolveUser(userId: string): User | undefined {
+		const userData = this.state.users.get(userId);
+		return userData ? createCLIUser(userData) : undefined;
+	}
+
+	/**
+	 * Add a human to the in-memory workspace (multi-prompter test drives).
+	 * The returned ID can be passed as `asUserId` to `createComment`,
+	 * `createAgentSessionOnIssue` and `promptAgentSession`.
+	 */
+	createUser(input: { id?: string; name: string; email?: string }): User {
+		const slug =
+			input.name
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, "-")
+				.replace(/^-|-$/g, "") || "user";
+		const id = input.id ?? `user-${slug}`;
+		if (this.state.users.has(id)) {
+			throw new Error(`User ${id} already exists`);
+		}
+		const now = new Date();
+		const userData: CLIUserData = {
+			id,
+			name: input.name,
+			displayName: input.name,
+			email: input.email ?? `${slug}@example.com`,
+			url: `https://linear.app/test/user/${slug}`,
+			active: true,
+			admin: false,
+			app: false,
+			guest: false,
+			isMe: false,
+			isAssignable: true,
+			isMentionable: true,
+			avatarBackgroundColor: this.generateLabelColor(input.name),
+			initials: input.name
+				.split(/\s+/)
+				.map((part) => part[0]?.toUpperCase() ?? "")
+				.join("")
+				.slice(0, 2),
+			createdIssueCount: 0,
+			createdAt: now,
+			updatedAt: now,
+		};
+		this.state.users.set(id, userData);
+		return createCLIUser(userData);
+	}
+
+	/**
+	 * Resolve the acting user for a call: an explicit `asUserId` must exist;
+	 * otherwise the workspace's default user acts.
+	 */
+	private requireActingUserId(asUserId?: string): string {
+		if (!asUserId) return this.state.currentUserId;
+		if (!this.state.users.has(asUserId)) {
+			throw new Error(
+				`User ${asUserId} not found — create it first with createUser`,
+			);
+		}
+		return asUserId;
+	}
+
+	/** Webhook `creator` block for a CLI user (mirrors Linear's UserChildWebhookPayload). */
+	private creatorPayload(userId: string) {
+		const user = this.state.users.get(userId);
+		return {
+			id: userId,
+			name: user?.name ?? userId,
+			email: user?.email ?? `${userId}@example.com`,
+			url: user?.url ?? `https://linear.app/test/user/${userId}`,
+			avatarUrl: user?.avatarUrl,
+		};
 	}
 
 	/**
@@ -520,9 +595,12 @@ export class CLIIssueTrackerService
 	async createComment(
 		issueId: string,
 		input: CommentCreateInput,
+		asUserId?: string,
 	): Promise<Comment> {
 		const issue = await this.fetchIssue(issueId);
-		const currentUser = await this.fetchCurrentUser();
+		const currentUser = await this.fetchUser(
+			this.requireActingUserId(asUserId),
+		);
 
 		// Build the comment body with attachments if provided
 		let finalBody = input.body;
@@ -563,7 +641,9 @@ export class CLIIssueTrackerService
 		this.state.comments.set(commentId, commentData);
 
 		// Create and return the comment
-		const comment = createCLIComment(commentData);
+		const comment = createCLIComment(commentData, (userId) =>
+			this.resolveUser(userId),
+		);
 
 		// Emit state change event
 		this.emit("comment:created", { comment });
@@ -838,8 +918,15 @@ export class CLIIssueTrackerService
 	 */
 	createAgentSessionOnIssue(
 		input: AgentSessionCreateOnIssueInput,
+		/** CLI user who delegates/mentions the agent (becomes `agentSession.creator`). */
+		asUserId?: string,
 	): Promise<IssueTrackerAgentSessionPayload> {
-		return this.createAgentSessionInternal(input.issueId, undefined, input);
+		return this.createAgentSessionInternal(
+			input.issueId,
+			undefined,
+			input,
+			this.requireActingUserId(asUserId),
+		);
 	}
 
 	/**
@@ -858,6 +945,7 @@ export class CLIIssueTrackerService
 		issueId: string | undefined,
 		commentId: string | undefined,
 		input: AgentSessionCreateOnIssueInput | AgentSessionCreateOnCommentInput,
+		creatorId: string = this.state.currentUserId,
 	): Promise<IssueTrackerAgentSessionPayload> {
 		// Validate input and fetch issue/comment
 		let issue: Issue | undefined;
@@ -889,6 +977,8 @@ export class CLIIssueTrackerService
 			type: AgentSessionType.CommentThread,
 			createdAt: new Date(),
 			updatedAt: new Date(),
+			appUserId: "cli-app-user",
+			creatorId,
 			issueId: issue?.id,
 			commentId,
 		};
@@ -928,6 +1018,10 @@ export class CLIIssueTrackerService
 					updatedAt: nowIso,
 					status: "active",
 					type: "issue",
+					// The human who delegated/mentioned — the prompter for per-user
+					// credential resolution (mirrors Linear's payload).
+					creatorId,
+					creator: this.creatorPayload(creatorId),
 					issue: {
 						id: issue.id,
 						identifier: issue.identifier,
@@ -1210,6 +1304,8 @@ export class CLIIssueTrackerService
 	async promptAgentSession(
 		sessionId: string,
 		message: string,
+		/** CLI user sending the prompt (may differ from the session creator). */
+		asUserId?: string,
 	): Promise<Comment> {
 		const sessionData = this.state.agentSessions.get(sessionId);
 		if (!sessionData) {
@@ -1227,10 +1323,14 @@ export class CLIIssueTrackerService
 			throw new Error(`Cannot prompt completed session ${sessionId}`);
 		}
 
-		// Create a comment on the issue
-		const comment = await this.createComment(sessionData.issueId, {
-			body: message,
-		});
+		const promptingUserId = this.requireActingUserId(asUserId);
+
+		// Create a comment on the issue, authored by the prompting user
+		const comment = await this.createComment(
+			sessionData.issueId,
+			{ body: message },
+			promptingUserId,
+		);
 
 		// Update session status to awaiting processing
 		sessionData.updatedAt = new Date();
@@ -1278,6 +1378,11 @@ export class CLIIssueTrackerService
 						updatedAt: nowIso,
 						status: sessionData.status,
 						type: "issue",
+						// Original session creator (unchanged by follow-ups)
+						creatorId: sessionData.creatorId,
+						creator: sessionData.creatorId
+							? this.creatorPayload(sessionData.creatorId)
+							: undefined,
 						issue: {
 							id: issue.id,
 							identifier: issue.identifier,
@@ -1304,6 +1409,8 @@ export class CLIIssueTrackerService
 						createdAt: nowIso,
 						updatedAt: nowIso,
 						sourceCommentId: comment.id,
+						// Author of the prompt (Linear sets this on real webhooks)
+						userId: promptingUserId,
 					},
 					guidance: [],
 				};

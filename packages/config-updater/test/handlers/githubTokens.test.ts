@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { GitHubTokenStore } from "cyrus-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	ensureGhWrapperSupportsCyrusToken,
@@ -54,6 +55,45 @@ describe("handleGitHubTokens", () => {
 
 	afterEach(() => {
 		rmSync(cyrusHome, { recursive: true, force: true });
+	});
+
+	it("refreshes only installations and never imports hosted personal credentials or authenticates gh as a personal user", async () => {
+		const store = new GitHubTokenStore(cyrusHome);
+		store.setPersonalToken("user-a", { token: "fixture-personal-A" });
+		store.removePersonalToken("removed-user");
+		const response = await handleGitHubTokens(
+			{
+				...validPayload(),
+				personalTokens: { "user-a": { token: "fixture-hosted-overwrite" } },
+			},
+			cyrusHome,
+		);
+		expect(response.success).toBe(true);
+		expect(store.getPersonalToken("user-a")).toBe("fixture-personal-A");
+		expect(
+			JSON.parse(readFileSync(store.filePath, "utf8")).personalTokens[
+				"removed-user"
+			],
+		).toBeNull();
+		expect(
+			mockedExecFileSync.mock.calls.some((call) =>
+				JSON.stringify(call).includes("fixture-personal-A"),
+			),
+		).toBe(false);
+		await handleGitHubTokens({ tokens: [] }, cyrusHome);
+		expect(store.load()).toEqual([]);
+		expect(store.getPersonalToken("user-a")).toBe("fixture-personal-A");
+	});
+
+	it("reports corrupt store safely and leaves it unchanged", async () => {
+		const file = join(cyrusHome, "github-tokens.json");
+		const broken = '{"fixture-secret-never-log":';
+		writeFileSync(file, broken);
+		const response = await handleGitHubTokens(validPayload(), cyrusHome);
+		expect(response.success).toBe(false);
+		expect(JSON.stringify(response)).not.toContain("fixture-secret-never-log");
+		expect(readFileSync(file, "utf8")).toBe(broken);
+		expect(mockedExecFileSync).not.toHaveBeenCalled();
 	});
 
 	it("persists tokens to github-tokens.json and returns success", async () => {

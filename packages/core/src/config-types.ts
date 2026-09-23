@@ -8,10 +8,18 @@ import type { Issue } from "./issue-tracker/types.js";
 
 // Re-export schemas and types from config-schemas
 export {
+	type CredentialRef,
+	CredentialRefSchema,
 	type EdgeConfig,
 	type EdgeConfigPayload,
 	EdgeConfigPayloadSchema,
 	EdgeConfigSchema,
+	type LinearUserClaudeCredentials,
+	LinearUserClaudeCredentialsSchema,
+	type LinearUserConfig,
+	LinearUserConfigSchema,
+	type LinearUserGitHubCredentials,
+	LinearUserGitHubCredentialsSchema,
 	type LinearWorkspaceConfig,
 	LinearWorkspaceConfigSchema,
 	migrateEdgeConfig,
@@ -21,6 +29,8 @@ export {
 	OpenCodeConfigSchema,
 	type OpenCodeStateScope,
 	OpenCodeStateScopeSchema,
+	type PrompterCredentialPolicy,
+	PrompterCredentialPolicySchema,
 	type RepositoryConfig,
 	type RepositoryConfigPayload,
 	RepositoryConfigPayloadSchema,

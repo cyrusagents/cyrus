@@ -4,6 +4,7 @@ import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import {
+	buildRunnerEnvironment,
 	type IAgentRunner,
 	type IMessageFormatter,
 	type SDKAssistantMessage,
@@ -325,7 +326,7 @@ export class GeminiRunner extends EventEmitter implements IAgentRunner {
 			}
 
 			// Prepare environment variables for Gemini CLI
-			const geminiEnv = { ...process.env };
+			const geminiEnv = buildRunnerEnvironment(this.config);
 
 			if (this.config.appendSystemPrompt) {
 				try {

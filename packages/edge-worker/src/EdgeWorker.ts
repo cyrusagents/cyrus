@@ -44,9 +44,12 @@ import type {
 	IssueStateChangeMessage,
 	IssueUnassignedWebhook,
 	IssueUpdateWebhook,
+	PrompterIdentity,
 	RepositoryConfig,
+	ResolvedPrompterCredentials,
 	RunnerType,
 	SerializableEdgeWorkerState,
+	SessionPrompter,
 	SessionStartMessage,
 	StopSignalMessage,
 	UnassignMessage,
@@ -165,6 +168,10 @@ import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
+import {
+	PrompterCredentialError,
+	PrompterCredentialService,
+} from "./PrompterCredentialService.js";
 import type {
 	IssueContextResult,
 	PromptAssembly,
@@ -257,6 +264,8 @@ export class EdgeWorker extends EventEmitter {
 	private askUserQuestionHandler: AskUserQuestionHandler;
 	/** User access control for whitelisting/blacklisting Linear users */
 	private userAccessControl: UserAccessControl;
+	/** Per-prompter credential resolution (multi-user self-host, CYPACK-1502) */
+	private prompterCredentialService: PrompterCredentialService;
 	private logger: ILogger;
 	// Extracted service modules
 	private attachmentService: AttachmentService;
@@ -317,6 +326,8 @@ export class EdgeWorker extends EventEmitter {
 			baseBranchOverrides?: Map<string, string>;
 			routingMethod?: string;
 			blockingIssueIds: string[];
+			/** Per-prompter credential pin decided when the session was parked */
+			prompter?: SessionPrompter;
 		}
 	>();
 
@@ -582,6 +593,22 @@ export class EdgeWorker extends EventEmitter {
 			repoAccessConfigs,
 		);
 
+		// Per-prompter credentials: active only when linearUsers has entries.
+		this.prompterCredentialService = new PrompterCredentialService(
+			{
+				linearUsers: config.linearUsers,
+				prompterCredentialPolicy: config.prompterCredentialPolicy,
+			},
+			this.cyrusHome,
+			this.logger,
+		);
+		if (this.prompterCredentialService.isEnabled()) {
+			this.prompterCredentialService.ensureHelper();
+			this.logger.info(
+				`Per-prompter credentials active for ${Object.keys(config.linearUsers ?? {}).length} mapped Linear user(s)`,
+			);
+		}
+
 		// Initialize extracted service modules
 		this.attachmentService = new AttachmentService(
 			this.logger,
@@ -689,6 +716,12 @@ export class EdgeWorker extends EventEmitter {
 		this.configManager.on(
 			"configChanged",
 			async (changes: RepositoryChanges) => {
+				// Hot-reload the per-prompter mapping (cyrus add-user / remove-user
+				// rewrite config.json while the worker runs).
+				this.prompterCredentialService.updateConfig({
+					linearUsers: changes.newConfig.linearUsers,
+					prompterCredentialPolicy: changes.newConfig.prompterCredentialPolicy,
+				});
 				const strictMcpConfigChanged =
 					(this.config.strictMcpConfig ?? true) !==
 					(changes.newConfig.strictMcpConfig ?? true);
@@ -1132,8 +1165,10 @@ export class EdgeWorker extends EventEmitter {
 			createRunner: (config, chatRunnerType) => {
 				const runnerType =
 					chatRunnerType ?? this.runnerSelectionService.getDefaultRunner();
+				const omitEnv = this.prompterCredentialService.allEnvRefNames();
 				return this.createRunnerForType(runnerType, {
 					...config,
+					omitEnv: [...(config.omitEnv ?? []), ...omitEnv],
 					model: this.getDefaultModelForRunner(runnerType),
 					fallbackModel: this.getDefaultFallbackModelForRunner(runnerType),
 				});
@@ -3876,74 +3911,77 @@ ${taskSection}`;
 			return;
 		}
 
-		// Process attachments from the updated description if description changed
-		let attachmentManifest = "";
-		if ("description" in updatedFrom && issueData.description) {
-			const firstSession = sessions[0];
-			if (!firstSession) {
-				this.logger.debug(`No sessions found for issue ${issueIdentifier}`);
-				return;
-			}
-			const workspaceFolderName = basename(firstSession.workspace.path);
-			const attachmentsDir = join(
-				this.cyrusHome,
-				workspaceFolderName,
-				"attachments",
-			);
-
-			try {
-				// Ensure directory exists
-				await mkdir(attachmentsDir, { recursive: true });
-
-				// Count existing attachments
-				const existingFiles = await readdir(attachmentsDir).catch(() => []);
-				const existingAttachmentCount = existingFiles.filter(
-					(file) => file.startsWith("attachment_") || file.startsWith("image_"),
-				).length;
-
-				// Download attachments from the new description
-				// Use organizationId from webhook as the Linear-native workspace ID source
-				const linearToken = this.getLinearTokenForWorkspace(
-					webhook.organizationId,
-				);
-				const downloadResult = await this.downloadCommentAttachments(
-					issueData.description,
-					attachmentsDir,
-					linearToken,
-					existingAttachmentCount,
+		const buildPrompt = async (
+			targetSession: CyrusAgentSession,
+		): Promise<string> => {
+			// Process attachments from the updated description if description changed
+			let attachmentManifest = "";
+			if ("description" in updatedFrom && issueData.description) {
+				const firstSession = targetSession;
+				const workspaceFolderName = basename(firstSession.workspace.path);
+				const attachmentsDir = join(
+					this.cyrusHome,
+					workspaceFolderName,
+					"attachments",
 				);
 
-				if (downloadResult.totalNewAttachments > 0) {
-					attachmentManifest =
-						this.generateNewAttachmentManifest(downloadResult);
-					this.logger.debug(
-						`Downloaded ${downloadResult.totalNewAttachments} attachments from updated description`,
+				try {
+					// Ensure directory exists
+					await mkdir(attachmentsDir, { recursive: true });
+
+					// Count existing attachments
+					const existingFiles = await readdir(attachmentsDir).catch(() => []);
+					const existingAttachmentCount = existingFiles.filter(
+						(file) =>
+							file.startsWith("attachment_") || file.startsWith("image_"),
+					).length;
+
+					// Download attachments from the new description
+					// Use organizationId from webhook as the Linear-native workspace ID source
+					const linearToken = this.getLinearTokenForWorkspace(
+						webhook.organizationId,
+					);
+					const downloadResult = await this.downloadCommentAttachments(
+						issueData.description,
+						attachmentsDir,
+						linearToken,
+						existingAttachmentCount,
+					);
+
+					if (downloadResult.totalNewAttachments > 0) {
+						attachmentManifest =
+							this.generateNewAttachmentManifest(downloadResult);
+						this.logger.debug(
+							`Downloaded ${downloadResult.totalNewAttachments} attachments from updated description`,
+						);
+					}
+				} catch (error) {
+					this.logger.error(
+						"Failed to process attachments from updated description:",
+						error,
 					);
 				}
-			} catch (error) {
-				this.logger.error(
-					"Failed to process attachments from updated description:",
-					error,
-				);
 			}
-		}
 
-		// Build the XML-formatted prompt showing old vs new values
-		const promptBody = this.buildIssueUpdatePrompt(
-			issueIdentifier,
-			issueData,
-			updatedFrom,
-		);
+			// Build the XML-formatted prompt showing old vs new values
+			const promptBody = this.buildIssueUpdatePrompt(
+				issueIdentifier,
+				issueData,
+				updatedFrom,
+			);
 
-		// CYPACK-954: Issue update events are ONLY delivered to the first running
-		// session (by most-recently-updated) that supports streaming input.
-		// If no such session exists, the event is silently ignored.
+			// CYPACK-954: Issue update events are ONLY delivered to the first running
+			// session (by most-recently-updated) that supports streaming input.
+			// If no such session exists, the event is silently ignored.
 
-		// Combine prompt body with attachment manifest
-		let fullPrompt = promptBody;
-		if (attachmentManifest) {
-			fullPrompt = `${promptBody}\n\n${attachmentManifest}`;
-		}
+			// Combine prompt body with attachment manifest
+			let fullPrompt = promptBody;
+			if (attachmentManifest) {
+				fullPrompt = `${promptBody}\n\n${attachmentManifest}`;
+			}
+
+			return fullPrompt;
+		};
 
 		// Sort by updatedAt descending so the most recent session is first
 		const sortedSessions = [...sessions].sort(
@@ -3961,8 +3999,21 @@ ${taskSection}`;
 				existingRunner?.supportsStreamingInput &&
 				existingRunner.addStreamMessage
 			) {
+				// Gate issue edits by their current actor before downloading attachments
+				// or delivering anything to the running agent. A refusal must not
+				// redirect the edit to another session with a different owner.
+				if (
+					!(await this.applyPrompterFollowUpPolicy(
+						session,
+						webhook,
+						undefined,
+						webhook.organizationId,
+					))
+				)
+					return;
 				// Best-effort; a steer-only backend may reject when no turn is active.
 				try {
+					const fullPrompt = await buildPrompt(session);
 					existingRunner.addStreamMessage(fullPrompt);
 					delivered = true;
 					this.logger.debug(
@@ -4184,6 +4235,7 @@ ${taskSection}`;
 					parked.commentBody,
 					parked.baseBranchOverrides,
 					parked.routingMethod,
+					parked.prompter,
 				);
 			} catch (error) {
 				this.logger.error(
@@ -4248,6 +4300,7 @@ ${taskSection}`;
 				parked.commentBody,
 				parked.baseBranchOverrides,
 				parked.routingMethod,
+				parked.prompter,
 			);
 		} catch (error) {
 			this.logger.error(
@@ -4611,6 +4664,21 @@ ${taskSection}`;
 			linearWorkspaceId,
 		);
 
+		// Per-prompter credentials: decide whose credentials this session runs
+		// with BEFORE any worktree or runner exists, so a rejected prompter has
+		// no side effects. Sub-issues consult the parent link established above.
+		const prompterDecision = await this.decidePrompterForNewSession(
+			webhook,
+			linearWorkspaceId,
+		);
+		if (!prompterDecision.ok) {
+			log.info(
+				`Session refused by per-prompter credential policy for ${agentSession.issue?.identifier ?? agentSession.id}`,
+			);
+			return;
+		}
+		const prompter = prompterDecision.prompter;
+
 		// Check for blocked-by dependencies before starting work
 		const blockResult = await this.checkBlockedByDependencies(
 			agentSession,
@@ -4628,6 +4696,7 @@ ${taskSection}`;
 				baseBranchOverrides,
 				routingMethod,
 				blockingIssueIds: blockResult.blockingIssueIds,
+				prompter,
 			});
 
 			// Post acknowledgment to the Linear agent session
@@ -4655,10 +4724,219 @@ ${taskSection}`;
 			commentBody,
 			baseBranchOverrides,
 			routingMethod,
+			prompter,
 		);
 	}
 
+	// ========================================================================
+	// Per-prompter credentials (CYPACK-1502)
+	// ========================================================================
+
 	/**
+	 * Decide which mapped Linear user's credentials a NEW session runs with
+	 * and announce it on the session. Returns `{ ok: false }` after posting
+	 * the refusal when policy rejects the trigger. No-op (`{ ok: true }`
+	 * without a prompter) when `linearUsers` is not configured.
+	 */
+	private async decidePrompterForNewSession(
+		webhook: AgentSessionCreatedWebhook | AgentSessionPromptedWebhook,
+		linearWorkspaceId: string,
+		/**
+		 * Evaluate this identity instead of the webhook's session creator —
+		 * used for follow-ups on legacy (unpinned) sessions, where the sender
+		 * of the current prompt is who must be judged.
+		 */
+		override?: {
+			prompter: PrompterIdentity | undefined;
+			isNonHuman: boolean;
+		},
+	): Promise<{ ok: true; prompter?: SessionPrompter } | { ok: false }> {
+		const service = this.prompterCredentialService;
+		if (!service.isEnabled()) return { ok: true };
+
+		const sessionId = webhook.agentSession.id;
+		const prompter = override
+			? override.prompter
+			: webhook.action === "prompted"
+				? PrompterCredentialService.prompterFromPromptedWebhook(webhook)
+				: PrompterCredentialService.prompterFromCreatedWebhook(webhook);
+		const isNonHuman =
+			(override?.isNonHuman ?? false) ||
+			PrompterCredentialService.isNonHumanCreator(webhook, prompter);
+		const parentSessionId =
+			this.globalSessionRegistry.getParentSessionId(sessionId);
+		const parentSession = parentSessionId
+			? this.agentSessionManager.getSession(parentSessionId)
+			: undefined;
+
+		const decision = service.decideForNewSession({
+			prompter,
+			isNonHuman,
+			parentSession,
+		});
+		if (!decision) return { ok: true };
+
+		if (decision.action === "reject") {
+			this.logger.warn(
+				`Per-prompter credentials: refusing session ${sessionId} (${decision.reason}) for Linear user ${prompter?.linearUserId ?? "none"}`,
+			);
+			await this.postPrompterResponse(
+				sessionId,
+				linearWorkspaceId,
+				decision.message,
+			);
+			return { ok: false };
+		}
+
+		const pin = PrompterCredentialService.pinFromDecision(decision, prompter);
+
+		// Fail fast on an unreadable/empty mapping so no worktree is
+		// created for a session that cannot run. (Secrets are re-read again at
+		// runner build time, so rotation between now and then is still honoured.)
+		const problem = service.validatePin(pin);
+		if (problem) {
+			this.logger.warn(
+				`Per-prompter credentials: refusing session ${sessionId}: ${problem}`,
+			);
+			await this.postPrompterResponse(sessionId, linearWorkspaceId, problem);
+			return { ok: false };
+		}
+
+		await this.activityPoster.postThoughtActivity(
+			sessionId,
+			linearWorkspaceId,
+			service.describePin(pin),
+		);
+		return { ok: true, prompter: pin };
+	}
+
+	/**
+	 * Apply the follow-up policy when an EXISTING session receives a prompt
+	 * from a (possibly different) human. Mutates `session.prompter` when the
+	 * session gets pinned. Returns false after posting the refusal when the
+	 * prompt must not be applied.
+	 */
+	private async applyPrompterFollowUpPolicy(
+		session: CyrusAgentSession,
+		webhook: AgentSessionPromptedWebhook | IssueUpdateWebhook,
+		commentUser:
+			| { id?: string; name?: string; email?: string }
+			| null
+			| undefined,
+		linearWorkspaceId: string,
+	): Promise<boolean> {
+		const service = this.prompterCredentialService;
+
+		// Identity of the CURRENT sender only (activity user / comment author /
+		// issue-update actor); undefined when that identity is unavailable. The session creator is
+		// never assumed to be the sender. The service returns null only when
+		// the feature is off AND the session carries no pin.
+		const prompter =
+			"data" in webhook
+				? PrompterCredentialService.prompterFromIssueUpdateWebhook(webhook)
+				: PrompterCredentialService.prompterFromPromptedWebhook(
+						webhook,
+						commentUser,
+					);
+		// Also guard streaming input: it can bypass a fresh runner build.
+		if (session.prompter?.credentialUserId) {
+			const problem = service.validatePin(session.prompter);
+			if (problem) {
+				await this.postPrompterResponse(session.id, linearWorkspaceId, problem);
+				return false;
+			}
+		}
+		const decision = service.decideForFollowUp({ session, prompter });
+		if (!decision) return true;
+
+		// A running process cannot adopt new credentials. This also covers
+		// sessions that predate enablement when an issue edit arrives mid-turn.
+		if (
+			(decision.action === "pin" || decision.action === "decide-new") &&
+			session.agentRunner?.isRunning()
+		) {
+			await this.postPrompterResponse(
+				session.id,
+				linearWorkspaceId,
+				"This running session has no assigned credential owner, so this input was not applied. Stop it and start a new session from your own Linear account to use your configured credentials.",
+			);
+			return false;
+		}
+
+		switch (decision.action) {
+			case "continue":
+				if (decision.note) {
+					await this.activityPoster.postThoughtActivity(
+						session.id,
+						linearWorkspaceId,
+						decision.note,
+					);
+				}
+				return true;
+			case "reject":
+				this.logger.warn(
+					`Per-prompter credentials: refusing follow-up on session ${session.id} from Linear user ${prompter?.linearUserId ?? "none"}`,
+				);
+				await this.postPrompterResponse(
+					session.id,
+					linearWorkspaceId,
+					decision.message,
+				);
+				return false;
+			case "pin": {
+				session.prompter = {
+					linearUserId: decision.linearUserId,
+					name: prompter?.name,
+					email: prompter?.email,
+					credentialUserId: decision.linearUserId,
+					source: "prompter",
+				};
+				await this.activityPoster.postThoughtActivity(
+					session.id,
+					linearWorkspaceId,
+					service.describePin(session.prompter),
+				);
+				return true;
+			}
+			case "decide-new": {
+				if ("data" in webhook) return false;
+				// Session predates the mapping and the CURRENT sender is unmapped:
+				// evaluate that sender (not the original session creator) with the
+				// new-session rules — unmapped human → policy (reject by default),
+				// unknown sender → non-human policy.
+				const result = await this.decidePrompterForNewSession(
+					webhook,
+					linearWorkspaceId,
+					{ prompter, isNonHuman: !prompter },
+				);
+				if (!result.ok) return false;
+				if (result.prompter) session.prompter = result.prompter;
+				return true;
+			}
+		}
+	}
+
+	/**
+	 * Post a session-ending response for a per-prompter credential refusal.
+	 * Goes through the issue tracker directly because the refusal may happen
+	 * before any CyrusAgentSession exists.
+	 */
+	private async postPrompterResponse(
+		sessionId: string,
+		linearWorkspaceId: string,
+		body: string,
+	): Promise<void> {
+		const issueTracker = this.issueTrackers.get(linearWorkspaceId);
+		if (!issueTracker) return;
+		await this.postActivityDirect(
+			issueTracker,
+			{
+				agentSessionId: sessionId,
+				content: { type: "response", body },
+			},
+			"per-prompter credential refusal",
+		);
+	}
 
 	/**
 	 * Initialize and start agent runner for an agent session
@@ -4680,6 +4958,8 @@ ${taskSection}`;
 		commentBody?: string | null,
 		baseBranchOverrides?: Map<string, string>,
 		routingMethod?: string,
+		/** Per-prompter credential pin decided by `decidePrompterForNewSession` */
+		prompter?: SessionPrompter,
 	): Promise<void> {
 		const sessionId = agentSession.id;
 		const { issue } = agentSession;
@@ -4746,6 +5026,12 @@ ${taskSection}`;
 			attachmentsDir: _attachmentsDir,
 			allowedDirectories,
 		} = sessionData;
+
+		// Pin the per-prompter credential decision on the session so restarts,
+		// resumes and follow-ups keep using the same credentials.
+		if (prompter) {
+			session.prompter = prompter;
+		}
 
 		// Fetch labels early (needed for system prompt and runner selection)
 		const labels = await this.fetchIssueLabels(fullIssue);
@@ -5045,6 +5331,14 @@ ${taskSection}`;
 			webhook.organizationId,
 		);
 
+		// First runner initialization for this session: decide the per-prompter
+		// credential pin now (the created webhook returned before doing so).
+		const prompterDecision = await this.decidePrompterForNewSession(
+			webhook,
+			webhook.organizationId,
+		);
+		if (!prompterDecision.ok) return;
+
 		// Initialize agent runner with the selected repository (wrapped in array)
 		// routingMethod="user-selected" will be included in the combined routing activity
 		// Use organizationId from webhook as the Linear-native workspace ID source
@@ -5056,6 +5350,7 @@ ${taskSection}`;
 			commentBody,
 			undefined,
 			"user-selected",
+			prompterDecision.prompter,
 		);
 	}
 
@@ -5153,6 +5448,14 @@ ${taskSection}`;
 				false,
 			);
 
+			// Per-prompter credentials: decide before any worktree exists. The
+			// current prompt sender is the prompter, even if the session was lost.
+			const prompterDecision = await this.decidePrompterForNewSession(
+				webhook,
+				linearWorkspaceId,
+			);
+			if (!prompterDecision.ok) return;
+
 			// Create the session using the shared method with all repositories
 			const sessionData = await this.createCyrusAgentSession(
 				sessionId,
@@ -5165,6 +5468,9 @@ ${taskSection}`;
 			// Destructure session data for new session
 			fullIssue = sessionData.fullIssue;
 			session = sessionData.session;
+			if (prompterDecision.prompter) {
+				session.prompter = prompterDecision.prompter;
+			}
 
 			this.logger.debug(`Created new session ${sessionId} (prompted webhook)`);
 
@@ -5243,6 +5549,10 @@ ${taskSection}`;
 		let attachmentManifest = "";
 		let commentAuthor: string | undefined;
 		let commentTimestamp: string | undefined;
+		let commentUser:
+			| { id?: string; name?: string; email?: string }
+			| null
+			| undefined;
 
 		if (!commentId) {
 			this.logger.warn("No comment ID provided for attachment handling");
@@ -5256,6 +5566,13 @@ ${taskSection}`;
 			// Extract comment metadata for multi-player context
 			if (comment) {
 				const user = await comment.user;
+				commentUser = user
+					? {
+							id: user.id,
+							name: user.displayName || user.name,
+							email: user.email,
+						}
+					: null;
 				commentAuthor =
 					user?.displayName || user?.name || user?.email || "Unknown";
 				commentTimestamp = comment.createdAt
@@ -5294,6 +5611,21 @@ ${taskSection}`;
 		}
 
 		const promptBody = webhook.agentActivity.content.body;
+
+		// Per-prompter credentials: a follow-up from a different human is
+		// governed by prompterCredentialPolicy.followUpByOtherUser (pin by
+		// default — visible note; reject — refuse). New sessions were decided
+		// above, before the worktree was created.
+		if (!isNewSession) {
+			const allowed = await this.applyPrompterFollowUpPolicy(
+				session,
+				webhook,
+				commentUser,
+				linearWorkspaceId,
+			);
+			if (!allowed) return;
+			await this.savePersistedState();
+		}
 
 		// Use centralized streaming check and routing logic
 		try {
@@ -6854,7 +7186,29 @@ ${input.userComment}
 				resolvedSkillContext,
 			);
 
+		// Per-prompter credentials (CYPACK-1502): re-resolve the pinned user's
+		// secrets on EVERY runner build (new session and resume) so rotated
+		// tokens are picked up, and refuse instead of falling back to the host.
+		const prompterCredentials = await this.resolvePrompterCredentialsForRunner(
+			session,
+			sessionId,
+			linearWorkspaceId,
+			sessionPlatform,
+			this.runnerConfigBuilder.resolveIssueRunnerSelection(
+				session,
+				labels,
+				issueDescription,
+			).runnerType === "claude",
+		);
+
+		// Sessions that run with host credentials while a mapping exists must
+		// still not inherit other users' `{ env }` secrets from process.env.
+		const hostSessionOmitEnv = !prompterCredentials
+			? this.prompterCredentialService.allEnvRefNames()
+			: undefined;
+
 		const result = this.runnerConfigBuilder.buildIssueConfig({
+			omitEnv: hostSessionOmitEnv,
 			session,
 			repository,
 			sessionId,
@@ -6866,6 +7220,7 @@ ${input.userComment}
 			labels,
 			issueDescription,
 			maxTurns,
+			prompterCredentials,
 			// Per-platform MCP config paths — GitHub + GitLab share the
 			// `githubMcpConfigs` knob (single-repo PR contexts both); Linear
 			// gets `linearMcpConfigs`. Not a blanket override: the builder
@@ -6905,8 +7260,16 @@ ${input.userComment}
 		});
 
 		// Attach pre-warmed session if available (only for Claude runner).
-		// Skipped entirely when warm sessions are not enabled.
-		if (result.runnerType === "claude" && this.isWarmSessionsEnabled()) {
+		// Skipped entirely when warm sessions are not enabled, and never for
+		// prompter-bound sessions: a warm process was spawned with the HOST
+		// environment, so attaching it would run the session on the wrong
+		// credentials.
+		if (
+			result.runnerType === "claude" &&
+			this.isWarmSessionsEnabled() &&
+			!prompterCredentials &&
+			!hostSessionOmitEnv?.length
+		) {
 			const warmSession = this.warmInstances.get(sessionId);
 			if (warmSession) {
 				this.warmInstances.delete(sessionId);
@@ -6915,9 +7278,107 @@ ${input.userComment}
 				).warmSession = warmSession;
 				log.debug("Attaching pre-warmed session to runner config");
 			}
+		} else if (this.warmInstances.has(sessionId)) {
+			// Close a pre-warmed process that carries an unfiltered host environment.
+			this.warmInstances.get(sessionId)?.close();
+			this.warmInstances.delete(sessionId);
+			log.debug("Discarded pre-warmed session: per-prompter credentials apply");
 		}
 
 		return result;
+	}
+
+	/**
+	 * Resolve the per-prompter credentials for a runner build, applying the
+	 * backstop policy for sessions that carry no pin (sessions that predate
+	 * the mapping, parent resumes, GitHub/GitLab-triggered sessions).
+	 *
+	 * Returns undefined when the feature is off or host credentials apply.
+	 * Posts a refusal to Linear and throws when the session must not run.
+	 */
+	private async resolvePrompterCredentialsForRunner(
+		session: CyrusAgentSession,
+		sessionId: string,
+		linearWorkspaceId: string | undefined,
+		sessionPlatform: "linear" | "github" | "gitlab",
+		includeClaude = true,
+	): Promise<ResolvedPrompterCredentials | undefined> {
+		const service = this.prompterCredentialService;
+
+		const refuse = async (message: string): Promise<never> => {
+			if (linearWorkspaceId && sessionPlatform === "linear") {
+				await this.postPrompterResponse(sessionId, linearWorkspaceId, message);
+			}
+			this.logger.warn(
+				`Per-prompter credentials: refusing runner for session ${sessionId}: ${message}`,
+			);
+			throw new PrompterCredentialError(
+				message,
+				session.prompter?.credentialUserId,
+			);
+		};
+
+		try {
+			service.allEnvRefNames(session.prompter?.credentialUserId);
+		} catch (error) {
+			if (error instanceof PrompterCredentialError) await refuse(error.message);
+			throw error;
+		}
+
+		// A session that carries a user pin is ALWAYS resolved against the
+		// current mapping — even when the mapping is now empty — so removing
+		// the last mapped user (config reload) makes that user's sessions
+		// refuse, never fall through to host credentials. Only pin-less
+		// sessions short-circuit when the feature is off.
+		if (!service.isEnabled() && !session.prompter?.credentialUserId) {
+			return undefined;
+		}
+
+		if (!session.prompter) {
+			const policy = service.policy;
+			if (sessionPlatform !== "linear") {
+				if (policy.externalPlatformSessions === "reject") {
+					await refuse(
+						`This ${sessionPlatform}-triggered session has no Linear user to map credentials from and prompterCredentialPolicy.externalPlatformSessions is \`reject\`.`,
+					);
+				}
+				this.logger.info(
+					`Session ${sessionId} (${sessionPlatform}) runs with shared instance credentials: no Linear prompter (externalPlatformSessions=shared)`,
+				);
+				return undefined;
+			}
+			// A Linear session without a pin: it predates the mapping or was
+			// resumed without a triggering human (e.g. parent resume). Apply the
+			// non-human policy — never silently use shared instance credentials.
+			if (policy.nonHumanTrigger === "reject") {
+				await refuse(
+					"This session has no assigned credential owner (it was started before personal credentials were configured, or was resumed without a triggering human) and prompterCredentialPolicy.nonHumanTrigger is `reject`. Start a new session from a mapped Linear user, or set nonHumanTrigger to `shared` to allow shared instance credentials.",
+				);
+			}
+			session.prompter = {
+				linearUserId: "",
+				source: "host",
+				hostReason:
+					"session has no assigned credential owner; the operator allows shared instance credentials",
+			};
+			if (linearWorkspaceId) {
+				await this.activityPoster.postThoughtActivity(
+					sessionId,
+					linearWorkspaceId,
+					service.describePin(session.prompter),
+				);
+			}
+			return undefined;
+		}
+
+		try {
+			return service.resolveForSession(session, includeClaude);
+		} catch (error) {
+			if (error instanceof PrompterCredentialError) {
+				await refuse(error.message);
+			}
+			throw error;
+		}
 	}
 
 	/**
@@ -7132,11 +7593,21 @@ ${input.userComment}
 	 * Gated by `isWarmSessionsEnabled()` — callers should check before invoking.
 	 */
 	private async warmupRecentSessions(count = 30): Promise<void> {
+		if (
+			this.prompterCredentialService.isEnabled() ||
+			this.prompterCredentialService.allEnvRefNames().length > 0
+		)
+			return;
 		const allSessions = this.agentSessionManager.getAllSessions();
 
 		// Only warm Claude sessions that have a persisted session ID and a workspace path
 		const candidates = allSessions
-			.filter((s) => s.claudeSessionId && s.workspace?.path)
+			.filter(
+				(s) =>
+					s.claudeSessionId &&
+					s.workspace?.path &&
+					!s.prompter?.credentialUserId,
+			)
 			.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
 			.slice(0, count);
 

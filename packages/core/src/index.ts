@@ -73,14 +73,19 @@ export type {
 } from "./CyrusAgentSession.js";
 // Configuration types
 export type {
+	CredentialRef,
 	EdgeConfig,
 	EdgeConfigPayload,
 	EdgeWorkerConfig,
+	LinearUserClaudeCredentials,
+	LinearUserConfig,
+	LinearUserGitHubCredentials,
 	LinearWorkspaceConfig,
 	NetworkPolicy,
 	OAuthCallbackHandler,
 	OpenCodeConfigOverrides,
 	OpenCodeStateScope,
+	PrompterCredentialPolicy,
 	RepoSetupHookEvent,
 	RepoSetupHookEventHandler,
 	RepoSetupHookStatus,
@@ -92,13 +97,18 @@ export type {
 	UserIdentifier,
 } from "./config-types.js";
 export {
+	CredentialRefSchema,
 	EdgeConfigPayloadSchema,
 	// Zod schemas for runtime validation
 	EdgeConfigSchema,
+	LinearUserClaudeCredentialsSchema,
+	LinearUserConfigSchema,
+	LinearUserGitHubCredentialsSchema,
 	LinearWorkspaceConfigSchema,
 	migrateEdgeConfig,
 	NetworkPolicySchema,
 	OpenCodeConfigSchema,
+	PrompterCredentialPolicySchema,
 	RepositoryConfigPayloadSchema,
 	RepositoryConfigSchema,
 	RunnerTypeSchema,
@@ -122,6 +132,7 @@ export {
 // GitHub App installation token store (multi-org GitHub support)
 export type {
 	GitHubInstallationToken,
+	GitHubPersonalToken,
 	GitHubTokensFile,
 } from "./github-token-store.js";
 export {
@@ -266,6 +277,33 @@ export {
 	PERSISTENCE_VERSION,
 	PersistenceManager,
 } from "./PersistenceManager.js";
+// Per-prompter credentials (multi-user self-host, CYPACK-1502)
+export type {
+	FollowUpDecision,
+	LinearUserCredentialResolution,
+	PrompterCredentialFailureReason,
+	PrompterDecision,
+	PrompterIdentity,
+	ResolvedPrompterCredentialPolicy,
+	ResolvedPrompterCredentials,
+	SessionPrompter,
+} from "./prompter-credentials.js";
+export {
+	ALTERNATIVE_AUTH_ENV_KEYS,
+	collectEnvRefNames,
+	credentialFingerprint,
+	decideFollowUpPrompt,
+	decideSessionCredentialUser,
+	describeCredentialRef,
+	ensurePrompterGitCredentialHelper,
+	getPrompterGitCredentialHelperPath,
+	isPrompterCredentialsEnabled,
+	PROMPTER_ENV,
+	PROMPTER_GIT_CREDENTIAL_HELPER_FILENAME,
+	readCredentialRef,
+	resolveLinearUserCredentials,
+	resolvePrompterCredentialPolicy,
+} from "./prompter-credentials.js";
 export { StreamingPrompt } from "./StreamingPrompt.js";
 export type {
 	WebhookIpValidatorOptions,
@@ -287,6 +325,12 @@ export type {
 	ISimpleAgentRunner,
 	ISimpleAgentRunnerConfig,
 } from "./simple-agent-runner-types.js";
+
 // Platform-agnostic webhook type aliases - exported from issue-tracker
 // These are now defined in issue-tracker/types.ts as aliases to Linear SDK webhook types
 // EdgeWorker and other high-level code should use these generic names via issue-tracker exports
+
+export type { GitHubCredentialRef } from "./config-schemas.js";
+export { ensureGitHubScripts } from "./github-scripts.js";
+export { readGitHubCredentialRef } from "./prompter-credentials.js";
+export { buildRunnerEnvironment } from "./runner-environment.js";
