@@ -1140,6 +1140,8 @@ export class EdgeWorker extends EventEmitter {
 			},
 			getPlatformMcpConfigOverrides,
 			getStrictMcpConfig: () => this.config.strictMcpConfig,
+			ensureLinearTokenFresh: (linearWorkspaceId) =>
+				this.ensureLinearTokenFresh(linearWorkspaceId),
 			resolveSkillsConfig: async ({ repository, repositoryPaths }) => {
 				const plugins = await this.skillsPluginResolver.resolve();
 				const skills = await this.skillsPluginResolver.discoverSkillNames(
@@ -4293,6 +4295,33 @@ ${taskSection}`;
 		const repo = this.repositories.get(repoId);
 		if (!repo?.linearWorkspaceId) return undefined;
 		return this.activitySinks.get(repo.linearWorkspaceId);
+	}
+
+	/**
+	 * Refresh a workspace's Linear access token if it has expired.
+	 *
+	 * Only the issue tracker's Linear client refreshes the token, and only when
+	 * one of its own requests gets a 401. Chat sessions copy the token into the
+	 * Linear MCP server's Authorization header, so a deployment that goes a day
+	 * without a Linear webhook hands every chat session an expired token. A
+	 * cheap `viewer` query goes through that client, which refreshes and
+	 * persists the token (via `onTokenRefresh`) before the MCP config reads it.
+	 */
+	private async ensureLinearTokenFresh(
+		linearWorkspaceId: string,
+	): Promise<void> {
+		const issueTracker = this.getIssueTrackerForWorkspace(linearWorkspaceId);
+		if (!issueTracker) {
+			return;
+		}
+		try {
+			await issueTracker.fetchCurrentUser();
+		} catch (error) {
+			this.logger.warn(
+				`Could not validate Linear token for workspace ${linearWorkspaceId}; the Linear MCP server may be unavailable in this session`,
+				error,
+			);
+		}
 	}
 
 	/**
