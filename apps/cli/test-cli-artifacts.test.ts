@@ -337,16 +337,17 @@ describe("generated installer isolation", () => {
 
 describe("artifact workflow boundary", () => {
 	it("keeps manual artifact builds credential-free and gates upload on canonical checks and the extracted CLI smoke", () => {
-		const workflow = readFileSync(
-			join(root, ".github/workflows/test-cli-artifacts.yml"),
+		const full = readFileSync(
+			join(root, ".github/workflows/release-cli.yml"),
 			"utf8",
 		);
-		expect(workflow).toContain("workflow_dispatch:");
+		const workflow = full.split("  test_build:")[1].split("  test_publish:")[0];
+		expect(full).toContain("workflow_dispatch:");
 		expect(workflow).not.toMatch(
 			/^\s+(push|pull_request|pull_request_target):/m,
 		);
 		expect(workflow).toContain('test "$GITHUB_REF" = "refs/heads/main"');
-		expect(workflow).toContain("permissions:\n  contents: read");
+		expect(workflow).toContain("permissions:\n      contents: read");
 		expect(workflow).not.toMatch(
 			/id-token:|contents: write|secrets\.|GH_TOKEN|NODE_AUTH_TOKEN|registry-url:|npm publish|publish-release|git push|gh release/,
 		);

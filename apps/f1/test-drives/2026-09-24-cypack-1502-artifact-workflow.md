@@ -2,6 +2,8 @@
 
 Date: 2026-09-24 UTC
 
+**Superseded delivery proposal:** artifact-only installation was rejected. PR #1502 now proposes a genuine npm test-channel route; the evidence below is historical local packaging/fixture evidence only. It is not registry installation proof, and its artifact dispatch instructions must not be followed.
+
 Draft infrastructure PR: [#1502](https://github.com/cyrusagents/cyrus/pull/1502).
 This report covers local preparation. The proposed GitHub artifact workflow has
 not been dispatched, merged, or used to publish an artifact. No registry, npm

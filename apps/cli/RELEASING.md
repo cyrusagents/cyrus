@@ -8,75 +8,92 @@ dependency order before publishing `cyrus-ai`.
 The publish boundary uses npm trusted publishing with GitHub Actions OIDC. It
 does not read or store a long-lived npm publish token.
 
-## Isolated test artifacts from a feature commit
+## Genuine npm test channels from a reviewed candidate
 
-`test-cli-artifacts.yml` is a separate, manual artifact-only route. A maintainer
-dispatches the reviewed workflow from `main`, with a full 40-character commit SHA
-from this repository and an exact prerelease version already committed across
-the complete package graph. Review the candidate before dispatch: its build,
-test, and package scripts execute on the runner. This route is for trusted test
-candidates, not arbitrary pull requests or forks.
+Use `release-cli.yml` on **main** with `release_mode=test`, an immutable full
+40-character `candidate_sha`, a committed coordinated prerelease version, and
+`dist_tag=test` or a dedicated `test-*` channel. Stable mode remains the default;
+it rejects candidate overrides and permits only `latest`, `next`, or `beta`.
+Test mode cannot target those stable channels and creates no git release tag or
+GitHub release. The feature itself does not need to merge into main.
 
-The job has only `contents: read`, disables checkout credential persistence,
-and has no OIDC permission, publish credentials, npm publishing, tag creation,
-or GitHub release creation. Existing `release-cli.yml` and `publish-release.mjs`
-main-only publishing guards still apply to every npm release. Test artifacts
-do not require a feature-to-main merge or npm trust configuration changes.
+The test route has three separate jobs:
 
-Before dispatch, prepare the candidate's versions, both changelogs, and F1 release
-test-drive report as required by `scripts/release-packages.mjs validate`. The
-candidate's canonical validator/package list must match the reviewed tooling on
-main; graph changes require a tooling review first. The workflow verifies the
-checkout SHA and clean tracked files before and after building. It runs frozen
-strict-peer installation, audit, lint, build, package and CLI tests, typecheck,
-and inspection of every packed package. Internal dependencies must resolve to
-the exact bundled version. It then extracts the completed bundle, verifies
-checksums, installs all packages into a disposable prefix, and checks CLI version
-and help before upload.
+1. **Build** (`contents: read`, no OIDC): checks the exact candidate, runs the
+   canonical validator, frozen strict-peer install, audit, lint, build, package
+   and CLI tests, typecheck, then adds `cyrusTestRelease` metadata to all package
+   manifests and packs all 17 coordinated workspaces. All internal dependencies
+   must be the exact prerelease version. An isolated local installation is a
+   preflight only. Hashes and immutable source/workflow provenance accompany the
+   packages in a same-run Actions artifact.
+2. **Publish** (`contents: read`, `id-token: write`): checks out only reviewed
+   main-commit scripts, downloads the exact build-job artifact ID, rechecks every
+   package identity, SHA256, source SHA, channel, dependency version and permitted
+   publish configuration. It never checks out, installs, builds or executes the
+   candidate. `npm publish <tarball> --ignore-scripts --tag test-*` uses npm 11.18.0
+   and the existing OIDC identity. Recovery retains the exact registry integrity
+   and full gzip-normalized archive comparison. Every package's non-target tags
+   (including latest/next/beta) are recorded before writes and compared afterward,
+   even on failure. It never repairs tags automatically.
+3. **Install** (`contents: read`, no OIDC): installs **from the npm channel** into
+   a fresh private home/cache/prefix, verifies CLI version/help and the installed
+   17-package graph's exact versions and source metadata, and runs cloudflared's
+   version command without opening a tunnel. Node/npm pairs are 22.17.1/10.9.2,
+   24.18.0/11.18.0 and 24.18.0/12.1.0. Registry/tag and installation proof files
+   are uploaded independently. Publication alone is not a successful endpoint.
 
-For the CYPACK-1502 test candidate, **after the artifact workflow has been
-reviewed and merged**, a maintainer can dispatch:
+Review candidate build scripts before dispatch. They run only in the
+unprivileged job; the publisher executes only reviewed infrastructure. The
+candidate's canonical validator/package list must match main. npm's automatic
+OIDC provenance identifies the **main workflow commit**; candidate provenance is
+explicitly recorded in every package's `cyrusTestRelease` metadata and verified
+against the dispatch SHA. Do not describe the automatic attestation as proving
+that the candidate itself was main.
+
+After review/approval and merge of infrastructure PR #1502, dispatch the prepared
+candidate (first use `dry_run=true` for the supported-route checks):
 
 ```bash
-gh workflow run test-cli-artifacts.yml --repo cyrusagents/cyrus --ref main \
+gh workflow run release-cli.yml --repo cyrusagents/cyrus --ref main \
+  -f release_mode=test \
   -f candidate_sha=bd45d03ae855d4148257cfeb93d026f88d886626 \
-  -f version=0.2.73-cypack1502.0
+  -f version=0.2.73-cypack1502.0 -f dist_tag=test-cypack1502 -f dry_run=true
+# Once reviewed route and dry-run pass, use the same inputs with dry_run=false.
 ```
 
-This selects the version-only prerelease preparation built from feature revision
-`89337bab1c08c616ef58f55ef82bc2f53c52892a`. It does not merge that feature.
-The workflow summary records the full candidate SHA, workflow SHA, artifact URL,
-Actions ZIP digest, and outer bundle checksums. Preserve these with the acceptance
-report. Artifacts expire after 14 days; no npm version or distribution tag is
-created. A successful upload proves package validation and installation, not live
-provider, default-pin/shared-fallback, hosted UI, or review-enforcement acceptance.
+The live test release is separately authorized for CYPACK-1502. The remaining
+infrastructure permission is maintainer approval and normal merge of PR #1502;
+this does not authorize merging feature #1472. No token or trust-setting change
+is requested: repository and workflow filename remain the existing trusted
+identity. Anonymous trust-settings reads require authentication (HTTP 401);
+public provenance for cyrus-ai@0.2.72 confirms that identity was used previously.
+Only a successful live OIDC publish proves current write authorization.
 
-Download the successful run's artifact (replace `RUN_ID` with its numeric ID):
+After successful publication and clean-install jobs, the consumer command is:
 
 ```bash
-gh run download RUN_ID --repo cyrusagents/cyrus \
-  -n cyrus-0.2.73-cypack1502.0-bd45d03ae855d4148257cfeb93d026f88d886626 \
-  -D ./cyrus-test-download
-cd cyrus-test-download
-# Compare SHA256SUMS with the workflow summary first.
-shasum -a 256 --check SHA256SUMS
-tar -xzf cyrus-0.2.73-cypack1502.0-test-bundle.tar.gz
-cd cyrus-0.2.73-cypack1502.0-test-bundle
-bash install.sh /absolute/path/to/disposable-prefix
-/absolute/path/to/disposable-prefix/bin/cyrus --version
+npm install -g cyrus-ai@test-cypack1502
+# Immutable pin:
+npm install -g cyrus-ai@0.2.73-cypack1502.0
 ```
 
-The bundle contains all 17 package tarballs, `manifest.json` (source and workflow
-SHAs, package identities, sizes and SHA256 hashes), `SHA256SUMS`, `INSTALL.md`, and
-`install.sh`. The installation prefix must not exist, including a dangling symlink;
-its parent directory must already exist. The installer refuses existing paths
-before invoking npm and creates the fresh prefix with mode `0700`. It keeps a
-private test home/cache beneath that prefix, uses empty private npm user/global
-config files, and gives npm and both CLI checks a clean child environment. The
-caller's home, credentials, npm configuration, cache, and installation are preserved.
-External dependencies download from the public npm registry during installation; all
-Cyrus packages come from the bundle. Use the installed CLI with a separate
-`--cyrus-home`; do not replace the running internal Cyrus installation or auth.
+npm 12 defaults to blocking dependency lifecycle scripts. A CLI version check
+alone therefore does not prove cloudflared was installed. For npm 12, explicitly
+allow the cloudflared install script in the test installation:
+
+```bash
+npm rebuild -g --allow-scripts=cloudflared cloudflared
+```
+
+The verification job records whether its binary existed before approval and
+requires it to run afterward. npm 10/11 use their normal lifecycle behavior.
+Use Node 22 or 24 and a separate test installation/`--cyrus-home`, preserving the
+running internal Cyrus auth/config. No live provider, default-pin/shared-fallback,
+hosted UI or human-review acceptance is implied by npm installation.
+
+References: [npm trusted publishers](https://docs.npmjs.com/trusted-publishers/),
+[npm trust](https://docs.npmjs.com/cli/v11/commands/npm-trust/),
+[npm install lifecycle policy](https://docs.npmjs.com/cli/install/).
 
 ## One-time npm configuration
 
@@ -92,7 +109,7 @@ Configure the trusted publisher on every package listed by
 | Environment          | Leave blank       |
 | Allowed actions      | `npm publish`     |
 
-Each npm package permits one trusted publisher. The workflow filename and
+The workflow filename and
 repository identity are part of npm's trust policy, so renaming either requires
 updating every package's configuration before the next release.
 
