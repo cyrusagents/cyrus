@@ -910,7 +910,7 @@ function AutomationsApp({ onSession }) {
 	}, []);
 	useEffect(() => {
 		document.title =
-			page === "automations" ? "Atmiko · Automations" : "Atmiko · Tasks & Logs";
+			page === "automations" ? "Miko · Automations" : "Miko · Tasks & Logs";
 	}, [page]);
 	const create = (kind = "daily") => setEditor({ kind });
 	const viewSession = (id) => {

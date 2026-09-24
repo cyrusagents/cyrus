@@ -260,7 +260,7 @@ Orchestrate this task
 	});
 
 	it("should load orchestrator system prompt when labelPrompts exists but without orchestrator entry (hardcoded rule)", async () => {
-		// Repository WITH labelPrompts configured but WITHOUT orchestrator - simulates atmiko-hosted scenario
+		// Repository WITH labelPrompts configured but WITHOUT orchestrator - simulates miko-hosted scenario
 		// where labelPrompts has builder/debugger/scoper but NOT orchestrator
 		const repository = {
 			id: "repo-uuid-7890-1234-56cd-ef0123456789",

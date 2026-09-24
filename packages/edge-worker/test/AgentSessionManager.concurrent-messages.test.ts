@@ -2,7 +2,7 @@ import type {
 	SDKAssistantMessage,
 	SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import { ClaudeMessageFormatter } from "atmiko-claude-runner";
+import { ClaudeMessageFormatter } from "miko-claude-runner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
 import type { IActivitySink } from "../src/sinks/IActivitySink";
@@ -35,7 +35,7 @@ describe("AgentSessionManager - concurrent message handling", () => {
 		manager = new AgentSessionManager();
 		// Platform defaults to "linear", which auto-assigns externalSessionId = sessionId
 		// so activities can be posted to the sink.
-		manager.createAtmikoAgentSession(
+		manager.createMikoAgentSession(
 			sessionId,
 			issueId,
 			{

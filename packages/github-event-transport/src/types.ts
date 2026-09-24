@@ -2,12 +2,12 @@
  * Types for GitHub event transport
  */
 
-import type { InternalMessage } from "atmiko-core";
 import type { FastifyInstance } from "fastify";
+import type { InternalMessage } from "miko-core";
 
 /**
  * Verification mode for GitHub webhooks forwarded from CYHOST
- * - 'proxy': Use ATMIKO_API_KEY Bearer token for authentication (self-hosted)
+ * - 'proxy': Use MIKO_API_KEY Bearer token for authentication (self-hosted)
  * - 'signature': Use x-hub-signature-256 GitHub HMAC-SHA256 signature verification (cloud)
  */
 export type GitHubVerificationMode = "proxy" | "signature";
@@ -20,7 +20,7 @@ export interface GitHubEventTransportConfig {
 	fastifyServer: FastifyInstance;
 	/** Verification mode: 'proxy' or 'signature' */
 	verificationMode: GitHubVerificationMode;
-	/** Secret for verification (ATMIKO_API_KEY for proxy, GITHUB_WEBHOOK_SECRET for signature) */
+	/** Secret for verification (MIKO_API_KEY for proxy, GITHUB_WEBHOOK_SECRET for signature) */
 	secret: string;
 	/** Optional IP allowlist for webhook source validation (only used in signature mode) */
 	ipAllowlist?: readonly string[];

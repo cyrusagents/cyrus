@@ -1,15 +1,15 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LINEAR_DEFAULT_ALLOWED_TOOLS } from "atmiko-core";
+import { LINEAR_DEFAULT_ALLOWED_TOOLS } from "miko-core";
 import { describe, expect, it } from "vitest";
 import { buildOpenCodeConfig, buildOpenCodeRuntimeEnv } from "../src/config.js";
 
 describe("OpenCode config translation", () => {
-	it("maps Atmiko MCP config into OpenCode MCP shape", () => {
+	it("maps Miko MCP config into OpenCode MCP shape", () => {
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			mcpConfig: {
 				linear: {
 					type: "http",
@@ -71,7 +71,7 @@ describe("OpenCode config translation", () => {
 
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			mcpConfigPath,
 			mcpConfig: {
 				atlassian: {
@@ -99,7 +99,7 @@ describe("OpenCode config translation", () => {
 	it("allows configured OpenCode MCP servers through default-deny permissions", () => {
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			opencodeGlobalConfig: {
 				mcp: {
 					atlassian: {
@@ -134,11 +134,11 @@ describe("OpenCode config translation", () => {
 		expect(result.config.permission?.["disabled-mcp_*"]).toBeUndefined();
 	});
 
-	it("maps Atmiko tool permissions with default-deny OpenCode behavior", () => {
+	it("maps Miko tool permissions with default-deny OpenCode behavior", () => {
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
-			allowedDirectories: ["/work/repo", "/tmp/atmiko/attachments"],
+			mikoHome: "/tmp/miko",
+			allowedDirectories: ["/work/repo", "/tmp/miko/attachments"],
 			allowedTools: [
 				"Read(**)",
 				"Edit(src/**)",
@@ -146,7 +146,7 @@ describe("OpenCode config translation", () => {
 				"WebFetch",
 				"TaskCreate",
 				"mcp__linear__get_issue",
-				"mcp__atmiko-tools",
+				"mcp__miko-tools",
 			],
 			disallowedTools: [
 				"Read(.env)",
@@ -179,22 +179,22 @@ describe("OpenCode config translation", () => {
 			webfetch: "allow",
 			task: "allow",
 			linear_get_issue: "allow",
-			"atmiko-tools_*": "allow",
+			"miko-tools_*": "allow",
 			linear_delete_comment: "deny",
 			external_directory: {
 				"*": "deny",
-				"/tmp/atmiko/attachments/**": "allow",
+				"/tmp/miko/attachments/**": "allow",
 			},
 		});
 		expect(result.unsupported).toContain(
-			"permission:UnknownTool(foo): Unsupported Atmiko tool pattern for OpenCode",
+			"permission:UnknownTool(foo): Unsupported Miko tool pattern for OpenCode",
 		);
 	});
 
 	it("allows standard issue-session Bash and file tools through default-deny permissions", () => {
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			allowedTools: ["Read(**)", "Edit(**)", "Write(**)", "Bash"],
 		});
 
@@ -218,7 +218,7 @@ describe("OpenCode config translation", () => {
 	it("does not warn about Claude-only tools in the default Linear toolset", () => {
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			allowedTools: [...LINEAR_DEFAULT_ALLOWED_TOOLS],
 		});
 
@@ -228,7 +228,7 @@ describe("OpenCode config translation", () => {
 	it("builds inline config and inherits terminal state by default", () => {
 		const env = buildOpenCodeRuntimeEnv({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			allowedTools: ["Read(**)"],
 		});
 
@@ -248,29 +248,27 @@ describe("OpenCode config translation", () => {
 		expect(env.XDG_CONFIG_HOME).toBeUndefined();
 	});
 
-	it("can use shared Atmiko OpenCode state across sessions", () => {
+	it("can use shared Miko OpenCode state across sessions", () => {
 		const env = buildOpenCodeRuntimeEnv({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			opencodeStateScope: "shared",
 			allowedTools: ["Read(**)"],
 		});
 
 		expect(env.OPENCODE_CONFIG_DIR).toBe(
-			"/tmp/atmiko/opencode-state/shared/opencode-config",
+			"/tmp/miko/opencode-state/shared/opencode-config",
 		);
 		expect(env.XDG_DATA_HOME).toBeUndefined();
-		expect(env.XDG_STATE_HOME).toBe("/tmp/atmiko/opencode-state/shared/state");
-		expect(env.XDG_CACHE_HOME).toBe("/tmp/atmiko/opencode-state/shared/cache");
-		expect(env.XDG_CONFIG_HOME).toBe(
-			"/tmp/atmiko/opencode-state/shared/config",
-		);
+		expect(env.XDG_STATE_HOME).toBe("/tmp/miko/opencode-state/shared/state");
+		expect(env.XDG_CACHE_HOME).toBe("/tmp/miko/opencode-state/shared/cache");
+		expect(env.XDG_CONFIG_HOME).toBe("/tmp/miko/opencode-state/shared/config");
 	});
 
-	it("can use repository-scoped Atmiko OpenCode state across issues", () => {
+	it("can use repository-scoped Miko OpenCode state across issues", () => {
 		const env = buildOpenCodeRuntimeEnv({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			opencodeStateScope: "repository",
 			opencodeStateKey: "main-app",
 			workspaceName: "NG-71",
@@ -278,24 +276,24 @@ describe("OpenCode config translation", () => {
 		});
 
 		expect(env.OPENCODE_CONFIG_DIR).toBe(
-			"/tmp/atmiko/opencode-state/repositories/main-app/opencode-config",
+			"/tmp/miko/opencode-state/repositories/main-app/opencode-config",
 		);
 		expect(env.XDG_DATA_HOME).toBeUndefined();
 		expect(env.XDG_STATE_HOME).toBe(
-			"/tmp/atmiko/opencode-state/repositories/main-app/state",
+			"/tmp/miko/opencode-state/repositories/main-app/state",
 		);
 		expect(env.XDG_CACHE_HOME).toBe(
-			"/tmp/atmiko/opencode-state/repositories/main-app/cache",
+			"/tmp/miko/opencode-state/repositories/main-app/cache",
 		);
 		expect(env.XDG_CONFIG_HOME).toBe(
-			"/tmp/atmiko/opencode-state/repositories/main-app/config",
+			"/tmp/miko/opencode-state/repositories/main-app/config",
 		);
 	});
 
-	it("merges global and repository OpenCode config before Atmiko-generated config", () => {
+	it("merges global and repository OpenCode config before Miko-generated config", () => {
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			opencodeGlobalConfig: {
 				plugin: ["global-plugin"],
 				permission: {
@@ -364,7 +362,7 @@ describe("OpenCode config translation", () => {
 	it("passes arbitrary JSON-compatible OpenCode fields through", () => {
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			opencodeGlobalConfig: {
 				share: "disabled",
 				formatter: true,
@@ -396,7 +394,7 @@ describe("OpenCode config translation", () => {
 	it("replaces arrays instead of concatenating them", () => {
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			opencodeGlobalConfig: {
 				plugin: ["global-plugin", "shared-plugin"],
 			},
@@ -408,10 +406,10 @@ describe("OpenCode config translation", () => {
 		expect(result.config.plugin).toEqual(["repo-plugin"]);
 	});
 
-	it("keeps Atmiko-generated MCP and permission authoritative over overrides", () => {
+	it("keeps Miko-generated MCP and permission authoritative over overrides", () => {
 		const result = buildOpenCodeConfig({
 			workingDirectory: "/work/repo",
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			opencodeGlobalConfig: {
 				mcp: {
 					linear: { type: "remote", url: "https://global.example/mcp" },

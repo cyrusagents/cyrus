@@ -39,7 +39,7 @@ interface ParsedPattern {
 	original: string;
 }
 
-interface AtmikoMcpServerConfig {
+interface MikoMcpServerConfig {
 	type?: string;
 	transport?: string;
 	command?: string;
@@ -52,7 +52,7 @@ interface AtmikoMcpServerConfig {
 
 const ENV_DENY_PATTERNS = ["*.env", "*.env.*"];
 
-// Atmiko shares platform tool defaults across runners. These Claude SDK tools
+// Miko shares platform tool defaults across runners. These Claude SDK tools
 // have no OpenCode equivalent, so omitting them is expected rather than a
 // configuration error worth logging for every session.
 const CLAUDE_ONLY_TOOL_NAMES = new Set([
@@ -183,7 +183,7 @@ function addOpenCodePermission(
 	const parsed = parseToolPattern(pattern);
 	if (!parsed) {
 		unsupported.push(
-			`permission:${pattern}: Unsupported Atmiko tool pattern for OpenCode`,
+			`permission:${pattern}: Unsupported Miko tool pattern for OpenCode`,
 		);
 		return;
 	}
@@ -217,7 +217,7 @@ function addOpenCodePermission(
 			const rules = normalizeBashRule(parsed.argument);
 			if (rules.length === 0) {
 				unsupported.push(
-					`permission:${pattern}: Unsupported Atmiko tool pattern for OpenCode`,
+					`permission:${pattern}: Unsupported Miko tool pattern for OpenCode`,
 				);
 				return;
 			}
@@ -252,7 +252,7 @@ function addOpenCodePermission(
 			return;
 		default:
 			unsupported.push(
-				`permission:${pattern}: Unsupported Atmiko tool pattern for OpenCode`,
+				`permission:${pattern}: Unsupported Miko tool pattern for OpenCode`,
 			);
 	}
 }
@@ -305,7 +305,7 @@ function addConfiguredMcpPermissions(
 
 function mapMcpServer(
 	name: string,
-	server: AtmikoMcpServerConfig,
+	server: MikoMcpServerConfig,
 	unsupported: string[],
 ): OpenCodeMcpLocalConfig | OpenCodeMcpRemoteConfig | null {
 	if (!server || typeof server !== "object") return null;
@@ -345,10 +345,10 @@ function mapMcpServer(
 function loadMcpConfigFromPaths(
 	configPaths: string | string[] | undefined,
 	unsupported: string[],
-): Record<string, AtmikoMcpServerConfig> {
+): Record<string, MikoMcpServerConfig> {
 	if (!configPaths) return {};
 	const paths = Array.isArray(configPaths) ? configPaths : [configPaths];
-	let servers: Record<string, AtmikoMcpServerConfig> = {};
+	let servers: Record<string, MikoMcpServerConfig> = {};
 
 	for (const configPath of paths) {
 		try {
@@ -356,7 +356,7 @@ function loadMcpConfigFromPaths(
 			if (isRecord(parsed.mcpServers)) {
 				servers = {
 					...servers,
-					...(parsed.mcpServers as Record<string, AtmikoMcpServerConfig>),
+					...(parsed.mcpServers as Record<string, MikoMcpServerConfig>),
 				};
 			}
 		} catch (error) {
@@ -406,12 +406,12 @@ export function buildOpenCodeConfig(
 	}
 	const workingDirectory = config.workingDirectory || process.cwd();
 	// OpenCode defaults to allowing tools unless permission rules say
-	// otherwise. Atmiko sessions must be deny-by-default so hosted/sandboxed
+	// otherwise. Miko sessions must be deny-by-default so hosted/sandboxed
 	// runs do not inherit a permissive project or user config unexpectedly.
 	const permission: Record<string, OpenCodePermissionRule> = {
 		"*": "deny",
 		// OpenCode treats repeated calls as an interactive permission request.
-		// Atmiko is headless, so that request otherwise terminates the whole run.
+		// Miko is headless, so that request otherwise terminates the whole run.
 		doom_loop: "allow",
 	};
 
@@ -421,7 +421,7 @@ export function buildOpenCodeConfig(
 
 	const mcpServers = {
 		...loadMcpConfigFromPaths(config.mcpConfigPath, unsupported),
-		...((config.mcpConfig ?? {}) as Record<string, AtmikoMcpServerConfig>),
+		...((config.mcpConfig ?? {}) as Record<string, MikoMcpServerConfig>),
 	};
 	const mcp: Record<string, OpenCodeMcpLocalConfig | OpenCodeMcpRemoteConfig> =
 		{};
@@ -460,7 +460,7 @@ export function buildOpenCodeConfig(
 		workingDirectory,
 		config.allowedDirectories,
 	);
-	// Atmiko permissions are safety controls, so they replace user-provided
+	// Miko permissions are safety controls, so they replace user-provided
 	// permission config instead of preserving non-conflicting entries.
 	runtimeConfig.permission = permission;
 
@@ -474,7 +474,7 @@ function sanitizePathSegment(value: string): string {
 export function buildOpenCodeStateRoot(config: OpenCodeRunnerConfig): string {
 	const scope = config.opencodeStateScope ?? "inherit";
 	if (scope === "shared") {
-		return join(config.atmikoHome, "opencode-state", "shared");
+		return join(config.mikoHome, "opencode-state", "shared");
 	}
 	if (scope === "repository") {
 		const key =
@@ -484,7 +484,7 @@ export function buildOpenCodeStateRoot(config: OpenCodeRunnerConfig): string {
 				basename(resolve(config.workingDirectory || process.cwd())),
 			);
 		return join(
-			config.atmikoHome,
+			config.mikoHome,
 			"opencode-state",
 			"repositories",
 			sanitizePathSegment(key) || "repository",
@@ -494,7 +494,7 @@ export function buildOpenCodeStateRoot(config: OpenCodeRunnerConfig): string {
 	const workspaceName =
 		config.workspaceName || sanitizePathSegment(basename(workingDirectory));
 	const safeWorkspaceName = sanitizePathSegment(workspaceName) || "workspace";
-	return join(config.atmikoHome, "opencode-state", safeWorkspaceName);
+	return join(config.mikoHome, "opencode-state", safeWorkspaceName);
 }
 
 export function buildOpenCodeRuntimeEnv(
@@ -502,7 +502,7 @@ export function buildOpenCodeRuntimeEnv(
 ): Record<string, string> {
 	const built = buildOpenCodeConfig(config);
 	// OpenCode loads OPENCODE_CONFIG_CONTENT after project config, making this
-	// the safest supported place for Atmiko-enforced MCP and permission rules.
+	// the safest supported place for Miko-enforced MCP and permission rules.
 	const env: Record<string, string> = {
 		OPENCODE_CONFIG_CONTENT: JSON.stringify(built.config),
 	};

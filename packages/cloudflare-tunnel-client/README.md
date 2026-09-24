@@ -1,4 +1,4 @@
-# atmiko-cloudflare-tunnel-client
+# miko-cloudflare-tunnel-client
 
 Cloudflare tunnel client for establishing tunnels to local services.
 
@@ -15,13 +15,13 @@ This package provides a simplified client for establishing Cloudflare tunnels. I
 ## Installation
 
 ```bash
-npm install atmiko-cloudflare-tunnel-client
+npm install miko-cloudflare-tunnel-client
 ```
 
 ## Usage
 
 ```typescript
-import { CloudflareTunnelClient } from 'atmiko-cloudflare-tunnel-client';
+import { CloudflareTunnelClient } from 'miko-cloudflare-tunnel-client';
 
 // Create tunnel client
 const client = new CloudflareTunnelClient(

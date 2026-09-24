@@ -6,7 +6,7 @@ import {
 	type AgentActivityContent,
 	AgentActivitySignal,
 	type IIssueTrackerService,
-} from "atmiko-core";
+} from "miko-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityPostOptions } from "../src/sinks/IActivitySink.js";
 import { LinearActivitySink } from "../src/sinks/LinearActivitySink.js";

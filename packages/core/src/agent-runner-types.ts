@@ -447,7 +447,7 @@ export type JsonObject = { [key: string]: JsonValue };
  *   mcpConfig: {
  *     'linear': { command: 'npx', args: ['-y', '@linear/mcp-server'] }
  *   },
- *   atmikoHome: '/home/user/.atmiko'
+ *   mikoHome: '/home/user/.miko'
  * };
  * ```
  */
@@ -482,13 +482,13 @@ export interface AgentRunnerConfig {
 	/** MCP server configurations (inline) */
 	mcpConfig?: Record<string, McpServerConfig>;
 	/**
-	 * Whether Claude should use only MCP servers explicitly supplied by Atmiko.
+	 * Whether Claude should use only MCP servers explicitly supplied by Miko.
 	 * Defaults to true for Claude sessions.
 	 */
 	strictMcpConfig?: boolean;
-	/** Global OpenCode runtime config overrides from Atmiko config */
+	/** Global OpenCode runtime config overrides from Miko config */
 	opencodeGlobalConfig?: JsonObject;
-	/** Repository OpenCode runtime config overrides from Atmiko config */
+	/** Repository OpenCode runtime config overrides from Miko config */
 	opencodeRepositoryConfig?: JsonObject;
 	/** OpenCode CLI config/state/cache scope. Defaults to inheriting parent env. */
 	opencodeStateScope?: OpenCodeStateScope;
@@ -502,8 +502,8 @@ export interface AgentRunnerConfig {
 	maxTurns?: number;
 	/** Built-in tools available in model context (empty array disables all tools) */
 	tools?: string[];
-	/** Atmiko home directory (required) */
-	atmikoHome: string;
+	/** Miko home directory (required) */
+	mikoHome: string;
 	/**
 	 * Additional environment variables for the agent child process, merged on
 	 * top of the inherited process env. Used for per-session credentials

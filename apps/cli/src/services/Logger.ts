@@ -4,10 +4,10 @@ import {
 	type LogContext,
 	type LogEventAttributes,
 	type LogLevel,
-} from "atmiko-core";
+} from "miko-core";
 
-// Re-export LogLevel from atmiko-core so existing consumers don't break
-export { LogLevel } from "atmiko-core";
+// Re-export LogLevel from miko-core so existing consumers don't break
+export { LogLevel } from "miko-core";
 
 /**
  * Logger configuration options

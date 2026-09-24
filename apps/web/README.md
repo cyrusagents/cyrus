@@ -1,16 +1,16 @@
-# Atmiko landing page — Astro + Tailwind
+# Miko landing page — Astro + Tailwind
 
-A product landing page grounded in the Atmiko repository, retaining the typography, monochrome palette, generous spacing, pill controls, rounded cards, and phone demonstration pattern of the original x.ai/bot reconstruction.
+A product landing page grounded in the Miko repository, retaining the typography, monochrome palette, generous spacing, pill controls, rounded cards, and phone demonstration pattern of the original x.ai/bot reconstruction.
 
 ## Run
 
 ```sh
-pnpm --filter @atmiko/web dev
-pnpm --filter @atmiko/web build
-pnpm --filter @atmiko/web typecheck
+pnpm --filter @miko/web dev
+pnpm --filter @miko/web build
+pnpm --filter @miko/web typecheck
 ```
 
-Open http://127.0.0.1:4321/. The existing `/bot` route renders the same page for compatibility. Astro may run the development server in the background; stop it with `pnpm --filter @atmiko/web exec astro dev stop`.
+Open http://127.0.0.1:4321/. The existing `/bot` route renders the same page for compatibility. Astro may run the development server in the background; stop it with `pnpm --filter @miko/web exec astro dev stop`.
 
 ## Content and interactions
 

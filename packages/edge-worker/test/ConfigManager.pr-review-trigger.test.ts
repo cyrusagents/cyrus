@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { EdgeWorkerConfig, ILogger } from "atmiko-core";
+import type { EdgeWorkerConfig, ILogger } from "miko-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigManager } from "../src/ConfigManager.js";
 
@@ -9,7 +9,7 @@ vi.mock("node:fs/promises");
  * Tests for CYPACK-1273: ensure the `prReviewTrigger` flag participates in
  * the config hot-reload pipeline — both the merge in `loadConfigSafely()` and
  * the global-change detection in `detectGlobalConfigChanges()`. Without these,
- * a `prReviewTrigger` change written to config.json while Atmiko is running
+ * a `prReviewTrigger` change written to config.json while Miko is running
  * would be silently dropped (see CLAUDE.md note #9).
  */
 describe("ConfigManager - prReviewTrigger hot-reload (CYPACK-1273)", () => {
@@ -17,7 +17,7 @@ describe("ConfigManager - prReviewTrigger hot-reload (CYPACK-1273)", () => {
 
 	const baseConfig: EdgeWorkerConfig = {
 		proxyUrl: "http://localhost:3000",
-		atmikoHome: "/tmp/atmiko-home",
+		mikoHome: "/tmp/miko-home",
 		repositories: [
 			{
 				id: "repo-1",
@@ -33,7 +33,7 @@ describe("ConfigManager - prReviewTrigger hot-reload (CYPACK-1273)", () => {
 		return new ConfigManager(
 			config,
 			logger,
-			"/tmp/atmiko-home/config.json",
+			"/tmp/miko-home/config.json",
 			new Map(config.repositories.map((r) => [r.id, r])),
 		);
 	}

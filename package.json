@@ -1,12 +1,12 @@
 {
-	"name": "atmiko-monorepo",
+	"name": "miko-monorepo",
 	"version": "1.0.1",
 	"private": true,
-	"description": "Monorepo for Atmiko - Linear Claude Agent integration",
+	"description": "Miko — a self-hosted development agent for your repositories and team",
 	"packageManager": "pnpm@10.33.1",
 	"type": "module",
 	"scripts": {
-		"build": "pnpm -r --filter='!@atmiko/electron' build",
+		"build": "pnpm -r --filter='!@miko/electron' build",
 		"dev": "pnpm -r --parallel dev",
 		"test": "pnpm -r test",
 		"lint": "biome check",
@@ -21,7 +21,7 @@
 		"linear",
 		"claude",
 		"linear-agent",
-		"atmiko",
+		"miko",
 		"anthropic",
 		"ai",
 		"agent",
@@ -31,7 +31,7 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/nexmoe/atmiko"
+		"url": "https://github.com/mikoagents/miko"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.1.3",

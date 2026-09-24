@@ -1,4 +1,4 @@
-import type { AgentActivityContent } from "atmiko-core";
+import type { AgentActivityContent } from "miko-core";
 import type {
 	ActivityPostOptions,
 	ActivityPostResult,

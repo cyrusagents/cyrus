@@ -77,11 +77,11 @@ describe("board activity projection", () => {
 		expect(activityStats([])).toEqual({ span: 0, calls: 0, errors: 0 });
 		const rows = activityRows([
 			log("service", "<script>alert(1)</script>", {
-				source: "atmiko",
+				source: "miko",
 				level: "error",
 			}),
 		]);
-		expect(visibleRows(rows, "ATMIKO", true)).toEqual(rows);
+		expect(visibleRows(rows, "MIKO", true)).toEqual(rows);
 		expect(rows[0].log.text).toBe("<script>alert(1)</script>");
 	});
 });

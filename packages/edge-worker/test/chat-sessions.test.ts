@@ -1,12 +1,12 @@
 import { join } from "node:path";
-import { getReadOnlyTools } from "atmiko-claude-runner";
-import type { RepositoryConfig } from "atmiko-core";
+import { getReadOnlyTools } from "miko-claude-runner";
+import type { RepositoryConfig } from "miko-core";
 import {
 	type SlackMessageAttachment,
 	SlackMessageService,
 	SlackReactionService,
 	type SlackWebhookEvent,
-} from "atmiko-slack-event-transport";
+} from "miko-slack-event-transport";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
 import { LiveChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
@@ -20,7 +20,7 @@ import {
 	SLACK_NO_RESPONSE_SENTINEL,
 	SlackChatAdapter,
 } from "../src/SlackChatAdapter.js";
-import { TEST_ATMIKO_CHAT } from "./test-dirs.js";
+import { TEST_MIKO_CHAT } from "./test-dirs.js";
 
 function createMockRunnerConfigBuilder(): RunnerConfigBuilder {
 	let defaultRunner: "claude" | "opencode" = "claude";
@@ -38,7 +38,7 @@ function createMockRunnerConfigBuilder(): RunnerConfigBuilder {
 				disallowedTools: [],
 				allowedDirectories: [input.workspacePath, ...repositoryPaths],
 				workspaceName: input.workspaceName,
-				atmikoHome: input.atmikoHome,
+				mikoHome: input.mikoHome,
 				appendSystemPrompt: input.systemPrompt,
 				...(input.resumeSessionId
 					? { resumeSessionId: input.resumeSessionId }
@@ -122,7 +122,7 @@ describe("ChatSessionHandler chat session permissions", () => {
 			eventId: "test-event",
 			threadKey: "test-thread",
 		};
-		const atmikoHome = TEST_ATMIKO_CHAT;
+		const mikoHome = TEST_MIKO_CHAT;
 		const chatRepositoryPaths = ["/repo/chat-one", "/repo/chat-two"];
 		let capturedConfig: any;
 
@@ -145,7 +145,7 @@ describe("ChatSessionHandler chat session permissions", () => {
 		const onClaudeError = vi.fn();
 
 		const handler = new ChatSessionHandler(adapter, {
-			atmikoHome,
+			mikoHome,
 			chatRepositoryProvider: createStaticProvider(chatRepositoryPaths),
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner: createRunner,
@@ -162,11 +162,7 @@ describe("ChatSessionHandler chat session permissions", () => {
 		expect(capturedConfig.allowedTools).toContain("Bash(git -C * pull)");
 		expect(capturedConfig.allowedTools).not.toContain("Edit(**)");
 
-		const expectedWorkspace = join(
-			atmikoHome,
-			"slack-workspaces",
-			"thread-key",
-		);
+		const expectedWorkspace = join(mikoHome, "slack-workspaces", "thread-key");
 		expect(capturedConfig.allowedDirectories).toContain(expectedWorkspace);
 		for (const path of chatRepositoryPaths) {
 			expect(capturedConfig.allowedDirectories).toContain(path);
@@ -178,7 +174,7 @@ describe("ChatSessionHandler chat session permissions", () => {
 			eventId: "test-event",
 			threadKey: "test-thread",
 		};
-		const atmikoHome = TEST_ATMIKO_CHAT;
+		const mikoHome = TEST_MIKO_CHAT;
 		const repository = {
 			id: "repo-a",
 			name: "Repo A",
@@ -186,7 +182,7 @@ describe("ChatSessionHandler chat session permissions", () => {
 			allowedTools: [],
 		} as unknown as RepositoryConfig;
 		const chatRepositoryPaths = ["/repo/chat-one"];
-		const plugins = [{ type: "local" as const, path: "/atmiko/user-skills" }];
+		const plugins = [{ type: "local" as const, path: "/miko/user-skills" }];
 		let capturedConfig: any;
 
 		const adapter = new TestChatAdapter("thread-key");
@@ -208,7 +204,7 @@ describe("ChatSessionHandler chat session permissions", () => {
 		});
 
 		const handler = new ChatSessionHandler(adapter, {
-			atmikoHome,
+			mikoHome,
 			chatRepositoryProvider: createStaticProvider(
 				chatRepositoryPaths,
 				repository,
@@ -252,7 +248,7 @@ describe("ChatSessionHandler session-initiation gate", () => {
 				}) as any,
 		);
 		const handler = new ChatSessionHandler(adapter, {
-			atmikoHome: TEST_ATMIKO_CHAT,
+			mikoHome: TEST_MIKO_CHAT,
 			chatRepositoryProvider: createStaticProvider([]),
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
@@ -320,7 +316,7 @@ describe("ChatSessionHandler processed acknowledgement", () => {
 			} as any;
 		});
 		const handler = new ChatSessionHandler(adapter, {
-			atmikoHome: TEST_ATMIKO_CHAT,
+			mikoHome: TEST_MIKO_CHAT,
 			chatRepositoryProvider: createStaticProvider([]),
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
@@ -374,7 +370,7 @@ describe("ChatSessionHandler processed acknowledgement", () => {
 			} as any;
 		});
 		const handler = new ChatSessionHandler(adapter, {
-			atmikoHome: TEST_ATMIKO_CHAT,
+			mikoHome: TEST_MIKO_CHAT,
 			chatRepositoryProvider: createStaticProvider([]),
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
@@ -447,7 +443,7 @@ describe("ChatSessionHandler busy follow-up queueing", () => {
 			} as any;
 		});
 		const handler = new ChatSessionHandler(adapter, {
-			atmikoHome: TEST_ATMIKO_CHAT,
+			mikoHome: TEST_MIKO_CHAT,
 			chatRepositoryProvider: createStaticProvider([]),
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
@@ -648,7 +644,7 @@ describe("SlackChatAdapter responding policy", () => {
 			.mockResolvedValue({} as any);
 
 		await adapter.postReply(
-			slackEvent("Atmiko, what does this function do?"),
+			slackEvent("Miko, what does this function do?"),
 			runnerWithReply("It memoizes the result."),
 		);
 
@@ -698,7 +694,7 @@ describe("SlackChatAdapter system prompt", () => {
 			payload: {
 				user: "U1",
 				channel: "C1",
-				text: "<@atmiko> inspect code",
+				text: "<@miko> inspect code",
 				ts: "1700000000.000100",
 				event_ts: "1700000000.000100",
 				type: "app_mention",
@@ -724,7 +720,7 @@ describe("SlackChatAdapter system prompt", () => {
 			payload: {
 				user: "U1",
 				channel: "C1",
-				text: "<@atmiko> assign this work",
+				text: "<@miko> assign this work",
 				ts: "1700000000.000100",
 				event_ts: "1700000000.000100",
 				type: "app_mention",
@@ -742,16 +738,16 @@ describe("SlackChatAdapter system prompt", () => {
 		payload: {
 			user: "U1",
 			channel: "C1",
-			text: "<@atmiko> hello",
+			text: "<@miko> hello",
 			ts: "1700000000.000100",
 			event_ts: "1700000000.000100",
 			type: "app_mention",
 		},
 	} as any;
 
-	it("includes stop-listening guidance with the Behaviours page link when a Atmiko app base URL is configured", () => {
+	it("includes stop-listening guidance with the Behaviours page link when a Miko app base URL is configured", () => {
 		const adapter = new SlackChatAdapter(createStaticProvider([]), undefined, {
-			atmikoAppBaseUrl: "https://control-plane.example.com/",
+			mikoAppBaseUrl: "https://control-plane.example.com/",
 		});
 		const systemPrompt = adapter.buildSystemPrompt(appMentionEvent);
 
@@ -762,7 +758,7 @@ describe("SlackChatAdapter system prompt", () => {
 		expect(systemPrompt).toContain("until someone asks you a direct question");
 	});
 
-	it("omits stop-listening guidance when no Atmiko app base URL is configured (community)", () => {
+	it("omits stop-listening guidance when no Miko app base URL is configured (community)", () => {
 		const adapter = new SlackChatAdapter(createStaticProvider([]));
 		const systemPrompt = adapter.buildSystemPrompt(appMentionEvent);
 
@@ -776,7 +772,7 @@ describe("ChatRepositoryProvider runtime updates", () => {
 		payload: {
 			user: "U1",
 			channel: "C1",
-			text: "<@atmiko> test",
+			text: "<@miko> test",
 			ts: "1700000000.000100",
 			event_ts: "1700000000.000100",
 			type: "app_mention",
@@ -828,7 +824,7 @@ describe("ChatRepositoryProvider runtime updates", () => {
 	});
 
 	it("ChatSessionHandler reads live repository paths from provider at session build time", async () => {
-		const atmikoHome = TEST_ATMIKO_CHAT;
+		const mikoHome = TEST_MIKO_CHAT;
 		const paths = ["/repo/A"];
 		const provider: ChatRepositoryProvider = {
 			getRepositoryPaths: () => [...paths],
@@ -852,7 +848,7 @@ describe("ChatRepositoryProvider runtime updates", () => {
 
 		const adapter = new TestChatAdapter("runtime-thread");
 		const handler = new ChatSessionHandler(adapter, {
-			atmikoHome,
+			mikoHome,
 			chatRepositoryProvider: provider,
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
@@ -875,7 +871,7 @@ describe("ChatRepositoryProvider runtime updates", () => {
 	});
 
 	it("ChatSessionHandler excludes removed repos from allowedDirectories", async () => {
-		const atmikoHome = TEST_ATMIKO_CHAT;
+		const mikoHome = TEST_MIKO_CHAT;
 		const paths = ["/repo/A", "/repo/B"];
 		const provider: ChatRepositoryProvider = {
 			getRepositoryPaths: () => [...paths],
@@ -899,7 +895,7 @@ describe("ChatRepositoryProvider runtime updates", () => {
 
 		const adapter = new TestChatAdapter("remove-thread");
 		const handler = new ChatSessionHandler(adapter, {
-			atmikoHome,
+			mikoHome,
 			chatRepositoryProvider: provider,
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,
@@ -924,7 +920,7 @@ describe("ChatRepositoryProvider runtime updates", () => {
 
 describe("ChatSessionHandler session resume", () => {
 	it("resumes with the stored OpenCode session id even if the default runner changes", async () => {
-		const atmikoHome = TEST_ATMIKO_CHAT;
+		const mikoHome = TEST_MIKO_CHAT;
 		const builder = createMockRunnerConfigBuilder() as RunnerConfigBuilder & {
 			setDefaultRunner: (runnerType: "claude" | "opencode") => void;
 		};
@@ -952,7 +948,7 @@ describe("ChatSessionHandler session resume", () => {
 
 		const adapter = new TestChatAdapter("resume-thread");
 		const handler = new ChatSessionHandler(adapter, {
-			atmikoHome,
+			mikoHome,
 			chatRepositoryProvider: createStaticProvider([]),
 			runnerConfigBuilder: builder,
 			createRunner,
@@ -1291,7 +1287,7 @@ describe("ChatSessionHandler thread catch-up", () => {
 		});
 
 		const handler = new ChatSessionHandler(adapter, {
-			atmikoHome: TEST_ATMIKO_CHAT,
+			mikoHome: TEST_MIKO_CHAT,
 			chatRepositoryProvider: createStaticProvider([]),
 			runnerConfigBuilder: createMockRunnerConfigBuilder(),
 			createRunner,

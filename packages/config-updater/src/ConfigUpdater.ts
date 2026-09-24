@@ -1,10 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { handleAtmikoConfig } from "./handlers/atmikoConfig.js";
-import { handleAtmikoEnv } from "./handlers/atmikoEnv.js";
 import { handleCheckGh } from "./handlers/checkGh.js";
 import { handleCheckGlab } from "./handlers/checkGlab.js";
 import { handleConfigureMcp } from "./handlers/configureMcp.js";
 import { handleGitHubTokens } from "./handlers/githubTokens.js";
+import { handleMikoConfig } from "./handlers/mikoConfig.js";
+import { handleMikoEnv } from "./handlers/mikoEnv.js";
 import {
 	handleRepository,
 	handleRepositoryDelete,
@@ -17,8 +17,6 @@ import {
 import { handleTestMcp } from "./handlers/testMcp.js";
 import type {
 	ApiResponse,
-	AtmikoConfigPayload,
-	AtmikoEnvPayload,
 	CheckGhPayload,
 	CheckGlabPayload,
 	ConfigureMcpPayload,
@@ -26,6 +24,8 @@ import type {
 	DeleteSkillPayload,
 	GitHubTokensPayload,
 	ListSkillsPayload,
+	MikoConfigPayload,
+	MikoEnvPayload,
 	RepositoryPayload,
 	TestMcpPayload,
 	UpdateSkillPayload,
@@ -33,24 +33,24 @@ import type {
 
 /**
  * ConfigUpdater registers configuration update routes with a Fastify server
- * Handles: atmiko-config, atmiko-env, repository, update/test-mcp, update/configure-mcp, check-gh endpoints
+ * Handles: miko-config, miko-env, repository, update/test-mcp, update/configure-mcp, check-gh endpoints
  *
  * `getApiKey` is invoked on every auth check, so callers reading from
- * `process.env.ATMIKO_API_KEY` pick up `.env` reloads (triggered by
- * `atmiko auth` after a credential rotation) without restarting the process.
+ * `process.env.MIKO_API_KEY` pick up `.env` reloads (triggered by
+ * `miko auth` after a credential rotation) without restarting the process.
  */
 export class ConfigUpdater {
 	private fastify: FastifyInstance;
-	private atmikoHome: string;
+	private mikoHome: string;
 	private getApiKey: () => string;
 
 	constructor(
 		fastify: FastifyInstance,
-		atmikoHome: string,
+		mikoHome: string,
 		getApiKey: () => string,
 	) {
 		this.fastify = fastify;
-		this.atmikoHome = atmikoHome;
+		this.mikoHome = mikoHome;
 		this.getApiKey = getApiKey;
 	}
 
@@ -59,11 +59,8 @@ export class ConfigUpdater {
 	 */
 	register(): void {
 		// Register all routes with authentication
-		this.registerRoute(
-			"/api/update/atmiko-config",
-			this.handleAtmikoConfigRoute,
-		);
-		this.registerRoute("/api/update/atmiko-env", this.handleAtmikoEnvRoute);
+		this.registerRoute("/api/update/miko-config", this.handleMikoConfigRoute);
+		this.registerRoute("/api/update/miko-env", this.handleMikoEnvRoute);
 		this.registerRoute("/api/update/repository", this.handleRepositoryRoute);
 		this.registerDeleteRoute(
 			"/api/update/repository",
@@ -192,32 +189,32 @@ export class ConfigUpdater {
 	}
 
 	/**
-	 * Handle atmiko-config update
+	 * Handle miko-config update
 	 */
-	private async handleAtmikoConfigRoute(
-		payload: AtmikoConfigPayload,
+	private async handleMikoConfigRoute(
+		payload: MikoConfigPayload,
 	): Promise<ApiResponse> {
-		const response = await handleAtmikoConfig(payload, this.atmikoHome);
+		const response = await handleMikoConfig(payload, this.mikoHome);
 
 		// Emit restart event if requested
-		if (response.success && response.data?.restartAtmiko) {
-			this.fastify.log.info("Config update requested Atmiko restart");
+		if (response.success && response.data?.restartMiko) {
+			this.fastify.log.info("Config update requested Miko restart");
 		}
 
 		return response;
 	}
 
 	/**
-	 * Handle atmiko-env update
+	 * Handle miko-env update
 	 */
-	private async handleAtmikoEnvRoute(
-		payload: AtmikoEnvPayload,
+	private async handleMikoEnvRoute(
+		payload: MikoEnvPayload,
 	): Promise<ApiResponse> {
-		const response = await handleAtmikoEnv(payload, this.atmikoHome);
+		const response = await handleMikoEnv(payload, this.mikoHome);
 
 		// Emit restart event if requested
-		if (response.success && response.data?.restartAtmiko) {
-			this.fastify.log.info("Env update requested Atmiko restart");
+		if (response.success && response.data?.restartMiko) {
+			this.fastify.log.info("Env update requested Miko restart");
 		}
 
 		return response;
@@ -229,7 +226,7 @@ export class ConfigUpdater {
 	private async handleRepositoryRoute(
 		payload: RepositoryPayload,
 	): Promise<ApiResponse> {
-		return handleRepository(payload, this.atmikoHome);
+		return handleRepository(payload, this.mikoHome);
 	}
 
 	/**
@@ -247,7 +244,7 @@ export class ConfigUpdater {
 	private async handleConfigureMcpRoute(
 		payload: ConfigureMcpPayload,
 	): Promise<ApiResponse> {
-		return handleConfigureMcp(payload, this.atmikoHome);
+		return handleConfigureMcp(payload, this.mikoHome);
 	}
 
 	/**
@@ -256,7 +253,7 @@ export class ConfigUpdater {
 	private async handleGitHubTokensRoute(
 		payload: GitHubTokensPayload,
 	): Promise<ApiResponse> {
-		return handleGitHubTokens(payload, this.atmikoHome);
+		return handleGitHubTokens(payload, this.mikoHome);
 	}
 
 	/**
@@ -265,7 +262,7 @@ export class ConfigUpdater {
 	private async handleCheckGhRoute(
 		payload: CheckGhPayload,
 	): Promise<ApiResponse> {
-		return handleCheckGh(payload, this.atmikoHome);
+		return handleCheckGh(payload, this.mikoHome);
 	}
 
 	/**
@@ -274,7 +271,7 @@ export class ConfigUpdater {
 	private async handleCheckGlabRoute(
 		payload: CheckGlabPayload,
 	): Promise<ApiResponse> {
-		return handleCheckGlab(payload, this.atmikoHome);
+		return handleCheckGlab(payload, this.mikoHome);
 	}
 
 	/**
@@ -283,7 +280,7 @@ export class ConfigUpdater {
 	private async handleRepositoryDeleteRoute(
 		payload: DeleteRepositoryPayload,
 	): Promise<ApiResponse> {
-		return handleRepositoryDelete(payload, this.atmikoHome);
+		return handleRepositoryDelete(payload, this.mikoHome);
 	}
 
 	/**
@@ -292,7 +289,7 @@ export class ConfigUpdater {
 	private async handleUpdateSkillRoute(
 		payload: UpdateSkillPayload,
 	): Promise<ApiResponse> {
-		return handleUpdateSkill(payload, this.atmikoHome);
+		return handleUpdateSkill(payload, this.mikoHome);
 	}
 
 	/**
@@ -301,7 +298,7 @@ export class ConfigUpdater {
 	private async handleDeleteSkillRoute(
 		payload: DeleteSkillPayload,
 	): Promise<ApiResponse> {
-		return handleDeleteSkill(payload, this.atmikoHome);
+		return handleDeleteSkill(payload, this.mikoHome);
 	}
 
 	/**
@@ -310,6 +307,6 @@ export class ConfigUpdater {
 	private async handleListSkillsRoute(
 		payload: ListSkillsPayload,
 	): Promise<ApiResponse> {
-		return handleListSkills(payload, this.atmikoHome);
+		return handleListSkills(payload, this.mikoHome);
 	}
 }

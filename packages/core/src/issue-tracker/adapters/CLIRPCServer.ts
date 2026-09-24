@@ -265,7 +265,7 @@ export interface StopSessionData {
  *
  * Moves the issue to a terminal state and emits an `IssueStateChangeMessage`
  * on the unified message bus. Used by F1 to exercise EdgeWorker's terminal-
- * state cleanup (worktree removal, `atmiko-teardown.sh`).
+ * state cleanup (worktree removal, `miko-teardown.sh`).
  */
 export interface TerminateIssueParams {
 	issueId: string;
@@ -1004,7 +1004,7 @@ export class CLIRPCServer {
 	/**
 	 * Handle terminateIssue command — move an issue to a terminal state and
 	 * emit an `IssueStateChangeMessage` so EdgeWorker runs its terminal-state
-	 * cleanup (stops sessions, runs `atmiko-teardown.sh`, removes worktrees).
+	 * cleanup (stops sessions, runs `miko-teardown.sh`, removes worktrees).
 	 */
 	private async handleTerminateIssue(
 		params: TerminateIssueParams,

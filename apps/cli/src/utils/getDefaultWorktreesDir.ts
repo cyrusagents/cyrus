@@ -1,1 +1,1 @@
-export { getDefaultWorktreesDir } from "atmiko-core";
+export { getDefaultWorktreesDir } from "miko-core";

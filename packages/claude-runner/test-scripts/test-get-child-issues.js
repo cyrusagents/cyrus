@@ -25,14 +25,14 @@ async function testGetChildIssues() {
 		includeSystemRole: true,
 		apiKey: "test-key", // Not needed for MCP operations
 		mcpConfig: {
-			"atmiko-tools": {
+			"miko-tools": {
 				type: "inline-sdk",
 				module: path.join(
 					__dirname,
 					"..",
 					"dist",
 					"tools",
-					"atmiko-tools",
+					"miko-tools",
 					"index.js",
 				),
 				initParams: [linearToken],
@@ -47,17 +47,17 @@ async function testGetChildIssues() {
 
 		// List available tools
 		const toolList = await runner.listTools();
-		console.log("Available Atmiko tools:");
-		const atmikoTools = toolList.tools.filter((tool) =>
+		console.log("Available Miko tools:");
+		const mikoTools = toolList.tools.filter((tool) =>
 			tool.name.startsWith("linear_"),
 		);
-		for (const tool of atmikoTools) {
+		for (const tool of mikoTools) {
 			console.log(`  - ${tool.name}: ${tool.description}`);
 		}
 		console.log("");
 
 		// Check if our new tool is available
-		const hasGetChildIssues = atmikoTools.some(
+		const hasGetChildIssues = mikoTools.some(
 			(tool) => tool.name === "linear_get_child_issues",
 		);
 		if (hasGetChildIssues) {

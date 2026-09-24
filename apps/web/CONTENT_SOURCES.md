@@ -13,12 +13,12 @@ Reviewed 2026-09-23. Page language remains English, consistent with the original
 | Open-source license | `LICENSE` (Apache 2.0) |
 | Configurable agent and repository settings | `docs/CONFIG_FILE.md` |
 
-Editorial reference: https://www.atcyrus.com/ — reviewed for its task delegation → isolated workspace → coding result narrative and BYOK positioning. Page copy is newly written for this fork. Cyrus customer testimonials, metrics, certification claims, paid plans, cloud service promises, and SRE claims are not transferred to Atmiko.
+Editorial reference: https://www.atcyrus.com/ — reviewed for its task delegation → isolated workspace → coding result narrative and BYOK positioning. Page copy is newly written for this fork. Cyrus customer testimonials, metrics, certification claims, paid plans, cloud service promises, and SRE claims are not transferred to Miko.
 
-The eight conversations illustrate tasks users can delegate. Their issue numbers, filenames, outcomes, and check results are sample content, explicitly labeled as examples. They are not measured Atmiko results or screenshots of the actual status board. Research examples return an answer instead of claiming a PR. Provider capabilities, credentials, permissions, and integration setup determine actual behavior.
+The eight conversations illustrate tasks users can delegate. Their issue numbers, filenames, outcomes, and check results are sample content, explicitly labeled as examples. They are not measured Miko results or screenshots of the actual status board. Research examples return an answer instead of claiming a PR. Provider capabilities, credentials, permissions, and integration setup determine actual behavior.
 
-The installation command is the repository's documented skills bootstrap. The page explains that invoking `/atmiko-setup`, rather than installing skills alone, installs the runtime. Self-hosting is not described as offline model inference.
+The installation command is the repository's documented skills bootstrap. The page explains that invoking `/miko-setup`, rather than installing skills alone, installs the runtime. Self-hosting is not described as offline model inference.
 
 ## Product naming
 
-The public product name is Miko, with Miko Agent as the full name. @Miko describes the action of mentioning the agent. Existing `nexmoe/atmiko` repository links, package names, and `/atmiko-setup` commands remain unchanged because they are executable identifiers. Use the configured bot handle in actual integrations.
+The public product name is Miko, with Miko as the full name. @Miko describes the action of mentioning the agent. Existing `mikoagents/miko` repository links, package names, and `/miko-setup` commands remain unchanged because they are executable identifiers. Use the configured bot handle in actual integrations.

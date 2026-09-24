@@ -16,12 +16,8 @@ import type {
 	RepoSetupHookEventHandler,
 	RepositoryConfig,
 	Workspace,
-} from "atmiko-core";
-import {
-	createLogger,
-	getDefaultWorktreesDir,
-	type ILogger,
-} from "atmiko-core";
+} from "miko-core";
+import { createLogger, getDefaultWorktreesDir, type ILogger } from "miko-core";
 import { WorktreeIncludeService } from "./WorktreeIncludeService.js";
 
 export interface CreateGitWorktreeOptions {
@@ -41,13 +37,13 @@ export interface CreateGitWorktreeOptions {
 }
 
 export interface GitServiceOptions {
-	atmikoHome?: string;
+	mikoHome?: string;
 }
 
 export interface DeleteWorktreeOptions {
 	/**
 	 * Repositories involved with this issue's workspace. When provided, each
-	 * repo's `atmiko-teardown.sh` (if present) is invoked before worktree removal,
+	 * repo's `miko-teardown.sh` (if present) is invoked before worktree removal,
 	 * with `cwd` set to that repo's worktree subdirectory.
 	 *
 	 * In the single-repo layout, the worktree subdirectory is the workspace root.
@@ -56,10 +52,10 @@ export interface DeleteWorktreeOptions {
 	repositories?: RepositoryConfig[];
 }
 
-/** Timeout for repo setup scripts (atmiko-setup.*). */
+/** Timeout for repo setup scripts (miko-setup.*). */
 const SETUP_TIMEOUT_MS = 5 * 60 * 1000;
 
-/** Timeout for repo teardown scripts (atmiko-teardown.*). */
+/** Timeout for repo teardown scripts (miko-teardown.*). */
 const TEARDOWN_TIMEOUT_MS = 2 * 60 * 1000;
 
 const HOOK_OUTPUT_TAIL_MAX_BYTES = 64 * 1024;
@@ -218,12 +214,12 @@ class HookOutputCollector {
 export class GitService {
 	private logger: ILogger;
 	private worktreeIncludeService: WorktreeIncludeService;
-	private atmikoHome: string;
+	private mikoHome: string;
 
 	constructor(options?: GitServiceOptions, logger?: ILogger) {
 		this.logger = logger ?? createLogger({ component: "GitService" });
 		this.worktreeIncludeService = new WorktreeIncludeService(this.logger);
-		this.atmikoHome = options?.atmikoHome ?? join(homedir(), ".atmiko");
+		this.mikoHome = options?.mikoHome ?? join(homedir(), ".miko");
 	}
 
 	/**
@@ -764,7 +760,7 @@ export class GitService {
 				});
 
 				// Use exact line match to avoid substring false positives
-				// (e.g., "/path/CYSV-56" matching "/path/CYSV-56/atmiko")
+				// (e.g., "/path/CYSV-56" matching "/path/CYSV-56/miko")
 				const worktreeLines = worktrees
 					.split("\n")
 					.filter((line) => line.startsWith("worktree "))
@@ -994,7 +990,7 @@ export class GitService {
 	 * directory is the root in both cases.
 	 *
 	 * If `options.repositories` is supplied, each repo's per-repo
-	 * `atmiko-teardown.sh` (if present in its repo root) is invoked **before**
+	 * `miko-teardown.sh` (if present in its repo root) is invoked **before**
 	 * the worktrees are removed, with `cwd` set to that repo's worktree
 	 * subdirectory. A failure in one repo's teardown does not block the others
 	 * or the final `rmSync`.
@@ -1007,7 +1003,7 @@ export class GitService {
 		options: DeleteWorktreeOptions = {},
 	): Promise<void> {
 		const workspacePath = join(
-			getDefaultWorktreesDir(this.atmikoHome),
+			getDefaultWorktreesDir(this.mikoHome),
 			issueIdentifier,
 		);
 
@@ -1218,7 +1214,7 @@ export class GitService {
 	}
 
 	/**
-	 * Find and run a repository-specific setup script (atmiko-setup.sh/.ps1/.cmd/.bat)
+	 * Find and run a repository-specific setup script (miko-setup.sh/.ps1/.cmd/.bat)
 	 */
 	private async runRepoSetupScript(
 		workspacePath: string,
@@ -1242,7 +1238,7 @@ export class GitService {
 	}
 
 	/**
-	 * Find and run a repository-specific teardown script (atmiko-teardown.sh/.ps1/.cmd/.bat).
+	 * Find and run a repository-specific teardown script (miko-teardown.sh/.ps1/.cmd/.bat).
 	 *
 	 * Mirrors {@link runRepoSetupScript} but is invoked from {@link deleteWorktree}
 	 * immediately before the worktree subdirectory is removed. Only
@@ -1265,7 +1261,7 @@ export class GitService {
 
 	/**
 	 * Shared discovery+dispatch for repo-scoped hook scripts (setup and teardown).
-	 * Looks in `workspacePath` for `atmiko-<hook>.{sh,ps1,cmd,bat}` and runs the
+	 * Looks in `workspacePath` for `miko-<hook>.{sh,ps1,cmd,bat}` and runs the
 	 * first compatible variant with `cwd` set to `workspacePath`.
 	 */
 	private async runRepoHookScript(opts: {
@@ -1279,10 +1275,10 @@ export class GitService {
 	}): Promise<void> {
 		const isWindows = process.platform === "win32";
 		const candidates = [
-			{ file: `atmiko-${opts.hook}.sh`, platform: "unix" as const },
-			{ file: `atmiko-${opts.hook}.ps1`, platform: "windows" as const },
-			{ file: `atmiko-${opts.hook}.cmd`, platform: "windows" as const },
-			{ file: `atmiko-${opts.hook}.bat`, platform: "windows" as const },
+			{ file: `miko-${opts.hook}.sh`, platform: "unix" as const },
+			{ file: `miko-${opts.hook}.ps1`, platform: "windows" as const },
+			{ file: `miko-${opts.hook}.cmd`, platform: "windows" as const },
+			{ file: `miko-${opts.hook}.bat`, platform: "windows" as const },
 		];
 
 		const available = candidates.find((c) => {
@@ -1393,7 +1389,7 @@ export class GitService {
 							durationMs: Date.now() - startedAt,
 							errorMessage: "Repository setup hook is not executable",
 							stderrTail:
-								"Make atmiko-setup.sh executable in the repository and commit the executable bit: git update-index --chmod=+x atmiko-setup.sh",
+								"Make miko-setup.sh executable in the repository and commit the executable bit: git update-index --chmod=+x miko-setup.sh",
 							truncated: false,
 						});
 					}

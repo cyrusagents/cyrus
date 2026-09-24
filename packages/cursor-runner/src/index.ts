@@ -1,8 +1,8 @@
 export { CursorRunner } from "./CursorRunner.js";
 export {
-	type AtmikoPermissionsConfig,
-	buildAtmikoPermissionsConfig,
 	buildAutoDenyPatterns,
+	buildMikoPermissionsConfig,
+	type MikoPermissionsConfig,
 } from "./permissions.js";
 export { SimpleCursorRunner } from "./SimpleCursorRunner.js";
 export {

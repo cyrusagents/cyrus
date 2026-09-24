@@ -1,22 +1,22 @@
 import { LinearClient } from "@linear/sdk";
-import { ClaudeRunner } from "atmiko-claude-runner";
-import type { GitHubWebhookEvent } from "atmiko-github-event-transport";
-import { issueCommentPayload } from "atmiko-github-event-transport/test/fixtures";
-import { LinearEventTransport } from "atmiko-linear-event-transport";
+import { ClaudeRunner } from "miko-claude-runner";
+import type { GitHubWebhookEvent } from "miko-github-event-transport";
+import { issueCommentPayload } from "miko-github-event-transport/test/fixtures";
+import { LinearEventTransport } from "miko-linear-event-transport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
 import type { EdgeWorkerConfig, RepositoryConfig } from "../src/types.js";
-import { TEST_ATMIKO_HOME } from "./test-dirs.js";
+import { TEST_MIKO_HOME } from "./test-dirs.js";
 
 // Mock dependencies
-vi.mock("atmiko-claude-runner");
-vi.mock("atmiko-linear-event-transport");
+vi.mock("miko-claude-runner");
+vi.mock("miko-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
-vi.mock("atmiko-core", async (importOriginal) => {
+vi.mock("miko-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as any;
 	return {
 		...actual,
@@ -105,7 +105,7 @@ describe("EdgeWorker - fetchPRBranchRefs", () => {
 
 		// Create EdgeWorker config
 		mockConfig = {
-			atmikoHome: TEST_ATMIKO_HOME,
+			mikoHome: TEST_MIKO_HOME,
 			repositories: [],
 		};
 

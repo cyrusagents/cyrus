@@ -3,7 +3,7 @@
  *
  * Zulip's outgoing webhook protocol expects the bot's reply in the HTTP
  * response body, which cannot work for an agent turn that takes minutes.
- * Atmiko acknowledges the webhook immediately and everything after that —
+ * Miko acknowledges the webhook immediately and everything after that —
  * the reply, the reactions, the catch-up read — goes through the REST API
  * with the bot's API key.
  *
@@ -130,7 +130,7 @@ export class ZulipMessageService {
 	 * Reactions are acknowledgement decoration: both call sites in
 	 * ChatSessionHandler are fire-and-forget, so a failure here is logged and
 	 * the turn carries on. That is why there is no special handling for
-	 * "already reacted" / "no such reaction" — they cannot arise from Atmiko's
+	 * "already reacted" / "no such reaction" — they cannot arise from Miko's
 	 * own one-reaction-per-message usage, and if they somehow did, a warning
 	 * is the right outcome.
 	 *

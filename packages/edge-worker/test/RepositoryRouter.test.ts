@@ -2,7 +2,7 @@ import { AgentActivitySignal } from "@linear/sdk";
 import type {
 	LinearAgentSessionCreatedWebhook,
 	RepositoryConfig,
-} from "atmiko-core";
+} from "miko-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	RepositoryRouter,
@@ -516,10 +516,10 @@ describe("RepositoryRouter", () => {
 		describe("when issue description contains [repo=...] tag", () => {
 			it("should route to repository when tag matches GitHub URL", async () => {
 				// Given: Repositories with different GitHub URLs
-				const atmikoRepo = env
-					.repository("repo-1", "Atmiko")
+				const mikoRepo = env
+					.repository("repo-1", "Miko")
 					.inWorkspace("default-workspace")
-					.withGithubUrl("https://github.com/nexmoe/atmiko")
+					.withGithubUrl("https://github.com/mikoagents/miko")
 					.build();
 
 				const otherRepo = env
@@ -531,7 +531,7 @@ describe("RepositoryRouter", () => {
 				// Issue has description with repo tag
 				env.issueHasDescription(
 					"issue-1",
-					"Please fix this bug in [repo=nexmoe/atmiko]\n\nMore details here.",
+					"Please fix this bug in [repo=mikoagents/miko]\n\nMore details here.",
 				);
 
 				const webhook = env
@@ -542,13 +542,13 @@ describe("RepositoryRouter", () => {
 
 				// When: Determining repository
 				const result = await env.router.determineRepositoryForWebhook(webhook, [
-					atmikoRepo,
+					mikoRepo,
 					otherRepo,
 				]);
 
-				// Then: Should select atmiko repo via description-tag routing
+				// Then: Should select miko repo via description-tag routing
 				expectRouting(result).shouldSelectRepositoryVia(
-					atmikoRepo,
+					mikoRepo,
 					"description-tag",
 				);
 			});
@@ -889,9 +889,9 @@ describe("RepositoryRouter", () => {
 			it("should handle escaped brackets from Linear (\\[repo=...\\])", () => {
 				// Linear escapes square brackets in descriptions
 				const result = env.router.parseRepoTagsFromDescription(
-					"test\\n\\n\\[repo=atmiko\\]",
+					"test\\n\\n\\[repo=miko\\]",
 				);
-				expect(result).toEqual([{ repo: "atmiko" }]);
+				expect(result).toEqual([{ repo: "miko" }]);
 			});
 
 			it("should handle escaped brackets with org/repo format", () => {
@@ -968,18 +968,18 @@ describe("RepositoryRouter", () => {
 
 			it("should parse comma-separated repos in unbracketed syntax", () => {
 				const result = env.router.parseRepoTagsFromDescription(
-					"repo=atmiko,atmiko-hosted",
+					"repo=miko,miko-hosted",
 				);
-				expect(result).toEqual([{ repo: "atmiko" }, { repo: "atmiko-hosted" }]);
+				expect(result).toEqual([{ repo: "miko" }, { repo: "miko-hosted" }]);
 			});
 
 			it("should parse comma-separated repos with branch override", () => {
 				const result = env.router.parseRepoTagsFromDescription(
-					"repos=atmiko,atmiko-hosted#feature-branch",
+					"repos=miko,miko-hosted#feature-branch",
 				);
 				expect(result).toEqual([
-					{ repo: "atmiko", branch: "feature-branch" },
-					{ repo: "atmiko-hosted", branch: "feature-branch" },
+					{ repo: "miko", branch: "feature-branch" },
+					{ repo: "miko-hosted", branch: "feature-branch" },
 				]);
 			});
 
@@ -992,9 +992,9 @@ describe("RepositoryRouter", () => {
 
 			it("should deduplicate repos across bracketed and unbracketed syntax", () => {
 				const result = env.router.parseRepoTagsFromDescription(
-					"[repo=atmiko] and also repo=atmiko,atmiko-hosted",
+					"[repo=miko] and also repo=miko,miko-hosted",
 				);
-				expect(result).toEqual([{ repo: "atmiko" }, { repo: "atmiko-hosted" }]);
+				expect(result).toEqual([{ repo: "miko" }, { repo: "miko-hosted" }]);
 			});
 
 			it("should not match repo= inside URLs or paths", () => {

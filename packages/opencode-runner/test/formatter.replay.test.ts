@@ -34,7 +34,7 @@ describe("OpenCodeMessageFormatter replay", () => {
 				todos: [
 					{
 						content:
-							"Explore atmiko-hosted /settings/tools page and current platform selector",
+							"Explore miko-hosted /settings/tools page and current platform selector",
 						priority: "high",
 						status: "completed",
 					},
@@ -50,20 +50,20 @@ describe("OpenCodeMessageFormatter replay", () => {
 					},
 					{
 						content:
-							"Add toolsets to atmiko-core EdgeConfig schema + regenerate JSON schemas",
+							"Add toolsets to miko-core EdgeConfig schema + regenerate JSON schemas",
 						priority: "high",
 						status: "in_progress",
 					},
 					{
 						content:
-							"Wire toolsets through atmiko ConfigManager and ToolPermissionResolver",
+							"Wire toolsets through miko ConfigManager and ToolPermissionResolver",
 						priority: "high",
 						status: "pending",
 					},
 				],
 			}),
 		).toBe(
-			"- [x] Explore atmiko-hosted /settings/tools page and current platform selector\n- [x] Explore cypack edgeconfig schema for allowed tools\n- [x] Design toolset data model and product decisions\n- [ ] Add toolsets to atmiko-core EdgeConfig schema + regenerate JSON schemas (in progress)\n- [ ] Wire toolsets through atmiko ConfigManager and ToolPermissionResolver (pending)",
+			"- [x] Explore miko-hosted /settings/tools page and current platform selector\n- [x] Explore cypack edgeconfig schema for allowed tools\n- [x] Design toolset data model and product decisions\n- [ ] Add toolsets to miko-core EdgeConfig schema + regenerate JSON schemas (in progress)\n- [ ] Wire toolsets through miko ConfigManager and ToolPermissionResolver (pending)",
 		);
 	});
 

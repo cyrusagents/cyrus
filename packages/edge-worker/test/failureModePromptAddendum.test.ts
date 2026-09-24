@@ -7,7 +7,7 @@ import {
 describe("failure-mode prompt addendum", () => {
 	it("includes the MCP tool name and trigger conditions", () => {
 		expect(FAILURE_MODE_PROMPT_ADDENDUM).toContain(
-			"mcp__atmiko-tools__log_failure_mode",
+			"mcp__miko-tools__log_failure_mode",
 		);
 		expect(FAILURE_MODE_PROMPT_ADDENDUM).toMatch(/dissatisfaction/i);
 		expect(FAILURE_MODE_PROMPT_ADDENDUM).toMatch(/same issue again/i);
@@ -22,8 +22,8 @@ describe("failure-mode prompt addendum", () => {
 	});
 
 	it("appends the addendum to an existing system prompt with a blank-line separator", () => {
-		const result = appendFailureModeAddendum("You are Atmiko.");
-		expect(result.startsWith("You are Atmiko.\n\n")).toBe(true);
+		const result = appendFailureModeAddendum("You are Miko.");
+		expect(result.startsWith("You are Miko.\n\n")).toBe(true);
 		expect(result.endsWith(FAILURE_MODE_PROMPT_ADDENDUM)).toBe(true);
 	});
 

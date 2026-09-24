@@ -1,1 +1,1 @@
-export { getDefaultReposDir } from "atmiko-core";
+export { getDefaultReposDir } from "miko-core";

@@ -1,25 +1,25 @@
 import { mkdir, readdir, rename, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
+import { fileTypeFromBuffer } from "file-type";
 import type {
 	IIssueTrackerService,
 	ILogger,
 	Issue,
 	LinearWorkspaceConfig,
-} from "atmiko-core";
-import { fileTypeFromBuffer } from "file-type";
+} from "miko-core";
 
 export class AttachmentService {
 	private logger: ILogger;
-	private atmikoHome: string;
+	private mikoHome: string;
 	private linearWorkspaces: Record<string, LinearWorkspaceConfig>;
 
 	constructor(
 		logger: ILogger,
-		atmikoHome: string,
+		mikoHome: string,
 		linearWorkspaces: Record<string, LinearWorkspaceConfig>,
 	) {
 		this.logger = logger;
-		this.atmikoHome = atmikoHome;
+		this.mikoHome = mikoHome;
 		this.linearWorkspaces = linearWorkspaces;
 	}
 
@@ -76,7 +76,7 @@ export class AttachmentService {
 		// Create attachments directory in home directory
 		const workspaceFolderName = basename(workspacePath);
 		const attachmentsDir = join(
-			this.atmikoHome,
+			this.mikoHome,
 			workspaceFolderName,
 			"attachments",
 		);
@@ -481,7 +481,7 @@ export class AttachmentService {
 		if (totalFound === 0 && nativeAttachments.length === 0) {
 			manifest += "No attachments were found in this issue.\n\n";
 			manifest +=
-				"The attachments directory `~/.atmiko/<workspace>/attachments` has been created and is available for any future attachments that may be added to this issue.\n";
+				"The attachments directory `~/.miko/<workspace>/attachments` has been created and is available for any future attachments that may be added to this issue.\n";
 			return manifest;
 		}
 
@@ -503,7 +503,7 @@ export class AttachmentService {
 		}
 
 		manifest +=
-			"Attachments have been downloaded to the `~/.atmiko/<workspace>/attachments` directory:\n\n";
+			"Attachments have been downloaded to the `~/.miko/<workspace>/attachments` directory:\n\n";
 
 		// List images first
 		if (Object.keys(imageMap).length > 0) {

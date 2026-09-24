@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-	ensureGhWrapperSupportsAtmikoToken,
+	ensureGhWrapperSupportsMikoToken,
 	ensureGitHubCredentialHelper,
 	handleGitHubTokens,
 } from "../../src/handlers/githubTokens.js";
@@ -45,26 +45,26 @@ function validPayload() {
 }
 
 describe("handleGitHubTokens", () => {
-	let atmikoHome: string;
+	let mikoHome: string;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		atmikoHome = mkdtempSync(join(tmpdir(), "atmiko-github-tokens-"));
+		mikoHome = mkdtempSync(join(tmpdir(), "miko-github-tokens-"));
 	});
 
 	afterEach(() => {
-		rmSync(atmikoHome, { recursive: true, force: true });
+		rmSync(mikoHome, { recursive: true, force: true });
 	});
 
 	it("persists tokens to github-tokens.json and returns success", async () => {
-		const response = await handleGitHubTokens(validPayload(), atmikoHome);
+		const response = await handleGitHubTokens(validPayload(), mikoHome);
 
 		expect(response.success).toBe(true);
 		if (response.success) {
 			expect(response.data?.tokensCount).toBe(2);
 		}
 
-		const filePath = join(atmikoHome, "github-tokens.json");
+		const filePath = join(mikoHome, "github-tokens.json");
 		expect(existsSync(filePath)).toBe(true);
 		const written = JSON.parse(readFileSync(filePath, "utf-8"));
 		expect(written.version).toBe(1);
@@ -74,13 +74,13 @@ describe("handleGitHubTokens", () => {
 	});
 
 	it("installs the credential helper script and configures git", async () => {
-		const response = await handleGitHubTokens(validPayload(), atmikoHome);
+		const response = await handleGitHubTokens(validPayload(), mikoHome);
 		expect(response.success).toBe(true);
 
 		// The per-invocation gh token resolver is installed alongside.
-		expect(existsSync(join(atmikoHome, "scripts", "gh-atmiko.cjs"))).toBe(true);
+		expect(existsSync(join(mikoHome, "scripts", "gh-miko.cjs"))).toBe(true);
 
-		const scriptPath = join(atmikoHome, "scripts", "git-credential-atmiko.cjs");
+		const scriptPath = join(mikoHome, "scripts", "git-credential-miko.cjs");
 		expect(existsSync(scriptPath)).toBe(true);
 		// Executable bit set
 		expect(statSync(scriptPath).mode & 0o111).not.toBe(0);
@@ -125,7 +125,7 @@ describe("handleGitHubTokens", () => {
 
 	it("refreshes gh CLI auth with the first pushed token", async () => {
 		const payload = validPayload();
-		const response = await handleGitHubTokens(payload, atmikoHome);
+		const response = await handleGitHubTokens(payload, mikoHome);
 		expect(response.success).toBe(true);
 		if (response.success) {
 			expect(response.data?.ghAuthConfigured).toBe(true);
@@ -144,7 +144,7 @@ describe("handleGitHubTokens", () => {
 			if (cmd === "gh") throw new Error("gh: command not found");
 			return Buffer.from("");
 		});
-		const response = await handleGitHubTokens(validPayload(), atmikoHome);
+		const response = await handleGitHubTokens(validPayload(), mikoHome);
 		expect(response.success).toBe(true);
 		if (response.success) {
 			expect(response.data?.ghAuthConfigured).toBe(false);
@@ -152,8 +152,8 @@ describe("handleGitHubTokens", () => {
 	});
 
 	it("is idempotent across repeated pushes", async () => {
-		const first = await handleGitHubTokens(validPayload(), atmikoHome);
-		const second = await handleGitHubTokens(validPayload(), atmikoHome);
+		const first = await handleGitHubTokens(validPayload(), mikoHome);
+		const second = await handleGitHubTokens(validPayload(), mikoHome);
 		expect(first.success).toBe(true);
 		expect(second.success).toBe(true);
 		// Each push re-runs the same replace-all + add + gh auth sequence
@@ -162,60 +162,60 @@ describe("handleGitHubTokens", () => {
 	});
 
 	it("rejects a payload without a tokens array", async () => {
-		const response = await handleGitHubTokens({ nope: true }, atmikoHome);
+		const response = await handleGitHubTokens({ nope: true }, mikoHome);
 		expect(response.success).toBe(false);
 		if (!response.success) {
 			expect(response.error).toBe("GitHub tokens payload validation failed");
 		}
-		expect(existsSync(join(atmikoHome, "github-tokens.json"))).toBe(false);
+		expect(existsSync(join(mikoHome, "github-tokens.json"))).toBe(false);
 		expect(mockedExecFileSync).not.toHaveBeenCalled();
 	});
 
 	it("rejects token entries missing required fields", async () => {
 		const response = await handleGitHubTokens(
 			{ tokens: [{ installationId: "111", organization: "OrgOne" }] },
-			atmikoHome,
+			mikoHome,
 		);
 		expect(response.success).toBe(false);
-		expect(existsSync(join(atmikoHome, "github-tokens.json"))).toBe(false);
+		expect(existsSync(join(mikoHome, "github-tokens.json"))).toBe(false);
 	});
 
 	it("returns an error when git configuration fails", async () => {
 		mockedExecFileSync.mockImplementationOnce(() => {
 			throw new Error("git not found");
 		});
-		const response = await handleGitHubTokens(validPayload(), atmikoHome);
+		const response = await handleGitHubTokens(validPayload(), mikoHome);
 		expect(response.success).toBe(false);
 		if (!response.success) {
 			expect(response.error).toBe("Failed to configure git credential helper");
 		}
 		// Tokens were still persisted before git config failed
-		expect(existsSync(join(atmikoHome, "github-tokens.json"))).toBe(true);
+		expect(existsSync(join(mikoHome, "github-tokens.json"))).toBe(true);
 	});
 });
 
 describe("ensureGitHubCredentialHelper", () => {
-	let atmikoHome: string;
+	let mikoHome: string;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		atmikoHome = mkdtempSync(join(tmpdir(), "atmiko-cred-helper-"));
+		mikoHome = mkdtempSync(join(tmpdir(), "miko-cred-helper-"));
 	});
 
 	afterEach(() => {
-		rmSync(atmikoHome, { recursive: true, force: true });
+		rmSync(mikoHome, { recursive: true, force: true });
 	});
 
 	it("returns the installed script path", () => {
-		const scriptPath = ensureGitHubCredentialHelper(atmikoHome);
+		const scriptPath = ensureGitHubCredentialHelper(mikoHome);
 		expect(scriptPath).toBe(
-			join(atmikoHome, "scripts", "git-credential-atmiko.cjs"),
+			join(mikoHome, "scripts", "git-credential-miko.cjs"),
 		);
 		expect(existsSync(scriptPath)).toBe(true);
 	});
 });
 
-describe("ensureGhWrapperSupportsAtmikoToken", () => {
+describe("ensureGhWrapperSupportsMikoToken", () => {
 	const OLD_WRAPPER = `#!/usr/bin/env bash
 exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
 `;
@@ -223,7 +223,7 @@ exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		home = mkdtempSync(join(tmpdir(), "atmiko-gh-wrapper-"));
+		home = mkdtempSync(join(tmpdir(), "miko-gh-wrapper-"));
 	});
 
 	afterEach(() => {
@@ -238,37 +238,37 @@ exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
 		return wrapperPath;
 	}
 
-	it("rewrites an old strip-everything wrapper to honor ATMIKO_GH_TOKEN", () => {
+	it("rewrites an old strip-everything wrapper to honor MIKO_GH_TOKEN", () => {
 		const wrapperPath = writeWrapper(OLD_WRAPPER);
 
-		expect(ensureGhWrapperSupportsAtmikoToken(home)).toBe(true);
+		expect(ensureGhWrapperSupportsMikoToken(home)).toBe(true);
 
 		const updated = readFileSync(wrapperPath, "utf8");
-		expect(updated).toContain("ATMIKO_GH_TOKEN");
-		expect(updated).toContain('GH_TOKEN="$ATMIKO_GH_TOKEN"');
+		expect(updated).toContain("MIKO_GH_TOKEN");
+		expect(updated).toContain('GH_TOKEN="$MIKO_GH_TOKEN"');
 		expect(updated).toContain("-u GITHUB_TOKEN");
 		expect(statSync(wrapperPath).mode & 0o111).not.toBe(0);
 	});
 
-	it("upgrades the interim ATMIKO_GH_TOKEN-only wrapper to the resolver", () => {
+	it("upgrades the interim MIKO_GH_TOKEN-only wrapper to the resolver", () => {
 		const interim = `#!/usr/bin/env bash
-if [ -n "\${ATMIKO_GH_TOKEN:-}" ]; then
-  exec env -u GITHUB_TOKEN GH_TOKEN="$ATMIKO_GH_TOKEN" /usr/bin/gh "$@"
+if [ -n "\${MIKO_GH_TOKEN:-}" ]; then
+  exec env -u GITHUB_TOKEN GH_TOKEN="$MIKO_GH_TOKEN" /usr/bin/gh "$@"
 fi
 exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
 `;
 		const wrapperPath = writeWrapper(interim);
 
-		expect(ensureGhWrapperSupportsAtmikoToken(home)).toBe(true);
-		expect(readFileSync(wrapperPath, "utf8")).toContain("gh-atmiko.cjs");
+		expect(ensureGhWrapperSupportsMikoToken(home)).toBe(true);
+		expect(readFileSync(wrapperPath, "utf8")).toContain("gh-miko.cjs");
 	});
 
 	it("leaves an already-updated wrapper untouched", () => {
 		const wrapperPath = writeWrapper(OLD_WRAPPER);
-		expect(ensureGhWrapperSupportsAtmikoToken(home)).toBe(true);
+		expect(ensureGhWrapperSupportsMikoToken(home)).toBe(true);
 		const afterFirst = readFileSync(wrapperPath, "utf8");
 
-		expect(ensureGhWrapperSupportsAtmikoToken(home)).toBe(false);
+		expect(ensureGhWrapperSupportsMikoToken(home)).toBe(false);
 		expect(readFileSync(wrapperPath, "utf8")).toBe(afterFirst);
 	});
 
@@ -276,18 +276,18 @@ exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
 		const custom = '#!/bin/sh\nexec /opt/custom/gh "$@"\n';
 		const wrapperPath = writeWrapper(custom);
 
-		expect(ensureGhWrapperSupportsAtmikoToken(home)).toBe(false);
+		expect(ensureGhWrapperSupportsMikoToken(home)).toBe(false);
 		expect(readFileSync(wrapperPath, "utf8")).toBe(custom);
 	});
 
 	it("is a no-op when no wrapper exists (self-host)", () => {
-		expect(ensureGhWrapperSupportsAtmikoToken(home)).toBe(false);
+		expect(ensureGhWrapperSupportsMikoToken(home)).toBe(false);
 	});
 
-	it("runs during a token push when atmikoHome sits inside the home dir", async () => {
+	it("runs during a token push when mikoHome sits inside the home dir", async () => {
 		const wrapperPath = writeWrapper(OLD_WRAPPER);
-		const nestedAtmikoHome = join(home, ".atmiko");
-		mkdirSync(nestedAtmikoHome, { recursive: true });
+		const nestedMikoHome = join(home, ".miko");
+		mkdirSync(nestedMikoHome, { recursive: true });
 
 		const response = await handleGitHubTokens(
 			{
@@ -301,10 +301,10 @@ exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
 					},
 				],
 			},
-			nestedAtmikoHome,
+			nestedMikoHome,
 		);
 
 		expect(response.success).toBe(true);
-		expect(readFileSync(wrapperPath, "utf8")).toContain("ATMIKO_GH_TOKEN");
+		expect(readFileSync(wrapperPath, "utf8")).toContain("MIKO_GH_TOKEN");
 	});
 });

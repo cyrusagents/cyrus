@@ -16,9 +16,9 @@ import type {
 	SpawnOptions,
 	WarmQuery,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ILogger, OnAskUserQuestion } from "atmiko-core";
+import type { ILogger, OnAskUserQuestion } from "miko-core";
 
-export type { OnAskUserQuestion } from "atmiko-core";
+export type { OnAskUserQuestion } from "miko-core";
 
 /**
  * Output format configuration for structured outputs
@@ -45,7 +45,7 @@ export interface ClaudeRunnerConfig {
 	mcpConfigPath?: string | string[]; // Single path or array of paths to compose
 	mcpConfig?: Record<string, McpServerConfig>; // Additional/override MCP servers
 	/**
-	 * Only use MCP servers explicitly supplied by Atmiko. When false, Claude Code
+	 * Only use MCP servers explicitly supplied by Miko. When false, Claude Code
 	 * may also load project/user MCP settings, plugins, and authenticated
 	 * claude.ai connectors. Defaults to true.
 	 */
@@ -54,7 +54,7 @@ export interface ClaudeRunnerConfig {
 	fallbackModel?: string; // Fallback model if primary model is unavailable
 	maxTurns?: number; // Maximum number of turns before completing the session
 	tools?: string[]; // Built-in tools available in model context (empty array disables all tools)
-	atmikoHome: string; // Atmiko home directory
+	mikoHome: string; // Miko home directory
 	logger?: ILogger; // Optional logger instance
 	promptVersions?: {
 		// Optional prompt template version information
@@ -107,7 +107,7 @@ export interface ClaudeRunnerConfig {
 	/**
 	 * Optional SessionStore that mirrors transcript entries to external storage.
 	 * Forwarded to the SDK's `query()` via `options.sessionStore`. Used to ship
-	 * session JSONL to the Atmiko hosted control plane so transcripts survive
+	 * session JSONL to the Miko hosted control plane so transcripts survive
 	 * the ephemeral worktree and can be resumed from any host.
 	 */
 	sessionStore?: SessionStore;

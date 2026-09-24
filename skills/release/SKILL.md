@@ -1,11 +1,11 @@
 ---
 name: release
-description: Prepare, verify, publish, and finish a coordinated Atmiko CLI release. Use when a user asks to release Atmiko, publish atmiko, run a CLI release, or perform the /release workflow.
+description: Prepare, verify, publish, and finish a coordinated Miko CLI release. Use when a user asks to release Miko, publish miko, run a CLI release, or perform the /release workflow.
 ---
 
-# Release Atmiko
+# Release Miko
 
-Run Atmiko releases through the trusted-publishing workflow. Do not publish
+Run Miko releases through the trusted-publishing workflow. Do not publish
 workspace packages manually.
 
 ## Required reference
@@ -43,7 +43,7 @@ canonical package list and dependency order.
 ## Safety
 
 - Never add an npm token. Publishing must use GitHub Actions OIDC.
-- Confirm every npm package trusts `nexmoe/atmiko` and
+- Confirm every npm package trusts `mikoagents/miko` and
   `release-cli.yml` before the first live workflow run.
 - A dry run does not authenticate to npm and does not prove registry writes.
 - Never rerun a partially published version blindly. npm versions are

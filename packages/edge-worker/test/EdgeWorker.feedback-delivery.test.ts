@@ -1,24 +1,24 @@
 import { LinearClient } from "@linear/sdk";
-import { ClaudeRunner } from "atmiko-claude-runner";
-import { LinearEventTransport } from "atmiko-linear-event-transport";
-import { createAtmikoToolsServer } from "atmiko-mcp-tools";
+import { ClaudeRunner } from "miko-claude-runner";
+import { LinearEventTransport } from "miko-linear-event-transport";
+import { createMikoToolsServer } from "miko-mcp-tools";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
 import type { EdgeWorkerConfig, RepositoryConfig } from "../src/types.js";
-import { TEST_ATMIKO_HOME } from "./test-dirs.js";
+import { TEST_MIKO_HOME } from "./test-dirs.js";
 
 // Mock all dependencies
 vi.mock("fs/promises");
-vi.mock("atmiko-claude-runner");
-vi.mock("atmiko-mcp-tools");
-vi.mock("atmiko-codex-runner");
-vi.mock("atmiko-linear-event-transport");
+vi.mock("miko-claude-runner");
+vi.mock("miko-mcp-tools");
+vi.mock("miko-codex-runner");
+vi.mock("miko-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
-vi.mock("atmiko-core", async (importOriginal) => {
+vi.mock("miko-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as any;
 	return {
 		...actual,
@@ -62,23 +62,21 @@ describe("EdgeWorker - Feedback Delivery", () => {
 		mockOnFeedbackDelivery = vi.fn();
 		mockOnSessionCreated = vi.fn();
 
-		// Mock createAtmikoToolsServer to return a proper structure
-		vi.mocked(createAtmikoToolsServer).mockImplementation(
-			(_client, options) => {
-				// Capture the callbacks
-				if (options?.onFeedbackDelivery) {
-					mockOnFeedbackDelivery = options.onFeedbackDelivery;
-				}
-				if (options?.onSessionCreated) {
-					mockOnSessionCreated = options.onSessionCreated;
-				}
+		// Mock createMikoToolsServer to return a proper structure
+		vi.mocked(createMikoToolsServer).mockImplementation((_client, options) => {
+			// Capture the callbacks
+			if (options?.onFeedbackDelivery) {
+				mockOnFeedbackDelivery = options.onFeedbackDelivery;
+			}
+			if (options?.onSessionCreated) {
+				mockOnSessionCreated = options.onSessionCreated;
+			}
 
-				// Return a mock MCP server shape
-				return {
-					server: {},
-				} as any;
-			},
-		);
+			// Return a mock MCP server shape
+			return {
+				server: {},
+			} as any;
+		});
 
 		// Mock ClaudeRunner
 		mockClaudeRunner = {
@@ -157,7 +155,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 
 		mockConfig = {
 			proxyUrl: "http://localhost:3000",
-			atmikoHome: TEST_ATMIKO_HOME,
+			mikoHome: TEST_MIKO_HOME,
 			repositories: [mockRepository],
 			linearWorkspaces: {
 				"test-workspace": { linearToken: "test-token" },
@@ -211,7 +209,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 				"Please revise your approach and focus on the error handling";
 			const parentSessionId = "parent-session-123";
 
-			// Build MCP config which will trigger createAtmikoToolsServer
+			// Build MCP config which will trigger createMikoToolsServer
 			const _mcpConfig = (edgeWorker as any).mcpConfigService.buildMcpConfig(
 				mockRepository.id,
 				mockRepository.linearWorkspaceId,
@@ -277,7 +275,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			const childSessionId = "child-session-456";
 			const feedbackMessage = "Test feedback without known parent";
 
-			// Build MCP config which will trigger createAtmikoToolsServer
+			// Build MCP config which will trigger createMikoToolsServer
 			const _mcpConfig = (edgeWorker as any).mcpConfigService.buildMcpConfig(
 				mockRepository.id,
 				mockRepository.linearWorkspaceId,
@@ -311,7 +309,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			const childSessionId = "nonexistent-child-session";
 			const feedbackMessage = "This should fail";
 
-			// Build MCP config which will trigger createAtmikoToolsServer
+			// Build MCP config which will trigger createMikoToolsServer
 			const _mcpConfig = (edgeWorker as any).mcpConfigService.buildMcpConfig(
 				mockRepository.id,
 				mockRepository.linearWorkspaceId,
@@ -341,7 +339,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			const childSessionId = "child-session-456";
 			const feedbackMessage = "This should also fail";
 
-			// Build MCP config which will trigger createAtmikoToolsServer
+			// Build MCP config which will trigger createMikoToolsServer
 			const _mcpConfig = (edgeWorker as any).mcpConfigService.buildMcpConfig(
 				mockRepository.id,
 				mockRepository.linearWorkspaceId,
@@ -369,7 +367,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			const childSessionId = "child-session-456";
 			const feedbackMessage = "This will cause resume to fail";
 
-			// Build MCP config which will trigger createAtmikoToolsServer
+			// Build MCP config which will trigger createMikoToolsServer
 			const _mcpConfig = (edgeWorker as any).mcpConfigService.buildMcpConfig(
 				mockRepository.id,
 				mockRepository.linearWorkspaceId,
@@ -407,7 +405,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			const childSessionId = "child-session-456";
 			const feedbackMessage = "Test feedback across repositories";
 
-			// Build MCP config which will trigger createAtmikoToolsServer
+			// Build MCP config which will trigger createMikoToolsServer
 			const _mcpConfig = (edgeWorker as any).mcpConfigService.buildMcpConfig(
 				mockRepository.id,
 				mockRepository.linearWorkspaceId,
@@ -435,7 +433,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 		});
 	});
 
-	describe("Integration with atmiko-tools server", () => {
+	describe("Integration with miko-tools server", () => {
 		it("should properly configure feedback delivery callback in MCP config", () => {
 			// Arrange
 			const parentSessionId = "parent-session-123";
@@ -448,10 +446,10 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			);
 
 			// Assert
-			expect(_mcpConfig).toHaveProperty("atmiko-tools");
+			expect(_mcpConfig).toHaveProperty("miko-tools");
 
-			// Verify createAtmikoToolsServer was called with correct options
-			expect(createAtmikoToolsServer).toHaveBeenCalledWith(
+			// Verify createMikoToolsServer was called with correct options
+			expect(createMikoToolsServer).toHaveBeenCalledWith(
 				expect.any(Object),
 				expect.objectContaining({
 					parentSessionId,
@@ -465,9 +463,9 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			expect(mockOnSessionCreated).toBeDefined();
 		});
 
-		it("should include ATMIKO_API_KEY as Authorization header for atmiko-tools MCP config", () => {
-			const previousApiKey = process.env.ATMIKO_API_KEY;
-			process.env.ATMIKO_API_KEY = "test-atmiko-api-key";
+		it("should include MIKO_API_KEY as Authorization header for miko-tools MCP config", () => {
+			const previousApiKey = process.env.MIKO_API_KEY;
+			process.env.MIKO_API_KEY = "test-miko-api-key";
 
 			try {
 				const mcpConfig = (edgeWorker as any).mcpConfigService.buildMcpConfig(
@@ -475,30 +473,30 @@ describe("EdgeWorker - Feedback Delivery", () => {
 					mockRepository.linearWorkspaceId,
 					"parent-session-123",
 				);
-				const atmikoToolsConfig = mcpConfig["atmiko-tools"] as {
+				const mikoToolsConfig = mcpConfig["miko-tools"] as {
 					headers?: Record<string, string>;
 				};
 
-				expect(atmikoToolsConfig.headers?.Authorization).toBe(
-					"Bearer test-atmiko-api-key",
+				expect(mikoToolsConfig.headers?.Authorization).toBe(
+					"Bearer test-miko-api-key",
 				);
 			} finally {
 				if (previousApiKey === undefined) {
-					delete process.env.ATMIKO_API_KEY;
+					delete process.env.MIKO_API_KEY;
 				} else {
-					process.env.ATMIKO_API_KEY = previousApiKey;
+					process.env.MIKO_API_KEY = previousApiKey;
 				}
 			}
 		});
 
-		it("should validate atmiko-tools MCP Authorization header against ATMIKO_API_KEY", () => {
-			const previousApiKey = process.env.ATMIKO_API_KEY;
-			process.env.ATMIKO_API_KEY = "test-atmiko-api-key";
+		it("should validate miko-tools MCP Authorization header against MIKO_API_KEY", () => {
+			const previousApiKey = process.env.MIKO_API_KEY;
+			process.env.MIKO_API_KEY = "test-miko-api-key";
 
 			try {
 				expect(
 					(edgeWorker as any).mcpConfigService.isAuthorizationValid(
-						"Bearer test-atmiko-api-key",
+						"Bearer test-miko-api-key",
 					),
 				).toBe(true);
 				expect(
@@ -511,9 +509,9 @@ describe("EdgeWorker - Feedback Delivery", () => {
 				).toBe(false);
 			} finally {
 				if (previousApiKey === undefined) {
-					delete process.env.ATMIKO_API_KEY;
+					delete process.env.MIKO_API_KEY;
 				} else {
-					process.env.ATMIKO_API_KEY = previousApiKey;
+					process.env.MIKO_API_KEY = previousApiKey;
 				}
 			}
 		});

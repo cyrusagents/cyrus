@@ -5,7 +5,7 @@ pnpm typecheck
 # If config-schemas.ts was modified, verify JSON Schemas are up-to-date
 if git diff --cached --name-only | grep -q 'packages/core/src/config-schemas.ts'; then
   echo "config-schemas.ts changed — checking JSON Schemas are up-to-date..."
-  pnpm --filter atmiko-core generate:json-schema
+  pnpm --filter miko-core generate:json-schema
   if ! git diff --quiet packages/core/schemas/; then
     echo ""
     echo "ERROR: JSON Schema files are out of date."

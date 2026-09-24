@@ -8,7 +8,7 @@ import {
 	DEFAULT_CONFIG_FILENAME,
 	type EdgeConfig,
 	migrateEdgeConfig,
-} from "atmiko-core";
+} from "miko-core";
 import { getDefaultReposDir } from "../utils/getDefaultReposDir.js";
 import { getDefaultWorktreesDir } from "../utils/getDefaultWorktreesDir.js";
 import { BaseCommand } from "./ICommand.js";
@@ -62,11 +62,11 @@ interface WorkspaceCredentials {
  * Self-add-repo command - clones a repo and adds it to config.json
  *
  * Usage:
- *   atmiko self-add-repo                      # prompts for everything
- *   atmiko self-add-repo <url>                # prompts for workspace if multiple
- *   atmiko self-add-repo <url> <workspace>    # no prompts
- *   atmiko self-add-repo <url> -l <labels>    # custom routing labels (comma-separated)
- *   atmiko self-add-repo <url> <workspace> -l <labels>
+ *   miko self-add-repo                      # prompts for everything
+ *   miko self-add-repo <url>                # prompts for workspace if multiple
+ *   miko self-add-repo <url> <workspace>    # no prompts
+ *   miko self-add-repo <url> -l <labels>    # custom routing labels (comma-separated)
+ *   miko self-add-repo <url> <workspace> -l <labels>
  *
  * Routing labels are used to route Linear issues to this repository.
  * If not specified, defaults to the repository name.
@@ -123,7 +123,7 @@ export class SelfAddRepoCommand extends BaseCommand {
 
 		try {
 			// Load config
-			const configPath = resolve(this.app.atmikoHome, DEFAULT_CONFIG_FILENAME);
+			const configPath = resolve(this.app.mikoHome, DEFAULT_CONFIG_FILENAME);
 			let config: EdgeConfig;
 			try {
 				config = migrateEdgeConfig(
@@ -186,7 +186,7 @@ export class SelfAddRepoCommand extends BaseCommand {
 
 			if (workspaces.size === 0) {
 				this.logError(
-					"No Linear credentials found. Run 'atmiko self-auth-linear' first.",
+					"No Linear credentials found. Run 'miko self-auth-linear' first.",
 				);
 				process.exit(1);
 			}
@@ -226,7 +226,7 @@ export class SelfAddRepoCommand extends BaseCommand {
 
 			// Clone the repo
 			const repositoryPath = resolve(
-				getDefaultReposDir(this.app.atmikoHome),
+				getDefaultReposDir(this.app.mikoHome),
 				repoName,
 			);
 
@@ -258,7 +258,7 @@ export class SelfAddRepoCommand extends BaseCommand {
 				name: repoName,
 				repositoryPath,
 				baseBranch,
-				workspaceBaseDir: getDefaultWorktreesDir(this.app.atmikoHome),
+				workspaceBaseDir: getDefaultWorktreesDir(this.app.mikoHome),
 				linearWorkspaceId: selectedWorkspace.id,
 				isActive: true,
 				routingLabels,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# F1 CLI - Testing Framework for Atmiko
+# F1 CLI - Testing Framework for Miko
 # This script invokes the F1 CLI using bun runtime
 
 # Get the directory where this script is located

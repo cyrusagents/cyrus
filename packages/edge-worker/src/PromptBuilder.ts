@@ -13,7 +13,7 @@ import {
 	requireLinearWorkspaceId,
 	type WebhookAgentSession,
 	type WebhookComment,
-} from "atmiko-core";
+} from "miko-core";
 import type { GitService } from "./GitService.js";
 
 /**
@@ -1242,7 +1242,7 @@ ${reply.body}
 				{
 					headers: {
 						Accept: "application/vnd.github.v3+json",
-						"User-Agent": "Atmiko-Agent",
+						"User-Agent": "Miko-Agent",
 					},
 				},
 			);

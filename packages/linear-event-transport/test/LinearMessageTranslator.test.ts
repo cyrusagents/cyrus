@@ -1,5 +1,5 @@
 import type { LinearWebhookPayload } from "@linear/sdk/webhooks";
-import type { LinearSessionStartPlatformData } from "atmiko-core";
+import type { LinearSessionStartPlatformData } from "miko-core";
 import { describe, expect, it } from "vitest";
 import { LinearMessageTranslator } from "../src/LinearMessageTranslator.js";
 
@@ -149,7 +149,7 @@ describe("LinearMessageTranslator", () => {
 					},
 					comment: {
 						id: "comment-123",
-						body: "@atmiko please help me with this",
+						body: "@miko please help me with this",
 						user: {
 							id: "user-123",
 							name: "Test User",
@@ -167,9 +167,7 @@ describe("LinearMessageTranslator", () => {
 			if (sessionStart.action !== "session_start") return;
 
 			// Mention trigger - should use comment body as initial prompt
-			expect(sessionStart.initialPrompt).toBe(
-				"@atmiko please help me with this",
-			);
+			expect(sessionStart.initialPrompt).toBe("@miko please help me with this");
 
 			// Platform data (narrow type for Linear-specific properties)
 			const platformData =

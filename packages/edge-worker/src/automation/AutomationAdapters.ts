@@ -1,5 +1,5 @@
 import { LinearClient, LinearDocument, LinearError } from "@linear/sdk";
-import type { RepositoryConfig } from "atmiko-core";
+import type { RepositoryConfig } from "miko-core";
 import { automationCompletion } from "./completion.js";
 import {
 	type AutomationAdapter,

@@ -1,14 +1,14 @@
-import type { SDKMessage } from "atmiko-core";
+import type { SDKMessage } from "miko-core";
 import {
 	NoResponseError,
 	SessionError,
 	type SimpleAgentQueryOptions,
 	SimpleAgentRunner,
-} from "atmiko-simple-agent-runner";
+} from "miko-simple-agent-runner";
 import { CursorRunner } from "./CursorRunner.js";
 
 /**
- * Concrete implementation using CursorRunner from atmiko-cursor-runner package.
+ * Concrete implementation using CursorRunner from miko-cursor-runner package.
  *
  * This implementation uses the Cursor CLI to execute queries and
  * constrains the responses to an enumerated set.
@@ -39,7 +39,7 @@ export class SimpleCursorRunner<T extends string> extends SimpleAgentRunner<T> {
 		// Create CursorRunner with configuration
 		const runner = new CursorRunner({
 			workingDirectory: this.config.workingDirectory,
-			atmikoHome: this.config.atmikoHome,
+			mikoHome: this.config.mikoHome,
 			model: this.config.model,
 			fallbackModel: this.config.fallbackModel,
 			maxTurns: this.config.maxTurns,
@@ -99,8 +99,7 @@ export class SimpleCursorRunner<T extends string> extends SimpleAgentRunner<T> {
 			if (
 				message.type === "assistant" &&
 				"message" in message &&
-				message.message &&
-				message.message.content
+				message.message?.content
 			) {
 				// Extract text from content blocks
 				for (const block of message.message.content) {
@@ -163,8 +162,7 @@ export class SimpleCursorRunner<T extends string> extends SimpleAgentRunner<T> {
 		if (
 			message.type === "assistant" &&
 			"message" in message &&
-			message.message &&
-			message.message.content
+			message.message?.content
 		) {
 			for (const block of message.message.content) {
 				if (typeof block === "object" && block !== null && "type" in block) {

@@ -1,19 +1,19 @@
 import { LinearClient } from "@linear/sdk";
-import type { LinearAgentSessionCreatedWebhook } from "atmiko-core";
-import { LinearEventTransport } from "atmiko-linear-event-transport";
+import type { LinearAgentSessionCreatedWebhook } from "miko-core";
+import { LinearEventTransport } from "miko-linear-event-transport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
 import type { EdgeWorkerConfig, RepositoryConfig } from "../src/types.js";
-import { TEST_ATMIKO_HOME } from "./test-dirs.js";
+import { TEST_MIKO_HOME } from "./test-dirs.js";
 
 vi.mock("fs/promises");
 vi.mock("@linear/sdk");
-vi.mock("atmiko-linear-event-transport");
+vi.mock("miko-linear-event-transport");
 vi.mock("../src/AgentSessionManager.js");
 vi.mock("../src/SharedApplicationServer.js");
-vi.mock("atmiko-core", async (importOriginal) => {
+vi.mock("miko-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as any;
 	return {
 		...actual,
@@ -47,7 +47,7 @@ describe("EdgeWorker - child AgentSessionEvent.created webhooks", () => {
 		vi.spyOn(console, "error").mockImplementation(() => {});
 
 		mockAgentSessionManager = {
-			createAtmikoAgentSession: vi.fn(),
+			createMikoAgentSession: vi.fn(),
 			getSessionsByIssueId: vi.fn().mockReturnValue([]),
 			serializeState: vi.fn().mockReturnValue({ sessions: {}, entries: {} }),
 			restoreState: vi.fn(),
@@ -85,7 +85,7 @@ describe("EdgeWorker - child AgentSessionEvent.created webhooks", () => {
 
 		const mockConfig: EdgeWorkerConfig = {
 			proxyUrl: "http://localhost:3000",
-			atmikoHome: TEST_ATMIKO_HOME,
+			mikoHome: TEST_MIKO_HOME,
 			repositories: [mockRepository],
 			linearWorkspaces: {
 				"test-workspace": { linearToken: "test-token" },
@@ -298,7 +298,7 @@ describe("EdgeWorker - child AgentSessionEvent.created webhooks", () => {
 			expect(initializeSpy).toHaveBeenCalledOnce();
 		});
 
-		it("does not link when the parent issue has no Atmiko session", async () => {
+		it("does not link when the parent issue has no Miko session", async () => {
 			vi.spyOn(edgeWorker, "fetchFullIssueDetails").mockResolvedValue({
 				id: childIssueId,
 				identifier: "TEST-124",

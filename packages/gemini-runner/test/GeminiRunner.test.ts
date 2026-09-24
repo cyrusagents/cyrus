@@ -1,6 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { StreamingPrompt } from "atmiko-core";
+import { StreamingPrompt } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GeminiRunner } from "../src/GeminiRunner.js";
 import type {
@@ -31,7 +31,7 @@ vi.mock("node:fs/promises", () => ({
 
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import { TEST_ATMIKO_HOME, TEST_WORKING_DIR } from "./test-dirs.js";
+import { TEST_MIKO_HOME, TEST_WORKING_DIR } from "./test-dirs.js";
 
 const mockSpawn = vi.mocked(spawn);
 const mockCreateInterface = vi.mocked(createInterface);
@@ -143,7 +143,7 @@ describe("GeminiRunner", () => {
 	let processEmulator: ProcessEmulator;
 	const defaultConfig: GeminiRunnerConfig = {
 		workingDirectory: TEST_WORKING_DIR,
-		atmikoHome: TEST_ATMIKO_HOME,
+		mikoHome: TEST_MIKO_HOME,
 		model: "gemini-2.5-flash",
 	};
 

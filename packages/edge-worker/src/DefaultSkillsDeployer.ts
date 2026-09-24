@@ -1,13 +1,13 @@
 import { access, cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ILogger } from "atmiko-core";
+import type { ILogger } from "miko-core";
 
 /**
- * Deploys bundled default skills to the atmikoHome directory.
+ * Deploys bundled default skills to the mikoHome directory.
  *
  * On first startup, copies all bundled skill directories from the package
- * into `~/.atmiko/atmiko-skills-plugin/skills/` so that users can inspect
+ * into `~/.miko/miko-skills-plugin/skills/` so that users can inspect
  * and customize them. Subsequent startups skip the copy if the plugin
  * directory already exists.
  *
@@ -22,7 +22,7 @@ export class DefaultSkillsDeployer {
 	private readonly manifestPath: string;
 
 	constructor(
-		private readonly atmikoHome: string,
+		private readonly mikoHome: string,
 		private readonly logger: ILogger,
 		bundledSkillsDir?: string,
 	) {
@@ -32,19 +32,19 @@ export class DefaultSkillsDeployer {
 			bundledSkillsDir ??
 			join(
 				dirname(fileURLToPath(import.meta.url)),
-				"atmiko-skills-plugin",
+				"miko-skills-plugin",
 				"skills",
 			);
-		this.deployedPluginPath = join(this.atmikoHome, "atmiko-skills-plugin");
+		this.deployedPluginPath = join(this.mikoHome, "miko-skills-plugin");
 		this.deployedSkillsPath = join(this.deployedPluginPath, "skills");
 		this.manifestDir = join(this.deployedPluginPath, ".claude-plugin");
 		this.manifestPath = join(this.manifestDir, "plugin.json");
 	}
 
 	/**
-	 * Ensure default skills are deployed to atmikoHome.
+	 * Ensure default skills are deployed to mikoHome.
 	 *
-	 * If `~/.atmiko/atmiko-skills-plugin/` does not exist, creates it and
+	 * If `~/.miko/miko-skills-plugin/` does not exist, creates it and
 	 * copies all bundled skills into it. If it already exists, does nothing
 	 * — the user may have customized the skills.
 	 */
@@ -72,8 +72,8 @@ export class DefaultSkillsDeployer {
 			this.manifestPath,
 			JSON.stringify(
 				{
-					name: "atmiko-skills",
-					description: "Default Atmiko workflow skills for agent sessions",
+					name: "miko-skills",
+					description: "Default Miko workflow skills for agent sessions",
 				},
 				null,
 				"\t",

@@ -41,7 +41,7 @@ async function main() {
 
 		const runner = new SimpleGeminiRunner({
 			validResponses: ["yes", "no", "maybe"],
-			atmikoHome: path.join(os.homedir(), ".atmiko"),
+			mikoHome: path.join(os.homedir(), ".miko"),
 			workingDirectory: process.cwd(),
 			model: "gemini-2.5-flash",
 			maxTurns: 5,

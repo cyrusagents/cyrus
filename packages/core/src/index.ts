@@ -32,15 +32,6 @@ export {
 // export type { SessionOptions, , NarrativeItem } from './Session.js'
 // export { ClaudeSessionManager as SessionManager } from './ClaudeSessionManager.js'
 
-export type {
-	AtmikoAgentSession,
-	AtmikoAgentSessionEntry,
-	BaseBranchResolution,
-	IssueContext,
-	IssueMinimal,
-	RepositoryContext,
-	Workspace,
-} from "./AtmikoAgentSession.js";
 // Agent Runner types
 export type {
 	AgentMessage,
@@ -67,7 +58,7 @@ export type {
 	SDKUserMessage,
 	SessionCronSummary,
 } from "./agent-runner-types.js";
-// Per-platform default allowed tools — single source of truth for atmiko-hosted
+// Per-platform default allowed tools — single source of truth for miko-hosted
 // and self-host configurations alike.
 export type { AllowedToolsPlatform } from "./allowed-tools-defaults.js";
 export {
@@ -203,6 +194,15 @@ export {
 	isIssueUnassignedWebhook,
 	isNewCommentEvent,
 } from "./issue-tracker/index.js";
+export type {
+	BaseBranchResolution,
+	IssueContext,
+	IssueMinimal,
+	MikoAgentSession,
+	MikoAgentSessionEntry,
+	RepositoryContext,
+	Workspace,
+} from "./MikoAgentSession.js";
 // Internal Message Bus
 export type {
 	ContentChanges,
@@ -258,12 +258,12 @@ export {
 	isUnassignMessage,
 	isUserPromptMessage,
 } from "./messages/index.js";
-// Linear adapters have been moved to atmiko-linear-event-transport package
-// Import them directly from that package instead of from atmiko-core
+// Linear adapters have been moved to miko-linear-event-transport package
+// Import them directly from that package instead of from miko-core
 export type {
 	SerializableEdgeWorkerState,
-	SerializedAtmikoAgentSession,
-	SerializedAtmikoAgentSessionEntry,
+	SerializedMikoAgentSession,
+	SerializedMikoAgentSessionEntry,
 	V3SerializableEdgeWorkerState,
 } from "./PersistenceManager.js";
 export {

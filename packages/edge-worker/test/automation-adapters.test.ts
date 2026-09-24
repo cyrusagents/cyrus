@@ -1,5 +1,5 @@
 import type { LinearClient } from "@linear/sdk";
-import type { RepositoryConfig } from "atmiko-core";
+import type { RepositoryConfig } from "miko-core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type AutomationAdapterDeps,

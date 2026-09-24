@@ -1,6 +1,6 @@
-# Contributing to Atmiko
+# Contributing to Miko
 
-We love your input! We want to make contributing to Atmiko as easy and transparent as possible, whether it's:
+We love your input! We want to make contributing to Miko as easy and transparent as possible, whether it's:
 
 - Reporting a bug
 - Discussing the current state of the code
@@ -38,12 +38,12 @@ We use GitHub for issue tracking, code hosting and pull requests. We also track 
 
 ### Project Structure
 
-Atmiko is a pnpm monorepo with the following layout:
+Miko is a pnpm monorepo with the following layout:
 
 ```
-atmiko/
+miko/
 ├── apps/
-│   ├── cli/        # Main CLI application (the `atmiko` npm package)
+│   ├── cli/        # Main CLI application (the `miko` npm package)
 │   └── f1/         # F1 testing framework for end-to-end test drives
 └── packages/
     ├── core/                     # Shared types and session management

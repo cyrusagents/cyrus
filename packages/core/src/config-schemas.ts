@@ -31,15 +31,15 @@ export const UserIdentifierSchema = z.union([
 export const UserAccessControlConfigSchema = z.object({
 	/**
 	 * Users allowed to delegate issues.
-	 * If specified, ONLY these users can trigger Atmiko sessions.
-	 * Empty array means no one is allowed (effectively disables Atmiko).
+	 * If specified, ONLY these users can trigger Miko sessions.
+	 * Empty array means no one is allowed (effectively disables Miko).
 	 * Omitting this field means everyone is allowed (unless blocked).
 	 */
 	allowedUsers: z.array(UserIdentifierSchema).optional(),
 
 	/**
 	 * Users blocked from delegating issues.
-	 * These users cannot trigger Atmiko sessions.
+	 * These users cannot trigger Miko sessions.
 	 * Takes precedence over allowedUsers.
 	 */
 	blockedUsers: z.array(UserIdentifierSchema).optional(),
@@ -370,7 +370,7 @@ export const RepositoryConfigSchema = z.object({
 });
 
 /**
- * Edge configuration - the serializable configuration stored in ~/.atmiko/config.json
+ * Edge configuration - the serializable configuration stored in ~/.miko/config.json
  *
  * This schema defines all settings that can be persisted to disk.
  * It contains global settings that apply across all repositories,
@@ -466,7 +466,7 @@ export const EdgeConfigSchema = z.object({
 	/**
 	 * Allowed tools for Slack @mention chat sessions. When set, overrides the
 	 * built-in read-only chat tool set used by ToolPermissionResolver. The
-	 * workspace MCP tool prefixes (mcp__linear, mcp__atmiko-tools, etc.) are
+	 * workspace MCP tool prefixes (mcp__linear, mcp__miko-tools, etc.) are
 	 * still appended automatically.
 	 */
 	slackAllowedTools: z.array(z.string()).optional(),
@@ -485,9 +485,9 @@ export const EdgeConfigSchema = z.object({
 	 * `repository.mcpConfigPath` is not consulted here — only this list
 	 * determines which custom `.mcp.json` files load for Slack. When
 	 * omitted/empty, no custom files load (native MCP servers — Linear,
-	 * Atmiko tools, Slack MCP, Atmiko docs — still run as usual).
+	 * Miko tools, Slack MCP, Miko docs — still run as usual).
 	 *
-	 * The per-platform lists let atmiko-hosted route custom MCP server
+	 * The per-platform lists let miko-hosted route custom MCP server
 	 * availability per surface — e.g. expose `slack-mcp-server` only on
 	 * Slack, or scope a Supabase MCP to GitHub PR sessions but not Linear
 	 * issue work. Each entry is passed as-is to Claude Code's
@@ -528,7 +528,7 @@ export const EdgeConfigSchema = z.object({
 	githubMcpConfigs: z.array(z.string()).optional(),
 
 	/**
-	 * Restrict Claude sessions to MCP servers explicitly supplied by Atmiko.
+	 * Restrict Claude sessions to MCP servers explicitly supplied by Miko.
 	 * When false, Claude Code may also load servers from project/user settings,
 	 * plugins, and authenticated claude.ai connectors. Defaults to true when
 	 * omitted.
@@ -556,11 +556,11 @@ export const EdgeConfigSchema = z.object({
 	maxConcurrentSessions: z.number().int().positive().optional(),
 
 	/**
-	 * Whether Atmiko follows along with all subsequent replies in a Slack thread
+	 * Whether Miko follows along with all subsequent replies in a Slack thread
 	 * it has been @mentioned in (treating each reply as a follow-up prompt).
-	 * When false, Atmiko only responds to explicit @mentions. Defaults to true if
+	 * When false, Miko only responds to explicit @mentions. Defaults to true if
 	 * not specified. Can also be force-disabled at runtime via the
-	 * `ATMIKO_SLACK_THREAD_FOLLOWING_DISABLED` environment variable.
+	 * `MIKO_SLACK_THREAD_FOLLOWING_DISABLED` environment variable.
 	 */
 	slackThreadFollowing: z.boolean().optional(),
 

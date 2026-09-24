@@ -1,15 +1,15 @@
 import type {
 	HookCallbackMatcher,
 	PostToolUseHookInput,
-} from "atmiko-claude-runner";
-import type { ILogger } from "atmiko-core";
+} from "miko-claude-runner";
+import type { ILogger } from "miko-core";
 import { describe, expect, it, vi } from "vitest";
 import {
-	ATMIKO_PR_MARKER,
 	appendMarker,
 	buildPrMarkerHook,
 	GitHubPrMarkerProvider,
 	GitLabMrMarkerProvider,
+	MIKO_PR_MARKER,
 	type PrMarkerProvider,
 } from "../src/hooks/PrMarkerHook.js";
 
@@ -46,22 +46,22 @@ async function runHook(
 
 describe("appendMarker", () => {
 	it("appends the marker to a non-empty body", () => {
-		expect(appendMarker("hello")).toBe(`hello\n\n${ATMIKO_PR_MARKER}`);
+		expect(appendMarker("hello")).toBe(`hello\n\n${MIKO_PR_MARKER}`);
 	});
 
 	it("returns just the marker for an empty body", () => {
-		expect(appendMarker("")).toBe(ATMIKO_PR_MARKER);
-		expect(appendMarker(null)).toBe(ATMIKO_PR_MARKER);
-		expect(appendMarker(undefined)).toBe(ATMIKO_PR_MARKER);
+		expect(appendMarker("")).toBe(MIKO_PR_MARKER);
+		expect(appendMarker(null)).toBe(MIKO_PR_MARKER);
+		expect(appendMarker(undefined)).toBe(MIKO_PR_MARKER);
 	});
 
 	it("is idempotent when the marker is already present", () => {
-		const body = `summary\n\n${ATMIKO_PR_MARKER}`;
+		const body = `summary\n\n${MIKO_PR_MARKER}`;
 		expect(appendMarker(body)).toBe(body);
 	});
 
 	it("trims trailing whitespace before appending", () => {
-		expect(appendMarker("body\n\n\n")).toBe(`body\n\n${ATMIKO_PR_MARKER}`);
+		expect(appendMarker("body\n\n\n")).toBe(`body\n\n${MIKO_PR_MARKER}`);
 	});
 });
 

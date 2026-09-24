@@ -199,7 +199,7 @@ describe("AppServerCodexBackend", () => {
 			codexPath: "/bin/true",
 			sandbox: {
 				kind: "profile",
-				profileId: "atmiko-sandbox",
+				profileId: "miko-sandbox",
 				networkAccess: false,
 				filesystem: {
 					":minimal": "read",
@@ -216,11 +216,11 @@ describe("AppServerCodexBackend", () => {
 			config?: Record<string, unknown>;
 		};
 		// `permissions` and `sandbox` are mutually exclusive — only permissions is set.
-		expect(params.permissions).toBe("atmiko-sandbox");
+		expect(params.permissions).toBe("miko-sandbox");
 		expect(params.sandbox).toBeUndefined();
 		expect(params.config?.sandbox_workspace_write).toBeUndefined();
 		expect(params.config?.permissions).toEqual({
-			"atmiko-sandbox": {
+			"miko-sandbox": {
 				filesystem: {
 					":minimal": "read",
 					":workspace_roots": "write",

@@ -1,10 +1,10 @@
 # gemini-runner Package Guide
 
-This package provides a provider-agnostic wrapper around the Gemini CLI that implements the `IAgentRunner` interface from `atmiko-core`.
+This package provides a provider-agnostic wrapper around the Gemini CLI that implements the `IAgentRunner` interface from `miko-core`.
 
 ## Overview
 
-**GeminiRunner** translates between Gemini CLI's streaming JSON format and the Claude SDK message types, enabling seamless integration of Google's Gemini models into the Atmiko agent framework.
+**GeminiRunner** translates between Gemini CLI's streaming JSON format and the Claude SDK message types, enabling seamless integration of Google's Gemini models into the Miko agent framework.
 
 ## Key Features
 
@@ -133,7 +133,7 @@ bun test-scripts/test-gemini-runner.ts
 
 Prerequisites:
    ✅ GEMINI_API_KEY environment variable set
-   ✅ Test directory: /Users/user/.atmiko-test-gemini
+   ✅ Test directory: /Users/user/.miko-test-gemini
 
 📁 Test 1: Settings.json Auto-Generation
    ✅ settings.json has modelConfigs.aliases

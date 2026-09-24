@@ -1,17 +1,14 @@
 import type { LinearClient } from "@linear/sdk";
-import type { McpServerConfig } from "atmiko-claude-runner";
-import type { IIssueTrackerService, RepositoryConfig } from "atmiko-core";
-import {
-	type AtmikoToolsOptions,
-	createAtmikoToolsServer,
-} from "atmiko-mcp-tools";
+import type { McpServerConfig } from "miko-claude-runner";
+import type { IIssueTrackerService, RepositoryConfig } from "miko-core";
+import { createMikoToolsServer, type MikoToolsOptions } from "miko-mcp-tools";
 
-type AtmikoToolsMcpContextEntry = {
+type MikoToolsMcpContextEntry = {
 	contextId: string;
 	linearToken: string;
 	linearClient: LinearClient;
 	parentSessionId?: string;
-	prebuiltServer?: ReturnType<typeof createAtmikoToolsServer>;
+	prebuiltServer?: ReturnType<typeof createMikoToolsServer>;
 	createdAt: number;
 };
 
@@ -25,34 +22,34 @@ export interface McpConfigServiceDeps {
 	getIssueTracker: (
 		workspaceId: string,
 	) => (IIssueTrackerService & { getClient?: () => LinearClient }) | undefined;
-	/** Get the HTTP URL where the atmiko-tools MCP endpoint is registered */
-	getAtmikoToolsMcpUrl: () => string;
-	/** Factory that creates AtmikoToolsOptions with session callbacks */
-	createAtmikoToolsOptions: (parentSessionId?: string) => AtmikoToolsOptions;
+	/** Get the HTTP URL where the miko-tools MCP endpoint is registered */
+	getMikoToolsMcpUrl: () => string;
+	/** Factory that creates MikoToolsOptions with session callbacks */
+	createMikoToolsOptions: (parentSessionId?: string) => MikoToolsOptions;
 }
 
 /**
  * Single source of truth for MCP server configuration assembly.
  *
  * Handles:
- * - Building inline MCP server configs (Linear, atmiko-tools, Slack)
+ * - Building inline MCP server configs (Linear, miko-tools, Slack)
  * - Merging file-based MCP config paths from repositories
- * - Atmiko-tools MCP context lifecycle management
+ * - Miko-tools MCP context lifecycle management
  *
  * Both EdgeWorker (issue sessions) and ChatSessionHandler (chat sessions)
  * consume this service instead of duplicating MCP config logic.
  */
 export class McpConfigService {
 	private deps: McpConfigServiceDeps;
-	private contexts = new Map<string, AtmikoToolsMcpContextEntry>();
+	private contexts = new Map<string, MikoToolsMcpContextEntry>();
 
 	constructor(deps: McpConfigServiceDeps) {
 		this.deps = deps;
 	}
 
 	/**
-	 * Build MCP configuration with automatic Linear server injection and atmiko-tools over Fastify MCP.
-	 * Workspace-level servers (Linear, atmiko-tools, Slack) are configured once using workspace-level token.
+	 * Build MCP configuration with automatic Linear server injection and miko-tools over Fastify MCP.
+	 * Workspace-level servers (Linear, miko-tools, Slack) are configured once using workspace-level token.
 	 *
 	 * Whether the agent can actually CALL into any of these servers is gated
 	 * by the per-platform allowed-tools array (`teams.{linear,slack,github}_allowed_tools`),
@@ -62,7 +59,7 @@ export class McpConfigService {
 	 *
 	 * @param repoId - Repository ID for MCP context scoping
 	 * @param linearWorkspaceId - Linear workspace ID (from webhook.organizationId or repo config)
-	 * @param parentSessionId - Parent session ID for atmiko-tools context
+	 * @param parentSessionId - Parent session ID for miko-tools context
 	 */
 	buildMcpConfig(
 		repoId: string,
@@ -75,19 +72,19 @@ export class McpConfigService {
 		const linearToken = this.deps.getLinearTokenForWorkspace(linearWorkspaceId);
 		const issueTracker = this.deps.getIssueTracker(linearWorkspaceId);
 		if (!linearToken || !issueTracker?.getClient) {
-			// CLI platform mode — no Linear client available, return config without atmiko-tools
+			// CLI platform mode — no Linear client available, return config without miko-tools
 			const mcpConfig: Record<string, McpServerConfig> = {
-				"atmiko-docs": {
+				"miko-docs": {
 					type: "http",
-					url: "https://github.com/nexmoe/atmiko/blob/main/docs/CONFIG_FILE.md",
+					url: "https://github.com/mikoagents/miko/blob/main/docs/CONFIG_FILE.md",
 				},
 			};
 			return mcpConfig;
 		}
 		const linearClient = issueTracker.getClient();
-		const prebuiltServer = createAtmikoToolsServer(
+		const prebuiltServer = createMikoToolsServer(
 			linearClient,
-			this.deps.createAtmikoToolsOptions(parentSessionId),
+			this.deps.createMikoToolsOptions(parentSessionId),
 		);
 
 		this.contexts.set(contextId, {
@@ -100,7 +97,7 @@ export class McpConfigService {
 		});
 		this.pruneContexts();
 
-		const atmikoToolsAuthorizationHeader = this.getAuthorizationHeaderValue();
+		const mikoToolsAuthorizationHeader = this.getAuthorizationHeaderValue();
 
 		// Workspace-level MCP servers — configured once regardless of repo count
 		// https://linear.app/docs/mcp
@@ -112,21 +109,21 @@ export class McpConfigService {
 					Authorization: `Bearer ${linearToken}`,
 				},
 			},
-			"atmiko-tools": {
+			"miko-tools": {
 				type: "http",
-				url: this.deps.getAtmikoToolsMcpUrl(),
+				url: this.deps.getMikoToolsMcpUrl(),
 				headers: {
-					"x-atmiko-mcp-context-id": contextId,
-					...(atmikoToolsAuthorizationHeader
+					"x-miko-mcp-context-id": contextId,
+					...(mikoToolsAuthorizationHeader
 						? {
-								Authorization: atmikoToolsAuthorizationHeader,
+								Authorization: mikoToolsAuthorizationHeader,
 							}
 						: {}),
 				},
 			},
-			"atmiko-docs": {
+			"miko-docs": {
 				type: "http",
-				url: "https://github.com/nexmoe/atmiko/blob/main/docs/CONFIG_FILE.md",
+				url: "https://github.com/mikoagents/miko/blob/main/docs/CONFIG_FILE.md",
 			},
 		};
 
@@ -179,10 +176,10 @@ export class McpConfigService {
 	}
 
 	/**
-	 * Look up a stored atmiko-tools MCP context by its ID.
+	 * Look up a stored miko-tools MCP context by its ID.
 	 * Used by the MCP endpoint handler to retrieve prebuilt servers.
 	 */
-	getContext(contextId: string): AtmikoToolsMcpContextEntry | undefined {
+	getContext(contextId: string): MikoToolsMcpContextEntry | undefined {
 		return this.contexts.get(contextId);
 	}
 
@@ -204,10 +201,10 @@ export class McpConfigService {
 	}
 
 	/**
-	 * Get the authorization header value for atmiko-tools MCP requests.
+	 * Get the authorization header value for miko-tools MCP requests.
 	 */
 	getAuthorizationHeaderValue(): string | undefined {
-		const apiKey = process.env.ATMIKO_API_KEY?.trim();
+		const apiKey = process.env.MIKO_API_KEY?.trim();
 		if (!apiKey) {
 			return undefined;
 		}

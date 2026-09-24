@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { McpServerConfig } from "atmiko-core";
+import type { McpServerConfig } from "miko-core";
 import type { CodexConfigOverrides } from "../types.js";
 
 const CODEX_MCP_DOCS_URL = "https://platform.openai.com/docs/docs-mcp";
@@ -185,7 +185,7 @@ function getMcpAllowedToolsFilter(
 	return mergeMcpAllowedToolsFilters(matchingFilters);
 }
 
-function applyAtmikoMcpAllowedToolsSemantics(
+function applyMikoMcpAllowedToolsSemantics(
 	mapped: CodexConfigOverrides,
 	allowedToolsFilter: McpAllowedToolsFilter,
 	options: { hasNativeToolFilter: boolean },
@@ -199,7 +199,7 @@ function applyAtmikoMcpAllowedToolsSemantics(
 		mapped.enabled_tools = allowedToolsFilter.tools;
 	}
 
-	// Codex separates tool visibility (`enabled_tools`) from MCP approval. Atmiko
+	// Codex separates tool visibility (`enabled_tools`) from MCP approval. Miko
 	// allowedTools are already the operator's allow-list, so generated allowances
 	// must also be approved for non-interactive Codex exec runs.
 	if (!Object.hasOwn(mapped, "default_tools_approval_mode")) {
@@ -263,7 +263,7 @@ function copyConfigObject(
 }
 
 /**
- * Translate Atmiko MCP server configs (file-based + inline) and Atmiko
+ * Translate Miko MCP server configs (file-based + inline) and Miko
  * `allowedTools` semantics into Codex-native `mcp_servers` config overrides.
  *
  * Reference: {@link https://platform.openai.com/docs/docs-mcp}
@@ -340,13 +340,13 @@ export function buildCodexMcpServersConfig(
 			Object.hasOwn(mapped, "enabled_tools") ||
 			Object.hasOwn(mapped, "disabled_tools");
 		if (allowedToolsFilter) {
-			applyAtmikoMcpAllowedToolsSemantics(mapped, allowedToolsFilter, {
+			applyMikoMcpAllowedToolsSemantics(mapped, allowedToolsFilter, {
 				hasNativeToolFilter,
 			});
 		}
 		// If the MCP config already contains Codex-native enabled_tools or
 		// disabled_tools, keep those exact filters. They are more specific to
-		// Codex than Claude-style Atmiko allowedTools entries. A bare
+		// Codex than Claude-style Miko allowedTools entries. A bare
 		// `mcp__server` intentionally emits no enabled_tools filter because it
 		// means "allow every tool exposed by this configured server".
 

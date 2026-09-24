@@ -1,5 +1,5 @@
 {
-	"$id": "https://raw.githubusercontent.com/nexmoe/atmiko/main/packages/core/schemas/RepositoryConfigPayload.json",
+	"$id": "https://raw.githubusercontent.com/mikoagents/miko/main/packages/core/schemas/RepositoryConfigPayload.json",
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"type": "object",
 	"properties": {

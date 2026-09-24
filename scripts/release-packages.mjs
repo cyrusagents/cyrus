@@ -4,49 +4,49 @@ import { fileURLToPath } from "node:url";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-export const repositoryUrl = "git+https://github.com/nexmoe/atmiko.git";
+export const repositoryUrl = "git+https://github.com/mikoagents/miko.git";
 
 // Keep this dependency ordered. validateRelease() rejects internal workspace
 // dependencies that appear at or after their consumer.
 export const releasePackages = [
 	{
 		directory: "packages/cloudflare-tunnel-client",
-		name: "atmiko-cloudflare-tunnel-client",
+		name: "miko-cloudflare-tunnel-client",
 	},
-	{ directory: "packages/mcp-tools", name: "atmiko-mcp-tools" },
-	{ directory: "packages/core", name: "atmiko-core" },
-	{ directory: "packages/claude-runner", name: "atmiko-claude-runner" },
-	{ directory: "packages/config-updater", name: "atmiko-config-updater" },
+	{ directory: "packages/mcp-tools", name: "miko-mcp-tools" },
+	{ directory: "packages/core", name: "miko-core" },
+	{ directory: "packages/claude-runner", name: "miko-claude-runner" },
+	{ directory: "packages/config-updater", name: "miko-config-updater" },
 	{
 		directory: "packages/linear-event-transport",
-		name: "atmiko-linear-event-transport",
+		name: "miko-linear-event-transport",
 	},
 	{
 		directory: "packages/github-event-transport",
-		name: "atmiko-github-event-transport",
+		name: "miko-github-event-transport",
 	},
 	{
 		directory: "packages/gitlab-event-transport",
-		name: "atmiko-gitlab-event-transport",
+		name: "miko-gitlab-event-transport",
 	},
 	{
 		directory: "packages/slack-event-transport",
-		name: "atmiko-slack-event-transport",
+		name: "miko-slack-event-transport",
 	},
 	{
 		directory: "packages/zulip-event-transport",
-		name: "atmiko-zulip-event-transport",
+		name: "miko-zulip-event-transport",
 	},
 	{
 		directory: "packages/simple-agent-runner",
-		name: "atmiko-simple-agent-runner",
+		name: "miko-simple-agent-runner",
 	},
-	{ directory: "packages/opencode-runner", name: "atmiko-opencode-runner" },
-	{ directory: "packages/codex-runner", name: "atmiko-codex-runner" },
-	{ directory: "packages/cursor-runner", name: "atmiko-cursor-runner" },
-	{ directory: "packages/gemini-runner", name: "atmiko-gemini-runner" },
-	{ directory: "packages/edge-worker", name: "atmiko-edge-worker" },
-	{ directory: "apps/cli", name: "atmiko" },
+	{ directory: "packages/opencode-runner", name: "miko-opencode-runner" },
+	{ directory: "packages/codex-runner", name: "miko-codex-runner" },
+	{ directory: "packages/cursor-runner", name: "miko-cursor-runner" },
+	{ directory: "packages/gemini-runner", name: "miko-gemini-runner" },
+	{ directory: "packages/edge-worker", name: "miko-edge-worker" },
+	{ directory: "apps/cli", name: "miko" },
 ];
 
 const exactSemver =

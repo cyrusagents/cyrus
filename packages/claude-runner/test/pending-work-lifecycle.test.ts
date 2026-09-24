@@ -171,7 +171,7 @@ describe("ClaudeRunner pending-work lifecycle (CYPACK-1310)", () => {
 
 	const defaultConfig: ClaudeRunnerConfig = {
 		workingDirectory: "/tmp/test",
-		atmikoHome: "/tmp/test-atmiko-home",
+		mikoHome: "/tmp/test-miko-home",
 	};
 
 	beforeEach(() => {
@@ -270,7 +270,7 @@ describe("ClaudeRunner pending-work lifecycle (CYPACK-1310)", () => {
 		// is running KILLS it, so the prompt must stay open until it settles.
 		// (A bare `sleep 120 &` is NOT registered — the Bash tool call returns
 		// instantly — so background_tasks is empty and there is nothing to
-		// hold open; that is an SDK-tracking limitation, not a Atmiko bug.)
+		// hold open; that is an SDK-tracking limitation, not a Miko bug.)
 		const BG_TASK = {
 			id: "task-1",
 			type: "shell",

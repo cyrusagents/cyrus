@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
 	type AgentMessage,
-	type AtmikoAgentSession,
-	type AtmikoAgentSessionEntry,
 	type LocalLogRecord,
+	type MikoAgentSession,
+	type MikoAgentSessionEntry,
 	subscribeLocalLogs,
-} from "atmiko-core";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+} from "miko-core";
 import type { AutomationAdapters } from "./automation/AutomationAdapters.js";
 import { registerAutomationRoutes } from "./automation/AutomationRoutes.js";
 import type { AutomationService } from "./automation/AutomationService.js";
@@ -34,11 +34,9 @@ export interface BoardOptions {
 	automations?: { service: AutomationService; adapters: AutomationAdapters };
 	getSessionTitle?(sessionId: string): string | undefined;
 	historyPath?: string;
-	onSessionRemoved?(
-		listener: (session: AtmikoAgentSession) => void,
-	): () => void;
-	getSessions(): AtmikoAgentSession[];
-	getEntries(sessionId: string): AtmikoAgentSessionEntry[];
+	onSessionRemoved?(listener: (session: MikoAgentSession) => void): () => void;
+	getSessions(): MikoAgentSession[];
+	getEntries(sessionId: string): MikoAgentSessionEntry[];
 	getStatus(): "idle" | "busy";
 	getRepositoryName(id: string): string;
 	getLinearWorkspaceSlug?(repositoryId: string): string | undefined;
@@ -153,7 +151,7 @@ export function boardMessageLogs(
 }
 
 function savedEntryLog(
-	entry: AtmikoAgentSessionEntry,
+	entry: MikoAgentSessionEntry,
 	fallbackTime: number,
 ): BoardLog | undefined {
 	const toolResult =
@@ -200,7 +198,7 @@ export class StatusBoard {
 	private observed = new Map<
 		string,
 		{
-			runner: AtmikoAgentSession["agentRunner"];
+			runner: MikoAgentSession["agentRunner"];
 			running: boolean;
 			startedAt: number;
 			seen: boolean;
@@ -245,7 +243,7 @@ export class StatusBoard {
 	private recordLog(record: LocalLogRecord): void {
 		this.serviceLogs.push({
 			at: record.timestamp,
-			source: "atmiko",
+			source: "miko",
 			level: record.level,
 			kind: "service",
 			text: bounded(`[${record.component}] ${record.message}`),
@@ -409,7 +407,7 @@ export class StatusBoard {
 			};
 		});
 		return {
-			app: "atmiko-board",
+			app: "miko-board",
 			collectedAt: new Date(now).toISOString(),
 			stale: false,
 			service: { online: true, status: this.options.getStatus() },

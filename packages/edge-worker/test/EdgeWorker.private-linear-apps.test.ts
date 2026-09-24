@@ -2,8 +2,8 @@ import { createHmac } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { EdgeWorkerConfig } from "atmiko-core";
 import type { FastifyInstance } from "fastify";
+import type { EdgeWorkerConfig } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import type { SharedApplicationServer } from "../src/SharedApplicationServer.js";
@@ -17,9 +17,9 @@ describe("EdgeWorker private Linear app webhook routing", () => {
 	beforeEach(async () => {
 		vi.stubEnv("LINEAR_DIRECT_WEBHOOKS", "true");
 		vi.stubEnv("LINEAR_WEBHOOK_SECRET", "legacy-secret");
-		home = await mkdtemp(join(tmpdir(), "atmiko-private-apps-"));
+		home = await mkdtemp(join(tmpdir(), "miko-private-apps-"));
 		config = {
-			atmikoHome: home,
+			mikoHome: home,
 			repositories: [],
 			linearWorkspaces: {
 				legacy: { linearToken: "legacy-token" },

@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { McpServerConfig } from "atmiko-core";
+import type { McpServerConfig } from "miko-core";
 import type { GeminiMcpServerConfig } from "./types.js";
 
 interface GeminiSettingsPaths {
@@ -54,7 +54,7 @@ export interface GeminiSettingsOptions {
 }
 
 /**
- * Convert McpServerConfig (atmiko-core format) to GeminiMcpServerConfig (Gemini CLI format)
+ * Convert McpServerConfig (miko-core format) to GeminiMcpServerConfig (Gemini CLI format)
  * Gemini MCP config reference:
  * - https://geminicli.com/docs/cli/tutorials/mcp-setup/#how-to-configure-gemini-cli
  * - https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/configuration.md
@@ -68,7 +68,7 @@ export interface GeminiSettingsOptions {
  * This function maps to Gemini CLI's format which uses `httpUrl` for HTTP transport.
  *
  * @param serverName - Name of the MCP server (for logging)
- * @param config - McpServerConfig from atmiko-core
+ * @param config - McpServerConfig from miko-core
  * @returns GeminiMcpServerConfig or null if conversion not possible
  */
 export function convertToGeminiMcpConfig(

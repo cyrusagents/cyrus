@@ -30,7 +30,7 @@ import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
  * const config: ISimpleAgentRunnerConfig<IssueAction> = {
  *   validResponses: ["fix", "skip", "clarify"] as const,
  *   systemPrompt: "You analyze issues and decide what to do",
- *   atmikoHome: "/home/user/.atmiko",
+ *   mikoHome: "/home/user/.miko",
  *   onProgress: (event) => {
  *     if (event.type === "response-detected") {
  *       console.log(`Agent wants to: ${event.candidateResponse}`);
@@ -115,7 +115,7 @@ export type IAgentProgressEvent =
  *   maxTurns: 10,
  *   timeoutMs: 60000,
  *   model: "sonnet",
- *   atmikoHome: "/home/user/.atmiko",
+ *   mikoHome: "/home/user/.miko",
  *   onProgress: (event) => {
  *     console.log(`Agent progress: ${event.type}`);
  *   }
@@ -144,8 +144,8 @@ export interface ISimpleAgentRunnerConfig<T extends string> {
 	/** Working directory for agent execution */
 	workingDirectory?: string;
 
-	/** Atmiko home directory */
-	atmikoHome: string;
+	/** Miko home directory */
+	mikoHome: string;
 
 	/** Optional callback for progress events */
 	onProgress?: (event: IAgentProgressEvent) => void;

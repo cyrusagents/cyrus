@@ -1,4 +1,4 @@
-import type { SDKSystemMessage } from "atmiko-claude-runner";
+import type { SDKSystemMessage } from "miko-claude-runner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
 import type { IActivitySink } from "../src/sinks/IActivitySink";
@@ -22,7 +22,7 @@ describe("AgentSessionManager - Model Notification", () => {
 		manager = new AgentSessionManager();
 
 		// Create a test session
-		manager.createAtmikoAgentSession(
+		manager.createMikoAgentSession(
 			sessionId,
 			issueId,
 			{

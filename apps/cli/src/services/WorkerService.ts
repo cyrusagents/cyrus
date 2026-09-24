@@ -3,10 +3,10 @@ import type {
 	Issue,
 	RepoSetupHookEventHandler,
 	RepositoryConfig,
-} from "atmiko-core";
-import type { GitService, SharedApplicationServer } from "atmiko-edge-worker";
-import { EdgeWorker } from "atmiko-edge-worker";
-import { SlackEventTransport } from "atmiko-slack-event-transport";
+} from "miko-core";
+import type { GitService, SharedApplicationServer } from "miko-edge-worker";
+import { EdgeWorker } from "miko-edge-worker";
+import { SlackEventTransport } from "miko-slack-event-transport";
 import { DEFAULT_SERVER_PORT, parsePort } from "../config/constants.js";
 import type { Workspace } from "../config/types.js";
 import type { ConfigService } from "./ConfigService.js";
@@ -38,7 +38,7 @@ export class WorkerService {
 	constructor(
 		private configService: ConfigService,
 		private gitService: GitService,
-		private atmikoHome: string,
+		private mikoHome: string,
 		private logger: Logger,
 		private version?: string,
 	) {}
@@ -65,7 +65,7 @@ export class WorkerService {
 		await this.startPreWorkerServer({
 			headerLine: "⏳ Waiting for configuration from server...",
 			footerLines: [
-				"Configure ~/.atmiko/config.json and add repositories with atmiko self-add-repo <git-url>.",
+				"Configure ~/.miko/config.json and add repositories with miko self-add-repo <git-url>.",
 			],
 		});
 	}
@@ -77,7 +77,7 @@ export class WorkerService {
 	async startIdleMode(): Promise<void> {
 		await this.startPreWorkerServer({
 			headerLine: "⏸️  No repositories configured",
-			footerLines: ["Add a repository with: atmiko self-add-repo <git-url>"],
+			footerLines: ["Add a repository with: miko self-add-repo <git-url>"],
 		});
 	}
 
@@ -90,13 +90,13 @@ export class WorkerService {
 		headerLine: string;
 		footerLines: string[];
 	}): Promise<void> {
-		const { SharedApplicationServer } = await import("atmiko-edge-worker");
-		const { ConfigUpdater } = await import("atmiko-config-updater");
+		const { SharedApplicationServer } = await import("miko-edge-worker");
+		const { ConfigUpdater } = await import("miko-config-updater");
 
 		const isExternalHost =
-			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.MIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 		const serverPort = parsePort(
-			process.env.ATMIKO_SERVER_PORT,
+			process.env.MIKO_SERVER_PORT,
 			DEFAULT_SERVER_PORT,
 		);
 		const serverHost = isExternalHost ? "0.0.0.0" : "localhost";
@@ -109,14 +109,14 @@ export class WorkerService {
 
 		const configUpdater = new ConfigUpdater(
 			this.setupWaitingServer.getFastifyInstance(),
-			this.atmikoHome,
-			() => process.env.ATMIKO_API_KEY || "",
+			this.mikoHome,
+			() => process.env.MIKO_API_KEY || "",
 		);
 		configUpdater.register();
 
 		this.logger.info("✅ Config updater registered");
 		this.logger.info(
-			"   Routes: /api/update/atmiko-config, /api/update/atmiko-env,",
+			"   Routes: /api/update/miko-config, /api/update/miko-env,",
 		);
 		this.logger.info(
 			"           /api/update/repository, /api/update/test-mcp, /api/update/configure-mcp",
@@ -147,11 +147,11 @@ export class WorkerService {
 	/**
 	 * Register webhook endpoints that don't require repositories.
 	 * Called from both idle and setup-waiting modes so that external services
-	 * (e.g. Slack URL verification) can reach Atmiko during onboarding.
+	 * (e.g. Slack URL verification) can reach Miko during onboarding.
 	 */
 	private registerWebhookTransports(server: SharedApplicationServer): void {
 		const isExternalHost =
-			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.MIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 		const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
 		const hasSlackSigningSecret =
 			slackSigningSecret != null && slackSigningSecret !== "";
@@ -196,7 +196,7 @@ export class WorkerService {
 
 		// Determine if using external host
 		const isExternalHost =
-			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.MIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 
 		// Load config once for model defaults
 		const edgeConfig = this.configService.load();
@@ -215,7 +215,7 @@ export class WorkerService {
 			...edgeConfig,
 			version: this.version,
 			repositories,
-			atmikoHome: this.atmikoHome,
+			mikoHome: this.mikoHome,
 			linearAllowedTools:
 				parseToolEnv(process.env.LINEAR_ALLOWED_TOOLS) ??
 				edgeConfig.linearAllowedTools,
@@ -225,43 +225,39 @@ export class WorkerService {
 			// Model configuration: environment variables take precedence over config file.
 			// Legacy env vars/keys are still accepted for backwards compatibility.
 			claudeDefaultModel:
-				process.env.ATMIKO_CLAUDE_DEFAULT_MODEL ||
-				process.env.ATMIKO_DEFAULT_MODEL ||
+				process.env.MIKO_CLAUDE_DEFAULT_MODEL ||
+				process.env.MIKO_DEFAULT_MODEL ||
 				edgeConfig.claudeDefaultModel ||
 				edgeConfig.defaultModel,
 			claudeDefaultFallbackModel:
-				process.env.ATMIKO_CLAUDE_DEFAULT_FALLBACK_MODEL ||
-				process.env.ATMIKO_DEFAULT_FALLBACK_MODEL ||
+				process.env.MIKO_CLAUDE_DEFAULT_FALLBACK_MODEL ||
+				process.env.MIKO_DEFAULT_FALLBACK_MODEL ||
 				edgeConfig.claudeDefaultFallbackModel ||
 				edgeConfig.defaultFallbackModel,
 			geminiDefaultModel:
-				process.env.ATMIKO_GEMINI_DEFAULT_MODEL ||
-				edgeConfig.geminiDefaultModel,
+				process.env.MIKO_GEMINI_DEFAULT_MODEL || edgeConfig.geminiDefaultModel,
 			codexDefaultModel:
-				process.env.ATMIKO_CODEX_DEFAULT_MODEL || edgeConfig.codexDefaultModel,
+				process.env.MIKO_CODEX_DEFAULT_MODEL || edgeConfig.codexDefaultModel,
 			opencodeDefaultModel:
-				process.env.ATMIKO_OPENCODE_DEFAULT_MODEL ||
+				process.env.MIKO_OPENCODE_DEFAULT_MODEL ||
 				edgeConfig.opencodeDefaultModel,
 			opencodeDefaultFallbackModel:
-				process.env.ATMIKO_OPENCODE_DEFAULT_FALLBACK_MODEL ||
+				process.env.MIKO_OPENCODE_DEFAULT_FALLBACK_MODEL ||
 				edgeConfig.opencodeDefaultFallbackModel,
 			inferOpenCodeRunnerFromProviderModel:
 				parseBooleanEnv(
-					process.env.ATMIKO_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL,
+					process.env.MIKO_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL,
 				) ?? edgeConfig.inferOpenCodeRunnerFromProviderModel,
 			defaultRunner:
-				(process.env.ATMIKO_DEFAULT_RUNNER as
+				(process.env.MIKO_DEFAULT_RUNNER as
 					| "claude"
 					| "gemini"
 					| "codex"
 					| "cursor"
 					| "opencode"
 					| undefined) || edgeConfig.defaultRunner,
-			webhookBaseUrl: process.env.ATMIKO_BASE_URL,
-			serverPort: parsePort(
-				process.env.ATMIKO_SERVER_PORT,
-				DEFAULT_SERVER_PORT,
-			),
+			webhookBaseUrl: process.env.MIKO_BASE_URL,
+			serverPort: parsePort(process.env.MIKO_SERVER_PORT, DEFAULT_SERVER_PORT),
 			serverHost: isExternalHost ? "0.0.0.0" : "localhost",
 			ngrokAuthToken,
 			handlers: {

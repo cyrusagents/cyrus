@@ -1,4 +1,4 @@
-import type { SDKMessage } from "atmiko-core";
+import type { SDKMessage } from "miko-core";
 
 /**
  * Error codes for SimpleAgentRunner operations

@@ -44,7 +44,7 @@ describe("CodexRunner streaming input selection", () => {
 	it("always supports streaming input (Codex runs via app-server)", () => {
 		const runner = new CodexRunner({
 			workingDirectory: "/tmp",
-			atmikoHome: "/tmp",
+			mikoHome: "/tmp",
 		});
 		expect(runner.supportsStreamingInput).toBe(true);
 	});
@@ -52,7 +52,7 @@ describe("CodexRunner streaming input selection", () => {
 	it("steers the active turn when a stream message arrives mid-turn", () => {
 		const runner = new CodexRunner({
 			workingDirectory: "/tmp",
-			atmikoHome: "/tmp",
+			mikoHome: "/tmp",
 		});
 		const backend = new FakeBackend({ supportsSteer: true, active: true });
 		attachRunning(runner, backend);
@@ -69,7 +69,7 @@ describe("CodexRunner streaming input selection", () => {
 	it("buffers a follow-up that arrives before the turn is active, then flushes it on turn-started", () => {
 		const runner = new CodexRunner({
 			workingDirectory: "/tmp",
-			atmikoHome: "/tmp",
+			mikoHome: "/tmp",
 		});
 		// Running, but the turn has not started yet (startup gap).
 		const backend = new FakeBackend({ supportsSteer: true, active: false });
@@ -100,7 +100,7 @@ describe("CodexRunner streaming input selection", () => {
 	it("stops streaming and rejects once the turn has finished", () => {
 		const runner = new CodexRunner({
 			workingDirectory: "/tmp",
-			atmikoHome: "/tmp",
+			mikoHome: "/tmp",
 		});
 		const backend = new FakeBackend({ supportsSteer: true, active: false });
 		attachRunning(runner, backend);

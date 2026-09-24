@@ -35,7 +35,7 @@ class MockAgentRunner extends SimpleAgentRunner<"yes" | "no"> {
 describe("SimpleAgentRunner", () => {
 	const validConfig: SimpleAgentRunnerConfig<"yes" | "no"> = {
 		validResponses: ["yes", "no"] as const,
-		atmikoHome: "/test/atmiko",
+		mikoHome: "/test/miko",
 	};
 
 	describe("Configuration Validation", () => {
@@ -71,16 +71,14 @@ describe("SimpleAgentRunner", () => {
 			);
 		});
 
-		it("should reject missing atmikoHome", () => {
+		it("should reject missing mikoHome", () => {
 			const config = {
 				...validConfig,
-				atmikoHome: "",
+				mikoHome: "",
 			};
 
 			expect(() => new MockAgentRunner(config)).toThrow(SimpleAgentError);
-			expect(() => new MockAgentRunner(config)).toThrow(
-				/atmikoHome is required/,
-			);
+			expect(() => new MockAgentRunner(config)).toThrow(/mikoHome is required/);
 		});
 	});
 

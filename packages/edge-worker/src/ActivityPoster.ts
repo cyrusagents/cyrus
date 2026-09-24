@@ -4,7 +4,7 @@ import type {
 	ILogger,
 	RepoSetupHookEvent,
 	RepositoryConfig,
-} from "atmiko-core";
+} from "miko-core";
 
 export class ActivityPoster {
 	private issueTrackers: Map<string, IIssueTrackerService>;
@@ -231,7 +231,7 @@ export class ActivityPoster {
 			return null;
 		}
 
-		return "The setup script does not run with sudo privileges. Keep `atmiko-setup.sh` to repo-local setup. For hosted Atmiko, add required npm or apt packages in the Atmiko Dashboard at Settings > Packages (`/settings/packages`); for self-hosted Atmiko, preinstall privileged dependencies in the runtime or host.";
+		return "The setup script does not run with sudo privileges. Keep `miko-setup.sh` to repo-local setup. For hosted Miko, add required npm or apt packages in the Miko Dashboard at Settings > Packages (`/settings/packages`); for self-hosted Miko, preinstall privileged dependencies in the runtime or host.";
 	}
 
 	private looksLikeSudoFailure(output: string): boolean {

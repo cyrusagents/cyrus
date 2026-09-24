@@ -2,7 +2,7 @@ import type {
 	AgentRunnerConfig,
 	AgentSessionInfo,
 	SDKMessage,
-} from "atmiko-core";
+} from "miko-core";
 
 export type OpenCodeJsonEvent =
 	| OpenCodeStepStartEvent

@@ -1,13 +1,13 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { OpenCodeRunner } from "atmiko-opencode-runner";
+import { OpenCodeRunner } from "miko-opencode-runner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
 import type { IActivitySink } from "../src/sinks/IActivitySink";
 
 function makeTempDir(): string {
-	return mkdtempSync(join(tmpdir(), "atmiko-opencode-activity-"));
+	return mkdtempSync(join(tmpdir(), "miko-opencode-activity-"));
 }
 
 function fixtureLines(): string {
@@ -48,7 +48,7 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 		postActivitySpy = vi.spyOn(mockActivitySink, "postActivity");
 		manager = new AgentSessionManager();
 
-		manager.createAtmikoAgentSession(
+		manager.createMikoAgentSession(
 			sessionId,
 			issueId,
 			{
@@ -59,7 +59,7 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 				branchName: "test-branch",
 			},
 			{
-				path: "/tmp/atmiko-opencode-activity",
+				path: "/tmp/miko-opencode-activity",
 				isGitWorktree: false,
 			},
 		);
@@ -71,7 +71,7 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: writeFakeOpenCode(dir),
 			workingDirectory: dir,
-			atmikoHome: dir,
+			mikoHome: dir,
 			opencodeGlobalConfig: {
 				model: "anthropic/claude-sonnet-4.5",
 			},
@@ -121,13 +121,13 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 				call[1]?.type === "thought" &&
 				typeof call[1]?.body === "string" &&
 				call[1]?.body.includes(
-					"- [x] Explore atmiko-hosted /settings/tools page and current platform selector",
+					"- [x] Explore miko-hosted /settings/tools page and current platform selector",
 				) &&
 				call[1]?.body.includes(
-					"- [ ] Add toolsets to atmiko-core EdgeConfig schema + regenerate JSON schemas (in progress)",
+					"- [ ] Add toolsets to miko-core EdgeConfig schema + regenerate JSON schemas (in progress)",
 				) &&
 				call[1]?.body.includes(
-					"- [ ] Wire toolsets through atmiko ConfigManager and ToolPermissionResolver (pending)",
+					"- [ ] Wire toolsets through miko ConfigManager and ToolPermissionResolver (pending)",
 				),
 		);
 		expect(todoThought).toBeDefined();
@@ -181,7 +181,7 @@ describe("AgentSessionManager - OpenCode activity mapping", () => {
 		const runner = new OpenCodeRunner({
 			openCodePath: writeFakeOpenCode(dir),
 			workingDirectory: dir,
-			atmikoHome: dir,
+			mikoHome: dir,
 			model: "openai/gpt-5.5",
 		});
 		manager.addAgentRunner(sessionId, runner);

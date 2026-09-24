@@ -1,4 +1,4 @@
-import type { ILogger } from "atmiko-core";
+import type { ILogger } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BROWSER_USE_PROMPT_ADDENDUM } from "../src/prompts/browserUsePromptAddendum.js";
 import { FAILURE_MODE_PROMPT_ADDENDUM } from "../src/prompts/failureModePromptAddendum.js";
@@ -44,7 +44,7 @@ function buildChatPrompt(builder: RunnerConfigBuilder): string | undefined {
 		workspaceName: "chat-thread",
 		systemPrompt: "Base prompt.",
 		sessionId: "chat-session",
-		atmikoHome: "/tmp/atmiko",
+		mikoHome: "/tmp/miko",
 		platformName: "slack",
 		logger: silentLogger,
 		onMessage: () => {},
@@ -66,7 +66,7 @@ function buildIssuePrompt(builder: RunnerConfigBuilder): string | undefined {
 		allowedDirectories: ["/tmp/worktree"],
 		disallowedTools: [],
 		labels: [],
-		atmikoHome: "/tmp/atmiko",
+		mikoHome: "/tmp/miko",
 		logger: silentLogger,
 		onMessage: () => {},
 		onError: () => {},
@@ -75,21 +75,21 @@ function buildIssuePrompt(builder: RunnerConfigBuilder): string | undefined {
 }
 
 describe("RunnerConfigBuilder prompt addenda", () => {
-	const originalBrowserUse = process.env.ATMIKO_BROWSER_USE_ENABLED;
-	const originalCloudRuntime = process.env.ATMIKO_CLOUD_RUNTIME;
+	const originalBrowserUse = process.env.MIKO_BROWSER_USE_ENABLED;
+	const originalCloudRuntime = process.env.MIKO_CLOUD_RUNTIME;
 
 	beforeEach(() => {
-		delete process.env.ATMIKO_BROWSER_USE_ENABLED;
-		delete process.env.ATMIKO_CLOUD_RUNTIME;
+		delete process.env.MIKO_BROWSER_USE_ENABLED;
+		delete process.env.MIKO_CLOUD_RUNTIME;
 	});
 
 	afterEach(() => {
 		if (originalBrowserUse === undefined)
-			delete process.env.ATMIKO_BROWSER_USE_ENABLED;
-		else process.env.ATMIKO_BROWSER_USE_ENABLED = originalBrowserUse;
+			delete process.env.MIKO_BROWSER_USE_ENABLED;
+		else process.env.MIKO_BROWSER_USE_ENABLED = originalBrowserUse;
 		if (originalCloudRuntime === undefined)
-			delete process.env.ATMIKO_CLOUD_RUNTIME;
-		else process.env.ATMIKO_CLOUD_RUNTIME = originalCloudRuntime;
+			delete process.env.MIKO_CLOUD_RUNTIME;
+		else process.env.MIKO_CLOUD_RUNTIME = originalCloudRuntime;
 	});
 
 	it("always adds GitHub media guidance to chat prompts while browser use remains disabled", () => {
@@ -105,7 +105,7 @@ describe("RunnerConfigBuilder prompt addenda", () => {
 	});
 
 	it("adds browser guidance separately when its environment flag is enabled", () => {
-		process.env.ATMIKO_BROWSER_USE_ENABLED = "true";
+		process.env.MIKO_BROWSER_USE_ENABLED = "true";
 
 		expect(buildChatPrompt(makeBuilder())).toBe(
 			`Base prompt.\n\n${FAILURE_MODE_PROMPT_ADDENDUM}\n\n${BROWSER_USE_PROMPT_ADDENDUM}\n\n${GITHUB_CLI_MEDIA_PROMPT_ADDENDUM}`,

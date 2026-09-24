@@ -3,9 +3,9 @@ import {
 	LinearWebhookClient,
 	type LinearWebhookPayload,
 } from "@linear/sdk/webhooks";
-import type { IAgentEventTransport, TranslationContext } from "atmiko-core";
-import { createLogger, type ILogger, ipMatchesAllowlist } from "atmiko-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { IAgentEventTransport, TranslationContext } from "miko-core";
+import { createLogger, type ILogger, ipMatchesAllowlist } from "miko-core";
 import { LinearMessageTranslator } from "./LinearMessageTranslator.js";
 import type {
 	LinearEventTransportConfig,

@@ -1,4 +1,4 @@
-import type { SlackSessionStartPlatformData } from "atmiko-core";
+import type { SlackSessionStartPlatformData } from "miko-core";
 import { describe, expect, it } from "vitest";
 import {
 	buildPromptText,

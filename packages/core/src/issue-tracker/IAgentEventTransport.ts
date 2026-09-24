@@ -48,7 +48,7 @@ export interface LinearProxyEventTransportConfig
 	platform: "linear";
 	verificationMode: "proxy";
 	/**
-	 * API key (ATMIKO_API_KEY) for Bearer token authentication.
+	 * API key (MIKO_API_KEY) for Bearer token authentication.
 	 */
 	secret: string;
 }
@@ -113,7 +113,7 @@ export interface AgentEventTransportEvents {
  * const transport = issueTracker.createEventTransport({
  *   fastifyServer: server.getFastifyInstance(),
  *   verificationMode: 'proxy',
- *   secret: process.env.ATMIKO_API_KEY
+ *   secret: process.env.MIKO_API_KEY
  * });
  *
  * // Register HTTP endpoints

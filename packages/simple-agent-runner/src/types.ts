@@ -1,7 +1,7 @@
 /**
  * Re-export types from core to maintain backward compatibility
  *
- * These types are now defined in atmiko-core to avoid circular dependencies.
+ * These types are now defined in miko-core to avoid circular dependencies.
  * Simple-agent-runner implements the interfaces defined in core.
  */
 export type {
@@ -9,4 +9,4 @@ export type {
 	ISimpleAgentQueryOptions as SimpleAgentQueryOptions,
 	ISimpleAgentResult as SimpleAgentResult,
 	ISimpleAgentRunnerConfig as SimpleAgentRunnerConfig,
-} from "atmiko-core";
+} from "miko-core";

@@ -1,22 +1,22 @@
 import { readFile } from "node:fs/promises";
 import { LinearClient } from "@linear/sdk";
-import { ClaudeRunner } from "atmiko-claude-runner";
-import { CodexRunner } from "atmiko-codex-runner";
-import type { LinearAgentSessionCreatedWebhook, RunnerType } from "atmiko-core";
+import { ClaudeRunner } from "miko-claude-runner";
+import { CodexRunner } from "miko-codex-runner";
+import type { LinearAgentSessionCreatedWebhook, RunnerType } from "miko-core";
 import {
 	isAgentSessionCreatedWebhook,
 	isAgentSessionPromptedWebhook,
-} from "atmiko-core";
-import { CursorRunner } from "atmiko-cursor-runner";
-import { GeminiRunner } from "atmiko-gemini-runner";
-import { LinearEventTransport } from "atmiko-linear-event-transport";
-import { OpenCodeRunner } from "atmiko-opencode-runner";
+} from "miko-core";
+import { CursorRunner } from "miko-cursor-runner";
+import { GeminiRunner } from "miko-gemini-runner";
+import { LinearEventTransport } from "miko-linear-event-transport";
+import { OpenCodeRunner } from "miko-opencode-runner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
 import type { EdgeWorkerConfig, RepositoryConfig } from "../src/types.js";
-import { TEST_ATMIKO_HOME } from "./test-dirs.js";
+import { TEST_MIKO_HOME } from "./test-dirs.js";
 
 // Mock fs/promises
 vi.mock("fs/promises", () => ({
@@ -27,16 +27,16 @@ vi.mock("fs/promises", () => ({
 }));
 
 // Mock dependencies
-vi.mock("atmiko-claude-runner");
-vi.mock("atmiko-codex-runner");
-vi.mock("atmiko-cursor-runner");
-vi.mock("atmiko-gemini-runner");
-vi.mock("atmiko-opencode-runner");
-vi.mock("atmiko-linear-event-transport");
+vi.mock("miko-claude-runner");
+vi.mock("miko-codex-runner");
+vi.mock("miko-cursor-runner");
+vi.mock("miko-gemini-runner");
+vi.mock("miko-opencode-runner");
+vi.mock("miko-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
-vi.mock("atmiko-core", async (importOriginal) => {
+vi.mock("miko-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as any;
 	return {
 		...actual,
@@ -215,7 +215,7 @@ describe("EdgeWorker - Runner Selection Based on Labels", () => {
 
 		// Mock AgentSessionManager
 		mockAgentSessionManager = {
-			createAtmikoAgentSession: vi.fn(),
+			createMikoAgentSession: vi.fn(),
 			getSession: vi.fn().mockReturnValue({
 				issueId: "issue-123",
 				workspace: { path: "/test/workspaces/TEST-123" },
@@ -268,7 +268,7 @@ Issue: {{issue_identifier}}`;
 
 		mockConfig = {
 			proxyUrl: "http://localhost:3000",
-			atmikoHome: TEST_ATMIKO_HOME,
+			mikoHome: TEST_MIKO_HOME,
 			repositories: [mockRepository],
 			linearWorkspaces: {
 				"test-workspace": { linearToken: "test-token" },
@@ -318,7 +318,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -349,7 +349,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -381,7 +381,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -411,7 +411,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -443,7 +443,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -471,7 +471,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -499,7 +499,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -527,7 +527,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -557,7 +557,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -586,7 +586,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -600,7 +600,7 @@ Issue: {{issue_identifier}}`;
 			expect(capturedRunnerConfig.workingDirectory).toBe(
 				"/test/workspaces/TEST-123",
 			);
-			expect(capturedRunnerConfig.atmikoHome).toBe(TEST_ATMIKO_HOME);
+			expect(capturedRunnerConfig.mikoHome).toBe(TEST_MIKO_HOME);
 			expect(capturedRunnerConfig.allowedTools).toEqual(["Read", "Edit"]);
 			expect(capturedRunnerConfig.model).toBeUndefined();
 		});
@@ -620,7 +620,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -667,7 +667,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -703,7 +703,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -733,7 +733,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -763,7 +763,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -798,7 +798,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -830,7 +830,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -861,7 +861,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -892,7 +892,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -923,7 +923,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -954,7 +954,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -988,7 +988,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -1019,7 +1019,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -1068,7 +1068,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -1117,7 +1117,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -1166,7 +1166,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -1199,7 +1199,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -1229,7 +1229,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 

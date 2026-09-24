@@ -4,8 +4,8 @@ import type {
 	HookCallbackMatcher,
 	HookEvent,
 	PostToolUseHookInput,
-} from "atmiko-claude-runner";
-import type { ILogger } from "atmiko-core";
+} from "miko-claude-runner";
+import type { ILogger } from "miko-core";
 
 /**
  * Tool names whose successful invocation may have produced a brand-new file

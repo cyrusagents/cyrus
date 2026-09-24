@@ -1,4 +1,4 @@
-import { AgentSessionStatus } from "atmiko-core";
+import { AgentSessionStatus } from "miko-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
 import type { IActivitySink } from "../src/sinks/IActivitySink";
@@ -21,7 +21,7 @@ describe("AgentSessionManager stop-session behavior", () => {
 
 		manager = new AgentSessionManager();
 
-		manager.createAtmikoAgentSession(
+		manager.createMikoAgentSession(
 			sessionId,
 			issueId,
 			{

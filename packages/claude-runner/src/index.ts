@@ -37,8 +37,8 @@ export {
 	type SandboxRequirementsResult,
 } from "./sandbox-requirements.js";
 export {
-	ATMIKO_SESSION_ENV,
 	buildBaseSessionEnv,
+	MIKO_SESSION_ENV,
 	normalizeMcpHttpTransport,
 } from "./session-env.js";
 export type {

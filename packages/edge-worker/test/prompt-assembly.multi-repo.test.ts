@@ -6,7 +6,7 @@
  * multi-repo base branch determination.
  */
 
-import { LinearIssueTrackerService } from "atmiko-linear-event-transport";
+import { LinearIssueTrackerService } from "miko-linear-event-transport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestWorker, scenario } from "./prompt-assembly-utils.js";
 

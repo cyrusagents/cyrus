@@ -21,7 +21,7 @@ async function main() {
 	// Configure the runner
 	const runner = new GeminiRunner({
 		// Required: Home directory for logs
-		atmikoHome: path.join(os.homedir(), ".atmiko"),
+		mikoHome: path.join(os.homedir(), ".miko"),
 
 		// Required: Working directory for Gemini to operate in
 		workingDirectory: process.cwd(),
@@ -156,7 +156,7 @@ async function streamingExample() {
 	console.log("\n\n=== GeminiRunner Streaming Example ===\n");
 
 	const runner = new GeminiRunner({
-		atmikoHome: path.join(os.homedir(), ".atmiko"),
+		mikoHome: path.join(os.homedir(), ".miko"),
 		workingDirectory: process.cwd(),
 		model: "gemini-2.5-flash",
 		autoApprove: true,

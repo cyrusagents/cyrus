@@ -1,4 +1,4 @@
-import type { ISimpleAgentRunner, SDKMessage } from "atmiko-core";
+import type { ISimpleAgentRunner, SDKMessage } from "miko-core";
 import {
 	InvalidResponseError,
 	SimpleAgentError,
@@ -129,10 +129,10 @@ export abstract class SimpleAgentRunner<T extends string>
 			);
 		}
 
-		if (!config.atmikoHome) {
+		if (!config.mikoHome) {
 			throw new SimpleAgentError(
 				SimpleAgentErrorCode.INVALID_CONFIG,
-				"atmikoHome is required",
+				"mikoHome is required",
 			);
 		}
 	}

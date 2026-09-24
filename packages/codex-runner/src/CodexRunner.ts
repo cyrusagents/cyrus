@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
-import type { IAgentRunner, IMessageFormatter, SDKMessage } from "atmiko-core";
+import type { IAgentRunner, IMessageFormatter, SDKMessage } from "miko-core";
 import { AppServerCodexBackend } from "./backend/AppServerCodexBackend.js";
 import type {
 	CodexBackend,
@@ -29,7 +29,7 @@ export declare interface CodexRunner {
 }
 
 /**
- * Adapts Codex to Atmiko's {@link IAgentRunner} contract.
+ * Adapts Codex to Miko's {@link IAgentRunner} contract.
  *
  * The runner is a thin orchestrator: it owns session lifecycle and delegates
  * configuration assembly ({@link CodexConfigBuilder}), skill staging

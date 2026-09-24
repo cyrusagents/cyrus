@@ -2,12 +2,12 @@
  * Types for GitLab event transport
  */
 
-import type { InternalMessage } from "atmiko-core";
 import type { FastifyInstance } from "fastify";
+import type { InternalMessage } from "miko-core";
 
 /**
  * Verification mode for GitLab webhooks
- * - 'proxy': Use ATMIKO_API_KEY Bearer token for authentication (self-hosted via CYHOST)
+ * - 'proxy': Use MIKO_API_KEY Bearer token for authentication (self-hosted via CYHOST)
  * - 'signature': Use X-Gitlab-Token secret token verification (direct webhooks)
  */
 export type GitLabVerificationMode = "proxy" | "signature";
@@ -20,7 +20,7 @@ export interface GitLabEventTransportConfig {
 	fastifyServer: FastifyInstance;
 	/** Verification mode: 'proxy' or 'signature' */
 	verificationMode: GitLabVerificationMode;
-	/** Secret for verification (ATMIKO_API_KEY for proxy, GITLAB_WEBHOOK_SECRET for signature) */
+	/** Secret for verification (MIKO_API_KEY for proxy, GITLAB_WEBHOOK_SECRET for signature) */
 	secret: string;
 	/** Optional IP allowlist for webhook source validation (only used in signature mode) */
 	ipAllowlist?: readonly string[];

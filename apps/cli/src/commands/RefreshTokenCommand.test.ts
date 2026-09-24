@@ -1,4 +1,4 @@
-import type { EdgeConfig } from "atmiko-core";
+import type { EdgeConfig } from "miko-core";
 import open from "open";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Application } from "../Application.js";

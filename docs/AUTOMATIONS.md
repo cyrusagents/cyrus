@@ -13,7 +13,7 @@ Single appointments use the browser's local date/time and save an absolute insta
 up to five future executions using the same calculation as the scheduler. Daylight-saving transitions
 follow cron-parser's timezone rules. Cron has a minimum granularity of one minute.
 
-Atmiko must remain running. Startup and long suspensions skip missed occurrences and advance to the
+Miko must remain running. Startup and long suspensions skip missed occurrences and advance to the
 next future time; there is no catch-up burst. Normal triggers allow up to 60 seconds of delay.
 A missed one-time appointment is marked **missed** and can still be run manually.
 
@@ -46,10 +46,10 @@ Temporary dispatch failures have up to three attempts. Linear attempts reuse one
 Direct execution is never relaunched after an ambiguous start. After a worker restart, unresolved work
 is reconciled or marked uncertain rather than blindly dispatched again.
 
-Schedules and runs are stored in `<atmikoHome>/automations/state.json` (schema version 1). One worker owns
+Schedules and runs are stored in `<mikoHome>/automations/state.json` (schema version 1). One worker owns
 this directory through a process lock. Writes are serialized and atomically replaced before dispatch.
 A storage failure stops new dispatches and appears on the page; repair storage and restart the worker.
-Back up this directory with your Atmiko data. Do not remove its lock while a worker is running.
+Back up this directory with your Miko data. Do not remove its lock while a worker is running.
 Credentials remain in the existing connections and are not included in schedule definitions or browser options.
 
 ## Local API

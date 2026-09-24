@@ -60,7 +60,7 @@ export function LogOptions({
 					>
 						<option value="all">All sources</option>
 						<option value="agent">Agent activity</option>
-						<option value="atmiko">Atmiko logs</option>
+						<option value="miko">Miko logs</option>
 					</select>
 				</label>
 				{[

@@ -1,6 +1,6 @@
 // Re-export useful types from dependencies
-export type { SDKMessage } from "atmiko-claude-runner";
-export { getAllTools, readOnlyTools } from "atmiko-claude-runner";
+export type { SDKMessage } from "miko-claude-runner";
+export { getAllTools, readOnlyTools } from "miko-claude-runner";
 export type {
 	EdgeConfig,
 	EdgeWorkerConfig,
@@ -9,7 +9,7 @@ export type {
 	UserAccessControlConfig,
 	UserIdentifier,
 	Workspace,
-} from "atmiko-core";
+} from "miko-core";
 export { AgentSessionManager } from "./AgentSessionManager.js";
 export type {
 	AskUserQuestionHandlerConfig,

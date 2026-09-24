@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "atmiko-monorepo",
+      "name": "miko-monorepo",
       "dependencies": {
         "@linear/sdk": "60.0.0",
       },

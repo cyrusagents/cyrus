@@ -1,6 +1,6 @@
 import type { SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
-import { ClaudeMessageFormatter } from "atmiko-claude-runner";
-import type { AgentPendingWork } from "atmiko-core";
+import { ClaudeMessageFormatter } from "miko-claude-runner";
+import type { AgentPendingWork } from "miko-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
 import type { IActivitySink } from "../src/sinks/IActivitySink";
@@ -58,7 +58,7 @@ describe("AgentSessionManager child completion with pending work", () => {
 			postActivity: vi.fn().mockResolvedValue({ activityId: "activity-1" }),
 			createAgentSession: vi.fn().mockResolvedValue("ext-session-1"),
 		};
-		manager.createAtmikoAgentSession(
+		manager.createMikoAgentSession(
 			childSessionId,
 			"child-issue",
 			{

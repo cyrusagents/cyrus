@@ -1,19 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { LinearClient } from "@linear/sdk";
-import { ClaudeRunner, type HookCallbackMatcher } from "atmiko-claude-runner";
-import type { LinearAgentSessionCreatedWebhook } from "atmiko-core";
+import { ClaudeRunner, type HookCallbackMatcher } from "miko-claude-runner";
+import type { LinearAgentSessionCreatedWebhook } from "miko-core";
 import {
 	isAgentSessionCreatedWebhook,
 	isAgentSessionPromptedWebhook,
-} from "atmiko-core";
-import { GeminiRunner } from "atmiko-gemini-runner";
-import { LinearEventTransport } from "atmiko-linear-event-transport";
+} from "miko-core";
+import { GeminiRunner } from "miko-gemini-runner";
+import { LinearEventTransport } from "miko-linear-event-transport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
 import type { EdgeWorkerConfig, RepositoryConfig } from "../src/types.js";
-import { TEST_ATMIKO_HOME } from "./test-dirs.js";
+import { TEST_MIKO_HOME } from "./test-dirs.js";
 
 // Mock fs/promises
 vi.mock("fs/promises", () => ({
@@ -24,14 +24,14 @@ vi.mock("fs/promises", () => ({
 }));
 
 // Mock dependencies
-vi.mock("atmiko-claude-runner");
-vi.mock("atmiko-codex-runner");
-vi.mock("atmiko-gemini-runner");
-vi.mock("atmiko-linear-event-transport");
+vi.mock("miko-claude-runner");
+vi.mock("miko-codex-runner");
+vi.mock("miko-gemini-runner");
+vi.mock("miko-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
-vi.mock("atmiko-core", async (importOriginal) => {
+vi.mock("miko-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as any;
 	return {
 		...actual,
@@ -156,7 +156,7 @@ describe("EdgeWorker - Screenshot Upload Guidance Hooks", () => {
 
 		// Mock AgentSessionManager
 		mockAgentSessionManager = {
-			createAtmikoAgentSession: vi.fn(),
+			createMikoAgentSession: vi.fn(),
 			getSession: vi.fn().mockReturnValue({
 				issueId: "issue-123",
 				workspace: { path: "/test/workspaces/TEST-123" },
@@ -209,7 +209,7 @@ Issue: {{issue_identifier}}`;
 
 		mockConfig = {
 			proxyUrl: "http://localhost:3000",
-			atmikoHome: TEST_ATMIKO_HOME,
+			mikoHome: TEST_MIKO_HOME,
 			repositories: [mockRepository],
 			linearWorkspaces: {
 				"test-workspace": { linearToken: "test-token" },
@@ -320,7 +320,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko work on this" },
+					comment: { body: "@miko work on this" },
 				},
 			};
 
@@ -350,7 +350,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko take a screenshot" },
+					comment: { body: "@miko take a screenshot" },
 				},
 			};
 
@@ -390,7 +390,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko take a screenshot" },
+					comment: { body: "@miko take a screenshot" },
 				},
 			};
 
@@ -428,7 +428,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko take a screenshot" },
+					comment: { body: "@miko take a screenshot" },
 				},
 			};
 
@@ -471,7 +471,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko take a screenshot with devtools" },
+					comment: { body: "@miko take a screenshot with devtools" },
 				},
 			};
 
@@ -503,7 +503,7 @@ Issue: {{issue_identifier}}`;
 						identifier: "TEST-123",
 						team: { key: "TEST" },
 					},
-					comment: { body: "@atmiko take a screenshot with devtools" },
+					comment: { body: "@miko take a screenshot with devtools" },
 				},
 			};
 
@@ -522,8 +522,7 @@ Issue: {{issue_identifier}}`;
 				devtoolsHook!,
 				"mcp__chrome-devtools__take_screenshot",
 				{
-					filePath:
-						"/home/atmiko/atmiko-workspaces/PF-738/step1-screenshot.png",
+					filePath: "/home/miko/miko-workspaces/PF-738/step1-screenshot.png",
 					fullPage: true,
 				},
 				{

@@ -1,10 +1,10 @@
 {
-	"name": "atmiko-config-updater",
+	"name": "miko-config-updater",
 	"version": "0.2.72",
-	"description": "Configuration update handlers for Atmiko agent",
+	"description": "Configuration update handlers for Miko agent",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/nexmoe/atmiko.git",
+		"url": "git+https://github.com/mikoagents/miko.git",
 		"directory": "packages/config-updater"
 	},
 	"type": "module",
@@ -29,7 +29,7 @@
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.30.0",
-		"atmiko-core": "workspace:*",
+		"miko-core": "workspace:*",
 		"fastify": "^5.12.1",
 		"zod": "^4.3.6"
 	},
@@ -42,8 +42,8 @@
 		"config",
 		"update",
 		"handler",
-		"atmiko"
+		"miko"
 	],
-	"author": "Atmiko Team",
+	"author": "Miko Team",
 	"license": "MIT"
 }

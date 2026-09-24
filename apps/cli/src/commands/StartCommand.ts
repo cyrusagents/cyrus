@@ -1,4 +1,4 @@
-import type { EdgeConfig } from "atmiko-core";
+import type { EdgeConfig } from "miko-core";
 import { BaseCommand } from "./ICommand.js";
 
 /**
@@ -37,7 +37,7 @@ export class StartCommand extends BaseCommand {
 				});
 			} else {
 				this.logger.info("\n⏸️  No repositories configured");
-				this.logger.info("   Add one with: atmiko self-add-repo <git-url>");
+				this.logger.info("   Add one with: miko self-add-repo <git-url>");
 			}
 			this.logger.divider(70);
 

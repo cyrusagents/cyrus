@@ -1,4 +1,4 @@
-import type { UserAccessControlConfig, UserIdentifier } from "atmiko-core";
+import type { UserAccessControlConfig, UserIdentifier } from "miko-core";
 
 /**
  * Result of an access check operation.

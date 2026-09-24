@@ -2,7 +2,7 @@
 /**
  * Export Zod schemas to JSON Schema files.
  *
- * Pipeline:  Zod (atmiko-core) → JSON Schema → Go structs (atmiko-update-server)
+ * Pipeline:  Zod (miko-core) → JSON Schema → Go structs (miko-update-server)
  *
  * Run:  npx tsx scripts/export-json-schema.ts
  * Or:   pnpm generate:json-schema
@@ -34,7 +34,7 @@ for (const { name, schema } of schemas) {
 
 	// Add a top-level $id for consumers that need it
 	const output = {
-		$id: `https://raw.githubusercontent.com/nexmoe/atmiko/main/packages/core/schemas/${name}.json`,
+		$id: `https://raw.githubusercontent.com/mikoagents/miko/main/packages/core/schemas/${name}.json`,
 		...jsonSchema,
 	};
 

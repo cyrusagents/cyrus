@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GitHubTokenStore } from "atmiko-core";
+import { GitHubTokenStore } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleRepository } from "../../src/handlers/repository.js";
 
@@ -30,19 +30,19 @@ vi.mock("node:child_process", () => ({
 }));
 
 describe("handleRepository clone auth selection (CYHOST-913)", () => {
-	let atmikoHome: string;
+	let mikoHome: string;
 
 	beforeEach(() => {
-		atmikoHome = mkdtempSync(join(tmpdir(), "atmiko-repo-handler-"));
+		mikoHome = mkdtempSync(join(tmpdir(), "miko-repo-handler-"));
 		executedCommands.length = 0;
 	});
 
 	afterEach(() => {
-		rmSync(atmikoHome, { recursive: true, force: true });
+		rmSync(mikoHome, { recursive: true, force: true });
 	});
 
 	it("uses plain git clone when pushed tokens cover the repo's org", async () => {
-		new GitHubTokenStore(atmikoHome).save([
+		new GitHubTokenStore(mikoHome).save([
 			{
 				installationId: "111",
 				organization: "OrgOne",
@@ -57,7 +57,7 @@ describe("handleRepository clone auth selection (CYHOST-913)", () => {
 				repository_url: "https://github.com/OrgOne/repo-a.git",
 				repository_name: "repo-a",
 			},
-			atmikoHome,
+			mikoHome,
 		);
 
 		expect(response.success).toBe(true);
@@ -66,7 +66,7 @@ describe("handleRepository clone auth selection (CYHOST-913)", () => {
 	});
 
 	it("uses git clone via single-token fallback for an unmatched org", async () => {
-		new GitHubTokenStore(atmikoHome).save([
+		new GitHubTokenStore(mikoHome).save([
 			{
 				installationId: "111",
 				organization: "OrgOne",
@@ -78,7 +78,7 @@ describe("handleRepository clone auth selection (CYHOST-913)", () => {
 
 		const response = await handleRepository(
 			{ repository_url: "https://github.com/SomeoneElse/repo-b.git" },
-			atmikoHome,
+			mikoHome,
 		);
 
 		expect(response.success).toBe(true);
@@ -91,7 +91,7 @@ describe("handleRepository clone auth selection (CYHOST-913)", () => {
 				repository_url: "https://github.com/OrgOne/repo-a.git",
 				repository_name: "repo-a",
 			},
-			atmikoHome,
+			mikoHome,
 		);
 
 		expect(response.success).toBe(true);
@@ -100,7 +100,7 @@ describe("handleRepository clone auth selection (CYHOST-913)", () => {
 	});
 
 	it("treats expired pushed tokens as absent and uses gh repo clone", async () => {
-		new GitHubTokenStore(atmikoHome).save([
+		new GitHubTokenStore(mikoHome).save([
 			{
 				installationId: "111",
 				organization: "OrgOne",
@@ -112,7 +112,7 @@ describe("handleRepository clone auth selection (CYHOST-913)", () => {
 
 		const response = await handleRepository(
 			{ repository_url: "https://github.com/OrgOne/repo-a.git" },
-			atmikoHome,
+			mikoHome,
 		);
 
 		expect(response.success).toBe(true);
@@ -120,7 +120,7 @@ describe("handleRepository clone auth selection (CYHOST-913)", () => {
 	});
 
 	it("verifies an existing repository without cloning", async () => {
-		const reposDir = join(atmikoHome, "repos");
+		const reposDir = join(mikoHome, "repos");
 		mkdirSync(join(reposDir, "repo-a", ".git"), { recursive: true });
 
 		const response = await handleRepository(
@@ -128,7 +128,7 @@ describe("handleRepository clone auth selection (CYHOST-913)", () => {
 				repository_url: "https://github.com/OrgOne/repo-a.git",
 				repository_name: "repo-a",
 			},
-			atmikoHome,
+			mikoHome,
 		);
 
 		expect(response.success).toBe(true);

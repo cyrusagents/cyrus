@@ -1,7 +1,7 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ILogger } from "atmiko-core";
+import type { ILogger } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SkillsPluginResolver } from "../src/SkillsPluginResolver.js";
 
@@ -15,8 +15,8 @@ function createTestLogger(): ILogger {
 	} as unknown as ILogger;
 }
 
-async function writeManifest(atmikoHome: string): Promise<void> {
-	const manifestDir = join(atmikoHome, "user-skills-plugin", ".claude-plugin");
+async function writeManifest(mikoHome: string): Promise<void> {
+	const manifestDir = join(mikoHome, "user-skills-plugin", ".claude-plugin");
 	await mkdir(manifestDir, { recursive: true });
 	await writeFile(
 		join(manifestDir, "plugin.json"),
@@ -26,11 +26,11 @@ async function writeManifest(atmikoHome: string): Promise<void> {
 }
 
 async function writeUserSkill(
-	atmikoHome: string,
+	mikoHome: string,
 	name: string,
 	scope?: Record<string, string[]>,
 ): Promise<void> {
-	const skillDir = join(atmikoHome, "user-skills-plugin", "skills", name);
+	const skillDir = join(mikoHome, "user-skills-plugin", "skills", name);
 	await mkdir(skillDir, { recursive: true });
 	await writeFile(
 		join(skillDir, "SKILL.md"),
@@ -79,9 +79,9 @@ describe("SkillsPluginResolver repo-local skill discovery", () => {
 
 	beforeEach(async () => {
 		const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-		home = join(tmpdir(), `atmiko-repolocal-home-${stamp}`);
-		repoA = join(tmpdir(), `atmiko-repolocal-repoA-${stamp}`);
-		repoB = join(tmpdir(), `atmiko-repolocal-repoB-${stamp}`);
+		home = join(tmpdir(), `miko-repolocal-home-${stamp}`);
+		repoA = join(tmpdir(), `miko-repolocal-repoA-${stamp}`);
+		repoB = join(tmpdir(), `miko-repolocal-repoB-${stamp}`);
 		await mkdir(home, { recursive: true });
 		await mkdir(repoA, { recursive: true });
 		await mkdir(repoB, { recursive: true });

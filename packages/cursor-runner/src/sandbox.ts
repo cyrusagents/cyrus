@@ -1,4 +1,4 @@
-// Translates the Atmiko / Claude `SandboxSettings` shape into the Cursor SDK's
+// Translates the Miko / Claude `SandboxSettings` shape into the Cursor SDK's
 // `.cursor/sandbox.json` schema (plus the env vars that need to be set on
 // `process.env` so child shell tools inherit cert-trust + proxy hints).
 //
@@ -35,7 +35,7 @@ import { resolve } from "node:path";
 /**
  * Subset of `@anthropic-ai/claude-agent-sdk`'s `SandboxSettings` we know how
  * to translate. Defined locally (not imported) to avoid a hard dep on
- * atmiko-claude-runner — the EdgeWorker is the only consumer that originates
+ * miko-claude-runner — the EdgeWorker is the only consumer that originates
  * a SandboxSettings, and a structural type is enough.
  */
 export interface CursorSandboxInput {
@@ -130,7 +130,7 @@ export function buildCursorSandboxJson(
 	if (network?.deniedDomains)
 		for (const d of network.deniedDomains) deny.add(d);
 
-	// When the Atmiko egress proxy is in use, child shell processes need to be
+	// When the Miko egress proxy is in use, child shell processes need to be
 	// able to reach the loopback proxy port. Add 127.0.0.1 / ::1 to the
 	// network allow-list so curl / npm / git can connect to it.
 	if (

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import type { EdgeWorkerConfig } from "../src/types.js";
-import { TEST_ATMIKO_HOME } from "./test-dirs.js";
+import { TEST_MIKO_HOME } from "./test-dirs.js";
 
 // Mock fs/promises
 vi.mock("fs/promises", () => ({
@@ -13,8 +13,8 @@ vi.mock("fs/promises", () => ({
 }));
 
 // Mock other dependencies
-vi.mock("atmiko-claude-runner");
-vi.mock("atmiko-codex-runner");
+vi.mock("miko-claude-runner");
+vi.mock("miko-codex-runner");
 vi.mock("@linear/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@linear/sdk")>();
 	return {
@@ -35,8 +35,8 @@ vi.mock("@linear/sdk", async (importOriginal) => {
 });
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
-vi.mock("atmiko-core", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("atmiko-core")>();
+vi.mock("miko-core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("miko-core")>();
 	return {
 		...actual,
 		PersistenceManager: vi.fn().mockImplementation(function () {
@@ -65,7 +65,7 @@ describe("EdgeWorker - Version Tag Extraction", () => {
 		mockConfig = {
 			proxyUrl: "http://localhost:3000",
 			webhookPort: 3456,
-			atmikoHome: TEST_ATMIKO_HOME,
+			mikoHome: TEST_MIKO_HOME,
 			repositories: [
 				{
 					id: "test-repo",
@@ -144,11 +144,11 @@ Repository: {{repository_name}}`;
 		vi.mocked(readFile).mockResolvedValue(templateWithVersion);
 
 		// Set log level to DEBUG so version logging (a debug message) is visible
-		const originalLogLevel = process.env.ATMIKO_LOG_LEVEL;
-		process.env.ATMIKO_LOG_LEVEL = "DEBUG";
+		const originalLogLevel = process.env.MIKO_LOG_LEVEL;
+		process.env.MIKO_LOG_LEVEL = "DEBUG";
 		// Recreate EdgeWorker with DEBUG log level
 		edgeWorker = new EdgeWorker(mockConfig);
-		process.env.ATMIKO_LOG_LEVEL = originalLogLevel;
+		process.env.MIKO_LOG_LEVEL = originalLogLevel;
 
 		// Spy on console.log to check for version logging
 		const logSpy = vi.spyOn(console, "log");

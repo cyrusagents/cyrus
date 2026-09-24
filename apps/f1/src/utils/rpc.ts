@@ -32,7 +32,7 @@ interface JsonRpcResponse<T = unknown> {
  * Get the RPC endpoint URL
  */
 export function getRpcUrl(): string {
-	const port = process.env.ATMIKO_PORT || "3600";
+	const port = process.env.MIKO_PORT || "3600";
 	return `http://localhost:${port}/cli/rpc`;
 }
 

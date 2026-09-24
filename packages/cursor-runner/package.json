@@ -1,10 +1,10 @@
 {
-	"name": "atmiko-cursor-runner",
+	"name": "miko-cursor-runner",
 	"version": "0.2.72",
-	"description": "Cursor Agent CLI process wrapper for Atmiko",
+	"description": "Cursor Agent CLI process wrapper for Miko",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/nexmoe/atmiko.git",
+		"url": "git+https://github.com/mikoagents/miko.git",
 		"directory": "packages/cursor-runner"
 	},
 	"type": "module",
@@ -22,8 +22,8 @@
 	},
 	"dependencies": {
 		"@cursor/sdk": "^1.0.31",
-		"atmiko-core": "workspace:*",
-		"atmiko-simple-agent-runner": "workspace:*"
+		"miko-core": "workspace:*",
+		"miko-simple-agent-runner": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
