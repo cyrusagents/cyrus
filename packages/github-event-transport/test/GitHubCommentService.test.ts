@@ -306,4 +306,118 @@ describe("GitHubCommentService", () => {
 			);
 		});
 	});
+
+	describe("hasRepoWriteAccess", () => {
+		const params = {
+			token: "ghs_test",
+			owner: "testorg",
+			repo: "my-repo",
+			username: "alice",
+		};
+
+		it("allows write permission", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					permission: "write",
+					role_name: "write",
+					permissions: { pull: true, push: true, admin: false },
+				}),
+			});
+
+			await expect(service.hasRepoWriteAccess(params)).resolves.toEqual({
+				allowed: true,
+				permission: "write",
+			});
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				"https://api.github.com/repos/testorg/my-repo/collaborators/alice/permission",
+				expect.objectContaining({
+					headers: expect.objectContaining({
+						Authorization: "Bearer ghs_test",
+					}),
+				}),
+			);
+		});
+
+		it("allows admin permission", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				json: async () => ({ permission: "admin", role_name: "admin" }),
+			});
+
+			await expect(service.hasRepoWriteAccess(params)).resolves.toEqual({
+				allowed: true,
+				permission: "admin",
+			});
+		});
+
+		it("allows maintain permission", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					permission: "maintain",
+					role_name: "maintain",
+				}),
+			});
+
+			await expect(service.hasRepoWriteAccess(params)).resolves.toEqual({
+				allowed: true,
+				permission: "maintain",
+			});
+		});
+
+		it("denies read permission", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					permission: "read",
+					role_name: "read",
+					permissions: { pull: true, push: false, admin: false },
+				}),
+			});
+
+			await expect(service.hasRepoWriteAccess(params)).resolves.toEqual({
+				allowed: false,
+				permission: "read",
+				reason: "insufficient_permission",
+			});
+		});
+
+		it("denies 404 (not a collaborator)", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: false,
+				status: 404,
+				statusText: "Not Found",
+			});
+
+			await expect(service.hasRepoWriteAccess(params)).resolves.toEqual({
+				allowed: false,
+				permission: null,
+				reason: "not_a_collaborator",
+			});
+		});
+
+		it("URL-encodes usernames with brackets", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				json: async () => ({ permission: "write" }),
+			});
+
+			await service.hasRepoWriteAccess({
+				...params,
+				username: "dependabot[bot]",
+			});
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				"https://api.github.com/repos/testorg/my-repo/collaborators/dependabot%5Bbot%5D/permission",
+				expect.any(Object),
+			);
+		});
+	});
 });

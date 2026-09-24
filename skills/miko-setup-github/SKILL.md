@@ -356,4 +356,7 @@ If webhooks were enabled:
 > ✓ App installed (installation ID: `<GITHUB_APP_INSTALLATION_ID>`)
 > ✓ Miko will respond to `@<GITHUB_BOT_USERNAME>` mentions in PR comments
 
+
+**Access control:** Only GitHub users with **write** (or higher: maintain/admin) permission on the repository can start a Miko session from an @mention or a changes-requested review. Read-only users and non-collaborators get a brief denial reply; no session is started.
+
 **Note:** The webhook URL will only respond successfully once Miko is running. If GitHub shows a webhook delivery failure during setup, it will retry automatically once Miko starts.

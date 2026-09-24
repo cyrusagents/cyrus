@@ -1684,6 +1684,39 @@ export class EdgeWorker extends EventEmitter {
 				return;
 			}
 
+			// Hard gate: only collaborators with write (push) or higher may start a session.
+			// Checked after repo config match and existing filters (bot ignore, mention /
+			// review trigger, prReviewTrigger). Fail closed when the token or API is unavailable.
+			if (!reactionToken) {
+				this.logger.warn(
+					`No GitHub token available to verify write access for @${commentAuthor} on ${repoFullName}; denying session`,
+				);
+				return;
+			}
+
+			const writeAccess = await this.gitHubCommentService.hasRepoWriteAccess({
+				token: reactionToken,
+				owner: extractRepoOwner(event),
+				repo: extractRepoName(event),
+				username: commentAuthor,
+			});
+
+			if (!writeAccess.allowed) {
+				this.logger.info(
+					`Denied GitHub session for @${commentAuthor} on ${repoFullName}#${prNumber}: ${writeAccess.reason} (permission=${writeAccess.permission ?? "none"})`,
+				);
+				await this.postGitHubReplyBody(
+					event,
+					reactionToken,
+					`@${commentAuthor} Write (collaborator) access on \`${repoFullName}\` is required to start a Miko session.`,
+				).catch((err: unknown) => {
+					this.logger.warn(
+						`Failed to post write-access denial: ${err instanceof Error ? err.message : err}`,
+					);
+				});
+				return;
+			}
+
 			const agentSessionManager = this.agentSessionManager;
 
 			if (!reservedGitHubPrSlot) {

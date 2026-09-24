@@ -195,6 +195,10 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 			addReaction: vi.fn().mockResolvedValue(901),
 			deleteReaction: vi.fn().mockResolvedValue(undefined),
 			isReviewFullyResolved: vi.fn().mockResolvedValue(false),
+			hasRepoWriteAccess: vi.fn().mockResolvedValue({
+				allowed: true,
+				permission: "write",
+			}),
 		};
 
 		vi.mocked(SharedApplicationServer).mockImplementation(function () {

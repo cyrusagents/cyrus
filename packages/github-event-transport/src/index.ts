@@ -5,6 +5,8 @@ export {
 } from "./GitHubAppTokenProvider.js";
 export type {
 	AddReactionParams,
+	CollaboratorPermissionParams,
+	CollaboratorPermissionResult,
 	DeleteReactionParams,
 	GitHubCommentResponse,
 	GitHubCommentServiceConfig,

@@ -85,6 +85,30 @@ export interface ReviewResolutionParams {
 	reviewId: number;
 }
 
+/**
+ * Parameters for checking a user's repository permission level.
+ */
+export interface CollaboratorPermissionParams {
+	/** GitHub installation access token */
+	token: string;
+	/** Repository owner */
+	owner: string;
+	/** Repository name */
+	repo: string;
+	/** GitHub login of the user to check */
+	username: string;
+}
+
+/**
+ * Result of a collaborator write-access check.
+ */
+export type CollaboratorPermissionResult =
+	| { allowed: true; permission: string }
+	| { allowed: false; permission: string | null; reason: string };
+
+/** Legacy permission values that grant push (write) or higher. */
+const WRITE_OR_HIGHER = new Set(["admin", "maintain", "write"]);
+
 type ReviewThreadsResponse = {
 	data?: {
 		repository?: {
@@ -329,5 +353,75 @@ export class GitHubCommentService {
 				`[GitHubCommentService] Failed to delete reaction: ${response.status} ${response.statusText}`,
 			);
 		}
+	}
+
+	/**
+	 * Check whether a user has write (push) or higher access on a repository.
+	 *
+	 * Uses GET /repos/{owner}/{repo}/collaborators/{username}/permission with the
+	 * same installation token used for reactions/comments. Treats admin, maintain,
+	 * and write (and permissions.push === true) as allowed; 404 / read / none /
+	 * triage / API errors as denied.
+	 *
+	 * @see https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user
+	 */
+	async hasRepoWriteAccess(
+		params: CollaboratorPermissionParams,
+	): Promise<CollaboratorPermissionResult> {
+		const { token, owner, repo, username } = params;
+		const url = `${this.apiBaseUrl}/repos/${owner}/${repo}/collaborators/${encodeURIComponent(username)}/permission`;
+
+		let response: Response;
+		try {
+			response = await fetch(url, {
+				headers: {
+					Authorization: `Bearer ${token}`,
+					Accept: "application/vnd.github+json",
+					"X-GitHub-Api-Version": "2022-11-28",
+				},
+				signal: AbortSignal.timeout(10_000),
+			});
+		} catch (error) {
+			return {
+				allowed: false,
+				permission: null,
+				reason: `request_failed: ${error instanceof Error ? error.message : String(error)}`,
+			};
+		}
+
+		if (response.status === 404) {
+			return {
+				allowed: false,
+				permission: null,
+				reason: "not_a_collaborator",
+			};
+		}
+
+		if (!response.ok) {
+			return {
+				allowed: false,
+				permission: null,
+				reason: `api_error_${response.status}`,
+			};
+		}
+
+		const data = (await response.json()) as {
+			permission?: string;
+			role_name?: string;
+			permissions?: { push?: boolean };
+		};
+		const permission = (data.permission ?? "none").toLowerCase();
+		const hasPush =
+			data.permissions?.push === true || WRITE_OR_HIGHER.has(permission);
+
+		if (hasPush) {
+			return { allowed: true, permission };
+		}
+
+		return {
+			allowed: false,
+			permission,
+			reason: "insufficient_permission",
+		};
 	}
 }
