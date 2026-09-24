@@ -62,11 +62,34 @@ node "$MIKO_ENTRY" self-add-repo https://github.com/yourorg/yourrepo.git
 node "$MIKO_ENTRY" start
 ```
 
-The launcher imports the source CLI in the same process, preserving Miko's normal signal and shutdown handling. Pass normal options such as `--miko-home` or `--env-file` through it. Once configured and running, `/status`, `/board`, and `/board/api/snapshot` are on the existing application port (3456 by default). Confirm your service command uses this launcher; a response from an older worker already occupying that port does not verify the new install.
+For `start` (including the default command), the launcher supervises a child worker, forwards shutdown signals, and coordinates automatic updates over a private IPC channel. Authentication, `--version`, and other one-shot commands still run directly and never check for updates. Pass normal options such as `--miko-home` or `--env-file` through the launcher. Once configured and running, `/status`, `/board`, and `/board/api/snapshot` are on the existing application port (3456 by default). Confirm your service command uses this launcher; a response from an older worker already occupying that port does not verify the new install. Only one managed worker may run per installation directory.
 
 For pm2, use `pm2 start "<MIKO_ENTRY>" --name miko --interpreter "<absolute Node path>" -- start`. For systemd or a Windows background task, use the absolute Node and launcher paths with `start`. Preserve existing environment and tunnel settings. Wait for an existing worker to become idle and stop it gracefully before switching the service command.
 
-## Update and recover
+## Automatic updates
+
+New default source installations follow the `main` branch of `mikoagents/miko` automatically. Keep using the stable installed launcher (or a `miko` wrapper pointing to it), including in launchd, pm2, systemd, or a Windows background task. Running a development checkout's `app.js` directly does not enable automatic updates.
+
+After startup, Miko waits roughly one to two minutes before its first check, then checks every six hours. The last check is persisted so service restarts do not repeatedly hit GitHub. Network or build failures are retried after fifteen minutes. Checks use the exact remote branch commit, not the npm package version.
+
+Updates build in an isolated release directory while the current worker keeps serving tasks. After verification, the launcher waits for an idle worker. The worker checks running agents, queued work, webhook processing and scheduled-task dispatches, then stops admitting new HTTP requests and pauses scheduling before gracefully saving state and exiting. New requests during this short restart receive HTTP 503 with a retry hint. An update never force-stops an active task; a continuously busy instance waits until it becomes idle.
+
+The candidate must report readiness within two minutes and stay running for thirty seconds. It keeps task admission and scheduling paused during this check, then reopens them after the launcher commits the version switch. If startup fails, the launcher restores the previous version and starts it again. Interrupted activation is also recovered on the next launch. A failed startup commit is skipped for 24 hours; a different branch head can be tried sooner. The current and previous releases are retained; older verified releases are cleaned up after activation. Config, credentials, worktrees and history are not replaced. Rollback covers program files and bundled skills, not arbitrary future data migrations.
+
+Default skills record a content baseline. Unmodified defaults follow the installed version, including when rolling back. Edited skills, extra files, user-created symlinks and intentional deletions are preserved. Legacy copies without a baseline are compared against the previous installed release when available; unmatched content is kept. User skills in `~/.miko/user-skills-plugin/` are untouched.
+
+Optional controls:
+
+- Set `MIKO_AUTO_UPDATE=false` in the service environment or Miko's `.env` and restart to disable checks.
+- Install with `--disable-auto-update` to disable updates in installation metadata.
+- `--ref <commit-or-other-ref>` pins the selected version by default; `--update-ref <branch>` explicitly enables following that branch. The default `--ref main` follows `main`.
+- Inspect the selected commit with `node "<launcher>" --installation`. Check `update-state.json` in the installation directory and `[AutoUpdate]` service logs for progress or failures.
+
+Node.js, Git, npm/npx, build tools and network access must remain available to the background service. These prerequisites and the operating system are not upgraded automatically.
+
+## Upgrade an existing installation or recover manually
+
+Older installations cannot acquire the updater by restarting: update the setup skills and run their installer once, then restart the service through the installed launcher. Future updates are automatic. Existing Atmiko/Cyrus installations should first follow the [Miko migration guide](./MIKO_MIGRATION.md).
 
 Running the installer again reuses a verified installation of the same immutable commit. To intentionally select another source version:
 
@@ -76,6 +99,6 @@ node "<miko-setup-prerequisites>/scripts/install-fork.mjs" --ref <commit-or-bran
 
 Branch names are fetched and resolved to a commit each time. Installation requires the board and archive build artifacts; it will not silently substitute an older official package if they are missing. Fetch/build/verification failure leaves the previous runtime selected. Failed checkout paths are printed for diagnosis. New builds do not modify the running release; restart the configured service after successful installation when it is idle.
 
-`current.json` identifies the active build; `previous.json` preserves the prior pointer. To roll back, gracefully stop the worker, replace `current.json` with `previous.json`, verify `--installation`, and restart through the same launcher. Keep old release directories while any process uses them. No release is deleted automatically.
+`current.json` identifies the active build; `previous.json` preserves the prior pointer. For a manual rollback, stop the service, set `MIKO_AUTO_UPDATE=false`, replace `current.json` with `previous.json`, clear any interrupted `update-state.json` and `pending.json`, verify `--installation`, and restart through the same launcher. The normal automatic path performs rollback without user intervention.
 
-A killed installer may leave `install.lock` containing its PID. Check that the installer has exited before removing that one lock file and retrying. Updating the skills does not automatically update a running Miko instance; rerun setup or the installer to apply the selected source version.
+A killed installer may leave `install.lock` containing its PID. The next attempt reclaims it only when that process has definitely exited; unknown or live locks are left alone. Manual installs and automatic activation share this lock. Downloading setup skills alone does not upgrade an old runtime; it must first be installed through the updated installer.

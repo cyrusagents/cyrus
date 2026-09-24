@@ -369,4 +369,14 @@ export class WorkerService {
 
 		this.logger.info("Shutdown complete");
 	}
+
+	prepareForUpdate(): boolean {
+		return (
+			!this.isShuttingDown && (this.edgeWorker?.prepareForUpdate() ?? false)
+		);
+	}
+
+	activateAfterUpdate(): void {
+		this.edgeWorker?.activateAfterUpdate();
+	}
 }

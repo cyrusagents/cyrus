@@ -55,6 +55,24 @@ export class SharedApplicationServer {
 	private tunnelClient: CloudflareTunnelClient | null = null;
 	private skipTunnel: boolean;
 	private logger: ILogger;
+	private updateDraining = false;
+	private activeMutations = new Set<FastifyRequest>();
+
+	/** Atomically stop admitting work only when existing HTTP work has drained. */
+	tryDrainForUpdate(): boolean {
+		if (
+			this.activeMutations.size ||
+			this.pendingApprovals.size ||
+			this.oauthCallbacks.size
+		)
+			return false;
+		this.updateDraining = true;
+		return true;
+	}
+
+	resumeAfterUpdate(): void {
+		this.updateDraining = false;
+	}
 
 	constructor(
 		port: number = 3456,
@@ -84,6 +102,27 @@ export class SharedApplicationServer {
 
 		this.app.addHook("onRequest", (_request, reply, done) => {
 			reply.header("X-Robots-Tag", ROBOTS_HEADER);
+			done();
+		});
+		this.app.addHook("onRequest", (request, reply, done) => {
+			if (this.updateDraining) {
+				void reply
+					.header("Retry-After", "30")
+					.code(503)
+					.send({ error: "Miko is restarting for an update" });
+				return;
+			}
+			// Read-only board/SSE requests must not keep updates waiting forever.
+			if (request.method !== "GET" && request.method !== "HEAD")
+				this.activeMutations.add(request);
+			done();
+		});
+		this.app.addHook("onResponse", (request, _reply, done) => {
+			this.activeMutations.delete(request);
+			done();
+		});
+		this.app.addHook("onRequestAbort", (request, done) => {
+			this.activeMutations.delete(request);
 			done();
 		});
 

@@ -411,6 +411,7 @@ export class ChatSessionHandler<TEvent> {
 
 	/** Returns true if any runner managed by this handler is currently busy */
 	isAnyRunnerBusy(): boolean {
+		if (this.pendingFollowups.size || this.pendingReplyEvents.size) return true;
 		for (const runner of this.sessionManager.getAllAgentRunners()) {
 			if (runner.isRunning()) {
 				return true;
@@ -799,8 +800,14 @@ export class ChatSessionHandler<TEvent> {
 			opencodeGlobalConfig: this.deps.getOpenCodeGlobalConfig?.(),
 			opencodeGlobalStateScope: this.deps.getOpenCodeGlobalStateScope?.(),
 			logger: sessionLogger,
-			onMessage: (message: SDKMessage) =>
-				this.handleAgentMessage(sessionId, message),
+			onMessage: async (message: SDKMessage) => {
+				this.deps.onWebhookStart();
+				try {
+					await this.handleAgentMessage(sessionId, message);
+				} finally {
+					this.deps.onWebhookEnd();
+				}
+			},
 			onError: (error: Error) => this.deps.onClaudeError(error),
 		});
 	}

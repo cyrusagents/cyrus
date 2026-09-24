@@ -28,7 +28,7 @@ import {
 	getDefaultWorktreesDir,
 	type RepositoryConfig,
 } from "miko-core";
-import { EdgeWorker } from "miko-edge-worker";
+import { EdgeWorker, registerManagedUpdates } from "miko-edge-worker";
 import type { SlackWebhookEvent } from "miko-slack-event-transport";
 import { bold, cyan, dim, gray, green, success } from "./src/utils/colors.js";
 
@@ -369,6 +369,12 @@ async function startServer(): Promise<void> {
 
 		// Start EdgeWorker
 		await edgeWorker.start();
+		registerManagedUpdates(
+			() => edgeWorker.prepareForUpdate(),
+			() => shutdown("managed launcher"),
+			process,
+			() => edgeWorker.activateAfterUpdate(),
+		);
 
 		// Display connection info
 		displayConnectionInfo();

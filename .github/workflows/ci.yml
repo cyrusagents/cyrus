@@ -51,6 +51,9 @@ jobs:
     
     - name: Run Tests
       run: pnpm -r test:run
+
+    - name: Test source installer and automatic updates
+      run: pnpm test:installer
     
     - name: Upload coverage
       uses: codecov/codecov-action@v7

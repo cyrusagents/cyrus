@@ -93,7 +93,9 @@ Check that the reported repository is `https://github.com/mikoagents/miko.git` a
 
 If installation fails, retain the printed checkout for diagnosis and fix the build; do not substitute `npm install -g miko`. A previous installation remains selected on fetch/build failure. An interrupted install may leave `install.lock`; verify that its recorded process has exited before removing only that lock file. Never rebuild or delete a source release currently used by a worker.
 
-For an intentional update to a different commit/branch, rerun with `--ref <ref>`. The resolved commit is recorded in `current.json`, and the prior pointer is saved as `previous.json`. Restart an existing service only after it is idle, using the launcher in Step 8. No release is deleted automatically.
+Default installations follow `main` automatically through the stable launcher: check after startup and every six hours, build separately, wait for idle, and roll back on startup failure. Confirm `--installation` reports `autoUpdate: true` and `updateRef: "main"`; keep the service pointed at the installed launcher, never a development worktree. Explain that locally customized default skills are preserved while unmodified defaults track the runtime. Older installations need one install and restart to receive this mechanism.
+
+For an intentional update to a different commit/ref, rerun with `--ref <ref>` (pins non-default refs unless `--update-ref <branch>` is also supplied). `--disable-auto-update`, or `MIKO_AUTO_UPDATE=false` in the service environment/Miko `.env`, opts out. The resolved commit is recorded in `current.json`, and the prior pointer is saved as `previous.json`. Restart an existing service only after it is idle, using the launcher in Step 8. Automatic updates retain the current and previous release and clean older verified releases. Inspect `update-state.json` and `[AutoUpdate]` logs if checks are deferred or failing.
 
 ## Step 5: Ensure ~/.miko directory exists
 

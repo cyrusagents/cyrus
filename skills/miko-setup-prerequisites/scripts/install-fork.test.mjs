@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
 	copyFile,
+	cp,
 	mkdir,
 	mkdtemp,
 	readFile,
@@ -30,7 +31,10 @@ async function fixture() {
 	const release = join(root, "releases/source-test");
 	const entry = join(release, "apps/cli/dist/src/app.js");
 	await mkdir(dirname(entry), { recursive: true });
-	await writeFile(entry, "console.log(JSON.stringify(process.argv.slice(2)));");
+	await writeFile(
+		entry,
+		"console.log(JSON.stringify(process.argv.slice(2))); if (process.send) process.send({type: 'miko:ready', autoUpdate: false}, () => process.disconnect());",
+	);
 	await mkdir(join(release, "node_modules"), { recursive: true });
 	for (const name of ["core", "edge-worker"]) {
 		const pkg = join(release, "packages", name);
@@ -63,6 +67,9 @@ async function fixture() {
 	};
 	await writeFile(join(root, "current.json"), JSON.stringify(info));
 	await copyFile(join(scripts, "miko.mjs"), join(root, "miko.mjs"));
+	await cp(scripts, join(release, "skills/miko-setup-prerequisites/scripts"), {
+		recursive: true,
+	});
 	return { root, release, entry, worker };
 }
 
@@ -145,4 +152,28 @@ test("invalid install input and a concurrent install preserve the selected runti
 		await readFile(join(root, "install.lock"), "utf8"),
 		"existing installer",
 	);
+});
+
+test("reinstalling an immutable pin records opt-out, or an explicit tracking branch", async () => {
+	const { root } = await fixture();
+	for (const tracking of [false, true]) {
+		const result = spawnSync(
+			process.execPath,
+			[
+				join(scripts, "install-fork.mjs"),
+				"--ref",
+				"a".repeat(40),
+				"--install-dir",
+				root,
+				...(tracking ? ["--update-ref", "main"] : []),
+			],
+			{ encoding: "utf8" },
+		);
+		assert.equal(result.status, 0, result.stderr);
+		const metadata = JSON.parse(
+			await readFile(join(root, "current.json"), "utf8"),
+		);
+		assert.equal(metadata.autoUpdate, tracking);
+		assert.equal(metadata.updateRef, tracking ? "main" : null);
+	}
 });

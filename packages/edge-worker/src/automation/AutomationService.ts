@@ -21,6 +21,7 @@ export class AutomationService {
 	private dispatches = new Set<Promise<void>>();
 	private polling = false;
 	private stopped = true;
+	private pausedForUpdate = false;
 	private lastReconcile = 0;
 	error = "";
 	constructor(
@@ -34,20 +35,34 @@ export class AutomationService {
 			},
 		);
 	}
-	async start(timers = true) {
+	async start(timers = true, paused = false) {
 		try {
 			await this.store.open();
-			this.stopped = false;
+			this.stopped = paused;
+			this.pausedForUpdate = paused;
 			for (const run of this.store.read().runs.filter(activeRun))
 				await this.reconcile(run.id);
-			await this.tick(Date.now(), true);
-			if (timers) this.scheduler.start();
+			if (!paused) {
+				await this.tick(Date.now(), true);
+				if (timers) this.scheduler.start();
+			}
 		} catch (error) {
 			this.error = String(error);
 		}
 	}
 	enableScheduling() {
+		if (this.pausedForUpdate) {
+			this.pausedForUpdate = false;
+			this.stopped = false;
+		}
 		if (!this.stopped) this.scheduler.start();
+	}
+	isBusy(): boolean {
+		return this.polling || this.dispatches.size > 0;
+	}
+	pauseScheduling(): void {
+		this.stopped = true;
+		this.scheduler.stop();
 	}
 	async stop() {
 		this.stopped = true;

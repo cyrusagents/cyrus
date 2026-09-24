@@ -56,8 +56,8 @@ export async function verifyRelease(directory) {
 	return { entrypoint, edgeWorker, core };
 }
 
-export async function readInstallation(root) {
-	const info = JSON.parse(await readFile(join(root, "current.json"), "utf8"));
+export async function readInstallation(root, filename = "current.json") {
+	const info = JSON.parse(await readFile(join(root, filename), "utf8"));
 	if (
 		info.repository !== "https://github.com/mikoagents/miko.git" ||
 		!/^[a-f0-9]{40}$/.test(info.commit) ||
@@ -74,12 +74,59 @@ export async function readInstallation(root) {
 }
 
 async function main() {
-	const info = await readInstallation(dirname(fileURLToPath(import.meta.url)));
+	const root = dirname(fileURLToPath(import.meta.url));
+	let trial;
+	try {
+		trial = JSON.parse(
+			await readFile(join(root, "update-state.json"), "utf8"),
+		).trial;
+	} catch (error) {
+		if (error.code !== "ENOENT") throw error;
+	}
+	// A crash during activation may leave the candidate incomplete. Load the
+	// known-good supervisor to recover before trying to import candidate code.
+	const info = await readInstallation(
+		root,
+		trial ? "previous.json" : "current.json",
+	);
 	if (process.argv[2] === "--installation") {
 		console.log(JSON.stringify(info, null, 2));
 		return;
 	}
-	// Import in this process so Miko owns signals and its normal shutdown hooks.
+	const args = process.argv.slice(2);
+	// One-shot commands (authentication, --version, --help) must never start
+	// background checks. The managed worker owns its ordinary shutdown hooks.
+	const commands = args.filter((arg, index) => {
+		if (index > 0 && ["--miko-home", "--env-file"].includes(args[index - 1]))
+			return false;
+		return !arg.startsWith("-");
+	});
+	if (
+		!args.some((arg) => ["--version", "-V", "--help", "-h"].includes(arg)) &&
+		(commands.length === 0 ||
+			(commands.length === 1 && commands[0] === "start"))
+	) {
+		const modulePath = join(
+			info.checkout,
+			"skills/miko-setup-prerequisites/scripts/auto-update.mjs",
+		);
+		const hasSupervisor = await access(modulePath).then(
+			() => true,
+			(error) => {
+				if (error.code === "ENOENT") return false;
+				throw error;
+			},
+		);
+		if (hasSupervisor) {
+			const { runManaged } = await import(pathToFileURL(modulePath).href);
+			process.exitCode = await runManaged(root, args);
+			return;
+		}
+		console.warn(
+			"This pinned release predates automatic updates; starting it directly.",
+		);
+	}
+	// Authentication and inspection commands run directly without supervision.
 	process.argv[1] = info.entrypoint;
 	await import(pathToFileURL(info.entrypoint).href);
 }

@@ -13,6 +13,7 @@
 		"format": "biome check --write --unsafe",
 		"test:packages": "pnpm --filter './packages/*' test",
 		"test:packages:run": "pnpm --filter './packages/*' test:run",
+		"test:installer": "node --test skills/miko-setup-prerequisites/scripts/install-fork.test.mjs skills/miko-setup-prerequisites/scripts/auto-update.test.mjs",
 		"test:apps": "pnpm --filter './apps/*' test",
 		"typecheck": "pnpm -r typecheck",
 		"prepare": "husky"

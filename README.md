@@ -46,6 +46,8 @@ Running `/miko-setup` starts a guided conversation with your coding agent. It wa
 
 You can run `/miko-setup` again to add integrations or update your configuration.
 
+New source installations automatically follow `main`: Miko checks in the background, builds updates while the current version keeps running, and restarts only when tasks are idle. A failed startup rolls back automatically. Unmodified default skills update with the runtime; your customized skills are preserved. Existing installations need one upgrade to receive this update mechanism. See [update controls and recovery](./docs/FORK_INSTALLATION.md#automatic-updates).
+
 See **[Fork Installation](./docs/FORK_INSTALLATION.md)** for requirements, the verified launcher, updates and source commit verification. The existing npm version number alone does not identify a fork build.
 
 Or follow the **[manual setup guide](./docs/SELF_HOSTING.md)** if you prefer.

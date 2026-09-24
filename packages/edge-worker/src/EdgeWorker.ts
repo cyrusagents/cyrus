@@ -264,6 +264,9 @@ export class EdgeWorker extends EventEmitter {
 	private automationAdapters?: AutomationAdapters;
 	private automationSessionStarts = new Set<string>();
 	private stoppingAutomations = false;
+	private updateTrial =
+		process.env.MIKO_MANAGED_WORKER === "1" &&
+		process.env.MIKO_UPDATE_TRIAL === "1";
 	private sharedApplicationServer: SharedApplicationServer;
 	private mikoHome: string;
 	/** Per-org GitHub App installation tokens pushed by miko-hosted (lazy file-backed reads) */
@@ -677,6 +680,7 @@ export class EdgeWorker extends EventEmitter {
 	 * Start the edge worker
 	 */
 	async start(): Promise<void> {
+		if (this.updateTrial) this.sharedApplicationServer.tryDrainForUpdate();
 		// If miko-hosted has pushed per-org GitHub App tokens previously, make
 		// sure the git credential helper and the per-invocation gh token
 		// resolver are wired up (idempotent). Covers the case where the
@@ -797,7 +801,7 @@ export class EdgeWorker extends EventEmitter {
 
 		// Start shared application server (this also starts Cloudflare tunnel if CLOUDFLARE_TOKEN is set)
 		await this.sharedApplicationServer.start();
-		this.automations?.enableScheduling();
+		if (!this.updateTrial) this.automations?.enableScheduling();
 	}
 
 	/**
@@ -822,7 +826,7 @@ export class EdgeWorker extends EventEmitter {
 			new AutomationStore(join(this.mikoHome, "automations")),
 			this.automationAdapters,
 		);
-		await this.automations.start(false);
+		await this.automations.start(false, this.updateTrial);
 		// 1. Platform-specific initialization
 		if (this.config.platform === "cli") {
 			// CLI mode: ensure a CLIIssueTrackerService exists for each repo workspace.
@@ -2952,6 +2956,8 @@ ${taskSection}`;
 	 * @returns "idle" if the process can be safely restarted, "busy" if work is in progress
 	 */
 	private computeStatus(): "idle" | "busy" {
+		if (this.automations?.isBusy()) return "busy";
+		if (this.runnerSlots.waiting > 0) return "busy";
 		// Busy if any webhooks are currently being processed
 		if (this.activeWebhookCount > 0) {
 			return "busy";
@@ -2960,7 +2966,12 @@ ${taskSection}`;
 		// Busy if any runner is actively running
 		const runners = this.agentSessionManager.getAllAgentRunners();
 		for (const runner of runners) {
-			if (runner.isRunning()) {
+			const pending = runner.getPendingWork?.();
+			if (
+				runner.isRunning() ||
+				pending?.sessionCrons.length ||
+				pending?.backgroundTasks.length
+			) {
 				return "busy";
 			}
 		}
@@ -2975,6 +2986,22 @@ ${taskSection}`;
 		}
 
 		return "idle";
+	}
+
+	/** Called over the launcher's private IPC channel, never from an HTTP route. */
+	prepareForUpdate(): boolean {
+		if (this.computeStatus() !== "idle") return false;
+		if (!this.sharedApplicationServer.tryDrainForUpdate()) return false;
+		// No await between the idle check and closing every admission source.
+		this.automations?.pauseScheduling();
+		return true;
+	}
+
+	activateAfterUpdate(): void {
+		if (!this.updateTrial) return;
+		this.updateTrial = false;
+		this.sharedApplicationServer.resumeAfterUpdate();
+		this.automations?.enableScheduling();
 	}
 
 	/**
@@ -3715,9 +3742,9 @@ ${taskSection}`;
 	 * Once migration is complete, legacy handlers will be removed.
 	 */
 	private async handleMessage(message: InternalMessage): Promise<void> {
-		// NOTE: activeWebhookCount is NOT tracked here because legacy webhook handlers
-		// already increment/decrement it for every event. Counting here would double-count.
-		// TODO: When legacy handlers are removed, restore activeWebhookCount tracking here.
+		// Legacy and message-bus handlers may finish at different times. Track
+		// both until completion so an update cannot interrupt the slower one.
+		this.activeWebhookCount++;
 
 		// Log verbose message info if enabled
 		if (process.env.MIKO_WEBHOOK_DEBUG === "true") {
@@ -3757,6 +3784,8 @@ ${taskSection}`;
 				error,
 			);
 			// Don't re-throw message processing errors to prevent application crashes
+		} finally {
+			this.activeWebhookCount--;
 		}
 	}
 
@@ -7346,9 +7375,14 @@ ${input.userComment}
 			sandboxSettings: this.sdkSandboxSettings ?? undefined,
 			egressCaCertPath: this.egressCaCertPath ?? undefined,
 			onMessage: (message: SDKMessage) => {
-				void this.handleClaudeMessage(sessionId, message, repository.id).catch(
-					(error) => this.logger.error("Message processing failed", error),
-				);
+				this.activeWebhookCount++;
+				void this.handleClaudeMessage(sessionId, message, repository.id)
+					.catch((error) =>
+						this.logger.error("Message processing failed", error),
+					)
+					.finally(() => {
+						this.activeWebhookCount--;
+					});
 			},
 			onError: (error: Error) => {
 				void this.handleClaudeError(error);

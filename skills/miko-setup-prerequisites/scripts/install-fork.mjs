@@ -4,9 +4,8 @@ import { existsSync } from "node:fs";
 import {
 	mkdir,
 	mkdtemp,
-	open,
 	readFile,
-	rename,
+	rm,
 	unlink,
 	writeFile,
 } from "node:fs/promises";
@@ -14,6 +13,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { acquireInstallLock, atomicWrite } from "./install-state.mjs";
 import { readInstallation, verifyRelease } from "./miko.mjs";
 
 const scripts = dirname(fileURLToPath(import.meta.url));
@@ -59,23 +59,20 @@ function pnpm(version, args, cwd, env) {
 	} else run("npx", command, cwd, env);
 }
 
-async function atomicWrite(path, content) {
-	const temporary = `${path}.${process.pid}.tmp`;
-	await writeFile(temporary, content, { flag: "wx", mode: 0o600 });
-	await rename(temporary, path);
-}
-
 async function install() {
 	const { values } = parseArgs({
 		options: {
 			ref: { type: "string", default: source.ref },
 			"install-dir": { type: "string", default: defaultRoot },
 			help: { type: "boolean", default: false },
+			"stage-only": { type: "boolean", default: false },
+			"disable-auto-update": { type: "boolean", default: false },
+			"update-ref": { type: "string" },
 		},
 	});
 	if (values.help) {
 		console.log(
-			"node install-fork.mjs [--ref <commit-or-branch>] [--install-dir <directory>]",
+			"node install-fork.mjs [--ref <commit-or-branch>] [--install-dir <directory>] [--disable-auto-update] [--update-ref <branch>] [--stage-only]",
 		);
 		console.log(`Source: ${source.repository} @ ${source.ref}`);
 		console.log(`Default directory: ${defaultRoot}`);
@@ -85,26 +82,19 @@ async function install() {
 		throw Error("Node.js 22 or later is required");
 	if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(values.ref))
 		throw Error("Invalid Git ref");
+	const updateRef =
+		values["update-ref"] ?? (values.ref === source.ref ? source.ref : null);
+	if (updateRef && !/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(updateRef))
+		throw Error("Invalid update branch");
 	const root = resolve(values["install-dir"]);
 	await mkdir(root, { recursive: true });
-	const lockPath = join(root, "install.lock");
-	let lock;
-	try {
-		lock = await open(lockPath, "wx");
-	} catch (error) {
-		if (error.code === "EEXIST")
-			throw Error(
-				"Another install may be running. Check " +
-					lockPath +
-					" before retrying.",
-			);
-		throw error;
-	}
+	const releaseLock = await acquireInstallLock(root);
 	let checkout;
+	let verificationHome;
 	try {
-		await lock.writeFile(String(process.pid));
 		// A verified immutable pin can be reused; branch overrides are fetched again.
 		if (
+			!values["stage-only"] &&
 			/^[a-f0-9]{40}$/.test(values.ref) &&
 			existsSync(join(root, "current.json"))
 		) {
@@ -113,6 +103,16 @@ async function install() {
 				await atomicWrite(
 					join(root, "miko.mjs"),
 					await readFile(join(scripts, "miko.mjs")),
+				);
+				const metadata = JSON.parse(
+					await readFile(join(root, "current.json"), "utf8"),
+				);
+				metadata.autoUpdate =
+					!values["disable-auto-update"] && updateRef !== null;
+				metadata.updateRef = updateRef;
+				await atomicWrite(
+					join(root, "current.json"),
+					`${JSON.stringify(metadata, null, 2)}\n`,
 				);
 				console.log(`Already installed and verified: ${previous.commit}`);
 				console.log(`Launcher: ${join(root, "miko.mjs")}`);
@@ -157,7 +157,7 @@ async function install() {
 		pnpm(version, ["--filter", "miko...", "build"], checkout, env);
 		const { entrypoint } = await verifyRelease(checkout);
 		// Version verification uses an empty config home, never existing credentials.
-		const verificationHome = await mkdtemp(join(root, "verify-"));
+		verificationHome = await mkdtemp(join(root, "verify-"));
 		run(
 			process.execPath,
 			[entrypoint, "--miko-home", verificationHome, "--version"],
@@ -167,6 +167,8 @@ async function install() {
 		const info = {
 			repository: source.repository,
 			requestedRef: values.ref,
+			autoUpdate: !values["disable-auto-update"] && updateRef !== null,
+			updateRef,
 			commit,
 			release: basename(checkout),
 			installedAt: new Date().toISOString(),
@@ -175,6 +177,13 @@ async function install() {
 		};
 		const json = `${JSON.stringify(info, null, 2)}\n`;
 		await writeFile(join(checkout, "fork-install.json"), json);
+		if (values["stage-only"]) {
+			await atomicWrite(join(root, "pending.json"), json);
+			console.log(
+				`Prepared Miko update ${commit}; current runtime is unchanged.`,
+			);
+			return;
+		}
 		if (existsSync(join(root, "current.json"))) {
 			await atomicWrite(
 				join(root, "previous.json"),
@@ -186,6 +195,12 @@ async function install() {
 			await readFile(join(scripts, "miko.mjs")),
 		);
 		await atomicWrite(join(root, "current.json"), json);
+		// An explicit install supersedes any unfinished background update.
+		for (const file of ["pending.json", "update-state.json"]) {
+			await unlink(join(root, file)).catch((error) => {
+				if (error.code !== "ENOENT") throw error;
+			});
+		}
 		console.log(`Installed mikoagents/miko @ ${commit}`);
 		console.log(`Launcher: ${join(root, "miko.mjs")}`);
 		console.log(`Verify: node "${join(root, "miko.mjs")}" --installation`);
@@ -194,12 +209,15 @@ async function install() {
 			"Existing services were not restarted. Use this launcher for all setup commands.",
 		);
 	} catch (error) {
-		if (checkout)
+		if (checkout && values["stage-only"])
+			await rm(checkout, { recursive: true, force: true });
+		else if (checkout)
 			console.error(`Incomplete source checkout retained at: ${checkout}`);
 		throw error;
 	} finally {
-		await lock.close();
-		await unlink(lockPath);
+		if (verificationHome)
+			await rm(verificationHome, { recursive: true, force: true });
+		await releaseLock();
 	}
 }
 

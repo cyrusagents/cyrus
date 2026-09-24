@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - Removed Pro / Team plans, paid onboarding, billing configuration, hosted-runtime prompts, and default connections to the former hosted service. Self-hosted integrations remain available. ([#10](https://github.com/nexmoe/atmiko/pull/10))
 
 ### Added
+- Source installations now update automatically in the background and restart when tasks are idle, with automatic rollback if the new version fails to start. Unmodified default skills update with the application while local customizations are preserved. ([#18](https://github.com/mikoagents/miko/pull/18))
 - Schedule repository tasks from the local board: run once, daily, weekly, or with cron, directly or through Linear. Manage schedules, preview execution times, and inspect run history in the Automations page; missed times and overlapping runs are skipped. ([#13](https://github.com/nexmoe/atmiko/pull/13))
 - GitHub PR commits created by Atmiko now credit `mikoagent` as a co-author, including follow-up fixes and changelog updates. ([#12](https://github.com/nexmoe/atmiko/pull/12))
 - Task cards show a Fast marker only when enabled; Cursor sessions retain the selected setting in task history. ([#6](https://github.com/nexmoe/atmiko/pull/6))

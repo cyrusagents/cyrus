@@ -199,6 +199,8 @@ Should return `{"status":"idle"}` or similar.
 
 Also load `/board` and `/board/api/snapshot` directly on the same loopback port. Confirm the service's executable/script points to the verified fork launcher; a working `/status` alone can belong to an older official instance. Report the installed source commit and board URL.
 
+For default source installs, verify `--installation` reports automatic updates enabled for `main`. The launcher supervises a child CLI worker; this is expected. Do not replace its service command with the child `app.js` path, since that bypasses automatic updates. Preserve an explicit opt-out or version pin selected by the user. Explain that background checks build updates without stopping work and apply them only after the worker is idle.
+
 > Then try assigning a Linear issue to Miko, or @mentioning it in Slack, to verify the full pipeline works!
 
 ## Completion

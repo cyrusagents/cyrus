@@ -44,8 +44,15 @@ async function fixture(adapterOverrides: Partial<AutomationAdapter> = {}) {
 	return { directory, adapter, store, service };
 }
 async function dispatched(service: AutomationService, id: string) {
-	await vi.waitFor(() =>
-		expect(service.runs(id)[0]?.status).not.toBe("dispatching"),
+	// Dispatch persists multiple fsync-backed transactions; shared CI disks can
+	// exceed waitFor's one-second default while the package suite runs in parallel.
+	await vi.waitFor(
+		() => {
+			const run = service.runs(id)[0];
+			expect(run).toBeDefined();
+			expect(run.status).not.toBe("dispatching");
+		},
+		{ timeout: 10000 },
 	);
 }
 
@@ -106,6 +113,26 @@ describe("automation time calculations", () => {
 });
 
 describe("durable automation dispatch", () => {
+	it("keeps due schedules paused during candidate probation until activation", async () => {
+		const { service, directory, adapter, store } = await fixture();
+		const definition = await service.save(input());
+		await store.transact((state) => {
+			state.definitions[0]!.nextRunAt = Date.now() - 1;
+		});
+		await service.stop();
+		const candidate = new AutomationService(
+			new AutomationStore(directory),
+			adapter,
+		);
+		cleanups.push(() => candidate.stop());
+		await candidate.start(false, true);
+		await candidate.tick(Date.now());
+		expect(adapter.dispatch).not.toHaveBeenCalled();
+		candidate.enableScheduling();
+		await candidate.tick(Date.now());
+		await dispatched(candidate, definition.id);
+		expect(adapter.dispatch).toHaveBeenCalledTimes(1);
+	});
 	it("persists the run before dispatch and deduplicates simultaneous manual requests", async () => {
 		const { service, directory, adapter } = await fixture();
 		vi.mocked(adapter.dispatch).mockImplementation(async (run) => {

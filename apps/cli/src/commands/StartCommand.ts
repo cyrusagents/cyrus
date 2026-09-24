@@ -1,4 +1,5 @@
 import type { EdgeConfig } from "miko-core";
+import { registerManagedUpdates } from "miko-edge-worker";
 import { BaseCommand } from "./ICommand.js";
 
 /**
@@ -43,6 +44,12 @@ export class StartCommand extends BaseCommand {
 
 			// Setup signal handlers for graceful shutdown
 			this.app.setupSignalHandlers();
+			registerManagedUpdates(
+				() => this.app.worker.prepareForUpdate(),
+				() => this.app.shutdown(),
+				process,
+				() => this.app.worker.activateAfterUpdate(),
+			);
 		} catch (error: any) {
 			this.logger.error(`Failed to start edge application: ${error.message}`);
 

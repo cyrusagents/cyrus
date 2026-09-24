@@ -122,6 +122,7 @@ jobs:
         run: |
           pnpm test:packages:run
           pnpm --filter miko test:run
+          pnpm test:installer
 
       - name: Type-check
         run: pnpm typecheck
