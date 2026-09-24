@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.268` to [`0.3.281`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03281), bringing Claude sessions to parity with Claude Code 2.1.281. The accumulated update improves resumed and forked session accounting, queued-message history, MCP startup and resource handling, active-turn side questions, permission cancellation, and session-reset metadata, and adds verbatim prompt delivery. Updated `@anthropic-ai/sdk` from `^0.125.0` to [`^0.128.0`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v0.128.0), adding Claude Opus 5.5 support, inline tool definitions, beta MCP tool-list pinning, and tool-runner fixes. The refreshed 30-tool Claude allowance lists remove the retired `TaskOutput` tool. ([CYPACK-1539](https://linear.app/ceedar/issue/CYPACK-1539/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1505](https://github.com/cyrusagents/cyrus/pull/1505), [cyrus-hosted#1101](https://github.com/cyrusagents/cyrus-hosted/pull/1101))
+
 ### Fixed
 - Slack and Zulip sessions no longer lose the Linear MCP server after a quiet day. Cyrus only refreshed its Linear access token when handling Linear events, so once the token was 24 hours old every chat session started with an expired token and Linear tools failed with 401. Cyrus now refreshes an expired token before each chat session starts. ([#1501](https://github.com/cyrusagents/cyrus/pull/1501))
 - Linear webhooks from all twelve published outbound IP addresses are now accepted, preventing missed events as Linear rolls out new source addresses. ([CYPACK-1518](https://linear.app/ceedar/issue/CYPACK-1518), [#1481](https://github.com/cyrusagents/cyrus/pull/1481))
