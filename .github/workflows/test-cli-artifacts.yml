@@ -1,0 +1,155 @@
+name: Cyrus CLI test artifacts
+
+run-name: Test artifacts ${{ inputs.version }} from ${{ inputs.candidate_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Full reviewed 40-character commit SHA in this repository (never a branch or tag)
+        required: true
+        type: string
+      version:
+        description: Exact prerelease version already committed in all release packages
+        required: true
+        type: string
+
+# Artifact upload uses the Actions artifact service, not repository write or OIDC.
+permissions:
+  contents: read
+
+jobs:
+  artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      REQUESTED_VERSION: ${{ inputs.version }}
+      CYRUS_SENTRY_DISABLED: "1"
+    steps:
+      - name: Require reviewed workflow and immutable candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$REQUESTED_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*$ ]]
+
+      - name: Check out reviewed artifact tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: tooling
+          persist-credentials: false
+
+      - name: Check out candidate from this repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24.18.0"
+          package-manager-cache: false
+
+      - name: Validate candidate with canonical release checks
+        shell: bash
+        run: |
+          node tooling/scripts/test-cli-artifacts.mjs validate candidate "$REQUESTED_VERSION" "$CANDIDATE_SHA"
+          echo "TEST_ARTIFACTS=$RUNNER_TEMP/cyrus-test-packages" >> "$GITHUB_ENV"
+          echo "TEST_BUNDLE=$RUNNER_TEMP/cyrus-test-bundle" >> "$GITHUB_ENV"
+
+      - name: Install the repository pnpm version
+        working-directory: candidate
+        shell: bash
+        run: |
+          PNPM_VERSION="$(node -p 'require("./package.json").packageManager.split("@")[1]')"
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
+      - name: Install locked dependencies
+        working-directory: candidate
+        run: pnpm install --frozen-lockfile --strict-peer-dependencies
+
+      - name: Audit dependencies
+        working-directory: candidate
+        run: pnpm audit --audit-level low
+
+      - name: Lint
+        working-directory: candidate
+        run: pnpm lint
+
+      - name: Build
+        working-directory: candidate
+        run: pnpm build
+
+      - name: Test packages and CLI
+        working-directory: candidate
+        run: |
+          pnpm test:packages:run
+          pnpm --filter cyrus-ai test:run
+
+      - name: Type-check
+        working-directory: candidate
+        run: pnpm typecheck
+
+      - name: Pack the complete canonical graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$TEST_ARTIFACTS"
+          node tooling/scripts/release-packages.mjs list > "$RUNNER_TEMP/release-packages.tsv"
+          while IFS=$'\t' read -r directory _package_name; do
+            pnpm --dir "candidate/$directory" pack --out "$TEST_ARTIFACTS/%s-%v.tgz"
+          done < "$RUNNER_TEMP/release-packages.tsv"
+          node tooling/scripts/test-cli-artifacts.mjs validate candidate "$REQUESTED_VERSION" "$CANDIDATE_SHA"
+
+      - name: Inspect and bundle all packages with SHA256 manifest
+        shell: bash
+        run: |
+          node tooling/scripts/test-cli-artifacts.mjs bundle "$REQUESTED_VERSION" "$CANDIDATE_SHA" "$GITHUB_SHA" "$TEST_ARTIFACTS" "$TEST_BUNDLE"
+
+      - name: Independently install and smoke-test the bundled CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bundle-smoke"
+          cd "$TEST_BUNDLE"
+          sha256sum --check SHA256SUMS
+          tar -xzf "cyrus-${REQUESTED_VERSION}-test-bundle.tar.gz" -C "$RUNNER_TEMP/bundle-smoke"
+          cd "$RUNNER_TEMP/bundle-smoke/cyrus-${REQUESTED_VERSION}-test-bundle"
+          sha256sum --check SHA256SUMS
+          NPM_CONFIG_CACHE="$RUNNER_TEMP/test-npm-cache" bash install.sh "$RUNNER_TEMP/test-cli-prefix"
+          "$RUNNER_TEMP/test-cli-prefix/bin/cyrus" --help > /dev/null
+
+      # Never upload on a failed validation, test, package inspection, or install.
+      - name: Upload complete verified test bundle
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: cyrus-${{ inputs.version }}-${{ inputs.candidate_sha }}
+          path: ${{ runner.temp }}/cyrus-test-bundle/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Record immutable source and download link
+        env:
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        shell: bash
+        run: |
+          {
+            echo "## Verified test artifact (no npm publication)"
+            echo "- Version: $REQUESTED_VERSION"
+            echo "- Candidate commit: $CANDIDATE_SHA"
+            echo "- Workflow commit: $GITHUB_SHA"
+            echo "- Artifact: $ARTIFACT_URL"
+            echo "- Actions ZIP SHA256: $ARTIFACT_DIGEST"
+            echo "- Retention: 14 days; download and preserve the bundle plus checksums."
+            echo '```'
+            cat "$TEST_BUNDLE/SHA256SUMS"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

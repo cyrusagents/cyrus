@@ -8,6 +8,70 @@ dependency order before publishing `cyrus-ai`.
 The publish boundary uses npm trusted publishing with GitHub Actions OIDC. It
 does not read or store a long-lived npm publish token.
 
+## Isolated test artifacts from a feature commit
+
+`test-cli-artifacts.yml` is a separate, manual artifact-only route. A maintainer
+dispatches the reviewed workflow from `main`, with a full 40-character commit SHA
+from this repository and an exact prerelease version already committed across
+the complete package graph. Review the candidate before dispatch: its build,
+test, and package scripts execute on the runner. This route is for trusted test
+candidates, not arbitrary pull requests or forks.
+
+The job has only `contents: read`, disables checkout credential persistence,
+and has no OIDC permission, publish credentials, npm publishing, tag creation,
+or GitHub release creation. Existing `release-cli.yml` and `publish-release.mjs`
+main-only publishing guards still apply to every npm release. Test artifacts
+do not require a feature-to-main merge or npm trust configuration changes.
+
+Before dispatch, prepare the candidate's versions, both changelogs, and F1 release
+test-drive report as required by `scripts/release-packages.mjs validate`. The
+candidate's canonical validator/package list must match the reviewed tooling on
+main; graph changes require a tooling review first. The workflow verifies the
+checkout SHA and clean tracked files before and after building. It runs frozen
+strict-peer installation, audit, lint, build, package and CLI tests, typecheck,
+and inspection of every packed package. Internal dependencies must resolve to
+the exact bundled version. It then extracts the completed bundle, verifies
+checksums, installs all packages into a disposable prefix, and checks CLI version
+and help before upload.
+
+For the CYPACK-1502 test candidate, **after the artifact workflow has been
+reviewed and merged**, a maintainer can dispatch:
+
+```bash
+gh workflow run test-cli-artifacts.yml --repo cyrusagents/cyrus --ref main \
+  -f candidate_sha=bd45d03ae855d4148257cfeb93d026f88d886626 \
+  -f version=0.2.73-cypack1502.0
+```
+
+This selects the version-only prerelease preparation built from feature revision
+`89337bab1c08c616ef58f55ef82bc2f53c52892a`. It does not merge that feature.
+The workflow summary records the full candidate SHA, workflow SHA, artifact URL,
+Actions ZIP digest, and outer bundle checksums. Preserve these with the acceptance
+report. Artifacts expire after 14 days; no npm version or distribution tag is
+created. A successful upload proves package validation and installation, not live
+provider, default-pin/shared-fallback, hosted UI, or review-enforcement acceptance.
+
+Download the successful run's artifact (replace `RUN_ID` with its numeric ID):
+
+```bash
+gh run download RUN_ID --repo cyrusagents/cyrus \
+  -n cyrus-0.2.73-cypack1502.0-bd45d03ae855d4148257cfeb93d026f88d886626 \
+  -D ./cyrus-test-download
+cd cyrus-test-download
+# Compare SHA256SUMS with the workflow summary first.
+shasum -a 256 --check SHA256SUMS
+tar -xzf cyrus-0.2.73-cypack1502.0-test-bundle.tar.gz
+cd cyrus-0.2.73-cypack1502.0-test-bundle
+bash install.sh /absolute/path/to/disposable-prefix
+/absolute/path/to/disposable-prefix/bin/cyrus --version
+```
+
+The bundle contains all 17 package tarballs, `manifest.json` (source and workflow
+SHAs, package identities, sizes and SHA256 hashes), `SHA256SUMS`, `INSTALL.md`, and
+`install.sh`. External dependencies download from npm during installation; all
+Cyrus packages come from the bundle. Use the installed CLI with a separate
+`--cyrus-home`; do not replace the running internal Cyrus installation or auth.
+
 ## One-time npm configuration
 
 Configure the trusted publisher on every package listed by
