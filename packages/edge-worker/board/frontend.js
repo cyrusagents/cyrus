@@ -1,3 +1,4 @@
+import { initializeAutomations } from "./automations.jsx";
 import "./layout.css";
 import { ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
 import { createLogViewer } from "./log-viewer.jsx";
@@ -136,9 +137,7 @@ function renderConnection() {
 				: state.status === "busy"
 					? "Atmiko busy"
 					: "Atmiko idle";
-	$("connection").className =
-		`connection${stale || !state?.online ? " off" : ""}`;
-	$("connection").lastElementChild.textContent = text;
+	$("connection").textContent = text;
 	$("connection").title =
 		text +
 		" · " +
@@ -155,22 +154,19 @@ function render(data) {
 	}
 	renderConnection();
 	$("warnings").textContent = (data.warnings || []).join(" ");
-	$("task-count").textContent = (data.tasks || []).length;
 	renderTasks();
 	renderLogs();
 	loadHistory(data.tasks?.find((task) => task.id === selected));
 }
 function renderTasks() {
-	const needle = $("task-search").value.trim().toLowerCase(),
-		runningOnly = $("running-only").checked;
+	const needle = $("task-search").value.trim().toLowerCase();
 	const tasks = (displayed?.tasks || []).filter(
 		(t) =>
-			(!runningOnly || t.status === "running") &&
-			(!needle ||
-				[t.issue, t.title, t.repositories?.join(" ")]
-					.join(" ")
-					.toLowerCase()
-					.includes(needle)),
+			!needle ||
+			[t.issue, t.title, t.repositories?.join(" ")]
+				.join(" ")
+				.toLowerCase()
+				.includes(needle),
 	);
 	const stale = isStale(displayed);
 	const key = JSON.stringify([
@@ -191,7 +187,6 @@ function renderTasks() {
 		]),
 		selected,
 		needle,
-		runningOnly,
 		stale,
 	]);
 	if (key === taskKey) return;
@@ -199,15 +194,7 @@ function renderTasks() {
 	$("tasks").replaceChildren();
 	if (!tasks.length) {
 		$("tasks").append(
-			element(
-				"div",
-				"empty",
-				needle
-					? "No matching tasks"
-					: runningOnly
-						? "No confirmed running tasks"
-						: "No tasks yet",
-			),
+			element("div", "empty", needle ? "No matching tasks" : "No tasks yet"),
 		);
 		return;
 	}
@@ -317,7 +304,6 @@ function renderLogs() {
 		scope: [selected, source, controls.errorsOnly].join("|"),
 	});
 }
-$("running-only").onchange = renderTasks;
 $("task-search").addEventListener("input", renderTasks);
 async function refresh() {
 	if (refreshing) return;
@@ -364,3 +350,10 @@ setInterval(() => {
 	renderConnection();
 	if (!paused && displayed && isStale(displayed)) renderTasks();
 }, 3000);
+
+initializeAutomations((sessionId) => {
+	selected = sessionId;
+	renderTasks();
+	renderLogs();
+	void loadHistory(displayed?.tasks?.find((task) => task.id === sessionId));
+});

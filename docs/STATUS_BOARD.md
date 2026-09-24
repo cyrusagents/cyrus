@@ -78,7 +78,9 @@ The existing `/status` response remains unchanged.
 
 The board and its data endpoints accept direct loopback connections with a localhost/loopback Host header.
 Remote connections, forwarded/proxied requests (including Cloudflare Tunnel), and foreign browser origins are rejected.
-Webhook and OAuth endpoints keep their existing behavior. The board is read-only.
+Webhook and OAuth endpoints keep their existing behavior. Task logs remain read-only.
+The **Automations** page manages scheduled tasks; its write endpoints require same-origin JSON requests.
+See [Scheduled tasks](./AUTOMATIONS.md) for setup, execution and recovery.
 
 Only selected session fields and visible output are sent to the browser. User/system prompts,
 reasoning blocks, runner/config objects, and workspace paths are not serialized as session metadata.

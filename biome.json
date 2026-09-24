@@ -21,6 +21,12 @@
 	},
 	"overrides": [
 		{
+			"includes": ["packages/edge-worker/board/fluid/**"],
+			"formatter": { "enabled": false },
+			"linter": { "enabled": false },
+			"assist": { "enabled": false }
+		},
+		{
 			"includes": ["**/*.test.ts", "**/test/**/*.ts"],
 			"linter": {
 				"rules": {

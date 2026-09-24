@@ -121,6 +121,8 @@ export interface ChatRunnerConfigInput {
  * Input for building an issue session runner config.
  */
 export interface IssueRunnerConfigInput {
+	/** Local repository tasks have no issue tracker or native Linear tools. */
+	standalone?: boolean;
 	session: AtmikoAgentSession;
 	repository: RepositoryConfig;
 	sessionId: string;
@@ -408,14 +410,17 @@ export class RunnerConfigBuilder {
 			input.repository.model ||
 			this.runnerSelector.getDefaultModelForRunner(runnerType);
 
-		const resolvedWorkspaceId =
-			input.linearWorkspaceId ??
-			input.requireLinearWorkspaceId(input.repository);
-		const mcpConfig = this.mcpConfigProvider.buildMcpConfig(
-			input.repository.id,
-			resolvedWorkspaceId,
-			input.sessionId,
-		);
+		const resolvedWorkspaceId = input.standalone
+			? undefined
+			: (input.linearWorkspaceId ??
+				input.requireLinearWorkspaceId(input.repository));
+		const mcpConfig = resolvedWorkspaceId
+			? this.mcpConfigProvider.buildMcpConfig(
+					input.repository.id,
+					resolvedWorkspaceId,
+					input.sessionId,
+				)
+			: {};
 		// Repo-override vs platform-default resolution for MCP config paths:
 		//   - If the routed repo has its own `allowedTools` override, it
 		//     also owns its own MCP config — use `repository.mcpConfigPath`
@@ -450,7 +455,10 @@ export class RunnerConfigBuilder {
 			disallowedTools: input.disallowedTools,
 			allowedDirectories: input.allowedDirectories,
 			...(additionalDirectories.length > 0 && { additionalDirectories }),
-			workspaceName: input.session.issue?.identifier || input.session.issueId,
+			workspaceName:
+				input.session.issue?.identifier ||
+				input.session.issueId ||
+				input.session.id,
 			atmikoHome: input.atmikoHome,
 			mcpConfigPath,
 			mcpConfig,
@@ -481,7 +489,8 @@ export class RunnerConfigBuilder {
 				this.buildSandboxConfig(input)),
 			// AskUserQuestion callback - only for Claude runner
 			...(runnerType === "claude" &&
-				input.createAskUserQuestionCallback && {
+				input.createAskUserQuestionCallback &&
+				resolvedWorkspaceId && {
 					onAskUserQuestion: input.createAskUserQuestionCallback(
 						input.sessionId,
 						resolvedWorkspaceId,

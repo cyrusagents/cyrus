@@ -153,6 +153,19 @@ import { ActivityPoster } from "./ActivityPoster.js";
 import { AgentSessionManager } from "./AgentSessionManager.js";
 import { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
 import { AttachmentService } from "./AttachmentService.js";
+import { AutomationAdapters } from "./automation/AutomationAdapters.js";
+import { AutomationService } from "./automation/AutomationService.js";
+import { AutomationStore } from "./automation/AutomationStore.js";
+import {
+	AUTOMATION_COMPLETION_INSTRUCTIONS,
+	automationCompletion,
+} from "./automation/completion.js";
+import {
+	type AutomationRun,
+	activeRun,
+	type RepositoryTaskRequest,
+	type RunUpdate,
+} from "./automation/types.js";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import { LiveChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import type { ChatSessionHandlerDeps } from "./ChatSessionHandler.js";
@@ -194,6 +207,7 @@ import { SlackChatAdapter } from "./SlackChatAdapter.js";
 import { registerStatusBoard } from "./StatusBoard.js";
 import type { IActivitySink } from "./sinks/IActivitySink.js";
 import { LinearActivitySink } from "./sinks/LinearActivitySink.js";
+import { NoopActivitySink } from "./sinks/NoopActivitySink.js";
 import { ToolPermissionResolver } from "./ToolPermissionResolver.js";
 import type { AgentSessionData, EdgeWorkerEvents } from "./types.js";
 import { UserAccessControl } from "./UserAccessControl.js";
@@ -244,6 +258,10 @@ export class EdgeWorker extends EventEmitter {
 	private cliRPCServer: CLIRPCServer | null = null; // CLI RPC server for CLI platform mode
 	private configUpdater: ConfigUpdater | null = null; // Single config updater for configuration updates
 	private persistenceManager: PersistenceManager;
+	private automations?: AutomationService;
+	private automationAdapters?: AutomationAdapters;
+	private automationSessionStarts = new Set<string>();
+	private stoppingAutomations = false;
 	private sharedApplicationServer: SharedApplicationServer;
 	private atmikoHome: string;
 	/** Per-org GitHub App installation tokens pushed by atmiko-hosted (lazy file-backed reads) */
@@ -777,12 +795,32 @@ export class EdgeWorker extends EventEmitter {
 
 		// Start shared application server (this also starts Cloudflare tunnel if CLOUDFLARE_TOKEN is set)
 		await this.sharedApplicationServer.start();
+		this.automations?.enableScheduling();
 	}
 
 	/**
 	 * Initialize and register components (routes) before server starts
 	 */
 	private async initializeComponents(): Promise<void> {
+		this.automationAdapters = new AutomationAdapters({
+			clientForWorkspace: (id) => {
+				const tracker = this.issueTrackers.get(id);
+				return tracker instanceof LinearIssueTrackerService
+					? tracker.getClient()
+					: undefined;
+			},
+			repositories: () => [...this.repositories.values()],
+			workspaces: () => this.config.linearWorkspaces ?? {},
+			repoTags: (text) =>
+				this.repositoryRouter.parseRepoTagsFromDescription(text),
+			startTask: (request) => this.startDirectRepositoryTask(request),
+			localState: (run) => this.automationLocalState(run),
+		});
+		this.automations = new AutomationService(
+			new AutomationStore(join(this.atmikoHome, "automations")),
+			this.automationAdapters,
+		);
+		await this.automations.start(false);
 		// 1. Platform-specific initialization
 		if (this.config.platform === "cli") {
 			// CLI mode: ensure a CLIIssueTrackerService exists for each repo workspace.
@@ -939,6 +977,13 @@ export class EdgeWorker extends EventEmitter {
 		// 4. Register /status endpoint for process activity monitoring
 		this.registerStatusEndpoint();
 		registerStatusBoard(this.sharedApplicationServer.getFastifyInstance(), {
+			automations: {
+				service: this.automations,
+				adapters: this.automationAdapters,
+			},
+			getSessionTitle: (id) =>
+				this.automations?.store.read().runs.find((r) => r.sessionId === id)
+					?.snapshot.name,
 			historyPath: join(this.atmikoHome, "state", "board-history.json"),
 			onSessionRemoved: (listener) => {
 				this.agentSessionManager.on("sessionRemoving", listener);
@@ -2987,6 +3032,8 @@ ${taskSection}`;
 	 * Stop the edge worker
 	 */
 	async stop(): Promise<void> {
+		this.stoppingAutomations = true;
+		await this.automations?.stop();
 		// Stop config file watcher
 		await this.configManager.stop();
 
@@ -4537,7 +4584,10 @@ ${taskSection}`;
 		this.sessionRepositories.set(sessionId, primaryRepo.id);
 		const activitySink = this.getActivitySinkForRepo(primaryRepo.id);
 		if (activitySink) {
-			agentSessionManager.setActivitySink(sessionId, activitySink);
+			agentSessionManager.setActivitySink(
+				sessionId,
+				this.automationActivitySink(activitySink),
+			);
 		}
 
 		// Post combined routing + base branch activity
@@ -4647,6 +4697,25 @@ ${taskSection}`;
 		repos: RepositoryConfig[],
 	): Promise<void> {
 		const issueId = webhook.agentSession?.issue?.id;
+		const automationRun = this.automations?.store
+			.read()
+			.runs.find((run) => run.issueId === issueId);
+		if (automationRun) {
+			if (
+				!activeRun(automationRun) ||
+				automationRun.status === "uncertain" ||
+				automationRun.executionClaimedAt !== undefined ||
+				this.automationSessionStarts.has(automationRun.id) ||
+				this.agentSessionManager.getSession(webhook.agentSession.id)
+			)
+				return;
+			this.automationSessionStarts.add(automationRun.id);
+			await this.automations!.update(automationRun.id, {
+				sessionId: webhook.agentSession.id,
+				executionClaimedAt: Date.now(),
+				status: "waiting_session",
+			});
+		}
 
 		// Check the cache first, as the agentSessionCreated webhook may have been triggered by an @mention
 		// on an issue that already has an agentSession and an associated repository.
@@ -4672,6 +4741,10 @@ ${taskSection}`;
 				);
 
 			if (routingResult.type === "none") {
+				await this.updateAutomationSession(webhook.agentSession.id, {
+					status: "failed",
+					message: "No repository matched the scheduled issue",
+				});
 				if (process.env.ATMIKO_WEBHOOK_DEBUG === "true") {
 					this.logger.info(
 						`No repository configured for webhook from workspace ${webhook.organizationId}`,
@@ -4682,6 +4755,10 @@ ${taskSection}`;
 
 			// Handle needs_selection case
 			if (routingResult.type === "needs_selection") {
+				await this.updateAutomationSession(webhook.agentSession.id, {
+					status: "awaiting_input",
+					message: "Repository routing requires selection in Linear",
+				});
 				await this.repositoryRouter.elicitUserRepositorySelection(
 					webhook,
 					routingResult.workspaceRepos,
@@ -4722,12 +4799,23 @@ ${taskSection}`;
 
 		// User access control check (use primary repo)
 		const primaryRepo = repositories[0]!;
-		const accessResult = this.checkUserAccess(webhook, primaryRepo);
+		// The locally saved automation is the initiating authority. Human-triggered sessions retain the normal allowlist check.
+		const accessResult = automationRun
+			? {
+					allowed: true,
+					userName: "Local automation",
+					reason: "Authorized in the local board",
+				}
+			: this.checkUserAccess(webhook, primaryRepo);
 		if (!accessResult.allowed) {
 			this.logger.info(
 				`User ${accessResult.userName} blocked from delegating: ${accessResult.reason}`,
 			);
 			await this.handleBlockedUser(webhook, primaryRepo, accessResult.reason);
+			await this.updateAutomationSession(webhook.agentSession.id, {
+				status: "failed",
+				message: accessResult.reason,
+			});
 			return;
 		}
 
@@ -4965,78 +5053,238 @@ ${taskSection}`;
 				);
 			}
 
-			// Create agent runner with system prompt from assembly
-			// buildAgentRunnerConfig now determines runner type from labels internally
-			const { config: runnerConfig, runnerType } =
-				await this.buildAgentRunnerConfig(
+			await this.executeRepositoryTask(
+				{
+					id: sessionId,
+					title: fullIssue.title,
+					instructions: fullIssue.description || "",
+					repositoryId: primaryRepo.id,
+					source: "linear",
+					issueContext: {
+						issueId: fullIssue.id,
+						workspaceId: linearWorkspaceId,
+					},
+				},
+				{
 					session,
-					primaryRepo,
-					sessionId,
-					assembly.systemPrompt,
+					repository: primaryRepo,
+					userPrompt: assembly.userPrompt,
+					systemPrompt: assembly.systemPrompt,
 					allowedTools,
-					allowedDirectories,
 					disallowedTools,
-					undefined, // resumeSessionId
-					labels, // Pass labels for runner selection and model override
-					fullIssue.description || undefined, // Description tags can override label selectors
-					undefined, // maxTurns
-					linearWorkspaceId,
-					this.buildSkillSessionContext(primaryRepo, fullIssue, session),
-				);
-
-			log.debug(
-				`Label-based runner selection for new session: ${runnerType} (session ${sessionId})`,
-			);
-
-			const runner = this.createRunnerForType(runnerType, runnerConfig);
-
-			// Store runner by comment ID
-			agentSessionManager.addAgentRunner(sessionId, runner);
-
-			// Save state after mapping changes
-			await this.savePersistedState();
-
-			// Emit events using full issue (core Issue type)
-			this.emit("session:started", fullIssue.id, fullIssue, primaryRepo.id);
-			this.config.handlers?.onSessionStart?.(
-				fullIssue.id,
-				fullIssue,
-				primaryRepo.id,
-			);
-
-			// Update runner with version information (if available)
-			// Note: updatePromptVersions is specific to ClaudeRunner
-			if (
-				systemPromptVersion &&
-				"updatePromptVersions" in runner &&
-				typeof runner.updatePromptVersions === "function"
-			) {
-				runner.updatePromptVersions({
+					allowedDirectories,
+					labels,
+					fullIssue,
 					systemPromptVersion,
-				});
-			}
-
-			// Log metadata for debugging
-			log.debug(
-				`Initial prompt built successfully - components: ${assembly.metadata.components.join(", ")}, type: ${assembly.metadata.promptType}, length: ${assembly.userPrompt.length} characters`,
+				},
 			);
-
-			// Start session - use streaming mode if supported for ability to add messages later
-			if (runner.supportsStreamingInput && runner.startStreaming) {
-				log.debug(`Starting streaming session`);
-				const sessionInfo = await runner.startStreaming(assembly.userPrompt);
-				log.debug(`Streaming session started: ${sessionInfo.sessionId}`);
-			} else {
-				log.debug(`Starting non-streaming session`);
-				const sessionInfo = await runner.start(assembly.userPrompt);
-				log.debug(`Non-streaming session started: ${sessionInfo.sessionId}`);
-			}
-			// Note: AgentSessionManager will be initialized automatically when the first system message
-			// is received via handleClaudeMessage() callback
 		} catch (error) {
+			await this.updateAutomationSession(sessionId, {
+				status: "failed",
+				message: error instanceof Error ? error.message : String(error),
+			});
 			log.error(`Error in prompt building/starting:`, error);
 			throw error;
 		}
+	}
+
+	/** Shared production runner setup for issue-backed and local repository work. */
+	private async executeRepositoryTask(
+		request: RepositoryTaskRequest,
+		input: {
+			session: AtmikoAgentSession;
+			repository: RepositoryConfig;
+			userPrompt: string;
+			systemPrompt?: string;
+			allowedTools: string[];
+			disallowedTools: string[];
+			allowedDirectories: string[];
+			labels?: string[];
+			fullIssue?: Issue;
+			systemPromptVersion?: string;
+		},
+	): Promise<void> {
+		const { session, repository } = input;
+		const { config, runnerType } = await this.buildAgentRunnerConfig(
+			session,
+			repository,
+			session.id,
+			input.systemPrompt,
+			input.allowedTools,
+			input.allowedDirectories,
+			input.disallowedTools,
+			undefined,
+			input.labels,
+			request.instructions,
+			undefined,
+			request.issueContext?.workspaceId,
+			this.buildSkillSessionContext(repository, input.fullIssue, session),
+			request.source === "automation" ? "automation" : "linear",
+		);
+		const runner = this.createRunnerForType(runnerType, config);
+		this.agentSessionManager.addAgentRunner(session.id, runner);
+		await this.savePersistedState();
+		await this.updateAutomationSession(session.id, { status: "running" });
+		if (input.fullIssue) {
+			this.emit(
+				"session:started",
+				input.fullIssue.id,
+				input.fullIssue,
+				repository.id,
+			);
+			this.config.handlers?.onSessionStart?.(
+				input.fullIssue.id,
+				input.fullIssue,
+				repository.id,
+			);
+		}
+		if (
+			input.systemPromptVersion &&
+			"updatePromptVersions" in runner &&
+			typeof runner.updatePromptVersions === "function"
+		) {
+			runner.updatePromptVersions({
+				systemPromptVersion: input.systemPromptVersion,
+			});
+		}
+		const automated = this.automations?.store
+			.read()
+			.runs.some((r) => r.sessionId === session.id);
+		const userPrompt = automated
+			? `${input.userPrompt}\n\n${AUTOMATION_COMPLETION_INSTRUCTIONS}`
+			: input.userPrompt;
+		if (runner.supportsStreamingInput && runner.startStreaming)
+			await runner.startStreaming(userPrompt);
+		else await runner.start(userPrompt);
+	}
+
+	private async startDirectRepositoryTask(
+		request: RepositoryTaskRequest,
+	): Promise<void> {
+		const repository = this.repositories.get(request.repositoryId);
+		if (!repository) throw new Error("Repository is unavailable");
+		const sessionId = `automation-${request.id}`;
+		if (this.agentSessionManager.getSession(sessionId)) return;
+		// GitService's legacy boundary accepts Issue, but local work supplies only
+		// repository/worktree metadata and never registers an external issue tracker.
+		const workItem = {
+			id: request.id,
+			identifier: `AUTO-${request.id}`,
+			title: request.title,
+			description: request.instructions,
+			branchName: `automation/${request.id}`,
+			parent: Promise.resolve(undefined),
+			labels: async () => ({ nodes: [] }),
+			inverseRelations: async () => ({ nodes: [] }),
+		} as unknown as Issue;
+		const workspace = this.config.handlers?.createWorkspace
+			? await this.config.handlers.createWorkspace(workItem, [repository])
+			: await this.gitService.createGitWorktree(workItem, [repository]);
+		const session = this.agentSessionManager.createChatSession(
+			sessionId,
+			workspace,
+			"automation",
+			[
+				{
+					repositoryId: repository.id,
+					branchName: workItem.branchName,
+					baseBranchName:
+						workspace.resolvedBaseBranches?.[repository.id]?.branch ??
+						repository.baseBranch,
+				},
+			],
+		);
+		this.sessionRepositories.set(sessionId, repository.id);
+		this.agentSessionManager.setActivitySink(
+			sessionId,
+			this.automationActivitySink(new NoopActivitySink(sessionId)),
+		);
+		await this.automations!.update(request.id, {
+			sessionId,
+			status: "running",
+		});
+		const allowedTools = this.toolPermissionResolver
+			.buildGithubAllowedTools(repository)
+			.filter((tool) => !tool.startsWith("mcp__linear"));
+		const userPrompt = `# ${request.title}\n\n${request.instructions}`;
+		const systemPrompt = `You are implementing a scheduled repository development task in ${repository.name}.
+Work in the isolated worktree ${workspace.path}, branch ${workItem.branchName}, based on ${repository.baseBranch}.
+Follow the repository instructions and available implementation and verification skills. Implement the requested change, run appropriate tests, commit and push the changes, and create or update a pull request. This is a complete development task; do not stop after planning or implementation alone.
+There is no external issue for this task. Do not query or update Linear. Return the PR URL and validation results in your final response. If no change is necessary, explain why without creating an empty PR. If blocked or clarification is required, explicitly describe the blocker; do not report successful completion.
+${await this.loadSharedInstructions()}`;
+		void this.executeRepositoryTask(request, {
+			session,
+			repository,
+			userPrompt,
+			systemPrompt,
+			allowedTools,
+			disallowedTools: this.buildDisallowedTools(repository),
+			allowedDirectories: [
+				repository.repositoryPath,
+				...this.gitService.getGitMetadataDirectoriesForWorkspace(workspace),
+			],
+		}).catch(async (error) => {
+			this.logger.error("Scheduled repository task failed", error);
+			await this.updateAutomationSession(sessionId, {
+				status: "failed",
+				message: error instanceof Error ? error.message : String(error),
+			}).catch((storageError) =>
+				this.logger.error(
+					"Unable to save scheduled task failure",
+					storageError,
+				),
+			);
+		});
+	}
+
+	private automationLocalState(run: AutomationRun): RunUpdate | undefined {
+		const session = this.agentSessionManager
+			.getAllSessions()
+			.find(
+				(s) =>
+					s.id === run.sessionId ||
+					s.id === `automation-${run.id}` ||
+					(run.issueId && s.issueId === run.issueId),
+			);
+		if (!session?.agentRunner) return undefined;
+		const pending = session.agentRunner.getPendingWork?.();
+		if (
+			session.agentRunner.isRunning() ||
+			pending?.sessionCrons.length ||
+			pending?.backgroundTasks.length
+		) {
+			return {
+				sessionId: session.id,
+				status: run.status === "awaiting_input" ? "awaiting_input" : "running",
+			};
+		}
+		return undefined;
+	}
+
+	private async updateAutomationSession(
+		sessionId: string,
+		patch: RunUpdate,
+	): Promise<void> {
+		if (!this.automations || this.stoppingAutomations) return;
+		const run = this.automations.store
+			.read()
+			.runs.find((r) => r.sessionId === sessionId && activeRun(r));
+		if (run) await this.automations.update(run.id, patch);
+	}
+
+	private automationActivitySink(sink: IActivitySink): IActivitySink {
+		return {
+			id: sink.id,
+			createAgentSession: (issueId) => sink.createAgentSession(issueId),
+			postActivity: async (sessionId, activity, options) => {
+				if (activity.type === "elicitation" && "body" in activity)
+					await this.updateAutomationSession(sessionId, {
+						status: "awaiting_input",
+						message: activity.body,
+					});
+				return sink.postActivity(sessionId, activity, options);
+			},
+		};
 	}
 
 	/**
@@ -5651,6 +5899,35 @@ ${taskSection}`;
 		_repositoryId: string,
 	): Promise<void> {
 		await this.agentSessionManager.handleClaudeMessage(sessionId, message);
+		if (message.type === "result") {
+			const session = this.agentSessionManager.getSession(sessionId);
+			const pending = session?.agentRunner?.getPendingWork?.();
+			const run = this.automations?.store
+				.read()
+				.runs.find((r) => r.sessionId === sessionId && activeRun(r));
+			if (
+				run &&
+				(run.status !== "awaiting_input" ||
+					message.subtype !== "success" ||
+					message.is_error) &&
+				!pending?.sessionCrons.length &&
+				!pending?.backgroundTasks.length
+			) {
+				const entries = this.agentSessionManager.getSessionEntries(sessionId);
+				const body =
+					entries
+						.filter((e) => e.type === "result" || e.type === "assistant")
+						.at(-1)?.content || "";
+				await this.updateAutomationSession(
+					sessionId,
+					message.subtype === "success" &&
+						!message.is_error &&
+						session?.status !== "error"
+						? automationCompletion(body)
+						: { status: "failed", message: body || "Execution failed" },
+				);
+			}
+		}
 	}
 
 	/**
@@ -6316,13 +6593,15 @@ ${taskSection}`;
 			session.opencodeSessionId ??
 			null;
 
-		const sessionSource = session.id.startsWith("github-")
-			? "github"
-			: session.id.startsWith("gitlab-")
-				? "gitlab"
-				: session.id.startsWith("slack-")
-					? "slack"
-					: (session.issueContext?.trackerId ?? "linear");
+		const sessionSource = session.id.startsWith("automation-")
+			? "automation"
+			: session.id.startsWith("github-")
+				? "github"
+				: session.id.startsWith("gitlab-")
+					? "gitlab"
+					: session.id.startsWith("slack-")
+						? "slack"
+						: (session.issueContext?.trackerId ?? "linear");
 
 		// For Linear-source sessions, `session.id` is already the Linear
 		// AgentSession id (they're literally the same UUID — the v3 rename
@@ -6982,7 +7261,7 @@ ${input.userComment}
 		 * `EdgeWorkerConfig.<platform>McpConfigs` override list applies.
 		 * Defaults to `"linear"` (the pre-platform-aware behavior).
 		 */
-		sessionPlatform: "linear" | "github" | "gitlab" = "linear",
+		sessionPlatform: "linear" | "github" | "gitlab" | "automation" = "linear",
 	): Promise<{ config: AgentRunnerConfig; runnerType: RunnerType }> {
 		const log = this.logger.withContext({
 			sessionId,
@@ -7004,6 +7283,7 @@ ${input.userComment}
 			);
 
 		const result = this.runnerConfigBuilder.buildIssueConfig({
+			standalone: sessionPlatform === "automation",
 			session,
 			repository,
 			sessionId,
@@ -7023,9 +7303,13 @@ ${input.userComment}
 			// MCP server set travel as a unit), and only falls through to
 			// this list when the repo inherits the platform allow-list.
 			platformMcpConfigOverrides:
-				sessionPlatform === "linear"
-					? this.config.linearMcpConfigs
-					: this.config.githubMcpConfigs,
+				sessionPlatform === "automation"
+					? repository.mcpConfigPath
+						? [repository.mcpConfigPath].flat()
+						: undefined
+					: sessionPlatform === "linear"
+						? this.config.linearMcpConfigs
+						: this.config.githubMcpConfigs,
 			strictMcpConfig: this.config.strictMcpConfig,
 			linearWorkspaceId,
 			atmikoHome: this.atmikoHome,
@@ -7045,9 +7329,22 @@ ${input.userComment}
 			sandboxSettings: this.sdkSandboxSettings ?? undefined,
 			egressCaCertPath: this.egressCaCertPath ?? undefined,
 			onMessage: (message: SDKMessage) => {
-				this.handleClaudeMessage(sessionId, message, repository.id);
+				void this.handleClaudeMessage(sessionId, message, repository.id).catch(
+					(error) => this.logger.error("Message processing failed", error),
+				);
 			},
-			onError: (error: Error) => this.handleClaudeError(error),
+			onError: (error: Error) => {
+				void this.handleClaudeError(error);
+				void this.updateAutomationSession(sessionId, {
+					status: "failed",
+					message: error.message,
+				}).catch((storageError) =>
+					this.logger.error(
+						"Unable to save scheduled task failure",
+						storageError,
+					),
+				);
+			},
 			createAskUserQuestionCallback: (sid, wid) =>
 				this.createAskUserQuestionCallback(sid, wid)!,
 			requireLinearWorkspaceId,
@@ -7084,12 +7381,21 @@ ${input.userComment}
 		return async (input, _sessionId, signal) => {
 			// Note: We use linearAgentSessionId (from closure) instead of the passed sessionId
 			// because the passed sessionId is the Claude session ID, not the Linear agent session ID
-			return this.askUserQuestionHandler.handleAskUserQuestion(
+			await this.updateAutomationSession(linearAgentSessionId, {
+				status: "awaiting_input",
+				message: "Waiting for an answer in Linear",
+			});
+			const answer = await this.askUserQuestionHandler.handleAskUserQuestion(
 				input,
 				linearAgentSessionId,
 				organizationId,
 				signal,
 			);
+			await this.updateAutomationSession(linearAgentSessionId, {
+				status: "running",
+				message: "",
+			});
+			return answer;
 		};
 	}
 
@@ -7599,6 +7905,10 @@ ${input.userComment}
 	): Promise<boolean> {
 		const log = this.logger.withContext({ sessionId });
 		const existingRunner = session.agentRunner;
+		await this.updateAutomationSession(sessionId, {
+			status: "running",
+			message: "",
+		});
 
 		// Handle running case - add message to existing stream (if supported)
 		if (

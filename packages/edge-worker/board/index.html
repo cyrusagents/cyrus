@@ -7,20 +7,12 @@
 		<link rel="stylesheet" href="/board/assets/app.css">
 	</head>
 	<body>
-		<main>
+		<nav id="board-navigation" class="board-navigation" aria-label="Board pages"></nav>
+		<section id="automations" class="automation-page" hidden aria-label="Scheduled tasks"></section>
+		<main id="tasks-page">
 			<aside class="sidebar" aria-label="Task list">
 				<div class="sidebar-tools">
-					<div class="sidebar-heading">
-						<div class="task-heading">
-							<h1>Tasks <span id="task-count" class="muted"></span></h1>
-							<div id="connection" class="connection off" role="status">
-								<i class="dot"></i><span class="sr-only">Connecting</span>
-							</div>
-						</div>
-						<label class="toggle"
-							><input id="running-only" type="checkbox">Running only</label
-						>
-					</div>
+					<div id="connection" class="sr-only" role="status">Connecting</div>
 					<label class="search"
 						><span class="sr-only">Search tasks</span>
 						<input

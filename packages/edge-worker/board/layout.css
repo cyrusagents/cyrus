@@ -4,6 +4,7 @@
 	background: #fff;
 	--line: #e6e6e6;
 	--muted: #929292;
+	--sidebar-gutter: 18px;
 }
 * {
 	box-sizing: border-box;
@@ -48,21 +49,9 @@ main {
 	border-right: 1px solid var(--line);
 }
 .sidebar-tools {
-	padding: 0 18px 17px;
+	padding: 17px var(--sidebar-gutter);
 	border-bottom: 1px solid var(--line);
 	flex: none;
-}
-.sidebar-heading {
-	height: 66px;
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: 10px;
-}
-.task-heading {
-	display: flex;
-	align-items: center;
-	gap: 8px;
 }
 h1 {
 	font-size: 16px;
@@ -95,21 +84,6 @@ h1 {
 .search input::placeholder {
 	color: #a0a0a0;
 }
-.toggle {
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	font-size: 11px;
-	white-space: nowrap;
-	color: #777;
-	cursor: pointer;
-}
-.toggle input {
-	accent-color: #444;
-	width: 13px;
-	height: 13px;
-	margin: 0;
-}
 .task-list {
 	flex: 1;
 	min-height: 0;
@@ -124,7 +98,7 @@ h1 {
 	position: relative;
 	text-align: left;
 	background: transparent;
-	padding: 19px;
+	padding: 19px var(--sidebar-gutter);
 	border: 0;
 	border-bottom: 1px solid var(--line);
 }
@@ -282,24 +256,6 @@ h1 {
 	min-width: 0;
 	min-height: 0;
 }
-.connection {
-	color: #358570;
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 11px;
-	white-space: nowrap;
-}
-.connection.off {
-	color: #b58a40;
-}
-.dot {
-	width: 6px;
-	height: 6px;
-	border-radius: 50%;
-	background: currentColor;
-	display: inline-block;
-}
 .warn {
 	padding: 10px 22px;
 	background: #fffbf0;
@@ -338,6 +294,9 @@ h1 {
 	}
 }
 @media (max-width: 700px) {
+	:root {
+		--sidebar-gutter: 13px;
+	}
 	.log-pane {
 		--board-gutter: 15px;
 		--row-gap: 7px;
@@ -347,13 +306,10 @@ h1 {
 		grid-template-columns: 220px minmax(0, 1fr);
 	}
 	.sidebar-tools {
-		padding: 0 13px 13px;
-	}
-	.sidebar-heading {
-		gap: 5px;
+		padding: 13px var(--sidebar-gutter);
 	}
 	.task {
-		padding: 16px 13px;
+		padding: 16px var(--sidebar-gutter);
 	}
 	.terminal {
 		padding: 0;
@@ -378,12 +334,8 @@ h1 {
 		padding: 0 14px;
 		height: 56px;
 	}
-	.sidebar-heading {
-		height: auto;
-		flex: 1;
-	}
 	.sidebar-tools > .search {
-		width: 42%;
+		width: 100%;
 	}
 	.task {
 		padding: 12px 15px;

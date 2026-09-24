@@ -431,6 +431,9 @@ describe("status board routes", () => {
 		expect(page.headers["content-security-policy"]).toContain(
 			"script-src 'self'",
 		);
+		expect(page.headers["content-security-policy"]).toContain(
+			"font-src 'self' data:",
+		);
 		const snapshot = await app.inject({
 			url: "/board/api/snapshot",
 			headers,

@@ -9,6 +9,9 @@ import {
 	subscribeLocalLogs,
 } from "atmiko-core";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { AutomationAdapters } from "./automation/AutomationAdapters.js";
+import { registerAutomationRoutes } from "./automation/AutomationRoutes.js";
+import type { AutomationService } from "./automation/AutomationService.js";
 import { BoardHistory, type BoardTask } from "./BoardHistory.js";
 
 const MAX_TASKS = 60;
@@ -28,6 +31,8 @@ export interface BoardLog {
 }
 
 export interface BoardOptions {
+	automations?: { service: AutomationService; adapters: AutomationAdapters };
+	getSessionTitle?(sessionId: string): string | undefined;
 	historyPath?: string;
 	onSessionRemoved?(
 		listener: (session: AtmikoAgentSession) => void,
@@ -382,7 +387,11 @@ export class StatusBoard {
 						session.issueContext?.issueIdentifier ??
 						"",
 				),
-				title: bounded(session.issue?.title ?? "Chat session"),
+				title: bounded(
+					session.issue?.title ??
+						this.options.getSessionTitle?.(session.id) ??
+						"Chat session",
+				),
 				status,
 				reason: running
 					? "This session's runner is executing."
@@ -485,7 +494,7 @@ export function registerStatusBoard(
 				.header("Referrer-Policy", "no-referrer")
 				.header(
 					"Content-Security-Policy",
-					"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'",
+					"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'none'",
 				);
 			return undefined;
 		});
@@ -494,6 +503,12 @@ export function registerStatusBoard(
 				reply.type(type!).send(await readFile(new URL(file!, assetsDirectory))),
 			);
 		}
+		if (options.automations)
+			registerAutomationRoutes(
+				scoped,
+				options.automations.service,
+				options.automations.adapters,
+			);
 		scoped.get("/board/api/snapshot", async () => board.snapshot());
 		scoped.get<{ Params: { sessionId: string } }>(
 			"/board/api/history/:sessionId",
