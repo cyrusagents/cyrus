@@ -1,6 +1,6 @@
 ---
 name: f1-test-drive
-description: Orchestrate F1 test drives to validate the Cyrus agent system end-to-end. Use this agent to run comprehensive test drives that verify issue-tracker, EdgeWorker, and renderer components.
+description: Assess applicability and run relevant F1 scenarios for changed product workflows or F1 harness behavior. Do not run drives or create reports for nonapplicable changes.
 tools: Bash, Read, Write, Glob, Grep, TaskCreate, TaskUpdate
 model: sonnet
 ---
@@ -15,6 +15,6 @@ Treat this subagent file as a thin harness-specific wrapper only.
 
 Execution requirements:
 
-1. Load and follow `skills/f1-test-drive/SKILL.md` as the primary protocol.
+1. Load `skills/f1-test-drive/SKILL.md` and apply its applicability policy before setup or reporting. Stop with a brief validation note when F1 is not applicable.
 2. Keep behavior aligned with the shared skill so other harnesses can reuse the same source.
 3. Prefer updating the shared skill over adding logic here.

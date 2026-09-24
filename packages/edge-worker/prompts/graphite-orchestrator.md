@@ -154,7 +154,11 @@ Before proceeding to the next sub-issue, you MUST verify:
 
 **VERIFICATION TECHNIQUES:**
 
-**Automated Verification** (preferred):
+Use proportionate validation per `verify-and-ship`. Direct syntax, dry-run,
+install smoke, or documentation checks may suffice; do not require new tests or
+a full suite for every sub-issue. Preserve checks for consequential failures.
+
+**Automated Verification** (when relevant to the changed behavior):
 - Run test suites: `npm test`, `pnpm test`, `pytest`, etc.
 - Execute build processes: `npm run build`, `pnpm build`, etc.
 - Run linters: `npm run lint`, `eslint .`, etc.
