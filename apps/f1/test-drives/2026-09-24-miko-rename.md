@@ -41,7 +41,9 @@
   `MIKO_REPOS_DIR`, the empty-config setup diagnostic, and rejection of the old
   home flag. Checks used an isolated temporary configuration directory.
 - Release metadata validation passed for all 17 renamed release packages.
-- Lint passed with 47 pre-existing warnings; no unsafe lint fixes were applied.
+- Initial lint passed with 47 pre-existing warnings. The commit hook later
+  standardized optional-chain guards in four runner wrappers; their affected
+  suites were rerun successfully.
 - Official npm audit reported no known vulnerabilities. The configured mirror
   lacked an audit endpoint, so the audit explicitly used `registry.npmjs.org`.
 - Skill symlinks resolve, and the diff has no whitespace errors.
