@@ -1,10 +1,10 @@
 {
-	"name": "atmiko-github-event-transport",
+	"name": "miko-github-event-transport",
 	"version": "0.2.72",
 	"description": "GitHub event transport for receiving and verifying forwarded GitHub webhooks",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/nexmoe/atmiko.git",
+		"url": "git+https://github.com/mikoagents/miko.git",
 		"directory": "packages/github-event-transport"
 	},
 	"type": "module",
@@ -21,7 +21,7 @@
 		"test:run": "vitest run"
 	},
 	"dependencies": {
-		"atmiko-core": "workspace:*",
+		"miko-core": "workspace:*",
 		"fastify": "^5.12.1"
 	},
 	"devDependencies": {

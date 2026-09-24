@@ -61,7 +61,7 @@ describe("Environment variable isolation", () => {
 
 	const makeConfig = (workingDirectory: string): ClaudeRunnerConfig => ({
 		workingDirectory,
-		atmikoHome: "/tmp/test-atmiko-home",
+		mikoHome: "/tmp/test-miko-home",
 	});
 
 	function mockSuccessfulQuery() {

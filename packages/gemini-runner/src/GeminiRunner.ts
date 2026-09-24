@@ -11,7 +11,7 @@ import {
 	type SDKResultMessage,
 	type SDKUserMessage,
 	StreamingPrompt,
-} from "atmiko-core";
+} from "miko-core";
 import { extractSessionId, geminiEventToSDKMessage } from "./adapters.js";
 import { GeminiMessageFormatter } from "./formatter.js";
 import {
@@ -60,7 +60,7 @@ export declare interface GeminiRunner {
  * @example
  * ```typescript
  * const runner = new GeminiRunner({
- *   atmikoHome: '/home/user/.atmiko',
+ *   mikoHome: '/home/user/.miko',
  *   workingDirectory: '/path/to/repo',
  *   model: 'gemini-2.5-flash',
  *   autoApprove: true
@@ -90,7 +90,7 @@ export class GeminiRunner extends EventEmitter implements IAgentRunner {
 	private readableLogStream: WriteStream | null = null;
 	private messages: SDKMessage[] = [];
 	private streamingPrompt: StreamingPrompt | null = null;
-	private atmikoHome: string;
+	private mikoHome: string;
 	// Delta message accumulation
 	private accumulatingMessage: SDKMessage | null = null;
 	private accumulatingRole: "user" | "assistant" | null = null;
@@ -110,11 +110,11 @@ export class GeminiRunner extends EventEmitter implements IAgentRunner {
 	constructor(config: GeminiRunnerConfig) {
 		super();
 		this.config = config;
-		this.atmikoHome = config.atmikoHome;
+		this.mikoHome = config.mikoHome;
 		// Use workspaceName for unique system prompt file paths (supports parallel execution)
 		const workspaceName = config.workspaceName || "default";
 		this.systemPromptManager = new SystemPromptManager(
-			config.atmikoHome,
+			config.mikoHome,
 			workspaceName,
 		);
 		// Use GeminiMessageFormatter for Gemini-specific tool names
@@ -814,7 +814,7 @@ export class GeminiRunner extends EventEmitter implements IAgentRunner {
 	 * Set up logging streams for this session
 	 */
 	private setupLogging(): void {
-		const logsDir = join(this.atmikoHome, "logs");
+		const logsDir = join(this.mikoHome, "logs");
 		const workspaceName =
 			this.config.workspaceName ||
 			(this.config.workingDirectory

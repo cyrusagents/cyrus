@@ -23,11 +23,11 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { SDKMessage, SDKResultMessage } from "atmiko-core";
+import type { SDKMessage, SDKResultMessage } from "miko-core";
 import { GeminiRunner } from "../dist/GeminiRunner.js";
 
 // Test configuration
-const TEST_ATMIKO_HOME = join(homedir(), ".atmiko-test-gemini");
+const TEST_MIKO_HOME = join(homedir(), ".miko-test-gemini");
 const TEST_WORKING_DIR = process.cwd();
 
 // All 4 main Gemini models to test
@@ -92,7 +92,7 @@ async function testStdinStreaming(): Promise<void> {
 	let resultMessage: SDKResultMessage | null = null;
 
 	const runner = new GeminiRunner({
-		atmikoHome: TEST_ATMIKO_HOME,
+		mikoHome: TEST_MIKO_HOME,
 		workingDirectory: TEST_WORKING_DIR,
 		model: "gemini-2.5-flash", // Use fast model for testing
 		onMessage: (message: SDKMessage) => {
@@ -155,7 +155,7 @@ async function testResultMessageCoercion(): Promise<void> {
 	let lastAssistantContent = "";
 
 	const runner = new GeminiRunner({
-		atmikoHome: TEST_ATMIKO_HOME,
+		mikoHome: TEST_MIKO_HOME,
 		workingDirectory: TEST_WORKING_DIR,
 		model: "gemini-2.5-flash",
 		onMessage: (message: SDKMessage) => {
@@ -247,7 +247,7 @@ async function testSingleTurnMode(): Promise<void> {
 		let resultMessage: SDKResultMessage | null = null;
 
 		const runner = new GeminiRunner({
-			atmikoHome: TEST_ATMIKO_HOME,
+			mikoHome: TEST_MIKO_HOME,
 			workingDirectory: TEST_WORKING_DIR,
 			model: shortoneModel, // Using -shortone alias
 			maxTurns: 1, // Explicit single-turn
@@ -302,7 +302,7 @@ async function testGetLastAssistantMessage(): Promise<void> {
 	);
 
 	const runner = new GeminiRunner({
-		atmikoHome: TEST_ATMIKO_HOME,
+		mikoHome: TEST_MIKO_HOME,
 		workingDirectory: TEST_WORKING_DIR,
 		model: "gemini-2.5-flash",
 	});
@@ -399,14 +399,14 @@ async function runTests(): Promise<void> {
 		process.exit(1);
 	}
 
-	// Create test atmiko home if it doesn't exist
-	if (!existsSync(TEST_ATMIKO_HOME)) {
-		mkdirSync(TEST_ATMIKO_HOME, { recursive: true });
+	// Create test miko home if it doesn't exist
+	if (!existsSync(TEST_MIKO_HOME)) {
+		mkdirSync(TEST_MIKO_HOME, { recursive: true });
 	}
 
 	console.log(colors.cyan("Prerequisites:"));
 	console.log(colors.green("   ✅ GEMINI_API_KEY environment variable set"));
-	console.log(colors.green(`   ✅ Test directory: ${TEST_ATMIKO_HOME}`));
+	console.log(colors.green(`   ✅ Test directory: ${TEST_MIKO_HOME}`));
 	console.log();
 
 	try {

@@ -6,8 +6,8 @@
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"paths": {
-			"atmiko-core": ["../../packages/core/dist/index.d.ts"],
-			"atmiko-edge-worker": [
+			"miko-core": ["../../packages/core/dist/index.d.ts"],
+			"miko-edge-worker": [
 				"../../packages/edge-worker/dist/edge-worker/src/index.d.ts"
 			]
 		}

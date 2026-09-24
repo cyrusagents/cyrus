@@ -27,11 +27,11 @@ function runHelper(args: RunArgs): { decision: any; stderr: string } {
 	tempDirs.push(dir);
 	const cursorDir = join(dir, ".cursor");
 	require("node:fs").mkdirSync(cursorDir, { recursive: true });
-	const helperCopy = join(cursorDir, "atmiko-permission-check.mjs");
+	const helperCopy = join(cursorDir, "miko-permission-check.mjs");
 	require("node:fs").copyFileSync(HELPER, helperCopy);
 	require("node:fs").chmodSync(helperCopy, 0o755);
 	writeFileSync(
-		join(cursorDir, "atmiko-permissions.json"),
+		join(cursorDir, "miko-permissions.json"),
 		JSON.stringify({
 			workspace: dir,
 			allow: args.allow ?? [],

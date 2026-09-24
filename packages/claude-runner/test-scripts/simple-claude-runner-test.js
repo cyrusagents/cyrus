@@ -35,8 +35,8 @@ async function main() {
 		// Working directory for Claude to operate in
 		workingDirectory: "/Users/agentops/code/hello-world-project",
 
-		// Atmiko home directory for logs and state
-		atmikoHome: "/tmp/simple-test-atmiko-home",
+		// Miko home directory for logs and state
+		mikoHome: "/tmp/simple-test-miko-home",
 
 		// Use tools matching hello-world config
 		allowedTools: [

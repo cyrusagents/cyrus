@@ -1,7 +1,7 @@
 import {
 	isIssueStateIdUpdateWebhook,
 	isIssueTitleOrDescriptionUpdateWebhook,
-} from "atmiko-core";
+} from "miko-core";
 import { describe, expect, it } from "vitest";
 
 describe("isIssueStateIdUpdateWebhook type guard", () => {

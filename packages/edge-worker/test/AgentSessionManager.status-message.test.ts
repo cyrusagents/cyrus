@@ -1,4 +1,4 @@
-import type { SDKStatusMessage } from "atmiko-claude-runner";
+import type { SDKStatusMessage } from "miko-claude-runner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
 import type { IActivitySink } from "../src/sinks/IActivitySink";
@@ -22,7 +22,7 @@ describe("AgentSessionManager - Status Messages", () => {
 		manager = new AgentSessionManager();
 
 		// Create a test session
-		manager.createAtmikoAgentSession(
+		manager.createMikoAgentSession(
 			sessionId,
 			issueId,
 			{

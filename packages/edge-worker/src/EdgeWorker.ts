@@ -5,32 +5,32 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { LinearClient } from "@linear/sdk";
+import { Sessions, streamableHttp } from "fastify-mcp";
 import type {
 	McpServerConfig,
 	SDKMessage,
 	SessionStore,
 	WarmQuery,
-} from "atmiko-claude-runner";
+} from "miko-claude-runner";
 import {
 	buildBaseSessionEnv,
 	ClaudeRunner,
 	HttpSessionStore,
 	normalizeMcpHttpTransport,
-} from "atmiko-claude-runner";
-import { getAtmikoAppUrl } from "atmiko-cloudflare-tunnel-client";
-import { CodexRunner } from "atmiko-codex-runner";
+} from "miko-claude-runner";
+import { getMikoAppUrl } from "miko-cloudflare-tunnel-client";
+import { CodexRunner } from "miko-codex-runner";
 import {
 	ConfigUpdater,
 	ensureGhTokenResolver,
 	ensureGitHubCredentialHelper,
-} from "atmiko-config-updater";
+} from "miko-config-updater";
 import type {
 	AgentActivityCreateInput,
 	AgentEvent,
 	AgentRunnerConfig,
 	AgentSessionCreatedWebhook,
 	AgentSessionPromptedWebhook,
-	AtmikoAgentSession,
 	BaseBranchResolution,
 	ContentUpdateMessage,
 	EdgeWorkerConfig,
@@ -44,6 +44,7 @@ import type {
 	IssueStateChangeMessage,
 	IssueUnassignedWebhook,
 	IssueUpdateWebhook,
+	MikoAgentSession,
 	RepositoryConfig,
 	RunnerType,
 	SerializableEdgeWorkerState,
@@ -54,7 +55,7 @@ import type {
 	Webhook,
 	WebhookAgentSession,
 	WebhookIssue,
-} from "atmiko-core";
+} from "miko-core";
 import {
 	CLIIssueTrackerService,
 	CLIRPCServer,
@@ -80,9 +81,9 @@ import {
 	requireLinearWorkspaceId,
 	resolvePath,
 	WebhookIpValidator,
-} from "atmiko-core";
-import { CursorRunner } from "atmiko-cursor-runner";
-import { GeminiRunner } from "atmiko-gemini-runner";
+} from "miko-core";
+import { CursorRunner } from "miko-cursor-runner";
+import { GeminiRunner } from "miko-gemini-runner";
 import {
 	extractCommentAuthor,
 	extractCommentBody,
@@ -107,8 +108,8 @@ import {
 	isPullRequestReviewCommentPayload,
 	isPullRequestReviewPayload,
 	stripMention,
-} from "atmiko-github-event-transport";
-import type { GitLabWebhookEvent } from "atmiko-gitlab-event-transport";
+} from "miko-github-event-transport";
+import type { GitLabWebhookEvent } from "miko-gitlab-event-transport";
 import {
 	extractDiscussionId,
 	extractSessionKey as extractGitLabSessionKey,
@@ -126,29 +127,28 @@ import {
 	GitLabEventTransport,
 	isNoteOnMergeRequest,
 	stripMention as stripGitLabMention,
-} from "atmiko-gitlab-event-transport";
+} from "miko-gitlab-event-transport";
 import {
 	LinearEventTransport,
 	LinearIssueTrackerService,
 	type LinearOAuthConfig,
-} from "atmiko-linear-event-transport";
+} from "miko-linear-event-transport";
 import {
-	type AtmikoToolsOptions,
-	createAtmikoToolsServer,
 	createFetchFailureModesClient,
+	createMikoToolsServer,
 	type FailureModesHttpClient,
+	type MikoToolsOptions,
 	type ResolvedSession,
-} from "atmiko-mcp-tools";
-import { OpenCodeRunner } from "atmiko-opencode-runner";
+} from "miko-mcp-tools";
+import { OpenCodeRunner } from "miko-opencode-runner";
 import {
 	SlackEventTransport,
 	type SlackWebhookEvent,
-} from "atmiko-slack-event-transport";
+} from "miko-slack-event-transport";
 import {
 	ZulipEventTransport,
 	type ZulipWebhookEvent,
-} from "atmiko-zulip-event-transport";
-import { Sessions, streamableHttp } from "fastify-mcp";
+} from "miko-zulip-event-transport";
 import { ActivityPoster } from "./ActivityPoster.js";
 import { AgentSessionManager } from "./AgentSessionManager.js";
 import { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
@@ -224,7 +224,7 @@ export declare interface EdgeWorker {
 	): boolean;
 }
 
-type AtmikoToolsMcpContext = {
+type MikoToolsMcpContext = {
 	contextId?: string;
 };
 
@@ -263,8 +263,8 @@ export class EdgeWorker extends EventEmitter {
 	private automationSessionStarts = new Set<string>();
 	private stoppingAutomations = false;
 	private sharedApplicationServer: SharedApplicationServer;
-	private atmikoHome: string;
-	/** Per-org GitHub App installation tokens pushed by atmiko-hosted (lazy file-backed reads) */
+	private mikoHome: string;
+	/** Per-org GitHub App installation tokens pushed by miko-hosted (lazy file-backed reads) */
 	private githubTokenStore: GitHubTokenStore;
 	private globalSessionRegistry: GlobalSessionRegistry; // Centralized session storage across all repositories
 	private configPath?: string; // Path to config.json file
@@ -294,25 +294,25 @@ export class EdgeWorker extends EventEmitter {
 	private promptBuilder: PromptBuilder;
 	private defaultSkillsDeployer: DefaultSkillsDeployer;
 	private skillsPluginResolver: SkillsPluginResolver;
-	private readonly atmikoToolsMcpEndpoint = "/mcp/atmiko-tools";
-	private atmikoToolsMcpRegistered = false;
-	private atmikoToolsMcpRequestContext =
-		new AsyncLocalStorage<AtmikoToolsMcpContext>();
-	private atmikoToolsMcpSessions = new Sessions<any>();
+	private readonly mikoToolsMcpEndpoint = "/mcp/miko-tools";
+	private mikoToolsMcpRegistered = false;
+	private mikoToolsMcpRequestContext =
+		new AsyncLocalStorage<MikoToolsMcpContext>();
+	private mikoToolsMcpSessions = new Sessions<any>();
 	/** Validates webhook source IPs against known provider allowlists */
 	private webhookIpValidator: WebhookIpValidator;
 	/** Egress proxy for sandbox network traffic filtering and header injection */
 	private egressProxy: EgressProxy | null = null;
 	/** Base SDK sandbox settings to pass to ClaudeRunner sessions (set when proxy starts) */
 	private sdkSandboxSettings:
-		| import("atmiko-claude-runner").SandboxSettings
+		| import("miko-claude-runner").SandboxSettings
 		| null = null;
 	/** CA cert path for MITM TLS termination (passed per-session env, not process.env) */
 	private egressCaCertPath: string | null = null;
 	/**
-	 * Remote SessionStore that mirrors Claude SDK transcripts to the Atmiko
-	 * hosted control plane. Enabled when all three of `ATMIKO_APP_URL`,
-	 * `ATMIKO_API_KEY`, and `ATMIKO_TEAM_ID` are set — used by any Claude
+	 * Remote SessionStore that mirrors Claude SDK transcripts to the Miko
+	 * hosted control plane. Enabled when all three of `MIKO_APP_URL`,
+	 * `MIKO_API_KEY`, and `MIKO_TEAM_ID` are set — used by any Claude
 	 * runner spawned from this worker so transcripts survive ephemeral
 	 * worktrees and are resumable from any host.
 	 */
@@ -348,7 +348,7 @@ export class EdgeWorker extends EventEmitter {
 	 * passed verbatim to `fs.readFileSync` (which does not expand tildes).
 	 * Repository-scoped paths are normalized separately in addNew /
 	 * updateModified; this covers the platform-level MCP config lists that
-	 * atmiko-hosted writes with literal `~/.atmiko/...` prefixes when
+	 * miko-hosted writes with literal `~/.miko/...` prefixes when
 	 * generating self-host config.
 	 */
 	private static normalizeConfigPaths(
@@ -368,24 +368,24 @@ export class EdgeWorker extends EventEmitter {
 	constructor(config: EdgeWorkerConfig) {
 		super();
 		this.config = EdgeWorker.normalizeConfigPaths(config);
-		this.atmikoHome = config.atmikoHome;
-		this.githubTokenStore = new GitHubTokenStore(this.atmikoHome);
+		this.mikoHome = config.mikoHome;
+		this.githubTokenStore = new GitHubTokenStore(this.mikoHome);
 		this.logger = createLogger({ component: "EdgeWorker" });
 		this.persistenceManager = new PersistenceManager(
-			join(this.atmikoHome, "state"),
+			join(this.mikoHome, "state"),
 		);
 
 		// Mirror Claude SDK session transcripts to the hosted control plane
-		// when ATMIKO_API_KEY (proof of team ownership) and ATMIKO_TEAM_ID
+		// when MIKO_API_KEY (proof of team ownership) and MIKO_TEAM_ID
 		// (which team the transcripts belong to) are configured. The
-		// destination must be explicitly configured through ATMIKO_APP_URL.
+		// destination must be explicitly configured through MIKO_APP_URL.
 		// If any of the required vars is missing the store stays null and the SDK
 		// falls back to local JSONL only. Operators can also opt out
-		// explicitly by setting ATMIKO_DISABLE_REMOTE_SESSION_STORE=1, which
+		// explicitly by setting MIKO_DISABLE_REMOTE_SESSION_STORE=1, which
 		// keeps transcripts local even when the vars above are present.
-		const sessionStoreBaseUrl = getAtmikoAppUrl();
-		const sessionStoreApiKey = process.env.ATMIKO_API_KEY;
-		const sessionStoreTeamId = process.env.ATMIKO_TEAM_ID;
+		const sessionStoreBaseUrl = getMikoAppUrl();
+		const sessionStoreApiKey = process.env.MIKO_API_KEY;
+		const sessionStoreTeamId = process.env.MIKO_TEAM_ID;
 		const sessionStoreDisabled = this.isRemoteSessionStoreDisabled();
 		if (
 			!sessionStoreDisabled &&
@@ -408,7 +408,7 @@ export class EdgeWorker extends EventEmitter {
 			sessionStoreTeamId
 		) {
 			this.logger.info(
-				"[SessionStore] Remote session store disabled via ATMIKO_DISABLE_REMOTE_SESSION_STORE; transcripts will stay local.",
+				"[SessionStore] Remote session store disabled via MIKO_DISABLE_REMOTE_SESSION_STORE; transcripts will stay local.",
 			);
 		}
 
@@ -419,7 +419,7 @@ export class EdgeWorker extends EventEmitter {
 		// For Self-Managed GitLab the API base URL must be derived from the
 		// configured repos' gitlabUrl host; otherwise the service falls back to
 		// gitlab.com and 404s on every reply. Picks the first configured
-		// GitLab repo's host (single GitLab host per Atmiko instance).
+		// GitLab repo's host (single GitLab host per Miko instance).
 		const firstGitlabRepo = config.repositories.find((r) => r.gitlabUrl);
 		let gitlabApiBaseUrl: string | undefined;
 		if (firstGitlabRepo?.gitlabUrl) {
@@ -476,7 +476,7 @@ export class EdgeWorker extends EventEmitter {
 			},
 		};
 		this.repositoryRouter = new RepositoryRouter(repositoryRouterDeps);
-		this.gitService = new GitService({ atmikoHome: this.atmikoHome });
+		this.gitService = new GitService({ mikoHome: this.mikoHome });
 
 		// Initialize AskUserQuestion handler for elicitation via Linear select signal
 		this.askUserQuestionHandler = new AskUserQuestionHandler({
@@ -486,10 +486,10 @@ export class EdgeWorker extends EventEmitter {
 		});
 
 		// Initialize webhook IP validator
-		// Enabled by default in self-hosted mode (ATMIKO_HOST_EXTERNAL=true),
+		// Enabled by default in self-hosted mode (MIKO_HOST_EXTERNAL=true),
 		// can be overridden with WEBHOOK_IP_VALIDATION=false to disable
 		const isExternalHost =
-			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.MIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 		const ipValidationEnv =
 			process.env.WEBHOOK_IP_VALIDATION?.toLowerCase().trim();
 		const ipValidationEnabled =
@@ -597,7 +597,7 @@ export class EdgeWorker extends EventEmitter {
 		// Initialize user access control with global and per-repository configs
 		const repoAccessConfigs = new Map<
 			string,
-			import("atmiko-core").UserAccessControlConfig | undefined
+			import("miko-core").UserAccessControlConfig | undefined
 		>();
 		for (const repo of config.repositories) {
 			if (repo.isActive !== false) {
@@ -612,7 +612,7 @@ export class EdgeWorker extends EventEmitter {
 		// Initialize extracted service modules
 		this.attachmentService = new AttachmentService(
 			this.logger,
-			this.atmikoHome,
+			this.mikoHome,
 			this.config.linearWorkspaces || {},
 		);
 		this.runnerSelectionService = new RunnerSelectionService(this.config);
@@ -633,9 +633,9 @@ export class EdgeWorker extends EventEmitter {
 							getClient?: () => import("@linear/sdk").LinearClient;
 					  })
 					| undefined,
-			getAtmikoToolsMcpUrl: () => this.getAtmikoToolsMcpUrl(),
-			createAtmikoToolsOptions: (parentSessionId) =>
-				this.createAtmikoToolsOptions(parentSessionId),
+			getMikoToolsMcpUrl: () => this.getMikoToolsMcpUrl(),
+			createMikoToolsOptions: (parentSessionId) =>
+				this.createMikoToolsOptions(parentSessionId),
 		});
 		this.runnerConfigBuilder = new RunnerConfigBuilder(
 			this.toolPermissionResolver,
@@ -660,11 +660,11 @@ export class EdgeWorker extends EventEmitter {
 			gitService: this.gitService,
 		});
 		this.defaultSkillsDeployer = new DefaultSkillsDeployer(
-			this.atmikoHome,
+			this.mikoHome,
 			this.logger,
 		);
 		this.skillsPluginResolver = new SkillsPluginResolver(
-			this.atmikoHome,
+			this.mikoHome,
 			this.logger,
 		);
 
@@ -675,14 +675,14 @@ export class EdgeWorker extends EventEmitter {
 	 * Start the edge worker
 	 */
 	async start(): Promise<void> {
-		// If atmiko-hosted has pushed per-org GitHub App tokens previously, make
+		// If miko-hosted has pushed per-org GitHub App tokens previously, make
 		// sure the git credential helper and the per-invocation gh token
 		// resolver are wired up (idempotent). Covers the case where the
 		// process restarted after the helper config was wiped.
 		if (existsSync(this.githubTokenStore.filePath)) {
 			try {
-				ensureGitHubCredentialHelper(this.atmikoHome);
-				ensureGhTokenResolver(this.atmikoHome);
+				ensureGitHubCredentialHelper(this.mikoHome);
+				ensureGhTokenResolver(this.mikoHome);
 				this.logger.info(
 					"✅ GitHub auth scripts configured from existing token store",
 				);
@@ -694,7 +694,7 @@ export class EdgeWorker extends EventEmitter {
 			}
 		}
 
-		// Deploy default skills to atmikoHome if not already present (one-time setup)
+		// Deploy default skills to mikoHome if not already present (one-time setup)
 		await this.defaultSkillsDeployer.ensureDeployed();
 
 		// Scaffold user skills plugin manifest if needed (one-time setup)
@@ -705,7 +705,7 @@ export class EdgeWorker extends EventEmitter {
 
 		// Pre-warm the 30 most recent Claude sessions in the background
 		// so their first query after restart has near-zero cold-start latency.
-		// Disabled by default; opt in with ATMIKO_ENABLE_WARM_SESSIONS=1.
+		// Disabled by default; opt in with MIKO_ENABLE_WARM_SESSIONS=1.
 		if (this.isWarmSessionsEnabled()) {
 			this.warmupRecentSessions(30).catch((err) => {
 				this.logger.warn("Session warmup failed (non-fatal):", err);
@@ -749,7 +749,7 @@ export class EdgeWorker extends EventEmitter {
 			this.logger.info("🛡️  Sandbox egress proxy: starting...");
 			this.egressProxy = new EgressProxy(
 				this.config.sandbox,
-				this.atmikoHome,
+				this.mikoHome,
 				this.logger,
 			);
 			await this.egressProxy.start();
@@ -817,7 +817,7 @@ export class EdgeWorker extends EventEmitter {
 			localState: (run) => this.automationLocalState(run),
 		});
 		this.automations = new AutomationService(
-			new AutomationStore(join(this.atmikoHome, "automations")),
+			new AutomationStore(join(this.mikoHome, "automations")),
 			this.automationAdapters,
 		);
 		await this.automations.start(false);
@@ -895,7 +895,7 @@ export class EdgeWorker extends EventEmitter {
 			// Get appropriate secret based on mode
 			const secret = useDirectWebhooks
 				? process.env.LINEAR_WEBHOOK_SECRET || ""
-				: process.env.ATMIKO_API_KEY || "";
+				: process.env.MIKO_API_KEY || "";
 
 			this.linearEventTransport = new LinearEventTransport({
 				fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
@@ -957,8 +957,8 @@ export class EdgeWorker extends EventEmitter {
 		// 3. Create and register ConfigUpdater (both platforms)
 		this.configUpdater = new ConfigUpdater(
 			this.sharedApplicationServer.getFastifyInstance(),
-			this.atmikoHome,
-			() => process.env.ATMIKO_API_KEY || "",
+			this.mikoHome,
+			() => process.env.MIKO_API_KEY || "",
 		);
 
 		// Register config update routes
@@ -966,14 +966,14 @@ export class EdgeWorker extends EventEmitter {
 
 		this.logger.info("✅ Config updater registered");
 		this.logger.info(
-			"   Routes: /api/update/atmiko-config, /api/update/atmiko-env,",
+			"   Routes: /api/update/miko-config, /api/update/miko-env,",
 		);
 		this.logger.info(
 			"           /api/update/repository, /api/update/test-mcp, /api/update/configure-mcp",
 		);
 
-		// 3. Register MCP endpoint for atmiko-tools on the same Fastify server/port
-		await this.registerAtmikoToolsMcpEndpoint();
+		// 3. Register MCP endpoint for miko-tools on the same Fastify server/port
+		await this.registerMikoToolsMcpEndpoint();
 		// 4. Register /status endpoint for process activity monitoring
 		this.registerStatusEndpoint();
 		registerStatusBoard(this.sharedApplicationServer.getFastifyInstance(), {
@@ -984,7 +984,7 @@ export class EdgeWorker extends EventEmitter {
 			getSessionTitle: (id) =>
 				this.automations?.store.read().runs.find((r) => r.sessionId === id)
 					?.snapshot.name,
-			historyPath: join(this.atmikoHome, "state", "board-history.json"),
+			historyPath: join(this.mikoHome, "state", "board-history.json"),
 			onSessionRemoved: (listener) => {
 				this.agentSessionManager.on("sessionRemoving", listener);
 				return () => this.agentSessionManager.off("sessionRemoving", listener);
@@ -1034,7 +1034,7 @@ export class EdgeWorker extends EventEmitter {
 
 		fastify.get("/version", async (_request, reply) => {
 			return reply.status(200).send({
-				atmiko_cli_version: this.config.version ?? null,
+				miko_cli_version: this.config.version ?? null,
 			});
 		});
 
@@ -1044,16 +1044,16 @@ export class EdgeWorker extends EventEmitter {
 
 	/**
 	 * Register the GitHub event transport for receiving forwarded GitHub webhooks from CYHOST.
-	 * This creates a /github-webhook endpoint that handles @atmikoagent mentions on GitHub PRs.
+	 * This creates a /github-webhook endpoint that handles @mikoagent mentions on GitHub PRs.
 	 */
 	private registerGitHubEventTransport(): void {
 		// Use direct GitHub signature verification only when BOTH:
 		// 1. GITHUB_WEBHOOK_SECRET is set (we have the secret to verify)
-		// 2. ATMIKO_HOST_EXTERNAL is true (self-hosted: GitHub sends directly to us)
+		// 2. MIKO_HOST_EXTERNAL is true (self-hosted: GitHub sends directly to us)
 		// On cloud droplets, CYHOST forwards webhooks with Bearer token auth
 		// (it verifies the GitHub signature itself and doesn't forward the headers).
 		const isExternalHost =
-			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.MIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 		const hasGithubWebhookSecret =
 			process.env.GITHUB_WEBHOOK_SECRET != null &&
 			process.env.GITHUB_WEBHOOK_SECRET !== "";
@@ -1061,7 +1061,7 @@ export class EdgeWorker extends EventEmitter {
 		const verificationMode = useSignatureVerification ? "signature" : "proxy";
 		const secret = useSignatureVerification
 			? process.env.GITHUB_WEBHOOK_SECRET!
-			: process.env.ATMIKO_API_KEY || "";
+			: process.env.MIKO_API_KEY || "";
 
 		this.gitHubEventTransport = new GitHubEventTransport({
 			fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
@@ -1114,7 +1114,7 @@ export class EdgeWorker extends EventEmitter {
 		const appId = process.env.GITHUB_APP_ID;
 		const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
 		if (appId && installationId) {
-			const pemPath = join(this.atmikoHome, "github-app.pem");
+			const pemPath = join(this.mikoHome, "github-app.pem");
 			this.gitHubAppTokenProvider = new GitHubAppTokenProvider({
 				appId,
 				installationId,
@@ -1137,7 +1137,7 @@ export class EdgeWorker extends EventEmitter {
 	 */
 	private registerGitLabEventTransport(): void {
 		const isExternalHost =
-			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.MIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 		const hasGitlabWebhookSecret =
 			process.env.GITLAB_WEBHOOK_SECRET != null &&
 			process.env.GITLAB_WEBHOOK_SECRET !== "";
@@ -1145,7 +1145,7 @@ export class EdgeWorker extends EventEmitter {
 		const verificationMode = useSignatureVerification ? "signature" : "proxy";
 		const secret = useSignatureVerification
 			? process.env.GITLAB_WEBHOOK_SECRET!
-			: process.env.ATMIKO_API_KEY || "";
+			: process.env.MIKO_API_KEY || "";
 
 		this.gitLabEventTransport = new GitLabEventTransport({
 			fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
@@ -1183,14 +1183,14 @@ export class EdgeWorker extends EventEmitter {
 	}
 
 	/**
-	 * Whether Atmiko should follow plain replies in a Slack thread it was
+	 * Whether Miko should follow plain replies in a Slack thread it was
 	 * @mentioned in. Enabled by default; controlled by the per-team
 	 * `slackThreadFollowing` config toggle (Behaviours page) and force-disabled
-	 * by the `ATMIKO_SLACK_THREAD_FOLLOWING_DISABLED` env kill-switch, which takes
+	 * by the `MIKO_SLACK_THREAD_FOLLOWING_DISABLED` env kill-switch, which takes
 	 * precedence over the toggle. When disabled, only @mentions are processed.
 	 */
 	private isSlackThreadFollowingEnabled(): boolean {
-		const envValue = (process.env.ATMIKO_SLACK_THREAD_FOLLOWING_DISABLED ?? "")
+		const envValue = (process.env.MIKO_SLACK_THREAD_FOLLOWING_DISABLED ?? "")
 			.toLowerCase()
 			.trim();
 		if (envValue === "true" || envValue === "1" || envValue === "yes") {
@@ -1213,7 +1213,7 @@ export class EdgeWorker extends EventEmitter {
 		getPlatformMcpConfigOverrides: () => readonly string[] | undefined,
 	): ChatSessionHandlerDeps {
 		return {
-			atmikoHome: this.atmikoHome,
+			mikoHome: this.mikoHome,
 			chatRepositoryProvider,
 			runnerConfigBuilder: this.runnerConfigBuilder,
 			createRunner: (config, chatRunnerType) => {
@@ -1349,18 +1349,18 @@ export class EdgeWorker extends EventEmitter {
 
 		const routingContext =
 			this.promptBuilder.generateRoutingContextForAllWorkspaces();
-		// Only managed teams (cloud or self-hosted, paired with atmiko-hosted)
+		// Only managed teams (cloud or self-hosted, paired with miko-hosted)
 		// have a Behaviours page where automatic Slack thread listening can be
-		// turned off — ATMIKO_API_KEY is proof of that pairing, so the
+		// turned off — MIKO_API_KEY is proof of that pairing, so the
 		// stop-listening prompt guidance is gated on it. Community members
 		// don't have the key (or the page).
-		const atmikoAppBaseUrl = process.env.ATMIKO_API_KEY
-			? getAtmikoAppUrl()
+		const mikoAppBaseUrl = process.env.MIKO_API_KEY
+			? getMikoAppUrl()
 			: undefined;
 		const slackAdapter = new SlackChatAdapter(
 			chatRepositoryProvider,
 			this.logger,
-			{ repositoryRoutingContext: routingContext, atmikoAppBaseUrl },
+			{ repositoryRoutingContext: routingContext, mikoAppBaseUrl },
 		);
 
 		if (
@@ -1385,11 +1385,11 @@ export class EdgeWorker extends EventEmitter {
 
 		// Use direct Slack signature verification only when BOTH:
 		// 1. SLACK_SIGNING_SECRET is set (we have the secret to verify)
-		// 2. ATMIKO_HOST_EXTERNAL is true (self-hosted: Slack sends directly to us)
+		// 2. MIKO_HOST_EXTERNAL is true (self-hosted: Slack sends directly to us)
 		// On cloud droplets, CYHOST forwards webhooks with Bearer token auth
 		// (it verifies the Slack signature itself and doesn't forward the headers).
 		const isExternalHost =
-			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.MIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 		const hasSlackSigningSecret =
 			process.env.SLACK_SIGNING_SECRET != null &&
 			process.env.SLACK_SIGNING_SECRET !== "";
@@ -1398,7 +1398,7 @@ export class EdgeWorker extends EventEmitter {
 		const slackVerificationMode = useDirectSlackWebhooks ? "direct" : "proxy";
 		const slackSecret = useDirectSlackWebhooks
 			? process.env.SLACK_SIGNING_SECRET!
-			: process.env.ATMIKO_API_KEY || "";
+			: process.env.MIKO_API_KEY || "";
 
 		this.slackEventTransport = new SlackEventTransport({
 			fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
@@ -1440,7 +1440,7 @@ export class EdgeWorker extends EventEmitter {
 	/**
 	 * Resolve a GitHub API token from (in priority order):
 	 * 1. Org-matched installation token from the local token store (pushed by
-	 *    atmiko-hosted via /api/update/github-tokens — multi-org support)
+	 *    miko-hosted via /api/update/github-tokens — multi-org support)
 	 * 2. Forwarded installation token from CYHOST (cloud/proxy mode)
 	 * 3. Self-minted installation token from GitHub App credentials (self-hosted)
 	 * 4. Personal access token from GITHUB_TOKEN env var (fallback)
@@ -1633,24 +1633,24 @@ export class EdgeWorker extends EventEmitter {
 				const shouldReply = wasMentioned || isPullRequestReview;
 
 				if (shouldReply && reactionToken && prNumber) {
-					// Presence of ATMIKO_API_KEY indicates this worker is paired with the
+					// Presence of MIKO_API_KEY indicates this worker is paired with the
 					// operator-owned control plane. Absence means the worker is
 					// running on the Community plan (self-managed config.json).
-					const isManagedCustomer = !!process.env.ATMIKO_API_KEY;
+					const isManagedCustomer = !!process.env.MIKO_API_KEY;
 
 					const commonPreamble = [
-						`Atmiko received this webhook but has no repository configured for \`${repoFullName}\`, so no agent session was started.`,
+						`Miko received this webhook but has no repository configured for \`${repoFullName}\`, so no agent session was started.`,
 						``,
 						`**Likely causes:**`,
-						`- The owner/org was **renamed or transferred** on GitHub. Webhooks are delivered under the current owner name, but Atmiko's stored repository URL still points at the old one. GitHub's web redirects don't apply to webhook payloads — the stored URL has to be updated explicitly.`,
+						`- The owner/org was **renamed or transferred** on GitHub. Webhooks are delivered under the current owner name, but Miko's stored repository URL still points at the old one. GitHub's web redirects don't apply to webhook payloads — the stored URL has to be updated explicitly.`,
 						`- The stored repository URL has a typo (e.g. wrong org/owner) and doesn't match the repo this event came from.`,
-						`- The GitHub App / webhook is installed on a repo Atmiko isn't configured for at all.`,
+						`- The GitHub App / webhook is installed on a repo Miko isn't configured for at all.`,
 						``,
 					];
 
 					const fix = isManagedCustomer
-						? `**What to do:** there's currently no self-serve way to update the stored repository URL on your plan — please reach out to Atmiko support and reference \`${repoFullName}\` and we'll reconcile it on the backend.`
-						: `**What to do:** open \`~/.atmiko/config.json\` on the worker and update the \`githubUrl\` of the relevant repository to \`https://github.com/${repoFullName}\`. The worker watches the config file and will pick up the change automatically. If this repo shouldn't be sending events to Atmiko at all, remove the GitHub App from it instead.`;
+						? `**What to do:** there's currently no self-serve way to update the stored repository URL on your plan — please reach out to Miko support and reference \`${repoFullName}\` and we'll reconcile it on the backend.`
+						: `**What to do:** open \`~/.miko/config.json\` on the worker and update the \`githubUrl\` of the relevant repository to \`https://github.com/${repoFullName}\`. The worker watches the config file and will pick up the change automatically. If this repo shouldn't be sending events to Miko at all, remove the GitHub App from it instead.`;
 
 					await this.postGitHubReplyBody(
 						event,
@@ -1730,7 +1730,7 @@ export class EdgeWorker extends EventEmitter {
 
 			// For pull_request_review, the review body IS the task context (no mention to strip)
 			// For other events, strip the bot mention to get the task instructions
-			const mentionHandle = botUsername ? `@${botUsername}` : "@atmikoagent";
+			const mentionHandle = botUsername ? `@${botUsername}` : "@mikoagent";
 			const taskInstructions = isPullRequestReview
 				? commentBody ||
 					"A reviewer has requested changes on this PR. Read the review comments to understand what needs to be changed."
@@ -1789,7 +1789,7 @@ export class EdgeWorker extends EventEmitter {
 
 			// Create an internal agent session (no Linear session for GitHub)
 			const githubSessionId = `github-${event.deliveryId}`;
-			agentSessionManager.createAtmikoAgentSession(
+			agentSessionManager.createMikoAgentSession(
 				githubSessionId,
 				sessionKey,
 				issueMinimal,
@@ -2332,7 +2332,7 @@ ${GITHUB_REPLY_INSTRUCTIONS}`;
 				.find((m) => m.type === "assistant");
 
 			let summary = sessionFailed
-				? "The task did not complete successfully. Please check the Atmiko session logs before retrying."
+				? "The task did not complete successfully. Please check the Miko session logs before retrying."
 				: "Task completed. Please review the changes on this branch.";
 			if (
 				!sessionFailed &&
@@ -2504,7 +2504,7 @@ ${GITHUB_REPLY_INSTRUCTIONS}`;
 			}
 
 			// Strip the bot mention to get the task instructions
-			const mentionHandle = botUsername ? `@${botUsername}` : "@atmikoagent";
+			const mentionHandle = botUsername ? `@${botUsername}` : "@mikoagent";
 			const taskInstructions = stripGitLabMention(noteBody, mentionHandle);
 
 			// Check for an existing multi-repo session that includes this repository
@@ -2572,7 +2572,7 @@ ${GITHUB_REPLY_INSTRUCTIONS}`;
 
 			// Create an internal agent session (no Linear session for GitLab)
 			const gitlabSessionId = `gitlab-${Date.now()}`;
-			agentSessionManager.createAtmikoAgentSession(
+			agentSessionManager.createMikoAgentSession(
 				gitlabSessionId,
 				sessionKey,
 				issueMinimal,
@@ -2933,7 +2933,7 @@ ${taskSection}`;
 	}
 
 	/**
-	 * Compute the current status of the Atmiko process
+	 * Compute the current status of the Miko process
 	 * @returns "idle" if the process can be safely restarted, "busy" if work is in progress
 	 */
 	private computeStatus(): "idle" | "busy" {
@@ -3070,8 +3070,8 @@ ${taskSection}`;
 		this.linearEventTransport = null;
 		this.configUpdater = null;
 		this.mcpConfigService.clearAllContexts();
-		this.atmikoToolsMcpSessions.removeAllListeners();
-		this.atmikoToolsMcpRegistered = false;
+		this.mikoToolsMcpSessions.removeAllListeners();
+		this.mikoToolsMcpRegistered = false;
 
 		// Stop egress proxy
 		if (this.egressProxy) {
@@ -3115,7 +3115,7 @@ ${taskSection}`;
 			this.logger.info("🛡️  Sandbox egress proxy: starting (config change)...");
 			this.egressProxy = new EgressProxy(
 				newConfig.sandbox!,
-				this.atmikoHome,
+				this.mikoHome,
 				this.logger,
 			);
 			await this.egressProxy.start();
@@ -3191,7 +3191,7 @@ ${taskSection}`;
 					"🛡️  CA certificate is NOT trusted system-wide. To trust (requires sudo):",
 				);
 				this.logger.warn(
-					`🛡️  sudo cp ${certPath} /usr/local/share/ca-certificates/atmiko-egress-ca.crt && sudo update-ca-certificates`,
+					`🛡️  sudo cp ${certPath} /usr/local/share/ca-certificates/miko-egress-ca.crt && sudo update-ca-certificates`,
 				);
 			}
 			if (systemWideCert) {
@@ -3203,14 +3203,14 @@ ${taskSection}`;
 	}
 
 	/**
-	 * Check whether the Atmiko egress proxy CA is trusted at the OS level.
+	 * Check whether the Miko egress proxy CA is trusted at the OS level.
 	 * macOS: searches the System keychain. Linux: checks update-ca-certificates output.
 	 */
 	private isCertTrustedSystemWide(): boolean {
 		try {
 			if (process.platform === "darwin") {
 				execSync(
-					'security find-certificate -c "Atmiko Egress Proxy CA" /Library/Keychains/System.keychain',
+					'security find-certificate -c "Miko Egress Proxy CA" /Library/Keychains/System.keychain',
 					{ stdio: "ignore" },
 				);
 				return true;
@@ -3218,7 +3218,7 @@ ${taskSection}`;
 			if (process.platform === "linux") {
 				// Check if our cert exists in the system CA certificates directory
 				execSync(
-					"test -f /usr/local/share/ca-certificates/atmiko-egress-ca.crt",
+					"test -f /usr/local/share/ca-certificates/miko-egress-ca.crt",
 					{ stdio: "ignore" },
 				);
 				return true;
@@ -3547,7 +3547,7 @@ ${taskSection}`;
 										agentSessionId: session.externalSessionId,
 										content: {
 											type: "response",
-											body: `**Repository Removed from Configuration**\n\nThis repository (\`${repo.name}\`) has been removed from the Atmiko configuration. All active sessions for this repository have been stopped.\n\nIf you need to continue working on this issue, please contact your administrator to restore the repository configuration.`,
+											body: `**Repository Removed from Configuration**\n\nThis repository (\`${repo.name}\`) has been removed from the Miko configuration. All active sessions for this repository have been stopped.\n\nIf you need to continue working on this issue, please contact your administrator to restore the repository configuration.`,
 										},
 									},
 									"repository removal",
@@ -3627,7 +3627,7 @@ ${taskSection}`;
 		});
 
 		// Log verbose webhook info if enabled
-		if (process.env.ATMIKO_WEBHOOK_DEBUG === "true") {
+		if (process.env.MIKO_WEBHOOK_DEBUG === "true") {
 			this.logger.debug(
 				`Full webhook payload:`,
 				JSON.stringify(webhook, null, 2),
@@ -3665,7 +3665,7 @@ ${taskSection}`;
 				// Handle issue state changes — wake up parked sessions when blocking issues complete
 				await this.handleIssueStateChange(webhook);
 			} else {
-				if (process.env.ATMIKO_WEBHOOK_DEBUG === "true") {
+				if (process.env.MIKO_WEBHOOK_DEBUG === "true") {
 					this.logger.debug(
 						`Unhandled webhook type: ${(webhook as any).action}`,
 					);
@@ -3705,7 +3705,7 @@ ${taskSection}`;
 		// TODO: When legacy handlers are removed, restore activeWebhookCount tracking here.
 
 		// Log verbose message info if enabled
-		if (process.env.ATMIKO_WEBHOOK_DEBUG === "true") {
+		if (process.env.MIKO_WEBHOOK_DEBUG === "true") {
 			this.logger.debug(
 				`Internal message received: ${message.source}/${message.action}`,
 				JSON.stringify(message, null, 2),
@@ -3729,7 +3729,7 @@ ${taskSection}`;
 			} else {
 				// This branch should never be reached due to exhaustive type checking
 				// If it is reached, log the unexpected message for debugging
-				if (process.env.ATMIKO_WEBHOOK_DEBUG === "true") {
+				if (process.env.MIKO_WEBHOOK_DEBUG === "true") {
 					const unexpectedMessage = message as InternalMessage;
 					this.logger.debug(
 						`Unhandled message action: ${unexpectedMessage.action}`,
@@ -3862,7 +3862,7 @@ ${taskSection}`;
 		}
 
 		// Build the set of repositories involved with this issue so per-repo
-		// atmiko-teardown.sh scripts (if present) can run before worktrees are
+		// miko-teardown.sh scripts (if present) can run before worktrees are
 		// removed. Source-of-truth is the session manager: each session's
 		// repositoryId maps to a configured RepositoryConfig.
 		const repoIds = new Set<string>();
@@ -3978,7 +3978,7 @@ ${taskSection}`;
 	): Promise<void> {
 		// Check if issue update trigger is enabled (defaults to true if not set)
 		if (this.config.issueUpdateTrigger === false) {
-			if (process.env.ATMIKO_WEBHOOK_DEBUG === "true") {
+			if (process.env.MIKO_WEBHOOK_DEBUG === "true") {
 				this.logger.debug(
 					"Issue update trigger is disabled, skipping issue content update",
 				);
@@ -4056,7 +4056,7 @@ ${taskSection}`;
 		// Find session(s) for this issue
 		const sessions = this.agentSessionManager.getSessionsByIssueId(issueId);
 		if (sessions.length === 0) {
-			if (process.env.ATMIKO_WEBHOOK_DEBUG === "true") {
+			if (process.env.MIKO_WEBHOOK_DEBUG === "true") {
 				this.logger.debug(
 					`No sessions found for issue ${issueIdentifier} to receive update`,
 				);
@@ -4074,7 +4074,7 @@ ${taskSection}`;
 			}
 			const workspaceFolderName = basename(firstSession.workspace.path);
 			const attachmentsDir = join(
-				this.atmikoHome,
+				this.mikoHome,
 				workspaceFolderName,
 				"attachments",
 			);
@@ -4495,7 +4495,7 @@ ${taskSection}`;
 	}
 
 	/**
-	 * Create a new Atmiko agent session with all necessary setup
+	 * Create a new Miko agent session with all necessary setup
 	 * @param sessionId The Linear agent activity session ID
 	 * @param issue Linear issue object
 	 * @param repositories Repository configurations (primary repo is repositories[0])
@@ -4503,7 +4503,7 @@ ${taskSection}`;
 	 * @param linearWorkspaceId Linear workspace ID (from webhook.organizationId)
 	 * @returns Object containing session details and setup information
 	 */
-	private async createAtmikoAgentSession(
+	private async createMikoAgentSession(
 		sessionId: string,
 		issue: { id: string; identifier: string },
 		repositoriesOrSingle: RepositoryConfig | RepositoryConfig[],
@@ -4535,7 +4535,7 @@ ${taskSection}`;
 		// When adding new options here, always update the handler signature in config-types.ts
 		// AND the CLI's handler implementation in WorkerService.ts to pass them through.
 		this.logger.info(
-			`createAtmikoAgentSession: passing baseBranchOverrides=${baseBranchOverrides ? `Map(size=${baseBranchOverrides.size}, keys=[${Array.from(baseBranchOverrides.keys()).join(",")}])` : "undefined"}, useCustomHandler=${!!this.config.handlers?.createWorkspace}`,
+			`createMikoAgentSession: passing baseBranchOverrides=${baseBranchOverrides ? `Map(size=${baseBranchOverrides.size}, keys=[${Array.from(baseBranchOverrides.keys()).join(",")}])` : "undefined"}, useCustomHandler=${!!this.config.handlers?.createWorkspace}`,
 		);
 		const workspace = this.config.handlers?.createWorkspace
 			? await this.config.handlers.createWorkspace(fullIssue, repositories, {
@@ -4571,7 +4571,7 @@ ${taskSection}`;
 				workspace.resolvedBaseBranches?.[repo.id]?.branch ?? repo.baseBranch,
 		}));
 
-		agentSessionManager.createAtmikoAgentSession(
+		agentSessionManager.createMikoAgentSession(
 			sessionId,
 			issue.id,
 			issueMinimal,
@@ -4632,7 +4632,7 @@ ${taskSection}`;
 		// Pre-create attachments directory even if no attachments exist yet
 		const workspaceFolderName = basename(workspace.path);
 		const attachmentsDir = join(
-			this.atmikoHome,
+			this.mikoHome,
 			workspaceFolderName,
 			"attachments",
 		);
@@ -4640,7 +4640,7 @@ ${taskSection}`;
 
 		// Write Claude settings to disable co-authored-by attribution in the workspace.
 		// This uses the SDK's "local" settings source (loaded via settingSources: ["user", "project", "local"])
-		// to ensure Atmiko sessions don't add "Co-Authored-By: Claude" trailers to git commits.
+		// to ensure Miko sessions don't add "Co-Authored-By: Claude" trailers to git commits.
 		const claudeSettingsDir = join(workspace.path, ".claude");
 		await mkdir(claudeSettingsDir, { recursive: true });
 		await writeFile(
@@ -4745,7 +4745,7 @@ ${taskSection}`;
 					status: "failed",
 					message: "No repository matched the scheduled issue",
 				});
-				if (process.env.ATMIKO_WEBHOOK_DEBUG === "true") {
+				if (process.env.MIKO_WEBHOOK_DEBUG === "true") {
 					this.logger.info(
 						`No repository configured for webhook from workspace ${webhook.organizationId}`,
 					);
@@ -4831,7 +4831,7 @@ ${taskSection}`;
 		const { agentSession, guidance } = webhook;
 		const commentBody = agentSession.comment?.body;
 
-		// If this issue is a sub-issue of an issue Atmiko has a session on, link the
+		// If this issue is a sub-issue of an issue Miko has a session on, link the
 		// two so the parent is resumed when this session completes. Done before the
 		// blocked-by check so a parked child is linked as well.
 		await this.linkChildSessionToParentIssueSession(
@@ -4956,7 +4956,7 @@ ${taskSection}`;
 		await this.postInstantAcknowledgment(sessionId, linearWorkspaceId);
 
 		// Create the session using the shared method (pass full repositories array)
-		const sessionData = await this.createAtmikoAgentSession(
+		const sessionData = await this.createMikoAgentSession(
 			sessionId,
 			issue,
 			repositories,
@@ -5092,7 +5092,7 @@ ${taskSection}`;
 	private async executeRepositoryTask(
 		request: RepositoryTaskRequest,
 		input: {
-			session: AtmikoAgentSession;
+			session: MikoAgentSession;
 			repository: RepositoryConfig;
 			userPrompt: string;
 			systemPrompt?: string;
@@ -5543,7 +5543,7 @@ ${await this.loadSharedInstructions()}`;
 			);
 
 			// Create the session using the shared method with all repositories
-			const sessionData = await this.createAtmikoAgentSession(
+			const sessionData = await this.createMikoAgentSession(
 				sessionId,
 				issue,
 				repositories,
@@ -5622,7 +5622,7 @@ ${await this.loadSharedInstructions()}`;
 		// Always set up attachments directory, even if no attachments in current comment
 		const workspaceFolderName = basename(session.workspace.path);
 		const attachmentsDir = join(
-			this.atmikoHome,
+			this.mikoHome,
 			workspaceFolderName,
 			"attachments",
 		);
@@ -5832,7 +5832,7 @@ ${await this.loadSharedInstructions()}`;
 				// All recovery attempts failed - post visible feedback
 				await this.agentSessionManager.createResponseActivity(
 					agentSessionId,
-					"I couldn't process your message because the session configuration was lost. Please create a new session by mentioning me (@atmiko) in a new comment with your prompt.",
+					"I couldn't process your message because the session configuration was lost. Please create a new session by mentioning me (@miko) in a new comment with your prompt.",
 				);
 				this.logger.warn(
 					`Failed to recover repository for prompted webhook ${agentSessionId} - all fallback methods exhausted`,
@@ -5963,7 +5963,7 @@ ${await this.loadSharedInstructions()}`;
 	 *
 	 * Skill scopes (persisted in `scope.json` sidecars by the config-updater)
 	 * match against:
-	 * - the active repository's Atmiko config ID,
+	 * - the active repository's Miko config ID,
 	 * - the Linear team that owns the issue, and
 	 * - the Linear label IDs attached to the issue.
 	 *
@@ -5976,7 +5976,7 @@ ${await this.loadSharedInstructions()}`;
 	private buildSkillSessionContext(
 		repository: RepositoryConfig,
 		fullIssue?: Issue,
-		session?: AtmikoAgentSession,
+		session?: MikoAgentSession,
 	): SkillSessionContext {
 		const context: SkillSessionContext = {
 			repositoryId: repository.id,
@@ -6003,7 +6003,7 @@ ${await this.loadSharedInstructions()}`;
 	 */
 	private resolveSkillRepoPaths(
 		repository: RepositoryConfig,
-		session?: AtmikoAgentSession,
+		session?: MikoAgentSession,
 	): string[] {
 		const repoPaths = session?.workspace?.repoPaths;
 		if (repoPaths) {
@@ -6170,7 +6170,7 @@ ${await this.loadSharedInstructions()}`;
 		const oauthProxyUrl = proxyUrl || this.config.proxyUrl;
 		if (!oauthProxyUrl) {
 			throw new Error(
-				"Configure an OAuth proxy URL or authenticate with atmiko self-auth-linear.",
+				"Configure an OAuth proxy URL or authenticate with miko self-auth-linear.",
 			);
 		}
 		return this.sharedApplicationServer.startOAuthFlow(oauthProxyUrl);
@@ -6378,8 +6378,8 @@ ${await this.loadSharedInstructions()}`;
 		return this.attachmentService.generateNewAttachmentManifest(result);
 	}
 
-	private async registerAtmikoToolsMcpEndpoint(): Promise<void> {
-		if (this.atmikoToolsMcpRegistered) {
+	private async registerMikoToolsMcpEndpoint(): Promise<void> {
+		if (this.mikoToolsMcpRegistered) {
 			return;
 		}
 
@@ -6389,7 +6389,7 @@ ${await this.loadSharedInstructions()}`;
 			typeof fastify.addHook !== "function"
 		) {
 			console.warn(
-				"[EdgeWorker] Skipping atmiko-tools MCP endpoint registration: Fastify instance does not support register/addHook",
+				"[EdgeWorker] Skipping miko-tools MCP endpoint registration: Fastify instance does not support register/addHook",
 			);
 			return;
 		}
@@ -6403,7 +6403,7 @@ ${await this.loadSharedInstructions()}`;
 						: "";
 			const requestPath = rawUrl.split("?")[0];
 
-			if (requestPath !== this.atmikoToolsMcpEndpoint) {
+			if (requestPath !== this.mikoToolsMcpEndpoint) {
 				done();
 				return;
 			}
@@ -6414,63 +6414,62 @@ ${await this.loadSharedInstructions()}`;
 				)
 			) {
 				_reply.code(401).send({
-					error: "Unauthorized atmiko-tools MCP request",
+					error: "Unauthorized miko-tools MCP request",
 				});
 				done();
 				return;
 			}
 
-			const rawContextHeader = request.headers?.["x-atmiko-mcp-context-id"];
+			const rawContextHeader = request.headers?.["x-miko-mcp-context-id"];
 			const contextId = Array.isArray(rawContextHeader)
 				? rawContextHeader[0]
 				: rawContextHeader;
 
-			this.atmikoToolsMcpRequestContext.run({ contextId }, () => {
+			this.mikoToolsMcpRequestContext.run({ contextId }, () => {
 				done();
 			});
 		});
 
-		this.atmikoToolsMcpSessions.on("connected", (sessionId) => {
+		this.mikoToolsMcpSessions.on("connected", (sessionId) => {
 			console.log(
-				`[EdgeWorker] atmiko-tools MCP session connected: ${sessionId}`,
+				`[EdgeWorker] miko-tools MCP session connected: ${sessionId}`,
 			);
 		});
 
-		this.atmikoToolsMcpSessions.on("terminated", (sessionId) => {
+		this.mikoToolsMcpSessions.on("terminated", (sessionId) => {
 			console.log(
-				`[EdgeWorker] atmiko-tools MCP session terminated: ${sessionId}`,
+				`[EdgeWorker] miko-tools MCP session terminated: ${sessionId}`,
 			);
 		});
 
-		this.atmikoToolsMcpSessions.on("error", (error) => {
-			console.error("[EdgeWorker] atmiko-tools MCP session error:", error);
+		this.mikoToolsMcpSessions.on("error", (error) => {
+			console.error("[EdgeWorker] miko-tools MCP session error:", error);
 		});
 
 		await fastify.register(streamableHttp, {
 			stateful: true,
-			mcpEndpoint: this.atmikoToolsMcpEndpoint,
-			sessions: this.atmikoToolsMcpSessions,
+			mcpEndpoint: this.mikoToolsMcpEndpoint,
+			sessions: this.mikoToolsMcpSessions,
 			createServer: async () => {
-				const contextId =
-					this.atmikoToolsMcpRequestContext.getStore()?.contextId;
+				const contextId = this.mikoToolsMcpRequestContext.getStore()?.contextId;
 				if (!contextId) {
 					throw new Error(
-						"Missing x-atmiko-mcp-context-id header for atmiko-tools MCP request",
+						"Missing x-miko-mcp-context-id header for miko-tools MCP request",
 					);
 				}
 
 				const context = this.mcpConfigService.getContext(contextId);
 				if (!context) {
 					throw new Error(
-						`Unknown atmiko-tools MCP context '${contextId}'. Build MCP config before connecting.`,
+						`Unknown miko-tools MCP context '${contextId}'. Build MCP config before connecting.`,
 					);
 				}
 
 				const sdkServer =
 					context.prebuiltServer ||
-					createAtmikoToolsServer(
+					createMikoToolsServer(
 						context.linearClient,
-						this.createAtmikoToolsOptions(context.parentSessionId),
+						this.createMikoToolsOptions(context.parentSessionId),
 					);
 				this.mcpConfigService.clearPrebuiltServer(contextId);
 
@@ -6478,9 +6477,9 @@ ${await this.loadSharedInstructions()}`;
 			},
 		});
 
-		this.atmikoToolsMcpRegistered = true;
+		this.mikoToolsMcpRegistered = true;
 		console.log(
-			`✅ Atmiko tools MCP endpoint registered at ${this.atmikoToolsMcpEndpoint}`,
+			`✅ Miko tools MCP endpoint registered at ${this.mikoToolsMcpEndpoint}`,
 		);
 	}
 
@@ -6488,19 +6487,19 @@ ${await this.loadSharedInstructions()}`;
 
 	/**
 	 * Lazily build the HTTP client used by `log_failure_mode` to POST to
-	 * atmiko-hosted. Uses `ATMIKO_APP_URL` (the same env var the remote
+	 * miko-hosted. Uses `MIKO_APP_URL` (the same env var the remote
 	 * session-store client reads, see top of this file) so preview
 	 * environments and prod share a single way to point at a control
-	 * plane. Returns null when either the URL or the `ATMIKO_API_KEY` are
+	 * plane. Returns null when either the URL or the `MIKO_API_KEY` are
 	 * missing — in that mode the tool is simply not registered, so
 	 * customer-mode CLI users without a control plane don't see a broken
 	 * tool.
 	 */
 	private getFailureModesClient(): FailureModesHttpClient | null {
 		if (this.failureModesClient) return this.failureModesClient;
-		const apiKey = process.env.ATMIKO_API_KEY?.trim();
+		const apiKey = process.env.MIKO_API_KEY?.trim();
 		if (!apiKey) return null;
-		const baseUrl = getAtmikoAppUrl();
+		const baseUrl = getMikoAppUrl();
 		if (!baseUrl) return null;
 		this.failureModesClient = createFetchFailureModesClient({
 			baseUrl,
@@ -6517,7 +6516,7 @@ ${await this.loadSharedInstructions()}`;
 	 */
 	/**
 	 * Resolve a working-directory string to the rich session bundle a
-	 * Atmiko team member needs to triage a failure-mode report: the
+	 * Miko team member needs to triage a failure-mode report: the
 	 * internal session id (for dedup), the runner session id + runner
 	 * type (so triage can pull the Claude/Gemini/Codex/Cursor transcript),
 	 * the Linear AgentSession + source-issue identifiers (so triage can
@@ -6537,7 +6536,7 @@ ${await this.loadSharedInstructions()}`;
 	 * single responsibility (SRP: this method's only job is "where do
 	 * sessions live?", separate from "how do we match one by cwd?").
 	 */
-	private getAllKnownSessions(): AtmikoAgentSession[] {
+	private getAllKnownSessions(): MikoAgentSession[] {
 		return [
 			...this.agentSessionManager.getAllSessions(),
 			...this.activeChatSessionHandlers.flatMap((handler) =>
@@ -6622,11 +6621,9 @@ ${await this.loadSharedInstructions()}`;
 		};
 	}
 
-	private createAtmikoToolsOptions(
-		parentSessionId?: string,
-	): AtmikoToolsOptions {
+	private createMikoToolsOptions(parentSessionId?: string): MikoToolsOptions {
 		const failureModesClient = this.getFailureModesClient();
-		const options: AtmikoToolsOptions = {
+		const options: MikoToolsOptions = {
 			parentSessionId,
 			onSessionCreated: (childSessionId: string, parentId: string) => {
 				this.handleChildSessionMapping(childSessionId, parentId);
@@ -6664,12 +6661,12 @@ ${await this.loadSharedInstructions()}`;
 	}
 
 	/**
-	 * Link a newly created agent session to the most recent Atmiko session on its
+	 * Link a newly created agent session to the most recent Miko session on its
 	 * parent issue, so that when this (child) session completes, the parent
 	 * session is resumed with the child's result.
 	 *
 	 * Parent-child *issue* relationships are the channel for child completion
-	 * messages. Any issue whose parent has a Atmiko session is linked, regardless
+	 * messages. Any issue whose parent has a Miko session is linked, regardless
 	 * of whether that parent session is currently running: an orchestrator that
 	 * has halted to wait for its sub-issue has status "complete" and is exactly
 	 * the parent that must be woken, so this deliberately does not filter to
@@ -6678,7 +6675,7 @@ ${await this.loadSharedInstructions()}`;
 	 * runner session id).
 	 *
 	 * This replaces the mapping that used to be established by the removed
-	 * `linear_agent_session_create*` atmiko-tools. Linear delegation creates
+	 * `linear_agent_session_create*` miko-tools. Linear delegation creates
 	 * exactly one session per issue, so deriving the link from the issue
 	 * hierarchy does not reintroduce concurrent child sessions on one issue.
 	 *
@@ -6719,7 +6716,7 @@ ${await this.loadSharedInstructions()}`;
 				this.agentSessionManager.getSessionsByIssueId(parentIssueId);
 			if (parentSessions.length === 0) {
 				log.debug(
-					`Parent issue ${parentIssueId} has no Atmiko session; no parent callback will be sent`,
+					`Parent issue ${parentIssueId} has no Miko session; no parent callback will be sent`,
 				);
 				return;
 			}
@@ -6866,7 +6863,7 @@ ${await this.loadSharedInstructions()}`;
 		return true;
 	}
 
-	private getAtmikoToolsMcpUrl(): string {
+	private getMikoToolsMcpUrl(): string {
 		const server = this.sharedApplicationServer as {
 			getPort?: () => number;
 		};
@@ -6874,7 +6871,7 @@ ${await this.loadSharedInstructions()}`;
 			typeof server.getPort === "function"
 				? server.getPort()
 				: this.config.serverPort || this.config.webhookPort || 3456;
-		return `http://127.0.0.1:${port}${this.atmikoToolsMcpEndpoint}`;
+		return `http://127.0.0.1:${port}${this.mikoToolsMcpEndpoint}`;
 	}
 
 	/**
@@ -6890,7 +6887,7 @@ ${await this.loadSharedInstructions()}`;
 	 */
 	private async buildSessionPrompt(
 		isNewSession: boolean,
-		session: AtmikoAgentSession,
+		session: MikoAgentSession,
 		fullIssue: Issue,
 		repository: RepositoryConfig,
 		promptBody: string,
@@ -7243,7 +7240,7 @@ ${input.userComment}
 	 * @returns Object containing the runner config and runner type to use
 	 */
 	private async buildAgentRunnerConfig(
-		session: AtmikoAgentSession,
+		session: MikoAgentSession,
 		repository: RepositoryConfig,
 		sessionId: string,
 		systemPrompt: string | undefined,
@@ -7312,9 +7309,9 @@ ${input.userComment}
 						: this.config.githubMcpConfigs,
 			strictMcpConfig: this.config.strictMcpConfig,
 			linearWorkspaceId,
-			atmikoHome: this.atmikoHome,
-			// Org-matched GitHub App installation token (pushed by atmiko-hosted):
-			// exposed to the session as GH_TOKEN / ATMIKO_GH_TOKEN so `gh` and
+			mikoHome: this.mikoHome,
+			// Org-matched GitHub App installation token (pushed by miko-hosted):
+			// exposed to the session as GH_TOKEN / MIKO_GH_TOKEN so `gh` and
 			// other tools authenticate against this repo's org. Undefined when
 			// no token store entry matches — zero behavior change for self-host
 			// users without the token file.
@@ -7550,10 +7547,10 @@ ${input.userComment}
 	 * Warm sessions are an opt-in optimization that pre-spawns Claude Code
 	 * subprocesses on startup so the first query after a restart skips the
 	 * cold-start cost. Disabled by default; opt in by setting
-	 * `ATMIKO_ENABLE_WARM_SESSIONS=1` (or `=true`).
+	 * `MIKO_ENABLE_WARM_SESSIONS=1` (or `=true`).
 	 */
 	private isWarmSessionsEnabled(): boolean {
-		const raw = process.env.ATMIKO_ENABLE_WARM_SESSIONS;
+		const raw = process.env.MIKO_ENABLE_WARM_SESSIONS;
 		if (!raw) return false;
 		const v = raw.toLowerCase().trim();
 		return v === "1" || v === "true";
@@ -7562,14 +7559,14 @@ ${input.userComment}
 	/**
 	 * Whether the remote Claude session store is explicitly disabled.
 	 *
-	 * The remote store mirrors SDK transcripts to the Atmiko hosted control
-	 * plane and is on by default whenever `ATMIKO_APP_URL`, `ATMIKO_API_KEY`,
-	 * and `ATMIKO_TEAM_ID` are all set. Operators can opt out — without
+	 * The remote store mirrors SDK transcripts to the Miko hosted control
+	 * plane and is on by default whenever `MIKO_APP_URL`, `MIKO_API_KEY`,
+	 * and `MIKO_TEAM_ID` are all set. Operators can opt out — without
 	 * unsetting those vars (which other features depend on) — by setting
-	 * `ATMIKO_DISABLE_REMOTE_SESSION_STORE=1` (or `=true`).
+	 * `MIKO_DISABLE_REMOTE_SESSION_STORE=1` (or `=true`).
 	 */
 	private isRemoteSessionStoreDisabled(): boolean {
-		const raw = process.env.ATMIKO_DISABLE_REMOTE_SESSION_STORE;
+		const raw = process.env.MIKO_DISABLE_REMOTE_SESSION_STORE;
 		if (!raw) return false;
 		const v = raw.toLowerCase().trim();
 		return v === "1" || v === "true";
@@ -7878,7 +7875,7 @@ ${input.userComment}
 	 * 1. Check if runner is actively streaming
 	 * 2. Add to stream if streaming, OR resume session if not
 	 *
-	 * @param session The Atmiko agent session
+	 * @param session The Miko agent session
 	 * @param repository Repository configuration
 	 * @param sessionId Linear agent activity session ID
 	 * @param agentSessionManager Agent session manager instance
@@ -7890,7 +7887,7 @@ ${input.userComment}
 	 * @returns true if message was added to stream, false if session was resumed
 	 */
 	private async handlePromptWithStreamingCheck(
-		session: AtmikoAgentSession,
+		session: MikoAgentSession,
 		repository: RepositoryConfig,
 		sessionId: string,
 		agentSessionManager: AgentSessionManager,
@@ -7983,7 +7980,7 @@ ${input.userComment}
 	/**
 	 * Resume or create an Agent session with the given prompt
 	 * This is the core logic for handling prompted agent activities
-	 * @param session The Atmiko agent session
+	 * @param session The Miko agent session
 	 * @param repository The repository configuration
 	 * @param sessionId The Linear agent session ID
 	 * @param agentSessionManager The agent session manager
@@ -7992,7 +7989,7 @@ ${input.userComment}
 	 * @param isNewSession Whether this is a new session
 	 */
 	async resumeAgentSession(
-		session: AtmikoAgentSession,
+		session: MikoAgentSession,
 		repository: RepositoryConfig,
 		sessionId: string,
 		agentSessionManager: AgentSessionManager,
@@ -8093,7 +8090,7 @@ ${input.userComment}
 		// Set up attachments directory
 		const workspaceFolderName = basename(session.workspace.path);
 		const attachmentsDir = join(
-			this.atmikoHome,
+			this.mikoHome,
 			workspaceFolderName,
 			"attachments",
 		);

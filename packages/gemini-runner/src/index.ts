@@ -1,16 +1,16 @@
 /**
- * @module atmiko-gemini-runner
+ * @module miko-gemini-runner
  *
- * Gemini CLI integration for Atmiko agent framework.
+ * Gemini CLI integration for Miko agent framework.
  * Provides a provider-agnostic wrapper around the Gemini CLI that implements
  * the IAgentRunner interface, allowing seamless switching between Claude and Gemini.
  *
  * @example
  * ```typescript
- * import { GeminiRunner } from 'atmiko-gemini-runner';
+ * import { GeminiRunner } from 'miko-gemini-runner';
  *
  * const runner = new GeminiRunner({
- *   atmikoHome: '/home/user/.atmiko',
+ *   mikoHome: '/home/user/.miko',
  *   workingDirectory: '/path/to/repo',
  *   model: 'gemini-2.5-flash',
  *   autoApprove: true
@@ -144,7 +144,7 @@ export type {
 	// Tool result types
 	ListDirectoryToolResult,
 	ListDirectoryToolUseEvent,
-	// Re-export McpServerConfig from atmiko-core for convenience
+	// Re-export McpServerConfig from miko-core for convenience
 	McpServerConfig,
 	ReadFileParameters,
 	ReadFileToolResult,

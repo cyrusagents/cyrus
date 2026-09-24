@@ -66,7 +66,7 @@ export interface NormalizedUsage {
 
 /**
  * Backend-neutral lifecycle/stream event. Both backends emit this; the mapper
- * turns it into Atmiko `SDKMessage`s.
+ * turns it into Miko `SDKMessage`s.
  */
 export type NormalizedCodexEvent =
 	| {
@@ -93,10 +93,10 @@ export type CodexFileSystemAccess = "read" | "write" | "deny";
 /**
  * Resolved per-thread sandbox decision.
  * - `workspace-mode`: the coarse Codex sandbox mode (broad reads, writes limited
- *   to cwd + `writableRoots` + tmp). The default when there are no explicit Atmiko
+ *   to cwd + `writableRoots` + tmp). The default when there are no explicit Miko
  *   sandbox settings — sent via `thread/start.sandbox` + `config.sandbox_workspace_write`.
  * - `profile`: a granular per-thread permission profile (restricted reads) derived
- *   from Atmiko sandbox settings. `filesystem` is a flattened map of path →
+ *   from Miko sandbox settings. `filesystem` is a flattened map of path →
  *   read/write/deny, where keys are either absolute paths or Codex special-path
  *   tokens (`:minimal` = platform defaults, `:workspace_roots` = cwd/worktree,
  *   `:tmpdir`, `:slash_tmp`). Sent via `thread/start.permissions` (the profile id)

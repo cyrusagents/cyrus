@@ -132,7 +132,7 @@ async function connectAndDiscover(
 	fallbackName: string,
 ): Promise<ApiResponse> {
 	const client = new Client({
-		name: "atmiko-mcp-tester",
+		name: "miko-mcp-tester",
 		version: "1.0.0",
 	});
 

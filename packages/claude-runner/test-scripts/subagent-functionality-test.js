@@ -206,7 +206,7 @@ This is a functionality test to verify subagent delegation works correctly.
 
 		// Also clean up the corresponding logs directory
 		const workspaceName = testWorkspaceDir.split("/").pop();
-		const logsDir = join(homedir(), ".atmiko", "logs", workspaceName);
+		const logsDir = join(homedir(), ".miko", "logs", workspaceName);
 		if (existsSync(logsDir)) {
 			rmSync(logsDir, { recursive: true, force: true });
 		}

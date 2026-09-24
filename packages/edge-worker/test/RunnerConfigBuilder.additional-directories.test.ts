@@ -1,8 +1,4 @@
-import type {
-	AtmikoAgentSession,
-	ILogger,
-	RepositoryConfig,
-} from "atmiko-core";
+import type { ILogger, MikoAgentSession, RepositoryConfig } from "miko-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -49,16 +45,16 @@ function makeRepository(): RepositoryConfig {
 }
 
 function makeSession(
-	workspace: AtmikoAgentSession["workspace"],
-): AtmikoAgentSession {
+	workspace: MikoAgentSession["workspace"],
+): MikoAgentSession {
 	return {
 		issueId: "issue-1",
 		issue: { identifier: "ABC-1" },
 		workspace,
-	} as unknown as AtmikoAgentSession;
+	} as unknown as MikoAgentSession;
 }
 
-function buildIssueConfig(session: AtmikoAgentSession) {
+function buildIssueConfig(session: MikoAgentSession) {
 	return makeBuilder().buildIssueConfig({
 		session,
 		repository: makeRepository(),
@@ -67,7 +63,7 @@ function buildIssueConfig(session: AtmikoAgentSession) {
 		allowedTools: ["Read(**)"],
 		allowedDirectories: ["/repos/repo-a"],
 		disallowedTools: [],
-		atmikoHome: "/tmp/atmiko-home",
+		mikoHome: "/tmp/miko-home",
 		linearWorkspaceId: "ws-1",
 		logger: silentLogger,
 		onMessage: () => {},
@@ -85,7 +81,7 @@ describe("RunnerConfigBuilder additionalDirectories (multi-repo skill discovery)
 				"repo-a": "/ws/root/repo-a",
 				"repo-b": "/ws/root/repo-b",
 			},
-		} as unknown as AtmikoAgentSession["workspace"]);
+		} as unknown as MikoAgentSession["workspace"]);
 
 		const { config } = buildIssueConfig(session);
 
@@ -100,7 +96,7 @@ describe("RunnerConfigBuilder additionalDirectories (multi-repo skill discovery)
 		const session = makeSession({
 			path: "/ws/repo-a-worktree",
 			isGitWorktree: true,
-		} as unknown as AtmikoAgentSession["workspace"]);
+		} as unknown as MikoAgentSession["workspace"]);
 
 		const { config } = buildIssueConfig(session);
 
@@ -118,7 +114,7 @@ describe("RunnerConfigBuilder additionalDirectories (multi-repo skill discovery)
 				"repo-a": "/ws/root",
 				"repo-b": "/ws/root/repo-b",
 			},
-		} as unknown as AtmikoAgentSession["workspace"]);
+		} as unknown as MikoAgentSession["workspace"]);
 
 		const { config } = buildIssueConfig(session);
 
@@ -131,11 +127,11 @@ describe("resolveIssueMcpConfigPath", () => {
 		const repository = makeRepository();
 		const result = resolveIssueMcpConfigPath(
 			repository,
-			["/home/user/.atmiko/mcp-configs/mcp-supabase.json"],
+			["/home/user/.miko/mcp-configs/mcp-supabase.json"],
 			() => "/repo/.mcp.json",
 		);
 
-		expect(result).toBe("/home/user/.atmiko/mcp-configs/mcp-supabase.json");
+		expect(result).toBe("/home/user/.miko/mcp-configs/mcp-supabase.json");
 	});
 
 	it("uses repo MCP config when the repo owns an allowedTools override", () => {
@@ -146,7 +142,7 @@ describe("resolveIssueMcpConfigPath", () => {
 		} as unknown as RepositoryConfig;
 		const result = resolveIssueMcpConfigPath(
 			repository,
-			["/home/user/.atmiko/mcp-configs/mcp-supabase.json"],
+			["/home/user/.miko/mcp-configs/mcp-supabase.json"],
 			(repo) => (repo as RepositoryConfig).mcpConfigPath,
 		);
 

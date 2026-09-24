@@ -1,10 +1,10 @@
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { Workspace } from "./AtmikoAgentSession.js";
 // Import types for use in this file
 import type { EdgeConfig, RepositoryConfig } from "./config-schemas.js";
 import type { Issue } from "./issue-tracker/types.js";
+import type { Workspace } from "./MikoAgentSession.js";
 
 // Re-export schemas and types from config-schemas
 export {
@@ -42,7 +42,7 @@ export { TRUSTED_DOMAINS } from "./trusted-domains.js";
  * Resolve path with tilde (~) expansion
  * Expands ~ to the user's home directory and resolves to absolute path
  *
- * @param path - Path that may contain ~ prefix (e.g., "~/.atmiko/repos/myrepo")
+ * @param path - Path that may contain ~ prefix (e.g., "~/.miko/repos/myrepo")
  * @returns Absolute path with ~ expanded
  *
  * @example
@@ -95,11 +95,11 @@ export type RepoSetupHookEventHandler = (
  * be persisted to config.json.
  */
 export interface EdgeWorkerRuntimeConfig {
-	/** Atmiko CLI version (e.g., "1.2.3"), used in /version endpoint */
+	/** Miko CLI version (e.g., "1.2.3"), used in /version endpoint */
 	version?: string;
 
-	/** Atmiko home directory - required at runtime */
-	atmikoHome: string;
+	/** Miko home directory - required at runtime */
+	mikoHome: string;
 
 	// --- Server/Network Configuration (runtime-specific) ---
 
@@ -132,7 +132,7 @@ export interface EdgeWorkerRuntimeConfig {
 
 	// --- Agent Configuration (for CLI mode) ---
 
-	/** The name/handle the agent responds to (e.g., "john", "atmiko") */
+	/** The name/handle the agent responds to (e.g., "john", "miko") */
 	agentHandle?: string;
 
 	/** The user ID of the agent (for CLI mode) */
@@ -188,7 +188,7 @@ export interface EdgeWorkerRuntimeConfig {
  * Configuration for the EdgeWorker supporting multiple repositories.
  *
  * This is the complete runtime configuration that combines:
- * - EdgeConfig: Serializable settings from ~/.atmiko/config.json
+ * - EdgeConfig: Serializable settings from ~/.miko/config.json
  * - EdgeWorkerRuntimeConfig: Runtime-only fields (callbacks, handlers, server config)
  *
  * The separation exists because EdgeConfig can be persisted to disk as JSON,
@@ -202,7 +202,7 @@ export interface EdgeWorkerRuntimeConfig {
  * // EdgeWorkerConfig adds runtime handlers
  * const runtimeConfig: EdgeWorkerConfig = {
  *   ...fileConfig,
- *   atmikoHome: '/home/user/.atmiko',
+ *   mikoHome: '/home/user/.miko',
  *   handlers: {
  *     onSessionStart: (issueId, issue, repoId) => console.log('Started'),
  *     onError: (error) => console.error(error),

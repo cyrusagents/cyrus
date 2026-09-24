@@ -29,12 +29,12 @@ Check the `<assignee>` section from the issue context and add assignee informati
 
 Follow this with a blank line, then the rest of the description. If no assignee information is available at all, skip this step.
 
-**IMPORTANT: Atmiko attribution marker**
-You MUST include the following hidden HTML comment somewhere in the MR description (e.g. at the very end). This marker is used to identify Atmiko-authored MRs for tracking purposes:
+**IMPORTANT: Miko attribution marker**
+You MUST include the following hidden HTML comment somewhere in the MR description (e.g. at the very end). This marker is used to identify Miko-authored MRs for tracking purposes:
 ```
-<!-- generated-by-atmiko -->
+<!-- generated-by-miko -->
 ```
-This marker is invisible when rendered on GitLab but allows the webhook to detect that this MR was authored by Atmiko, even when the MR is created under a human user's GitLab account.
+This marker is invisible when rendered on GitLab but allows the webhook to detect that this MR was authored by Miko, even when the MR is created under a human user's GitLab account.
 
 The MR description should include:
 - Summary of changes
@@ -43,8 +43,8 @@ The MR description should include:
 - Any breaking changes or migration notes
 - Link to the Linear issue
 
-**IMPORTANT: Atmiko interaction tip**
-At the end of the MR description (before the `<!-- generated-by-atmiko -->` marker), include a tip section using the following exact format:
+**IMPORTANT: Miko interaction tip**
+At the end of the MR description (before the `<!-- generated-by-miko -->` marker), include a tip section using the following exact format:
 
 ```
 ---
@@ -52,7 +52,7 @@ At the end of the MR description (before the `<!-- generated-by-atmiko -->` mark
 > **Tip:** I will respond to comments that @ mention @<bot_username from agent_context> on this MR. You can also leave review comments, and I will automatically wake up to address each comment.
 ```
 
-This helps reviewers know how to interact with Atmiko directly on the MR.
+This helps reviewers know how to interact with Miko directly on the MR.
 
 Ensure the MR has a clear, descriptive title (remove "WIP:" or "Draft:" prefix if present).
 

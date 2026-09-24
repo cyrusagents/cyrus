@@ -1,8 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { RepositoryConfig } from "atmiko-core";
-import { GitHubTokenStore } from "atmiko-core";
+import type { RepositoryConfig } from "miko-core";
+import { GitHubTokenStore } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 
@@ -10,7 +10,7 @@ import { EdgeWorker } from "../src/EdgeWorker.js";
  * Tests for CYHOST-913: multi-org GitHub App installation token support.
  *
  * `resolveGitHubToken` must prefer an org-matched token from the local
- * token store (pushed by atmiko-hosted) over the forwarded installation
+ * token store (pushed by miko-hosted) over the forwarded installation
  * token, the self-minted App token, and the GITHUB_TOKEN PAT.
  *
  * The private method is exercised directly against a minimal `this` shape
@@ -18,7 +18,7 @@ import { EdgeWorker } from "../src/EdgeWorker.js";
  * EdgeWorker constructor.
  */
 describe("EdgeWorker.resolveGitHubToken precedence (CYHOST-913)", () => {
-	let atmikoHome: string;
+	let mikoHome: string;
 	let store: GitHubTokenStore;
 	let savedGitHubTokenEnv: string | undefined;
 
@@ -54,14 +54,14 @@ describe("EdgeWorker.resolveGitHubToken precedence (CYHOST-913)", () => {
 	}
 
 	beforeEach(() => {
-		atmikoHome = mkdtempSync(join(tmpdir(), "atmiko-token-resolution-"));
-		store = new GitHubTokenStore(atmikoHome);
+		mikoHome = mkdtempSync(join(tmpdir(), "miko-token-resolution-"));
+		store = new GitHubTokenStore(mikoHome);
 		savedGitHubTokenEnv = process.env.GITHUB_TOKEN;
 		delete process.env.GITHUB_TOKEN;
 	});
 
 	afterEach(() => {
-		rmSync(atmikoHome, { recursive: true, force: true });
+		rmSync(mikoHome, { recursive: true, force: true });
 		if (savedGitHubTokenEnv === undefined) {
 			delete process.env.GITHUB_TOKEN;
 		} else {

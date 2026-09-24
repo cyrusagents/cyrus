@@ -4,9 +4,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setGlobalErrorReporter } from "atmiko-core";
 import { Command } from "commander";
 import dotenv from "dotenv";
+import { setGlobalErrorReporter } from "miko-core";
 import { Application } from "./Application.js";
 import { CheckTokensCommand } from "./commands/CheckTokensCommand.js";
 import { RefreshTokenCommand } from "./commands/RefreshTokenCommand.js";
@@ -25,9 +25,9 @@ const packageJsonPath = resolve(__dirname, "..", "..", "package.json");
 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
 
 // Pre-load env vars from the resolved .env file before initialising Sentry, so
-// that ATMIKO_SENTRY_DISABLED / ATMIKO_SENTRY_DSN take effect on the first run.
+// that MIKO_SENTRY_DISABLED / MIKO_SENTRY_DSN take effect on the first run.
 // We re-resolve the path inside Application using the same precedence (CLI
-// flag wins); this preliminary load only honours ATMIKO_HOME and the default.
+// flag wins); this preliminary load only honours MIKO_HOME and the default.
 preloadEnvForBootstrap();
 
 // Initialise the error reporter as early as possible so that exceptions
@@ -41,13 +41,13 @@ setGlobalErrorReporter(errorReporter);
 const program = new Command();
 
 program
-	.name("atmiko")
-	.description("AI-powered Linear issue automation using Claude")
+	.name("miko")
+	.description("Self-hosted development agent for your repositories and team")
 	.version(packageJson.version)
 	.option(
-		"--atmiko-home <path>",
-		"Specify custom Atmiko config directory",
-		resolve(homedir(), ".atmiko"),
+		"--miko-home <path>",
+		"Specify custom Miko config directory",
+		resolve(process.env.MIKO_HOME || join(homedir(), ".miko")),
 	)
 	.option("--env-file <path>", "Path to environment variables file");
 
@@ -58,7 +58,7 @@ program
 	.action(async () => {
 		const opts = program.opts();
 		const app = new Application(
-			opts.atmikoHome,
+			opts.mikoHome,
 			opts.envFile,
 			packageJson.version,
 			errorReporter,
@@ -73,7 +73,7 @@ program
 	.action(async () => {
 		const opts = program.opts();
 		const app = new Application(
-			opts.atmikoHome,
+			opts.mikoHome,
 			opts.envFile,
 			packageJson.version,
 			errorReporter,
@@ -88,7 +88,7 @@ program
 	.action(async () => {
 		const opts = program.opts();
 		const app = new Application(
-			opts.atmikoHome,
+			opts.mikoHome,
 			opts.envFile,
 			packageJson.version,
 			errorReporter,
@@ -103,7 +103,7 @@ program
 	.action(async () => {
 		const opts = program.opts();
 		const app = new Application(
-			opts.atmikoHome,
+			opts.mikoHome,
 			opts.envFile,
 			packageJson.version,
 			errorReporter,
@@ -133,7 +133,7 @@ program
 		) => {
 			const opts = program.opts();
 			const app = new Application(
-				opts.atmikoHome,
+				opts.mikoHome,
 				opts.envFile,
 				packageJson.version,
 			);
@@ -164,20 +164,20 @@ program
  * Best-effort env preload so the error reporter can read its config before the
  * full {@link Application} bootstrap. We honour `--env-file` only as a literal
  * argv lookup (Commander hasn't parsed yet) and otherwise fall back to the
- * default `<atmiko-home>/.env` path.
+ * default `<miko-home>/.env` path.
  */
 function preloadEnvForBootstrap(): void {
 	const argv = process.argv.slice(2);
 	const flagIdx = argv.indexOf("--env-file");
-	const atmikoHomeIdx = argv.indexOf("--atmiko-home");
+	const mikoHomeIdx = argv.indexOf("--miko-home");
 
 	const envFile = flagIdx >= 0 ? argv[flagIdx + 1] : undefined;
-	const atmikoHome =
-		atmikoHomeIdx >= 0 && argv[atmikoHomeIdx + 1]
-			? (argv[atmikoHomeIdx + 1] as string)
-			: resolve(homedir(), ".atmiko");
+	const mikoHome =
+		mikoHomeIdx >= 0 && argv[mikoHomeIdx + 1]
+			? (argv[mikoHomeIdx + 1] as string)
+			: resolve(process.env.MIKO_HOME || join(homedir(), ".miko"));
 
-	const path = envFile ?? join(atmikoHome, ".env");
+	const path = envFile ?? join(mikoHome, ".env");
 	if (existsSync(path)) {
 		dotenv.config({ path, override: false });
 	}

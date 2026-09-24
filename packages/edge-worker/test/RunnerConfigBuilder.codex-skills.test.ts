@@ -1,8 +1,4 @@
-import type {
-	AtmikoAgentSession,
-	ILogger,
-	RepositoryConfig,
-} from "atmiko-core";
+import type { ILogger, MikoAgentSession, RepositoryConfig } from "miko-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -50,14 +46,14 @@ describe("RunnerConfigBuilder Codex managed skills", () => {
 				path: "/ws/repo-a",
 				isGitWorktree: true,
 			},
-		} as unknown as AtmikoAgentSession;
+		} as unknown as MikoAgentSession;
 		const repository = {
 			id: "repo-a",
 			name: "Repo A",
 			repositoryPath: "/repos/repo-a",
 			allowedTools: [],
 		} as unknown as RepositoryConfig;
-		const plugins = [{ type: "local" as const, path: "/atmiko/user-skills" }];
+		const plugins = [{ type: "local" as const, path: "/miko/user-skills" }];
 
 		const { config, runnerType } = makeBuilder(expectedRunner).buildIssueConfig(
 			{
@@ -68,7 +64,7 @@ describe("RunnerConfigBuilder Codex managed skills", () => {
 				allowedTools: ["Read(**)"],
 				allowedDirectories: ["/repos/repo-a"],
 				disallowedTools: [],
-				atmikoHome: "/tmp/atmiko-home",
+				mikoHome: "/tmp/miko-home",
 				linearWorkspaceId: "ws-1",
 				logger: silentLogger,
 				onMessage: () => {},

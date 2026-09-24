@@ -39,12 +39,12 @@ import type {
 	SDKMessage,
 	SDKResultMessage,
 	SDKUserMessage,
-} from "atmiko-core";
+} from "miko-core";
 import { CursorWorkflowContext } from "./CursorWorkflowContext.js";
 import { CursorMessageFormatter } from "./formatter.js";
 import {
-	type AtmikoPermissionsConfig,
-	buildAtmikoPermissionsConfig,
+	buildMikoPermissionsConfig,
+	type MikoPermissionsConfig,
 } from "./permissions.js";
 import { buildCursorSandboxJson, buildSandboxEnv } from "./sandbox.js";
 import type {
@@ -246,7 +246,7 @@ function createResultUsage(
 		// Cursor's `turn-ended` delta exposes `cacheWriteTokens` as a single
 		// counter that maps onto Anthropic's `cache_creation_input_tokens`. The
 		// SDK does not split ephemeral 1h vs 5m — we report 0 for both buckets
-		// and put the full count in the parent field (which is what Atmiko
+		// and put the full count in the parent field (which is what Miko
 		// formatters and Linear's cost display read first).
 		cache_creation_input_tokens: totals?.cacheWriteTokens ?? 0,
 		cache_read_input_tokens: totals?.cacheReadTokens ?? 0,
@@ -258,11 +258,11 @@ function createResultUsage(
 }
 
 /**
- * Convert the Atmiko inline MCP config (potentially containing in-process
+ * Convert the Miko inline MCP config (potentially containing in-process
  * SDK servers) into the SDK's serializable McpServerConfig format. Skips
  * entries that aren't transportable.
  */
-function mapAtmikoMcpToSdk(
+function mapMikoMcpToSdk(
 	mcpConfig: CursorRunnerConfig["mcpConfig"] | undefined,
 ): Record<string, CursorMcpServerConfig> {
 	const servers: Record<string, CursorMcpServerConfig> = {};
@@ -330,7 +330,7 @@ interface ToolProjection {
 
 /**
  * Project an SDK `tool_call` event into the Claude-shaped tool_use /
- * tool_result pair that the Atmiko formatter and timeline expect.
+ * tool_result pair that the Miko formatter and timeline expect.
  *
  * MCP tool calls surface as the generic `name: "mcp"` in the SDK stream;
  * this inspects `args` to extract the actual `<server>:<tool>` and
@@ -534,7 +534,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 			this.installPermissionsArtifacts(workspace);
 
 			// Test/CI fallback for environments where the SDK can't run.
-			if (process.env.ATMIKO_CURSOR_MOCK === "1") {
+			if (process.env.MIKO_CURSOR_MOCK === "1") {
 				this.emitInitMessage();
 				this.pushAssistantText("Cursor mock session completed");
 				this.pendingResultMessage = this.createSuccessResultMessage(
@@ -572,7 +572,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 				}
 			}
 			this.selectedModel = normalizedModel;
-			const mcpServers = mapAtmikoMcpToSdk(this.config.mcpConfig);
+			const mcpServers = mapMikoMcpToSdk(this.config.mcpConfig);
 
 			const sandboxEnabled = Boolean(this.config.sandboxSettings?.enabled);
 			const baseAgentOptions = {
@@ -906,7 +906,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 	}
 
 	private handleThinkingEvent(_event: CursorSDKThinkingMessage): void {
-		// atmiko-core's SDKAssistantMessage content blocks don't yet include
+		// miko-core's SDKAssistantMessage content blocks don't yet include
 		// "thinking"; intentionally drop these to avoid invalid shapes.
 	}
 
@@ -937,21 +937,21 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		// server name (e.g. "linear") from the command/url that the
 		// `beforeMCPExecution` payload exposes — patterns like
 		// `Mcp(linear:save_comment)` only match when we provide that lookup.
-		const sdkMcpServers = mapAtmikoMcpToSdk(this.config.mcpConfig);
-		const cfg: AtmikoPermissionsConfig = buildAtmikoPermissionsConfig({
+		const sdkMcpServers = mapMikoMcpToSdk(this.config.mcpConfig);
+		const cfg: MikoPermissionsConfig = buildMikoPermissionsConfig({
 			workspace,
 			allowedTools: this.config.allowedTools,
 			disallowedTools: this.config.disallowedTools,
 			mcpServers: sdkMcpServers,
 		});
 		writeFileSync(
-			join(cursorDir, "atmiko-permissions.json"),
+			join(cursorDir, "miko-permissions.json"),
 			`${JSON.stringify(cfg, null, "\t")}\n`,
 			"utf8",
 		);
 
 		// 2. Permission helper script (copied from package's bundled .mjs)
-		const helperDst = join(cursorDir, "atmiko-permission-check.mjs");
+		const helperDst = join(cursorDir, "miko-permission-check.mjs");
 		const helperSrc = this.locatePermissionCheckSource();
 		copyFileSync(helperSrc, helperDst);
 		try {
@@ -962,7 +962,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		const hooksPath = join(cursorDir, "hooks.json");
 		const existed = existsSync(hooksPath);
 		const backupPath = existed
-			? `${hooksPath}.atmiko-backup-${Date.now()}-${process.pid}`
+			? `${hooksPath}.miko-backup-${Date.now()}-${process.pid}`
 			: null;
 		if (existed && backupPath) {
 			renameSync(hooksPath, backupPath);
@@ -972,25 +972,25 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 			hooks: {
 				preToolUse: [
 					{
-						command: "./.cursor/atmiko-permission-check.mjs",
+						command: "./.cursor/miko-permission-check.mjs",
 						failClosed: true,
 					},
 				],
 				beforeShellExecution: [
 					{
-						command: "./.cursor/atmiko-permission-check.mjs",
+						command: "./.cursor/miko-permission-check.mjs",
 						failClosed: true,
 					},
 				],
 				beforeReadFile: [
 					{
-						command: "./.cursor/atmiko-permission-check.mjs",
+						command: "./.cursor/miko-permission-check.mjs",
 						failClosed: true,
 					},
 				],
 				beforeMCPExecution: [
 					{
-						command: "./.cursor/atmiko-permission-check.mjs",
+						command: "./.cursor/miko-permission-check.mjs",
 						failClosed: true,
 					},
 				],
@@ -1005,14 +1005,14 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		this.permissionsArtifactsInstalled = true;
 
 		console.log(
-			`[CursorRunner] Installed Atmiko permission hooks at ${hooksPath} (allow=${cfg.allow.length}, deny=${cfg.deny.length}, backup=${backupPath ? "yes" : "no"})`,
+			`[CursorRunner] Installed Miko permission hooks at ${hooksPath} (allow=${cfg.allow.length}, deny=${cfg.deny.length}, backup=${backupPath ? "yes" : "no"})`,
 		);
 
 		// 4. Sandbox policy file (only when sandbox is enabled). Cursor's
 		// `local.sandboxOptions.enabled: true` engages Apple Seatbelt /
 		// Linux Landlock; the policy below extends the default
 		// `workspace_readwrite` profile with allow/deny lists translated
-		// from the Atmiko / Claude SandboxSettings shape.
+		// from the Miko / Claude SandboxSettings shape.
 		this.installSandboxArtifacts(workspace);
 	}
 
@@ -1029,7 +1029,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		const sandboxPath = join(cursorDir, "sandbox.json");
 		const existed = existsSync(sandboxPath);
 		const backupPath = existed
-			? `${sandboxPath}.atmiko-backup-${Date.now()}-${process.pid}`
+			? `${sandboxPath}.miko-backup-${Date.now()}-${process.pid}`
 			: null;
 		if (existed && backupPath) {
 			renameSync(sandboxPath, backupPath);
@@ -1101,7 +1101,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		const pkgRoot = join(here, "..", "src", "permission-check.mjs");
 		if (existsSync(pkgRoot)) return pkgRoot;
 		throw new Error(
-			"[CursorRunner] could not locate atmiko permission-check.mjs helper",
+			"[CursorRunner] could not locate miko permission-check.mjs helper",
 		);
 	}
 
@@ -1110,8 +1110,8 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		if (!this.permissionsArtifactsInstalled) return;
 		const workspace = resolve(this.config.workingDirectory || cwd());
 		const cursorDir = join(workspace, ".cursor");
-		const cfgPath = join(cursorDir, "atmiko-permissions.json");
-		const helperPath = join(cursorDir, "atmiko-permission-check.mjs");
+		const cfgPath = join(cursorDir, "miko-permissions.json");
+		const helperPath = join(cursorDir, "miko-permission-check.mjs");
 
 		try {
 			if (existsSync(cfgPath)) unlinkSync(cfgPath);
@@ -1277,7 +1277,7 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 
 	private setupLogging(sessionId: string): void {
 		try {
-			const logsDir = join(this.config.atmikoHome, "logs");
+			const logsDir = join(this.config.mikoHome, "logs");
 			mkdirSync(logsDir, { recursive: true });
 			const stream = createWriteStream(
 				join(logsDir, `cursor-${sessionId}.jsonl`),

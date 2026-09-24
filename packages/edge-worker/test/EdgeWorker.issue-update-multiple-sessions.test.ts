@@ -1,24 +1,24 @@
 import { LinearClient } from "@linear/sdk";
-import { ClaudeRunner } from "atmiko-claude-runner";
-import { LinearEventTransport } from "atmiko-linear-event-transport";
-import { createAtmikoToolsServer } from "atmiko-mcp-tools";
+import { ClaudeRunner } from "miko-claude-runner";
+import { LinearEventTransport } from "miko-linear-event-transport";
+import { createMikoToolsServer } from "miko-mcp-tools";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
 import type { EdgeWorkerConfig, RepositoryConfig } from "../src/types.js";
-import { TEST_ATMIKO_HOME } from "./test-dirs.js";
+import { TEST_MIKO_HOME } from "./test-dirs.js";
 
 // Mock all dependencies
 vi.mock("fs/promises");
-vi.mock("atmiko-claude-runner");
-vi.mock("atmiko-mcp-tools");
-vi.mock("atmiko-codex-runner");
-vi.mock("atmiko-linear-event-transport");
+vi.mock("miko-claude-runner");
+vi.mock("miko-mcp-tools");
+vi.mock("miko-codex-runner");
+vi.mock("miko-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
-vi.mock("atmiko-core", async (importOriginal) => {
+vi.mock("miko-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as any;
 	return {
 		...actual,
@@ -128,7 +128,7 @@ describe("EdgeWorker - Issue Update Session Delivery (CYPACK-954)", () => {
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		vi.spyOn(console, "error").mockImplementation(() => {});
 
-		vi.mocked(createAtmikoToolsServer).mockImplementation(() => {
+		vi.mocked(createMikoToolsServer).mockImplementation(() => {
 			return { server: {} } as any;
 		});
 
@@ -149,7 +149,7 @@ describe("EdgeWorker - Issue Update Session Delivery (CYPACK-954)", () => {
 			getSession: vi.fn().mockReturnValue(null),
 			getSessionsByIssueId: vi.fn().mockReturnValue([]),
 			getActiveSessionsByIssueId: vi.fn().mockReturnValue([]),
-			createAtmikoAgentSession: vi.fn(),
+			createMikoAgentSession: vi.fn(),
 			createResponseActivity: vi.fn().mockResolvedValue(undefined),
 			postAnalyzingThought: vi.fn().mockResolvedValue(undefined),
 			requestSessionStop: vi.fn(),
@@ -193,7 +193,7 @@ describe("EdgeWorker - Issue Update Session Delivery (CYPACK-954)", () => {
 
 		mockConfig = {
 			proxyUrl: "http://localhost:3000",
-			atmikoHome: TEST_ATMIKO_HOME,
+			mikoHome: TEST_MIKO_HOME,
 			repositories: [mockRepository],
 			linearWorkspaces: {
 				"test-workspace": { linearToken: "test-token" },

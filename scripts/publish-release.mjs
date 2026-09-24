@@ -169,7 +169,7 @@ async function run() {
 		);
 	}
 	if (process.env.GITHUB_REF !== "refs/heads/main") {
-		throw new Error("Atmiko releases must run from main.");
+		throw new Error("Miko releases must run from main.");
 	}
 	const artifacts = releasePackages.map(({ name }) => {
 		const path = join(artifactsPath, `${name}-${version}.tgz`);

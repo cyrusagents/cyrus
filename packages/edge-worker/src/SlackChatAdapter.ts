@@ -1,12 +1,12 @@
-import type { IAgentRunner, ILogger } from "atmiko-core";
-import { createLogger } from "atmiko-core";
+import type { IAgentRunner, ILogger } from "miko-core";
+import { createLogger } from "miko-core";
 import {
 	buildPromptText,
 	SlackMessageService,
 	SlackReactionService,
 	type SlackThreadMessage,
 	type SlackWebhookEvent,
-} from "atmiko-slack-event-transport";
+} from "miko-slack-event-transport";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
 
@@ -23,7 +23,7 @@ import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
 export const SLACK_NO_RESPONSE_SENTINEL = "<<NO_RESPONSE>>";
 
 /**
- * Route of the hosted Behaviours settings page (relative to the Atmiko app
+ * Route of the hosted Behaviours settings page (relative to the Miko app
  * base URL) where automatic Slack thread listening can be turned off.
  */
 export const BEHAVIOURS_PAGE_ROUTE = "/settings/behaviours";
@@ -66,19 +66,19 @@ export class SlackChatAdapter
 		options?: {
 			repositoryRoutingContext?: string;
 			/**
-			 * Base URL of the hosted Atmiko app (e.g. https://control-plane.example.com).
+			 * Base URL of the hosted Miko app (e.g. https://control-plane.example.com).
 			 * Only set for managed teams — community members have no Behaviours
 			 * page, so the system prompt omits the stop-listening guidance
 			 * entirely when this is empty. The Behaviours page URL is composed
 			 * from this base and BEHAVIOURS_PAGE_ROUTE.
 			 */
-			atmikoAppBaseUrl?: string;
+			mikoAppBaseUrl?: string;
 		},
 	) {
 		this.repositoryProvider = repositoryProvider;
 		this.repositoryRoutingContext =
 			options?.repositoryRoutingContext?.trim() || "";
-		const appBaseUrl = options?.atmikoAppBaseUrl?.trim().replace(/\/+$/, "");
+		const appBaseUrl = options?.mikoAppBaseUrl?.trim().replace(/\/+$/, "");
 		this.behavioursPageUrl = appBaseUrl
 			? `${appBaseUrl}${BEHAVIOURS_PAGE_ROUTE}`
 			: "";
@@ -126,7 +126,7 @@ export class SlackChatAdapter
 	 * - A plain `message` event may only when it was upstream-gated (proxy mode):
 	 *   CYHOST forwards `message` events solely for threads it has a persistent
 	 *   binding row for, so reaching us means the thread is genuinely bound. This
-	 *   is what lets Atmiko keep answering follow-ups after a process restart wipes
+	 *   is what lets Miko keep answering follow-ups after a process restart wipes
 	 *   the in-memory binding — the prior Slack thread is rehydrated via
 	 *   `fetchThreadContext`. In direct mode (`upstreamGated` false) there is no
 	 *   such guarantee, so an unbound plain message is ignored to avoid starting a
@@ -172,7 +172,7 @@ ${repositoryPaths.map((path) => `- ${path}`).join("\n")}
 ## Stopping Automatic Listening
 - If the user asks you to stop listening to, following, or responding in this thread:
   - Tell them automatic thread listening can be turned off on the Behaviours page: <${this.behavioursPageUrl}|Behaviours page>.
-  - From that point on, treat this thread as muted: stay silent (emit \`${SLACK_NO_RESPONSE_SENTINEL}\` and nothing else) for every subsequent message until someone asks you a direct question — addressing you by name ("Atmiko, …") or with an @mention. When you resume responding, just answer — do not announce that you are listening again.`
+  - From that point on, treat this thread as muted: stay silent (emit \`${SLACK_NO_RESPONSE_SENTINEL}\` and nothing else) for every subsequent message until someone asks you a direct question — addressing you by name ("Miko, …") or with an @mention. When you resume responding, just answer — do not announce that you are listening again.`
 			: "";
 
 		return `You are participating in a Slack thread.
@@ -185,7 +185,7 @@ ${repositoryPaths.map((path) => `- ${path}`).join("\n")}
 - After you are first @mentioned, you receive **every** subsequent message in this thread, not just the ones aimed at you. Do not treat every message as a request for you.
 - Respond ONLY when at least one of these is true:
   1. The message asks a question you can genuinely and helpfully answer, OR
-  2. Someone addresses you directly — by name ("Atmiko, …") or with an @mention.
+  2. Someone addresses you directly — by name ("Miko, …") or with an @mention.
 - For anything else — side conversation between people, acknowledgements ("thanks", "👍"), status chatter, or messages clearly not directed at you — do NOT reply.
 - When you should stay silent, output exactly \`${SLACK_NO_RESPONSE_SENTINEL}\` and nothing else — no reasoning, no explanation, not a single word before or after the token.
 - NEVER narrate your decision about whether to respond. Your entire output is posted verbatim to the thread — there is no private scratchpad. Thoughts like "the user didn't address me by name, so I should stay quiet" or "they addressed me by name, so I'm listening again" must never appear in your output. Either emit the bare token, or reply directly to the user's message as if the decision never happened.
@@ -201,8 +201,8 @@ ${repositoryAccessSection}
 ${this.repositoryRoutingContext ? `\n\n${this.repositoryRoutingContext}` : ""}
 
 ## Self-Knowledge
-- If the user asks about your capabilities, features, how you work, what you can do, setup instructions, or anything related to Atmiko documentation, use the \`mcp__atmiko-docs__search_documentation\` tool to look up the answer from the official Atmiko docs.
-- Always prefer searching the docs over guessing or relying on your training data for Atmiko-specific questions.
+- If the user asks about your capabilities, features, how you work, what you can do, setup instructions, or anything related to Miko documentation, use the \`mcp__miko-docs__search_documentation\` tool to look up the answer from the official Miko docs.
+- Always prefer searching the docs over guessing or relying on your training data for Miko-specific questions.
 
 ## Orchestration Notes
 - If the user asks you to make repo code changes immediately, use these steps:
@@ -214,8 +214,8 @@ ${this.repositoryRoutingContext ? `\n\n${this.repositoryRoutingContext}` : ""}
   - To choose both execution harness and model from Linear labels, apply a \`<provider>/<model>\` label such as \`openai/gpt-5.5\`. For OpenCode, use \`opencode/<provider>/<model>\`, such as \`opencode/openai/gpt-5.5\`.
   - Assign that Issue to that same user (your own Linear user).
   - That assignment is what immediately kicks off work in your own agent session.
-  - Track execution progress by searching \`mcp__atmiko-tools__linear_get_agent_sessions\` for the active session, then opening it with \`mcp__atmiko-tools__linear_get_agent_session\`.
-  - To send mid-flight feedback or corrections to a running child session, use \`mcp__atmiko-tools__linear_agent_give_feedback\` with the session ID returned by \`linear_get_agent_sessions\`. This is the ONLY way to directly prompt a running child agent. \`mcp__linear__save_comment\` does NOT trigger or notify the agent in any way — it just writes a comment on the issue, which the running session will not see. Always prefer \`linear_agent_give_feedback\` when the child agent is actively working.
+  - Track execution progress by searching \`mcp__miko-tools__linear_get_agent_sessions\` for the active session, then opening it with \`mcp__miko-tools__linear_get_agent_session\`.
+  - To send mid-flight feedback or corrections to a running child session, use \`mcp__miko-tools__linear_agent_give_feedback\` with the session ID returned by \`linear_get_agent_sessions\`. This is the ONLY way to directly prompt a running child agent. \`mcp__linear__save_comment\` does NOT trigger or notify the agent in any way — it just writes a comment on the issue, which the running session will not see. Always prefer \`linear_agent_give_feedback\` when the child agent is actively working.
 
 ## Slack Message Formatting (CRITICAL)
 Your response will be posted as a Slack message. Slack uses its own "mrkdwn" format, which is NOT standard Markdown. You MUST follow these rules exactly.

@@ -12,10 +12,10 @@ vi.mock("fs/promises", () => ({
 }));
 
 // Mock dependencies
-vi.mock("atmiko-claude-runner");
-vi.mock("atmiko-codex-runner");
-vi.mock("atmiko-gemini-runner");
-vi.mock("atmiko-linear-event-transport");
+vi.mock("miko-claude-runner");
+vi.mock("miko-codex-runner");
+vi.mock("miko-gemini-runner");
+vi.mock("miko-linear-event-transport");
 vi.mock("@linear/sdk");
 vi.mock("../src/SharedApplicationServer.js", () => ({
 	SharedApplicationServer: vi.fn().mockImplementation(function () {
@@ -36,7 +36,7 @@ vi.mock("../src/AgentSessionManager.js", () => ({
 		return {
 			getAllAgentRunners: vi.fn().mockReturnValue([]),
 			getAllSessions: vi.fn().mockReturnValue([]),
-			createAtmikoAgentSession: vi.fn(),
+			createMikoAgentSession: vi.fn(),
 			getSession: vi.fn(),
 			getActiveSessionsByIssueId: vi.fn().mockReturnValue([]),
 			setActivitySink: vi.fn(),
@@ -45,7 +45,7 @@ vi.mock("../src/AgentSessionManager.js", () => ({
 		};
 	}),
 }));
-vi.mock("atmiko-core", async (importOriginal) => {
+vi.mock("miko-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as any;
 	return {
 		...actual,
@@ -95,7 +95,7 @@ describe("EdgeWorker - Version Endpoint", () => {
 
 		mockConfig = {
 			platform: "linear",
-			atmikoHome: "/test/.atmiko",
+			mikoHome: "/test/.miko",
 			repositories: [mockRepository],
 			linearWorkspaces: {
 				"test-workspace": { linearToken: "test-token" },
@@ -189,7 +189,7 @@ describe("EdgeWorker - Version Endpoint", () => {
 
 			expect(mockReply.status).toHaveBeenCalledWith(200);
 			expect(mockReply.send).toHaveBeenCalledWith({
-				atmiko_cli_version: null,
+				miko_cli_version: null,
 			});
 		});
 
@@ -240,7 +240,7 @@ describe("EdgeWorker - Version Endpoint", () => {
 
 			expect(mockReply.status).toHaveBeenCalledWith(200);
 			expect(mockReply.send).toHaveBeenCalledWith({
-				atmiko_cli_version: "1.2.3",
+				miko_cli_version: "1.2.3",
 			});
 		});
 
@@ -293,7 +293,7 @@ describe("EdgeWorker - Version Endpoint", () => {
 			expect(mockReply.status).toHaveBeenCalledWith(200);
 			// Empty string is truthy for ?? operator, so it returns empty string
 			expect(mockReply.send).toHaveBeenCalledWith({
-				atmiko_cli_version: "",
+				miko_cli_version: "",
 			});
 		});
 	});

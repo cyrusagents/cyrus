@@ -21,16 +21,16 @@ describe("AgentSessionManager - Multi-repo GitHub @ mention routing", () => {
 	};
 
 	const multiRepoWorkspace = {
-		path: "/home/atmiko/.atmiko/worktrees/CYPACK-920",
+		path: "/home/miko/.miko/worktrees/CYPACK-920",
 		isGitWorktree: true,
 		repoPaths: {
-			"repo-a-id": "/home/atmiko/.atmiko/worktrees/CYPACK-920/frontend-app",
-			"repo-b-id": "/home/atmiko/.atmiko/worktrees/CYPACK-920/backend-api",
+			"repo-a-id": "/home/miko/.miko/worktrees/CYPACK-920/frontend-app",
+			"repo-b-id": "/home/miko/.miko/worktrees/CYPACK-920/backend-api",
 		},
 	};
 
 	const singleRepoWorkspace = {
-		path: "/home/atmiko/.atmiko/worktrees/CYPACK-920",
+		path: "/home/miko/.miko/worktrees/CYPACK-920",
 		isGitWorktree: true,
 	};
 
@@ -39,7 +39,7 @@ describe("AgentSessionManager - Multi-repo GitHub @ mention routing", () => {
 	});
 
 	function createMultiRepoSession(sessionId = "session-multi") {
-		manager.createAtmikoAgentSession(
+		manager.createMikoAgentSession(
 			sessionId,
 			"issue-1",
 			{
@@ -55,7 +55,7 @@ describe("AgentSessionManager - Multi-repo GitHub @ mention routing", () => {
 	}
 
 	function createSingleRepoSession(sessionId = "session-single") {
-		manager.createAtmikoAgentSession(
+		manager.createMikoAgentSession(
 			sessionId,
 			"issue-2",
 			{
@@ -121,7 +121,7 @@ describe("AgentSessionManager - Multi-repo GitHub @ mention routing", () => {
 		const session = manager.getActiveMultiRepoSessionForRepository("repo-b-id");
 		expect(session).not.toBeNull();
 		expect(session!.workspace.repoPaths?.["repo-b-id"]).toBe(
-			"/home/atmiko/.atmiko/worktrees/CYPACK-920/backend-api",
+			"/home/miko/.miko/worktrees/CYPACK-920/backend-api",
 		);
 	});
 

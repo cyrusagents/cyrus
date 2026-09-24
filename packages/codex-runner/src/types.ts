@@ -8,8 +8,8 @@ import type {
 	AgentRunnerConfig,
 	AgentSessionInfo,
 	SDKMessage,
-} from "atmiko-core";
-import type { AtmikoSandboxFilesystem } from "./config/sandboxPolicy.js";
+} from "miko-core";
+import type { MikoSandboxFilesystem } from "./config/sandboxPolicy.js";
 
 export type CodexConfigValue =
 	| string
@@ -55,7 +55,7 @@ export interface CodexRunnerConfig extends AgentRunnerConfig {
 	 * session runs under a granular per-thread sandbox policy instead of the
 	 * coarse default mode. Paths must be absolute.
 	 */
-	sandboxSettings?: AtmikoSandboxFilesystem;
+	sandboxSettings?: MikoSandboxFilesystem;
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { EdgeConfig } from "atmiko-core";
+import type { EdgeConfig } from "miko-core";
 
 /**
  * Linear credentials obtained from OAuth flow
@@ -18,6 +18,6 @@ export interface Workspace {
 }
 
 /**
- * Re-export EdgeConfig from atmiko-core for convenience
+ * Re-export EdgeConfig from miko-core for convenience
  */
 export type { EdgeConfig };

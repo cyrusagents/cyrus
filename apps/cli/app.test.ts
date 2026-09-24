@@ -164,8 +164,7 @@ describe("Git Worktree Creation - Windows Compatibility", () => {
 		});
 
 		// Test the exact command that would fail on Windows
-		const windowsWorkspaceDir =
-			"C:\\Users\\user\\.atmiko\\workspaces\\repo-name";
+		const windowsWorkspaceDir = "C:\\Users\\user\\.miko\\workspaces\\repo-name";
 		const mkdirCommand = `mkdir -p "${windowsWorkspaceDir}"`;
 
 		// This should throw the Windows-specific error
@@ -206,7 +205,7 @@ describe("Git Worktree Creation - Windows Compatibility", () => {
 		});
 
 		// The problematic commands from app.ts lines 1165 and 1324
-		const workspaceCommand = `mkdir -p "C:\\Users\\user\\.atmiko\\workspaces\\repo-name"`;
+		const workspaceCommand = `mkdir -p "C:\\Users\\user\\.miko\\workspaces\\repo-name"`;
 		const fallbackCommand = `mkdir -p "C:\\workspace\\fallback\\ISSUE-123"`;
 
 		// Both should fail on Windows
@@ -257,8 +256,8 @@ describe("Git Worktree Creation - Windows Compatibility", () => {
 		// Test that the Node.js native mkdirSync works on all platforms
 		const testPaths = [
 			"/tmp/test/workspace",
-			"C:\\Users\\user\\.atmiko\\workspaces\\repo-name",
-			"/home/user/.atmiko/workspaces/project",
+			"C:\\Users\\user\\.miko\\workspaces\\repo-name",
+			"/home/user/.miko/workspaces/project",
 			"C:\\workspace\\fallback\\ISSUE-123",
 		];
 
@@ -290,11 +289,11 @@ describe("Git Worktree Creation - Windows Compatibility", () => {
 		// Simulate the two scenarios from the fixed code:
 
 		// 1. Main workspace creation (was line 1165)
-		const workspaceBaseDir = "/home/user/.atmiko/workspaces/repo-name";
+		const workspaceBaseDir = "/home/user/.miko/workspaces/repo-name";
 		mockMkdirSync(workspaceBaseDir, { recursive: true });
 
 		// 2. Fallback path creation (was line 1324)
-		const fallbackPath = "/home/user/.atmiko/workspaces/repo-name/ISSUE-123";
+		const fallbackPath = "/home/user/.miko/workspaces/repo-name/ISSUE-123";
 		mockMkdirSync(fallbackPath, { recursive: true });
 
 		// Verify both calls were made correctly
@@ -326,12 +325,12 @@ describe("Windows Bash Script Compatibility", () => {
 			configurable: true,
 		});
 
-		// Mock existsSync to simulate atmiko-setup.sh exists
+		// Mock existsSync to simulate miko-setup.sh exists
 		mockExistsSync.mockReturnValue(true);
 
 		// Mock Windows Command Prompt behavior where bash is not recognized
 		mockExecSync.mockImplementation((cmd: string) => {
-			if (cmd.includes("bash atmiko-setup.sh")) {
+			if (cmd.includes("bash miko-setup.sh")) {
 				const error = new Error(
 					"'bash' is not recognized as an internal or external command, operable program or batch file.",
 				);
@@ -342,7 +341,7 @@ describe("Windows Bash Script Compatibility", () => {
 		});
 
 		// The problematic command from app.ts line 1294
-		const bashCommand = "bash atmiko-setup.sh";
+		const bashCommand = "bash miko-setup.sh";
 
 		// This should fail on Windows without bash in PATH
 		expect(() =>
@@ -358,23 +357,23 @@ describe("Windows Bash Script Compatibility", () => {
 		const testScenarios = [
 			{
 				platform: "win32",
-				command: "bash atmiko-setup.sh",
+				command: "bash miko-setup.sh",
 				expectedError:
 					"'bash' is not recognized as an internal or external command",
 			},
 			{
 				platform: "win32",
-				command: "powershell -ExecutionPolicy Bypass -File atmiko-setup.ps1",
+				command: "powershell -ExecutionPolicy Bypass -File miko-setup.ps1",
 				expectedError: null, // PowerShell is available on Windows
 			},
 			{
 				platform: "darwin",
-				command: "bash atmiko-setup.sh",
+				command: "bash miko-setup.sh",
 				expectedError: null, // bash is available on macOS
 			},
 			{
 				platform: "linux",
-				command: "bash atmiko-setup.sh",
+				command: "bash miko-setup.sh",
 				expectedError: null, // bash is available on Linux
 			},
 		];
@@ -412,7 +411,7 @@ describe("Windows Bash Script Compatibility", () => {
 
 	it("should identify the exact problematic bash execution in app.ts", () => {
 		// This test documents the exact location where bash execution fails on Windows
-		// Line 1294: execSync("bash atmiko-setup.sh", { ... })
+		// Line 1294: execSync("bash miko-setup.sh", { ... })
 
 		// Mock Windows environment
 		Object.defineProperty(process, "platform", {
@@ -421,7 +420,7 @@ describe("Windows Bash Script Compatibility", () => {
 		});
 
 		mockExecSync.mockImplementation((cmd: string) => {
-			if (cmd === "bash atmiko-setup.sh") {
+			if (cmd === "bash miko-setup.sh") {
 				// Simulate Windows bash not found error
 				const error = new Error(
 					"'bash' is not recognized as an internal or external command, operable program or batch file.",
@@ -434,7 +433,7 @@ describe("Windows Bash Script Compatibility", () => {
 		});
 
 		// The exact command from line 1294 in app.ts
-		const problematicCommand = "bash atmiko-setup.sh";
+		const problematicCommand = "bash miko-setup.sh";
 		const execOptions = {
 			cwd: "C:\\workspace\\project\\ISSUE-123",
 			stdio: "inherit" as const,
@@ -460,39 +459,39 @@ describe("Windows Bash Script Compatibility", () => {
 		const testScenarios = [
 			{
 				platform: "win32",
-				availableScripts: ["atmiko-setup.ps1"],
+				availableScripts: ["miko-setup.ps1"],
 				expectedCommand:
-					"powershell -ExecutionPolicy Bypass -File atmiko-setup.ps1",
+					"powershell -ExecutionPolicy Bypass -File miko-setup.ps1",
 				description: "Windows with PowerShell script",
 			},
 			{
 				platform: "win32",
-				availableScripts: ["atmiko-setup.bat"],
-				expectedCommand: "atmiko-setup.bat",
+				availableScripts: ["miko-setup.bat"],
+				expectedCommand: "miko-setup.bat",
 				description: "Windows with batch script",
 			},
 			{
 				platform: "win32",
-				availableScripts: ["atmiko-setup.cmd"],
-				expectedCommand: "atmiko-setup.cmd",
+				availableScripts: ["miko-setup.cmd"],
+				expectedCommand: "miko-setup.cmd",
 				description: "Windows with cmd script",
 			},
 			{
 				platform: "darwin",
-				availableScripts: ["atmiko-setup.sh"],
-				expectedCommand: "bash atmiko-setup.sh",
+				availableScripts: ["miko-setup.sh"],
+				expectedCommand: "bash miko-setup.sh",
 				description: "macOS with bash script",
 			},
 			{
 				platform: "linux",
-				availableScripts: ["atmiko-setup.sh"],
-				expectedCommand: "bash atmiko-setup.sh",
+				availableScripts: ["miko-setup.sh"],
+				expectedCommand: "bash miko-setup.sh",
 				description: "Linux with bash script",
 			},
 			{
 				platform: "win32",
-				availableScripts: ["atmiko-setup.sh"], // Fallback on Windows
-				expectedCommand: "bash atmiko-setup.sh",
+				availableScripts: ["miko-setup.sh"], // Fallback on Windows
+				expectedCommand: "bash miko-setup.sh",
 				description: "Windows fallback to bash (Git Bash/WSL)",
 			},
 		];
@@ -525,23 +524,23 @@ describe("Windows Bash Script Compatibility", () => {
 			const isWindows = scenario.platform === "win32";
 			const setupScripts = [
 				{
-					file: "atmiko-setup.sh",
-					command: "bash atmiko-setup.sh",
+					file: "miko-setup.sh",
+					command: "bash miko-setup.sh",
 					platform: "unix",
 				},
 				{
-					file: "atmiko-setup.ps1",
-					command: "powershell -ExecutionPolicy Bypass -File atmiko-setup.ps1",
+					file: "miko-setup.ps1",
+					command: "powershell -ExecutionPolicy Bypass -File miko-setup.ps1",
 					platform: "windows",
 				},
 				{
-					file: "atmiko-setup.cmd",
-					command: "atmiko-setup.cmd",
+					file: "miko-setup.cmd",
+					command: "miko-setup.cmd",
 					platform: "windows",
 				},
 				{
-					file: "atmiko-setup.bat",
-					command: "atmiko-setup.bat",
+					file: "miko-setup.bat",
+					command: "miko-setup.bat",
 					platform: "windows",
 				},
 			];
@@ -588,7 +587,7 @@ describe("Windows Bash Script Compatibility", () => {
 	});
 
 	it("should verify the cross-platform fix replaces hardcoded bash execution", () => {
-		// Test that the fix no longer uses hardcoded "bash atmiko-setup.sh" command
+		// Test that the fix no longer uses hardcoded "bash miko-setup.sh" command
 		// Instead, it uses platform-specific script detection
 
 		// Mock Windows environment
@@ -599,11 +598,11 @@ describe("Windows Bash Script Compatibility", () => {
 
 		// Mock that only PowerShell script exists
 		mockExistsSync.mockImplementation((path: string) => {
-			return (path as string).endsWith("atmiko-setup.ps1");
+			return (path as string).endsWith("miko-setup.ps1");
 		});
 
 		mockExecSync.mockImplementation((cmd: string) => {
-			if (cmd === "powershell -ExecutionPolicy Bypass -File atmiko-setup.ps1") {
+			if (cmd === "powershell -ExecutionPolicy Bypass -File miko-setup.ps1") {
 				return "";
 			}
 			throw new Error(`Unexpected command: ${cmd}`);
@@ -611,7 +610,7 @@ describe("Windows Bash Script Compatibility", () => {
 
 		// Simulate the new cross-platform script execution
 		const powershellCommand =
-			"powershell -ExecutionPolicy Bypass -File atmiko-setup.ps1";
+			"powershell -ExecutionPolicy Bypass -File miko-setup.ps1";
 
 		// Should execute PowerShell command successfully on Windows
 		expect(() =>
@@ -624,7 +623,7 @@ describe("Windows Bash Script Compatibility", () => {
 
 		// Verify the hardcoded bash command is no longer used
 		expect(mockExecSync).not.toHaveBeenCalledWith(
-			"bash atmiko-setup.sh",
+			"bash miko-setup.sh",
 			expect.any(Object),
 		);
 
@@ -675,7 +674,7 @@ describe("ConfigService - Skill Migration", () => {
 		};
 
 		const configService = new ConfigService(
-			"/home/user/.atmiko",
+			"/home/user/.miko",
 			mockLogger as any,
 		);
 		const config = configService.load();
@@ -728,7 +727,7 @@ describe("ConfigService - Skill Migration", () => {
 		};
 
 		const configService = new ConfigService(
-			"/home/user/.atmiko",
+			"/home/user/.miko",
 			mockLogger as any,
 		);
 		const config = configService.load();
@@ -778,7 +777,7 @@ describe("ConfigService - Skill Migration", () => {
 		};
 
 		const configService = new ConfigService(
-			"/home/user/.atmiko",
+			"/home/user/.miko",
 			mockLogger as any,
 		);
 		const config = configService.load();
@@ -834,7 +833,7 @@ describe("ConfigService - Skill Migration", () => {
 		};
 
 		const configService = new ConfigService(
-			"/home/user/.atmiko",
+			"/home/user/.miko",
 			mockLogger as any,
 		);
 		const config = configService.load();
@@ -883,7 +882,7 @@ describe("ConfigService - Skill Migration", () => {
 		};
 
 		const configService = new ConfigService(
-			"/home/user/.atmiko",
+			"/home/user/.miko",
 			mockLogger as any,
 		);
 		const config = configService.load();

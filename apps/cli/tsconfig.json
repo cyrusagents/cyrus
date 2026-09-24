@@ -5,11 +5,11 @@
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"paths": {
-			"atmiko-core": ["../../packages/core/src"],
-			"atmiko-claude-runner": ["../../packages/claude-runner/src"],
-			"atmiko-simple-agent-runner": ["../../packages/simple-agent-runner/src"],
-			"atmiko-config-updater": ["../../packages/config-updater/src"],
-			"atmiko-edge-worker": [
+			"miko-core": ["../../packages/core/src"],
+			"miko-claude-runner": ["../../packages/claude-runner/src"],
+			"miko-simple-agent-runner": ["../../packages/simple-agent-runner/src"],
+			"miko-config-updater": ["../../packages/config-updater/src"],
+			"miko-edge-worker": [
 				"../../packages/edge-worker/dist/edge-worker/src/index.d.ts"
 			]
 		},

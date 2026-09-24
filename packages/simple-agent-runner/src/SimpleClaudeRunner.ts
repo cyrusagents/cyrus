@@ -1,11 +1,11 @@
-import { ClaudeRunner } from "atmiko-claude-runner";
-import type { SDKMessage } from "atmiko-core";
+import { ClaudeRunner } from "miko-claude-runner";
+import type { SDKMessage } from "miko-core";
 import { NoResponseError, SessionError } from "./errors.js";
 import { SimpleAgentRunner } from "./SimpleAgentRunner.js";
 import type { SimpleAgentQueryOptions } from "./types.js";
 
 /**
- * Concrete implementation using ClaudeRunner from atmiko-claude-runner package.
+ * Concrete implementation using ClaudeRunner from miko-claude-runner package.
  *
  * This implementation uses the Claude Agent SDK to execute queries and
  * constrains the responses to an enumerated set.
@@ -29,7 +29,7 @@ export class SimpleClaudeRunner<T extends string> extends SimpleAgentRunner<T> {
 		// Create ClaudeRunner with configuration
 		const runner = new ClaudeRunner({
 			workingDirectory: this.config.workingDirectory,
-			atmikoHome: this.config.atmikoHome,
+			mikoHome: this.config.mikoHome,
 			model: this.config.model,
 			fallbackModel: this.config.fallbackModel,
 			maxTurns: this.config.maxTurns,
@@ -92,8 +92,7 @@ export class SimpleClaudeRunner<T extends string> extends SimpleAgentRunner<T> {
 			if (
 				message.type === "assistant" &&
 				"message" in message &&
-				message.message &&
-				message.message.content
+				message.message?.content
 			) {
 				// Extract text from content blocks
 				for (const block of message.message.content) {
@@ -156,8 +155,7 @@ export class SimpleClaudeRunner<T extends string> extends SimpleAgentRunner<T> {
 		if (
 			message.type === "assistant" &&
 			"message" in message &&
-			message.message &&
-			message.message.content
+			message.message?.content
 		) {
 			for (const block of message.message.content) {
 				if (typeof block === "object" && block !== null && "type" in block) {

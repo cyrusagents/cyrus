@@ -1,11 +1,11 @@
 {
-	"name": "atmiko",
+	"name": "miko",
 	"version": "0.2.72",
-	"description": "AI-powered Linear issue automation using Claude",
+	"description": "Self-hosted development agent for Linear, GitHub, GitLab, Slack and Zulip",
 	"main": "dist/src/app.js",
 	"types": "dist/src/app.d.ts",
 	"bin": {
-		"atmiko": "./dist/src/app.js"
+		"miko": "./dist/src/app.js"
 	},
 	"type": "module",
 	"scripts": {
@@ -27,7 +27,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/nexmoe/atmiko.git",
+		"url": "git+https://github.com/mikoagents/miko.git",
 		"directory": "apps/cli"
 	},
 	"keywords": [
@@ -43,12 +43,12 @@
 		"@linear/sdk": "^64.0.0",
 		"@sentry/node": "^10.65.0",
 		"commander": "^14.0.2",
-		"atmiko-claude-runner": "workspace:*",
-		"atmiko-cloudflare-tunnel-client": "workspace:*",
-		"atmiko-config-updater": "workspace:*",
-		"atmiko-core": "workspace:*",
-		"atmiko-edge-worker": "workspace:*",
-		"atmiko-slack-event-transport": "workspace:*",
+		"miko-claude-runner": "workspace:*",
+		"miko-cloudflare-tunnel-client": "workspace:*",
+		"miko-config-updater": "workspace:*",
+		"miko-core": "workspace:*",
+		"miko-edge-worker": "workspace:*",
+		"miko-slack-event-transport": "workspace:*",
 		"dotenv": "^16.5.0",
 		"express": "^5.2.1",
 		"fastify": "^5.12.1",

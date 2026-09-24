@@ -1,7 +1,7 @@
 import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SdkPluginConfig } from "atmiko-claude-runner";
-import type { ILogger } from "atmiko-core";
+import type { SdkPluginConfig } from "miko-claude-runner";
+import type { ILogger } from "miko-core";
 
 /**
  * Session context used to evaluate per-skill scope restrictions. Each dimension
@@ -24,7 +24,7 @@ export interface SkillSessionContext {
 
 /**
  * Scope persisted alongside a user skill as `scope.json`. Mirrors the optional
- * fields on `UpdateSkillPayload` in `atmiko-config-updater`.
+ * fields on `UpdateSkillPayload` in `miko-config-updater`.
  */
 interface SkillScope {
 	repositoryIds?: string[];
@@ -36,9 +36,9 @@ interface SkillScope {
  * Resolves skills plugins for agent sessions.
  *
  * Two plugin sources are supported:
- * 1. Internal plugin — default Atmiko workflow skills deployed to ~/.atmiko/atmiko-skills-plugin/
+ * 1. Internal plugin — default Miko workflow skills deployed to ~/.miko/miko-skills-plugin/
  *    (editable by the user)
- * 2. User skills plugin — custom skills managed by the CYHOST UI at ~/.atmiko/user-skills-plugin/
+ * 2. User skills plugin — custom skills managed by the CYHOST UI at ~/.miko/user-skills-plugin/
  *
  * Both live outside the repository so they are never committed to the user's repo.
  *
@@ -51,11 +51,11 @@ export class SkillsPluginResolver {
 	private readonly userSkillsDir: string;
 
 	constructor(
-		private readonly atmikoHome: string,
+		private readonly mikoHome: string,
 		private readonly logger: ILogger,
 	) {
-		this.internalPluginPath = join(this.atmikoHome, "atmiko-skills-plugin");
-		this.userPluginPath = join(this.atmikoHome, "user-skills-plugin");
+		this.internalPluginPath = join(this.mikoHome, "miko-skills-plugin");
+		this.userPluginPath = join(this.mikoHome, "user-skills-plugin");
 		this.userSkillsDir = join(this.userPluginPath, "skills");
 	}
 
@@ -64,13 +64,13 @@ export class SkillsPluginResolver {
 	 *
 	 * Called from EdgeWorker startup — idempotent check-and-create so the
 	 * plugin is always ready before the first skill is synced, mirroring the
-	 * pattern used for other Atmiko-managed directories (repos, worktrees,
+	 * pattern used for other Miko-managed directories (repos, worktrees,
 	 * mcp-configs in `Application.ensureRequiredDirectories()`).
 	 *
 	 * Creates, if missing:
-	 *   ~/.atmiko/user-skills-plugin/
-	 *   ~/.atmiko/user-skills-plugin/skills/
-	 *   ~/.atmiko/user-skills-plugin/.claude-plugin/plugin.json
+	 *   ~/.miko/user-skills-plugin/
+	 *   ~/.miko/user-skills-plugin/skills/
+	 *   ~/.miko/user-skills-plugin/.claude-plugin/plugin.json
 	 *
 	 * The manifest file is what the Claude Agent SDK uses to identify the
 	 * directory as a plugin — without it, even a populated `skills/` tree is
@@ -97,7 +97,7 @@ export class SkillsPluginResolver {
 			JSON.stringify(
 				{
 					name: "user-skills",
-					description: "User-created skills managed by Atmiko",
+					description: "User-created skills managed by Miko",
 				},
 				null,
 				"\t",

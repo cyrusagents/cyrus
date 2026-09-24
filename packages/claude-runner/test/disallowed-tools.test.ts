@@ -1,5 +1,5 @@
 import * as claudeCode from "@anthropic-ai/claude-agent-sdk";
-import { createLogger, LogLevel } from "atmiko-core";
+import { createLogger, LogLevel } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClaudeRunner } from "../src/ClaudeRunner";
 import type { ClaudeRunnerConfig } from "../src/types";
@@ -46,7 +46,7 @@ describe("ClaudeRunner - disallowedTools", () => {
 			workingDirectory: "/test",
 			allowedTools: ["Read", "Edit"],
 			disallowedTools: ["Bash", "WebFetch"],
-			atmikoHome: "/test/atmiko",
+			mikoHome: "/test/miko",
 		};
 
 		// Mock the query to capture arguments and return a session ID message
@@ -84,7 +84,7 @@ describe("ClaudeRunner - disallowedTools", () => {
 			workingDirectory: "/test",
 			allowedTools: ["Read", "Edit"],
 			// No disallowedTools
-			atmikoHome: "/test/atmiko",
+			mikoHome: "/test/miko",
 		};
 
 		// Mock the query to capture arguments and return a session ID message
@@ -116,7 +116,7 @@ describe("ClaudeRunner - disallowedTools", () => {
 			workingDirectory: "/test",
 			allowedTools: ["Read", "Edit"],
 			disallowedTools: [], // Empty array
-			atmikoHome: "/test/atmiko",
+			mikoHome: "/test/miko",
 		};
 
 		// Mock the query to capture arguments and return a session ID message
@@ -147,7 +147,7 @@ describe("ClaudeRunner - disallowedTools", () => {
 		const config: ClaudeRunnerConfig = {
 			workingDirectory: "/test",
 			disallowedTools: ["Bash", "SystemAccess", "DangerousTool"],
-			atmikoHome: "/test/atmiko",
+			mikoHome: "/test/miko",
 			logger: createLogger({
 				component: "ClaudeRunner",
 				level: LogLevel.DEBUG,

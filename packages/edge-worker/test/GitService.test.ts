@@ -89,45 +89,42 @@ describe("GitService", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		delete process.env.ATMIKO_WORKTREES_DIR;
+		delete process.env.MIKO_WORKTREES_DIR;
 		delete process.env.SECRET_TOKEN;
 		vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 		mockSuccessfulSpawn();
-		gitService = new GitService(
-			{ atmikoHome: "/home/user/.atmiko" },
-			mockLogger,
-		);
+		gitService = new GitService({ mikoHome: "/home/user/.miko" }, mockLogger);
 	});
 
 	afterEach(() => {
-		delete process.env.ATMIKO_WORKTREES_DIR;
+		delete process.env.MIKO_WORKTREES_DIR;
 		delete process.env.SECRET_TOKEN;
 		vi.restoreAllMocks();
 	});
 
 	describe("constructor", () => {
-		it("defaults to atmikoHome/worktrees when workspaceBaseDir is omitted", async () => {
+		it("defaults to mikoHome/worktrees when workspaceBaseDir is omitted", async () => {
 			const fallbackGitService = new GitService(
-				{ atmikoHome: "/tmp/custom-atmiko-home" },
+				{ mikoHome: "/tmp/custom-miko-home" },
 				mockLogger,
 			);
 
 			mockExistsSync.mockImplementation(
-				(path) => String(path) === "/tmp/custom-atmiko-home/worktrees/DEF-123",
+				(path) => String(path) === "/tmp/custom-miko-home/worktrees/DEF-123",
 			);
 
 			await fallbackGitService.deleteWorktree("DEF-123");
 
 			expect(mockLogger.info).toHaveBeenCalledWith(
-				expect.stringContaining("/tmp/custom-atmiko-home/worktrees/DEF-123"),
+				expect.stringContaining("/tmp/custom-miko-home/worktrees/DEF-123"),
 			);
 		});
 
-		it("prefers ATMIKO_WORKTREES_DIR over atmikoHome defaults", async () => {
-			process.env.ATMIKO_WORKTREES_DIR = "/tmp/env-worktrees";
+		it("prefers MIKO_WORKTREES_DIR over mikoHome defaults", async () => {
+			process.env.MIKO_WORKTREES_DIR = "/tmp/env-worktrees";
 			const fallbackGitService = new GitService(
-				{ atmikoHome: "/tmp/custom-atmiko-home" },
+				{ mikoHome: "/tmp/custom-miko-home" },
 				mockLogger,
 			);
 
@@ -142,24 +139,24 @@ describe("GitService", () => {
 			);
 		});
 
-		it("dynamically reflects ATMIKO_WORKTREES_DIR changes at runtime", async () => {
+		it("dynamically reflects MIKO_WORKTREES_DIR changes at runtime", async () => {
 			const dynamicGitService = new GitService(
-				{ atmikoHome: "/tmp/atmiko" },
+				{ mikoHome: "/tmp/miko" },
 				mockLogger,
 			);
 
-			// First call uses default atmikoHome (no env var set)
+			// First call uses default mikoHome (no env var set)
 			mockExistsSync.mockReturnValue(true);
 			mockReaddirSync.mockReturnValue([]);
 			await dynamicGitService.deleteWorktree("ISSUE-1");
 			expect(mockLogger.info).toHaveBeenCalledWith(
-				expect.stringContaining("/tmp/atmiko/worktrees/ISSUE-1"),
+				expect.stringContaining("/tmp/miko/worktrees/ISSUE-1"),
 			);
 
 			mockLogger.info.mockClear();
 
 			// Update env var at runtime — same GitService instance picks it up
-			process.env.ATMIKO_WORKTREES_DIR = "/new/runtime/path";
+			process.env.MIKO_WORKTREES_DIR = "/new/runtime/path";
 			await dynamicGitService.deleteWorktree("ISSUE-2");
 			expect(mockLogger.info).toHaveBeenCalledWith(
 				expect.stringContaining("/new/runtime/path/ISSUE-2"),
@@ -175,19 +172,19 @@ describe("GitService", () => {
 					"HEAD abc123def456",
 					"branch refs/heads/main",
 					"",
-					"worktree /home/user/.atmiko/worktrees/ENG-97",
+					"worktree /home/user/.miko/worktrees/ENG-97",
 					"HEAD 789abc012def",
-					"branch refs/heads/atmikotester/eng-97-fix-shader",
+					"branch refs/heads/mikotester/eng-97-fix-shader",
 					"",
 				].join("\n"),
 			);
 
 			const result = gitService.findWorktreeByBranch(
-				"atmikotester/eng-97-fix-shader",
+				"mikotester/eng-97-fix-shader",
 				"/home/user/repo",
 			);
 
-			expect(result).toBe("/home/user/.atmiko/worktrees/ENG-97");
+			expect(result).toBe("/home/user/.miko/worktrees/ENG-97");
 		});
 
 		it("returns null when the branch is not found", () => {
@@ -226,7 +223,7 @@ describe("GitService", () => {
 					"HEAD abc123def456",
 					"bare",
 					"",
-					"worktree /home/user/.atmiko/worktrees/ENG-97",
+					"worktree /home/user/.miko/worktrees/ENG-97",
 					"HEAD 789abc012def",
 					"branch refs/heads/my-feature",
 					"",
@@ -238,7 +235,7 @@ describe("GitService", () => {
 				"/home/user/repo",
 			);
 
-			expect(result).toBe("/home/user/.atmiko/worktrees/ENG-97");
+			expect(result).toBe("/home/user/.miko/worktrees/ENG-97");
 		});
 
 		it("returns null when git command fails", () => {
@@ -355,7 +352,7 @@ describe("GitService", () => {
 		title: "Fix the shader",
 		description: null,
 		url: "",
-		branchName: "atmikotester/eng-97-fix-shader",
+		branchName: "mikotester/eng-97-fix-shader",
 		assigneeId: null,
 		stateId: null,
 		teamId: null,
@@ -383,7 +380,7 @@ describe("GitService", () => {
 		id: "repo-1",
 		name: "test-repo",
 		repositoryPath: "/home/user/repo",
-		workspaceBaseDir: "/home/user/.atmiko/worktrees",
+		workspaceBaseDir: "/home/user/.miko/worktrees",
 		baseBranch: "main",
 		...overrides,
 	});
@@ -407,15 +404,15 @@ describe("GitService", () => {
 					}
 					// Second call: branch-based check via findWorktreeByBranch
 					return [
-						"worktree /home/user/.atmiko/worktrees/LINEAR-SESSION",
+						"worktree /home/user/.miko/worktrees/LINEAR-SESSION",
 						"HEAD 789abc012def",
-						"branch refs/heads/atmikotester/eng-97-fix-shader",
+						"branch refs/heads/mikotester/eng-97-fix-shader",
 						"",
 					].join("\n");
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "atmikotester/eng-97-fix-shader"',
+						'git rev-parse --verify "mikotester/eng-97-fix-shader"',
 					)
 				) {
 					// Branch exists
@@ -426,7 +423,7 @@ describe("GitService", () => {
 
 			const result = await gitService.createGitWorktree(issue, [repository]);
 
-			expect(result.path).toBe("/home/user/.atmiko/worktrees/LINEAR-SESSION");
+			expect(result.path).toBe("/home/user/.miko/worktrees/LINEAR-SESSION");
 			expect(result.isGitWorktree).toBe(true);
 			expect(mockLogger.info).toHaveBeenCalledWith(
 				expect.stringContaining("already checked out in worktree"),
@@ -448,7 +445,7 @@ describe("GitService", () => {
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "atmikotester/eng-97-fix-shader"',
+						'git rev-parse --verify "mikotester/eng-97-fix-shader"',
 					)
 				) {
 					// Branch exists
@@ -459,14 +456,14 @@ describe("GitService", () => {
 				}
 				if (cmdStr.includes("git worktree add")) {
 					throw new Error(
-						"fatal: 'atmikotester/eng-97-fix-shader' is already used by worktree at '/home/user/.atmiko/worktrees/LINEAR-SESSION'",
+						"fatal: 'mikotester/eng-97-fix-shader' is already used by worktree at '/home/user/.miko/worktrees/LINEAR-SESSION'",
 					);
 				}
 				return Buffer.from("");
 			});
 
 			mockExistsSync.mockImplementation((path: any) => {
-				if (String(path) === "/home/user/.atmiko/worktrees/LINEAR-SESSION") {
+				if (String(path) === "/home/user/.miko/worktrees/LINEAR-SESSION") {
 					return true;
 				}
 				return false;
@@ -474,7 +471,7 @@ describe("GitService", () => {
 
 			const result = await gitService.createGitWorktree(issue, [repository]);
 
-			expect(result.path).toBe("/home/user/.atmiko/worktrees/LINEAR-SESSION");
+			expect(result.path).toBe("/home/user/.miko/worktrees/LINEAR-SESSION");
 			expect(result.isGitWorktree).toBe(true);
 			expect(mockLogger.info).toHaveBeenCalledWith(
 				expect.stringContaining("Reusing existing worktree"),
@@ -495,7 +492,7 @@ describe("GitService", () => {
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "atmikotester/eng-97-fix-shader"',
+						'git rev-parse --verify "mikotester/eng-97-fix-shader"',
 					)
 				) {
 					return Buffer.from("abc123\n");
@@ -511,7 +508,7 @@ describe("GitService", () => {
 
 			const result = await gitService.createGitWorktree(issue, [repository]);
 
-			expect(result.path).toBe("/home/user/.atmiko/worktrees/ENG-97");
+			expect(result.path).toBe("/home/user/.miko/worktrees/ENG-97");
 			expect(result.isGitWorktree).toBe(false);
 		});
 	});
@@ -528,7 +525,7 @@ describe("GitService", () => {
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "atmikotester/eng-97-fix-shader"',
+						'git rev-parse --verify "mikotester/eng-97-fix-shader"',
 					)
 				) {
 					throw new Error("branch not found");
@@ -542,27 +539,27 @@ describe("GitService", () => {
 				if (cmdStr.includes("git worktree add")) {
 					return Buffer.from("");
 				}
-				if (cmdStr.includes("atmiko-setup.sh")) {
+				if (cmdStr.includes("miko-setup.sh")) {
 					return Buffer.from("");
 				}
 				return Buffer.from("");
 			});
 		};
 
-		it("runs setup from the worktree when the persistent checkout lacks atmiko-setup.sh", async () => {
+		it("runs setup from the worktree when the persistent checkout lacks miko-setup.sh", async () => {
 			const issue = makeIssue();
 			const repository = makeRepository();
 			setupSuccessfulWorktreeCreate();
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/repo/atmiko-setup.sh") return false;
-				if (p === "/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh")
+				if (p === "/home/user/repo/miko-setup.sh") return false;
+				if (p === "/home/user/.miko/worktrees/ENG-97/miko-setup.sh")
 					return true;
 				return false;
 			});
 			mockStatSync.mockImplementation((path: any) => {
 				if (
-					String(path) === "/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh"
+					String(path) === "/home/user/.miko/worktrees/ENG-97/miko-setup.sh"
 				) {
 					return { mode: 0o755, isFile: () => false } as any;
 				}
@@ -573,9 +570,9 @@ describe("GitService", () => {
 
 			expect(result.isGitWorktree).toBe(true);
 			expect(mockExecSync).toHaveBeenCalledWith(
-				'bash "/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh"',
+				'bash "/home/user/.miko/worktrees/ENG-97/miko-setup.sh"',
 				expect.objectContaining({
-					cwd: "/home/user/.atmiko/worktrees/ENG-97",
+					cwd: "/home/user/.miko/worktrees/ENG-97",
 					stdio: "inherit",
 					env: expect.objectContaining({
 						LINEAR_ISSUE_ID: "issue-1",
@@ -587,25 +584,25 @@ describe("GitService", () => {
 			expect(
 				mockExecSync.mock.calls.some(
 					([command]) =>
-						String(command) === 'bash "/home/user/repo/atmiko-setup.sh"',
+						String(command) === 'bash "/home/user/repo/miko-setup.sh"',
 				),
 			).toBe(false);
 		});
 
-		it("runs the worktree setup version when the persistent checkout also has atmiko-setup.sh", async () => {
+		it("runs the worktree setup version when the persistent checkout also has miko-setup.sh", async () => {
 			const issue = makeIssue();
 			const repository = makeRepository();
 			setupSuccessfulWorktreeCreate();
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/repo/atmiko-setup.sh") return true;
-				if (p === "/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh")
+				if (p === "/home/user/repo/miko-setup.sh") return true;
+				if (p === "/home/user/.miko/worktrees/ENG-97/miko-setup.sh")
 					return true;
 				return false;
 			});
 			mockStatSync.mockImplementation((path: any) => {
 				if (
-					String(path) === "/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh"
+					String(path) === "/home/user/.miko/worktrees/ENG-97/miko-setup.sh"
 				) {
 					return { mode: 0o755, isFile: () => false } as any;
 				}
@@ -616,32 +613,32 @@ describe("GitService", () => {
 
 			const setupCommands = mockExecSync.mock.calls
 				.map(([command]) => String(command))
-				.filter((command) => command.includes("atmiko-setup.sh"));
+				.filter((command) => command.includes("miko-setup.sh"));
 			expect(setupCommands).toEqual([
-				'bash "/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh"',
+				'bash "/home/user/.miko/worktrees/ENG-97/miko-setup.sh"',
 			]);
 		});
 
-		it("skips repo setup without failing worktree creation when the worktree lacks atmiko-setup.sh", async () => {
+		it("skips repo setup without failing worktree creation when the worktree lacks miko-setup.sh", async () => {
 			const issue = makeIssue();
 			const repository = makeRepository();
 			setupSuccessfulWorktreeCreate();
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/repo/atmiko-setup.sh") return true;
-				if (p === "/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh")
+				if (p === "/home/user/repo/miko-setup.sh") return true;
+				if (p === "/home/user/.miko/worktrees/ENG-97/miko-setup.sh")
 					return false;
 				return false;
 			});
 
 			const result = await gitService.createGitWorktree(issue, [repository]);
 
-			expect(result.path).toBe("/home/user/.atmiko/worktrees/ENG-97");
+			expect(result.path).toBe("/home/user/.miko/worktrees/ENG-97");
 			expect(result.isGitWorktree).toBe(true);
 			expect(
 				mockSpawn.mock.calls.some(([command, args]) =>
 					[command, ...(Array.isArray(args) ? args : [])].some((part) =>
-						String(part).includes("atmiko-setup.sh"),
+						String(part).includes("miko-setup.sh"),
 					),
 				),
 			).toBe(false);
@@ -654,8 +651,7 @@ describe("GitService", () => {
 			setupSuccessfulWorktreeCreate();
 			mockExistsSync.mockImplementation(
 				(path: any) =>
-					String(path) ===
-					"/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh",
+					String(path) === "/home/user/.miko/worktrees/ENG-97/miko-setup.sh",
 			);
 			mockStatSync.mockReturnValue({ mode: 0o755, isFile: () => false } as any);
 			mockSuccessfulSpawn("ready\n");
@@ -668,13 +664,13 @@ describe("GitService", () => {
 			expect(events[0]).toEqual({
 				status: "started",
 				issueIdentifier: "ENG-97",
-				scriptName: "atmiko-setup.sh",
+				scriptName: "miko-setup.sh",
 				repositoryName: "test-repo",
 			});
 			expect(events[1]).toMatchObject({
 				status: "succeeded",
 				issueIdentifier: "ENG-97",
-				scriptName: "atmiko-setup.sh",
+				scriptName: "miko-setup.sh",
 				repositoryName: "test-repo",
 			});
 			expect(events[1].durationMs).toEqual(expect.any(Number));
@@ -689,8 +685,7 @@ describe("GitService", () => {
 			setupSuccessfulWorktreeCreate();
 			mockExistsSync.mockImplementation(
 				(path: any) =>
-					String(path) ===
-					"/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh",
+					String(path) === "/home/user/.miko/worktrees/ENG-97/miko-setup.sh",
 			);
 			mockStatSync.mockReturnValue({ mode: 0o755, isFile: () => false } as any);
 			mockFailedSpawn({
@@ -709,7 +704,7 @@ describe("GitService", () => {
 				"failed",
 			]);
 			expect(events[1]).toMatchObject({
-				scriptName: "atmiko-setup.sh",
+				scriptName: "miko-setup.sh",
 				exitCode: 42,
 				errorMessage: "Script exited with code 42",
 				stdoutTail: "installing deps",
@@ -724,8 +719,7 @@ describe("GitService", () => {
 			setupSuccessfulWorktreeCreate();
 			mockExistsSync.mockImplementation(
 				(path: any) =>
-					String(path) ===
-					"/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh",
+					String(path) === "/home/user/.miko/worktrees/ENG-97/miko-setup.sh",
 			);
 			mockStatSync.mockReturnValue({ mode: 0o644, isFile: () => false } as any);
 			mockSuccessfulSpawn("setup complete\n");
@@ -737,7 +731,7 @@ describe("GitService", () => {
 			expect(result.isGitWorktree).toBe(true);
 			expect(mockSpawn).toHaveBeenCalledWith(
 				"bash",
-				["/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh"],
+				["/home/user/.miko/worktrees/ENG-97/miko-setup.sh"],
 				expect.anything(),
 			);
 			expect(events.map((event) => event.status)).toEqual([
@@ -746,7 +740,7 @@ describe("GitService", () => {
 			]);
 			expect(events[1]).toMatchObject({
 				issueIdentifier: "ENG-97",
-				scriptName: "atmiko-setup.sh",
+				scriptName: "miko-setup.sh",
 				repositoryName: "test-repo",
 			});
 			expect(events[1].durationMs).toEqual(expect.any(Number));
@@ -759,8 +753,7 @@ describe("GitService", () => {
 			setupSuccessfulWorktreeCreate();
 			mockExistsSync.mockImplementation(
 				(path: any) =>
-					String(path) ===
-					"/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh",
+					String(path) === "/home/user/.miko/worktrees/ENG-97/miko-setup.sh",
 			);
 			mockStatSync.mockReturnValue({ mode: 0o755, isFile: () => false } as any);
 			const longStdout = Array.from(
@@ -786,13 +779,12 @@ describe("GitService", () => {
 			setupSuccessfulWorktreeCreate();
 			mockExistsSync.mockImplementation(
 				(path: any) =>
-					String(path) ===
-					"/home/user/.atmiko/worktrees/ENG-97/atmiko-setup.sh",
+					String(path) === "/home/user/.miko/worktrees/ENG-97/miko-setup.sh",
 			);
 			mockStatSync.mockReturnValue({ mode: 0o755, isFile: () => false } as any);
 			mockFailedSpawn({
 				stdout:
-					"SECRET_TOKEN=super-secret-value\npath=/home/user/.atmiko/worktrees/ENG-97/config\nalias=/private/home/user/.atmiko/worktrees/ENG-97/config\n",
+					"SECRET_TOKEN=super-secret-value\npath=/home/user/.miko/worktrees/ENG-97/config\nalias=/private/home/user/.miko/worktrees/ENG-97/config\n",
 				stderr: "Bearer abcdefghijklmnopqrstuvwxyz123456\n",
 			});
 
@@ -825,14 +817,14 @@ describe("GitService", () => {
 				}
 				if (cmdStr === "git worktree list --porcelain") {
 					// Git still lists the stale worktree entry
-					return `worktree /home/user/repo\nHEAD abc123\nbranch refs/heads/main\n\nworktree /home/user/.atmiko/worktrees/ENG-97\nHEAD def456\nbranch refs/heads/atmikotester/eng-97-fix-shader\n`;
+					return `worktree /home/user/repo\nHEAD abc123\nbranch refs/heads/main\n\nworktree /home/user/.miko/worktrees/ENG-97\nHEAD def456\nbranch refs/heads/mikotester/eng-97-fix-shader\n`;
 				}
 				if (cmdStr === "git worktree prune") {
 					return Buffer.from("");
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "atmikotester/eng-97-fix-shader"',
+						'git rev-parse --verify "mikotester/eng-97-fix-shader"',
 					)
 				) {
 					throw new Error("not found");
@@ -852,7 +844,7 @@ describe("GitService", () => {
 			// The workspace path exists but does NOT have a valid .git file (stale)
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/ENG-97/.git") return false;
+				if (p === "/home/user/.miko/worktrees/ENG-97/.git") return false;
 				return true;
 			});
 
@@ -881,11 +873,11 @@ describe("GitService", () => {
 				}
 				if (cmdStr === "git worktree list --porcelain") {
 					// Only a sub-path worktree exists, not the exact path
-					return `worktree /home/user/repo\nHEAD abc123\nbranch refs/heads/main\n\nworktree /home/user/.atmiko/worktrees/CYSV-56/atmiko\nHEAD def456\nbranch refs/heads/feat\n`;
+					return `worktree /home/user/repo\nHEAD abc123\nbranch refs/heads/main\n\nworktree /home/user/.miko/worktrees/CYSV-56/miko\nHEAD def456\nbranch refs/heads/feat\n`;
 				}
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "atmikotester/eng-97-fix-shader"',
+						'git rev-parse --verify "mikotester/eng-97-fix-shader"',
 					)
 				) {
 					throw new Error("not found");
@@ -927,9 +919,9 @@ describe("GitService", () => {
 		it("removes single-repo worktree and deletes directory", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
 				// .git file exists (it's a worktree)
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return true;
 				// main repo exists
 				if (p === "/home/user/repos/my-repo") return true;
 				return false;
@@ -937,7 +929,7 @@ describe("GitService", () => {
 
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return { isFile: () => true } as any;
 				}
 				return { isFile: () => false } as any;
@@ -945,7 +937,7 @@ describe("GitService", () => {
 
 			mockReadFileSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return "gitdir: /home/user/repos/my-repo/.git/worktrees/DEF-123";
 				}
 				return "";
@@ -957,7 +949,7 @@ describe("GitService", () => {
 
 			// Should run git worktree remove with cwd set to the main repo
 			expect(mockExecSync).toHaveBeenCalledWith(
-				'git worktree remove --force "/home/user/.atmiko/worktrees/DEF-123"',
+				'git worktree remove --force "/home/user/.miko/worktrees/DEF-123"',
 				expect.objectContaining({
 					stdio: "pipe",
 					cwd: "/home/user/repos/my-repo",
@@ -966,7 +958,7 @@ describe("GitService", () => {
 
 			// Should delete the directory
 			expect(mockRmSync).toHaveBeenCalledWith(
-				"/home/user/.atmiko/worktrees/DEF-123",
+				"/home/user/.miko/worktrees/DEF-123",
 				{ recursive: true, force: true },
 			);
 		});
@@ -974,14 +966,12 @@ describe("GitService", () => {
 		it("removes multi-repo worktrees and deletes directory", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
 				// The root is NOT a worktree
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return false;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return false;
 				// Subdirectory worktrees have .git files
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git")
-					return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git")
-					return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git") return true;
 				// main repos exist
 				if (p === "/home/user/repos/repo-a") return true;
 				if (p === "/home/user/repos/repo-b") return true;
@@ -991,8 +981,8 @@ describe("GitService", () => {
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
 				if (
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git" ||
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git"
+					p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git" ||
+					p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git"
 				) {
 					return { isFile: () => true } as any;
 				}
@@ -1001,10 +991,10 @@ describe("GitService", () => {
 
 			mockReadFileSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git") {
 					return "gitdir: /home/user/repos/repo-a/.git/worktrees/DEF-123";
 				}
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git") {
 					return "gitdir: /home/user/repos/repo-b/.git/worktrees/DEF-123";
 				}
 				return "";
@@ -1021,14 +1011,14 @@ describe("GitService", () => {
 
 			// Should run git worktree remove for both subdirectories with correct cwd
 			expect(mockExecSync).toHaveBeenCalledWith(
-				'git worktree remove --force "/home/user/.atmiko/worktrees/DEF-123/repo-a"',
+				'git worktree remove --force "/home/user/.miko/worktrees/DEF-123/repo-a"',
 				expect.objectContaining({
 					stdio: "pipe",
 					cwd: "/home/user/repos/repo-a",
 				}),
 			);
 			expect(mockExecSync).toHaveBeenCalledWith(
-				'git worktree remove --force "/home/user/.atmiko/worktrees/DEF-123/repo-b"',
+				'git worktree remove --force "/home/user/.miko/worktrees/DEF-123/repo-b"',
 				expect.objectContaining({
 					stdio: "pipe",
 					cwd: "/home/user/repos/repo-b",
@@ -1037,7 +1027,7 @@ describe("GitService", () => {
 
 			// Should delete the directory
 			expect(mockRmSync).toHaveBeenCalledWith(
-				"/home/user/.atmiko/worktrees/DEF-123",
+				"/home/user/.miko/worktrees/DEF-123",
 				{ recursive: true, force: true },
 			);
 		});
@@ -1045,15 +1035,15 @@ describe("GitService", () => {
 		it("handles git worktree remove failure gracefully", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return true;
 				if (p === "/home/user/repos/my-repo") return true;
 				return false;
 			});
 
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return { isFile: () => true } as any;
 				}
 				return { isFile: () => false } as any;
@@ -1061,7 +1051,7 @@ describe("GitService", () => {
 
 			mockReadFileSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return "gitdir: /home/user/repos/my-repo/.git/worktrees/DEF-123";
 				}
 				return "";
@@ -1075,7 +1065,7 @@ describe("GitService", () => {
 
 			// Should still attempt to delete the directory despite git failure
 			expect(mockRmSync).toHaveBeenCalledWith(
-				"/home/user/.atmiko/worktrees/DEF-123",
+				"/home/user/.miko/worktrees/DEF-123",
 				{ recursive: true, force: true },
 			);
 			expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -1086,7 +1076,7 @@ describe("GitService", () => {
 		it("handles non-worktree directories (no .git file)", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
 				// No .git file anywhere
 				return false;
 			});
@@ -1100,7 +1090,7 @@ describe("GitService", () => {
 
 			// Should still delete the directory
 			expect(mockRmSync).toHaveBeenCalledWith(
-				"/home/user/.atmiko/worktrees/DEF-123",
+				"/home/user/.miko/worktrees/DEF-123",
 				{ recursive: true, force: true },
 			);
 		});
@@ -1111,51 +1101,51 @@ describe("GitService", () => {
 			id,
 			name,
 			repositoryPath: repoPath,
-			workspaceBaseDir: "/home/user/.atmiko/worktrees",
+			workspaceBaseDir: "/home/user/.miko/worktrees",
 		});
 
 		const setupSingleRepoFs = () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return true;
 				if (p === "/home/user/repos/repo-a") return true;
 				return false;
 			});
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return { isFile: () => true } as any;
 				}
 				return { isFile: () => false } as any;
 			});
 			mockReadFileSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return "gitdir: /home/user/repos/repo-a/.git/worktrees/DEF-123";
 				}
 				return "";
 			});
 		};
 
-		it("runs atmiko-teardown.sh before worktree removal when present", async () => {
+		it("runs miko-teardown.sh before worktree removal when present", async () => {
 			setupSingleRepoFs();
 			// Add the teardown script to filesystem mock
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return true;
 				if (p === "/home/user/repos/repo-a") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/atmiko-teardown.sh")
+				if (p === "/home/user/.miko/worktrees/DEF-123/miko-teardown.sh")
 					return true;
 				return false;
 			});
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return { isFile: () => true } as any;
 				}
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/atmiko-teardown.sh") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/miko-teardown.sh") {
 					return { mode: 0o755, isFile: () => false } as any;
 				}
 				return { isFile: () => false } as any;
@@ -1169,9 +1159,9 @@ describe("GitService", () => {
 
 			// Should run teardown with cwd set to workspace root (single-repo)
 			expect(mockExecSync).toHaveBeenCalledWith(
-				'bash "/home/user/.atmiko/worktrees/DEF-123/atmiko-teardown.sh"',
+				'bash "/home/user/.miko/worktrees/DEF-123/miko-teardown.sh"',
 				expect.objectContaining({
-					cwd: "/home/user/.atmiko/worktrees/DEF-123",
+					cwd: "/home/user/.miko/worktrees/DEF-123",
 					stdio: "inherit",
 					env: expect.objectContaining({
 						LINEAR_ISSUE_IDENTIFIER: "DEF-123",
@@ -1183,7 +1173,7 @@ describe("GitService", () => {
 			const teardownOrder = mockExecSync.mock.invocationCallOrder.find(
 				(_, index) =>
 					String(mockExecSync.mock.calls[index]?.[0]).includes(
-						"atmiko-teardown.sh",
+						"miko-teardown.sh",
 					),
 			);
 			const removeOrder = mockExecSync.mock.invocationCallOrder.find(
@@ -1199,7 +1189,7 @@ describe("GitService", () => {
 			expect(mockRmSync).toHaveBeenCalled();
 		});
 
-		it("does not run teardown when atmiko-teardown.sh is absent, still deletes worktree", async () => {
+		it("does not run teardown when miko-teardown.sh is absent, still deletes worktree", async () => {
 			setupSingleRepoFs();
 			mockExecSync.mockReturnValue(Buffer.from(""));
 
@@ -1208,33 +1198,33 @@ describe("GitService", () => {
 			});
 
 			const calls = mockExecSync.mock.calls.map((c) => String(c[0]));
-			expect(calls.some((c) => c.includes("atmiko-teardown"))).toBe(false);
+			expect(calls.some((c) => c.includes("miko-teardown"))).toBe(false);
 			expect(mockRmSync).toHaveBeenCalled();
 		});
 
 		it("continues with worktree deletion when teardown fails", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return true;
 				if (p === "/home/user/repos/repo-a") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/atmiko-teardown.sh")
+				if (p === "/home/user/.miko/worktrees/DEF-123/miko-teardown.sh")
 					return true;
 				return false;
 			});
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return { isFile: () => true } as any;
 				}
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/atmiko-teardown.sh") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/miko-teardown.sh") {
 					return { mode: 0o755, isFile: () => false } as any;
 				}
 				return { isFile: () => false } as any;
 			});
 			mockReadFileSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return "gitdir: /home/user/repos/repo-a/.git/worktrees/DEF-123";
 				}
 				return "";
@@ -1242,7 +1232,7 @@ describe("GitService", () => {
 
 			mockExecSync.mockImplementation((cmd: any) => {
 				const cmdStr = String(cmd);
-				if (cmdStr.includes("atmiko-teardown.sh")) {
+				if (cmdStr.includes("miko-teardown.sh")) {
 					throw new Error("script blew up");
 				}
 				return Buffer.from("");
@@ -1261,26 +1251,26 @@ describe("GitService", () => {
 		it("warns and skips when teardown script is not executable", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return true;
 				if (p === "/home/user/repos/repo-a") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/atmiko-teardown.sh")
+				if (p === "/home/user/.miko/worktrees/DEF-123/miko-teardown.sh")
 					return true;
 				return false;
 			});
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return { isFile: () => true } as any;
 				}
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/atmiko-teardown.sh") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/miko-teardown.sh") {
 					return { mode: 0o644, isFile: () => false } as any;
 				}
 				return { isFile: () => false } as any;
 			});
 			mockReadFileSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return "gitdir: /home/user/repos/repo-a/.git/worktrees/DEF-123";
 				}
 				return "";
@@ -1292,9 +1282,7 @@ describe("GitService", () => {
 			});
 
 			const execCmds = mockExecSync.mock.calls.map((c) => String(c[0]));
-			expect(execCmds.some((c) => c.includes("atmiko-teardown.sh"))).toBe(
-				false,
-			);
+			expect(execCmds.some((c) => c.includes("miko-teardown.sh"))).toBe(false);
 			expect(mockLogger.warn).toHaveBeenCalledWith(
 				expect.stringContaining("not executable"),
 			);
@@ -1314,43 +1302,37 @@ describe("GitService", () => {
 		it("multi-repo: runs both repos' teardowns with correct cwds", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return false;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git")
-					return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git")
-					return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return false;
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git") return true;
 				if (p === "/home/user/repos/repo-a") return true;
 				if (p === "/home/user/repos/repo-b") return true;
-				if (
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/atmiko-teardown.sh"
-				)
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/miko-teardown.sh")
 					return true;
-				if (
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/atmiko-teardown.sh"
-				)
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-b/miko-teardown.sh")
 					return true;
 				return false;
 			});
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
 				if (
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git" ||
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git"
+					p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git" ||
+					p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git"
 				) {
 					return { isFile: () => true } as any;
 				}
-				if (p.endsWith("atmiko-teardown.sh")) {
+				if (p.endsWith("miko-teardown.sh")) {
 					return { mode: 0o755, isFile: () => false } as any;
 				}
 				return { isFile: () => false } as any;
 			});
 			mockReadFileSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git") {
 					return "gitdir: /home/user/repos/repo-a/.git/worktrees/DEF-123";
 				}
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git") {
 					return "gitdir: /home/user/repos/repo-b/.git/worktrees/DEF-123";
 				}
 				return "";
@@ -1369,15 +1351,15 @@ describe("GitService", () => {
 			});
 
 			expect(mockExecSync).toHaveBeenCalledWith(
-				'bash "/home/user/.atmiko/worktrees/DEF-123/repo-a/atmiko-teardown.sh"',
+				'bash "/home/user/.miko/worktrees/DEF-123/repo-a/miko-teardown.sh"',
 				expect.objectContaining({
-					cwd: "/home/user/.atmiko/worktrees/DEF-123/repo-a",
+					cwd: "/home/user/.miko/worktrees/DEF-123/repo-a",
 				}),
 			);
 			expect(mockExecSync).toHaveBeenCalledWith(
-				'bash "/home/user/.atmiko/worktrees/DEF-123/repo-b/atmiko-teardown.sh"',
+				'bash "/home/user/.miko/worktrees/DEF-123/repo-b/miko-teardown.sh"',
 				expect.objectContaining({
-					cwd: "/home/user/.atmiko/worktrees/DEF-123/repo-b",
+					cwd: "/home/user/.miko/worktrees/DEF-123/repo-b",
 				}),
 			);
 		});
@@ -1385,31 +1367,27 @@ describe("GitService", () => {
 		it("multi-repo: only one repo has a teardown, the other is silently skipped", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return false;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git")
-					return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git")
-					return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return false;
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git") return true;
 				if (p === "/home/user/repos/repo-a") return true;
 				if (p === "/home/user/repos/repo-b") return true;
 				// Only repo-a has a teardown script
-				if (
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/atmiko-teardown.sh"
-				)
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/miko-teardown.sh")
 					return true;
 				return false;
 			});
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
 				if (
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git" ||
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git"
+					p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git" ||
+					p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git"
 				) {
 					return { isFile: () => true } as any;
 				}
 				if (
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/atmiko-teardown.sh"
+					p === "/home/user/.miko/worktrees/DEF-123/repo-a/miko-teardown.sh"
 				) {
 					return { mode: 0o755, isFile: () => false } as any;
 				}
@@ -1417,10 +1395,10 @@ describe("GitService", () => {
 			});
 			mockReadFileSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git") {
 					return "gitdir: /home/user/repos/repo-a/.git/worktrees/DEF-123";
 				}
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git") {
 					return "gitdir: /home/user/repos/repo-b/.git/worktrees/DEF-123";
 				}
 				return "";
@@ -1440,53 +1418,47 @@ describe("GitService", () => {
 
 			const teardownCalls = mockExecSync.mock.calls
 				.map(([command]) => String(command))
-				.filter((c) => c.includes("atmiko-teardown.sh"));
+				.filter((c) => c.includes("miko-teardown.sh"));
 			expect(teardownCalls).toHaveLength(1);
 			expect(teardownCalls[0]).toContain(
-				"/home/user/.atmiko/worktrees/DEF-123/repo-a/",
+				"/home/user/.miko/worktrees/DEF-123/repo-a/",
 			);
 		});
 
 		it("multi-repo: one teardown failing does not skip the other or block rmSync", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return false;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git")
-					return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git")
-					return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return false;
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git") return true;
 				if (p === "/home/user/repos/repo-a") return true;
 				if (p === "/home/user/repos/repo-b") return true;
-				if (
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/atmiko-teardown.sh"
-				)
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/miko-teardown.sh")
 					return true;
-				if (
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/atmiko-teardown.sh"
-				)
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-b/miko-teardown.sh")
 					return true;
 				return false;
 			});
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
 				if (
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git" ||
-					p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git"
+					p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git" ||
+					p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git"
 				) {
 					return { isFile: () => true } as any;
 				}
-				if (p.endsWith("atmiko-teardown.sh")) {
+				if (p.endsWith("miko-teardown.sh")) {
 					return { mode: 0o755, isFile: () => false } as any;
 				}
 				return { isFile: () => false } as any;
 			});
 			mockReadFileSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-a/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-a/.git") {
 					return "gitdir: /home/user/repos/repo-a/.git/worktrees/DEF-123";
 				}
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/repo-b/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/repo-b/.git") {
 					return "gitdir: /home/user/repos/repo-b/.git/worktrees/DEF-123";
 				}
 				return "";
@@ -1498,7 +1470,7 @@ describe("GitService", () => {
 
 			mockExecSync.mockImplementation((cmd: any) => {
 				const cmdStr = String(cmd);
-				if (cmdStr.includes("repo-a/atmiko-teardown.sh")) {
+				if (cmdStr.includes("repo-a/miko-teardown.sh")) {
 					throw new Error("script blew up");
 				}
 				return Buffer.from("");
@@ -1513,14 +1485,14 @@ describe("GitService", () => {
 
 			// repo-b's teardown was still attempted
 			expect(mockExecSync).toHaveBeenCalledWith(
-				'bash "/home/user/.atmiko/worktrees/DEF-123/repo-b/atmiko-teardown.sh"',
+				'bash "/home/user/.miko/worktrees/DEF-123/repo-b/miko-teardown.sh"',
 				expect.objectContaining({
-					cwd: "/home/user/.atmiko/worktrees/DEF-123/repo-b",
+					cwd: "/home/user/.miko/worktrees/DEF-123/repo-b",
 				}),
 			);
 			// rmSync still ran
 			expect(mockRmSync).toHaveBeenCalledWith(
-				"/home/user/.atmiko/worktrees/DEF-123",
+				"/home/user/.miko/worktrees/DEF-123",
 				{ recursive: true, force: true },
 			);
 		});
@@ -1530,10 +1502,10 @@ describe("GitService", () => {
 			// Add a teardown that WOULD run if discovered — none should be picked up
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return true;
 				if (p === "/home/user/repos/repo-a") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/atmiko-teardown.sh")
+				if (p === "/home/user/.miko/worktrees/DEF-123/miko-teardown.sh")
 					return true;
 				return false;
 			});
@@ -1543,40 +1515,40 @@ describe("GitService", () => {
 
 			const teardownCalls = mockExecSync.mock.calls
 				.map((c) => String(c[0]))
-				.filter((c) => c.includes("atmiko-teardown"));
+				.filter((c) => c.includes("miko-teardown"));
 			expect(teardownCalls).toHaveLength(0);
 		});
 
 		it("logs timeout message with '2 minutes' when teardown is SIGTERM'd", async () => {
 			mockExistsSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123") return true;
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") return true;
 				if (p === "/home/user/repos/repo-a") return true;
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/atmiko-teardown.sh")
+				if (p === "/home/user/.miko/worktrees/DEF-123/miko-teardown.sh")
 					return true;
 				return false;
 			});
 			mockStatSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return { isFile: () => true } as any;
 				}
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/atmiko-teardown.sh") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/miko-teardown.sh") {
 					return { mode: 0o755, isFile: () => false } as any;
 				}
 				return { isFile: () => false } as any;
 			});
 			mockReadFileSync.mockImplementation((path: any) => {
 				const p = String(path);
-				if (p === "/home/user/.atmiko/worktrees/DEF-123/.git") {
+				if (p === "/home/user/.miko/worktrees/DEF-123/.git") {
 					return "gitdir: /home/user/repos/repo-a/.git/worktrees/DEF-123";
 				}
 				return "";
 			});
 			mockExecSync.mockImplementation((cmd: any) => {
 				const cmdStr = String(cmd);
-				if (cmdStr.includes("atmiko-teardown.sh")) {
+				if (cmdStr.includes("miko-teardown.sh")) {
 					const error = new Error("Script execution timed out") as Error & {
 						signal?: string;
 					};
@@ -1601,14 +1573,14 @@ describe("GitService", () => {
 			const issue = makeIssue();
 
 			const result = await gitService.createGitWorktree(issue, [], {
-				workspaceBaseDir: "/home/user/.atmiko/worktrees",
+				workspaceBaseDir: "/home/user/.miko/worktrees",
 			});
 
-			expect(result.path).toBe("/home/user/.atmiko/worktrees/ENG-97");
+			expect(result.path).toBe("/home/user/.miko/worktrees/ENG-97");
 			expect(result.isGitWorktree).toBe(false);
 			expect(result.repoPaths).toBeUndefined();
 			expect(mockMkdirSync).toHaveBeenCalledWith(
-				"/home/user/.atmiko/worktrees/ENG-97",
+				"/home/user/.miko/worktrees/ENG-97",
 				{ recursive: true },
 			);
 		});
@@ -1628,11 +1600,11 @@ describe("GitService", () => {
 			mockExistsSync.mockReturnValue(true);
 
 			const result = await gitService.createGitWorktree(issue, [], {
-				workspaceBaseDir: "/home/user/.atmiko/worktrees",
+				workspaceBaseDir: "/home/user/.miko/worktrees",
 				globalSetupScript: "/home/user/setup.sh",
 			});
 
-			expect(result.path).toBe("/home/user/.atmiko/worktrees/ENG-97");
+			expect(result.path).toBe("/home/user/.miko/worktrees/ENG-97");
 			expect(result.isGitWorktree).toBe(false);
 		});
 	});
@@ -1642,13 +1614,13 @@ describe("GitService", () => {
 			const issue = makeIssue();
 			const repo1 = makeRepository({
 				id: "repo-1",
-				name: "atmiko",
-				repositoryPath: "/home/user/atmiko",
+				name: "miko",
+				repositoryPath: "/home/user/miko",
 			});
 			const repo2 = makeRepository({
 				id: "repo-2",
-				name: "atmiko-hosted",
-				repositoryPath: "/home/user/atmiko-hosted",
+				name: "miko-hosted",
+				repositoryPath: "/home/user/miko-hosted",
 			});
 
 			// Mock git commands for both repos
@@ -1678,14 +1650,14 @@ describe("GitService", () => {
 
 			const result = await gitService.createGitWorktree(issue, [repo1, repo2]);
 
-			expect(result.path).toBe("/home/user/.atmiko/worktrees/ENG-97");
+			expect(result.path).toBe("/home/user/.miko/worktrees/ENG-97");
 			expect(result.isGitWorktree).toBe(true);
 			expect(result.repoPaths).toBeDefined();
 			expect(result.repoPaths!["repo-1"]).toBe(
-				"/home/user/.atmiko/worktrees/ENG-97/atmiko",
+				"/home/user/.miko/worktrees/ENG-97/miko",
 			);
 			expect(result.repoPaths!["repo-2"]).toBe(
-				"/home/user/.atmiko/worktrees/ENG-97/atmiko-hosted",
+				"/home/user/.miko/worktrees/ENG-97/miko-hosted",
 			);
 		});
 
@@ -1693,14 +1665,14 @@ describe("GitService", () => {
 			const issue = makeIssue();
 			const repo1 = makeRepository({
 				id: "repo-1",
-				name: "atmiko",
-				repositoryPath: "/home/user/atmiko",
-				workspaceBaseDir: "/home/user/.atmiko/worktrees",
+				name: "miko",
+				repositoryPath: "/home/user/miko",
+				workspaceBaseDir: "/home/user/.miko/worktrees",
 			});
 			const repo2 = makeRepository({
 				id: "repo-2",
-				name: "atmiko-hosted",
-				repositoryPath: "/home/user/atmiko-hosted",
+				name: "miko-hosted",
+				repositoryPath: "/home/user/miko-hosted",
 				workspaceBaseDir: "/other/base",
 			});
 
@@ -1730,19 +1702,19 @@ describe("GitService", () => {
 			const result = await gitService.createGitWorktree(issue, [repo1, repo2]);
 
 			// Parent path uses first repo's workspaceBaseDir
-			expect(result.path).toBe("/home/user/.atmiko/worktrees/ENG-97");
+			expect(result.path).toBe("/home/user/.miko/worktrees/ENG-97");
 		});
 
 		it("falls back to plain directory for individual repo failures in N-repo mode", async () => {
 			const issue = makeIssue();
 			const repo1 = makeRepository({
 				id: "repo-1",
-				name: "atmiko",
-				repositoryPath: "/home/user/atmiko",
+				name: "miko",
+				repositoryPath: "/home/user/miko",
 			});
 			const repo2 = makeRepository({
 				id: "repo-2",
-				name: "atmiko-hosted",
+				name: "miko-hosted",
 				repositoryPath: "/home/user/does-not-exist",
 			});
 
@@ -1778,11 +1750,11 @@ describe("GitService", () => {
 			expect(result.repoPaths).toBeDefined();
 			// First repo should have succeeded
 			expect(result.repoPaths!["repo-1"]).toBe(
-				"/home/user/.atmiko/worktrees/ENG-97/atmiko",
+				"/home/user/.miko/worktrees/ENG-97/miko",
 			);
 			// Second repo falls back to plain directory
 			expect(result.repoPaths!["repo-2"]).toBe(
-				"/home/user/.atmiko/worktrees/ENG-97/atmiko-hosted",
+				"/home/user/.miko/worktrees/ENG-97/miko-hosted",
 			);
 		});
 	});
@@ -1803,7 +1775,7 @@ describe("GitService", () => {
 				parent: Promise.resolve({
 					identifier: "ENG-96",
 					title: "Parent issue",
-					branchName: "atmikotester/eng-96-parent-issue",
+					branchName: "mikotester/eng-96-parent-issue",
 				}),
 			});
 			const repository = makeRepository();
@@ -1813,7 +1785,7 @@ describe("GitService", () => {
 				const cmdStr = String(cmd);
 				if (
 					cmdStr.includes(
-						'git rev-parse --verify "atmikotester/eng-96-parent-issue"',
+						'git rev-parse --verify "mikotester/eng-96-parent-issue"',
 					)
 				) {
 					return Buffer.from("abc123\n");
@@ -1823,7 +1795,7 @@ describe("GitService", () => {
 
 			const result = await gitService.determineBaseBranch(issue, repository);
 
-			expect(result.branch).toBe("atmikotester/eng-96-parent-issue");
+			expect(result.branch).toBe("mikotester/eng-96-parent-issue");
 			expect(result.source).toBe("parent-issue");
 			expect(result.detail).toContain("ENG-96");
 		});
@@ -1832,14 +1804,14 @@ describe("GitService", () => {
 			const blockingIssue = {
 				identifier: "ENG-95",
 				title: "Blocking issue",
-				branchName: "atmikotester/eng-95-blocking",
+				branchName: "mikotester/eng-95-blocking",
 			};
 
 			const issue = makeIssue({
 				parent: Promise.resolve({
 					identifier: "ENG-96",
 					title: "Parent issue",
-					branchName: "atmikotester/eng-96-parent",
+					branchName: "mikotester/eng-96-parent",
 				}),
 				labels: () =>
 					Promise.resolve({
@@ -1861,9 +1833,7 @@ describe("GitService", () => {
 			mockExecSync.mockImplementation((cmd: any) => {
 				const cmdStr = String(cmd);
 				if (
-					cmdStr.includes(
-						'git rev-parse --verify "atmikotester/eng-95-blocking"',
-					)
+					cmdStr.includes('git rev-parse --verify "mikotester/eng-95-blocking"')
 				) {
 					return Buffer.from("abc123\n");
 				}
@@ -1872,7 +1842,7 @@ describe("GitService", () => {
 
 			const result = await gitService.determineBaseBranch(issue, repository);
 
-			expect(result.branch).toBe("atmikotester/eng-95-blocking");
+			expect(result.branch).toBe("mikotester/eng-95-blocking");
 			expect(result.source).toBe("graphite-blocked-by");
 			expect(result.detail).toContain("ENG-95");
 			expect(mockLogger.info).toHaveBeenCalledWith(
@@ -1884,14 +1854,14 @@ describe("GitService", () => {
 			const blockingIssue = {
 				identifier: "ENG-95",
 				title: "Blocking issue",
-				branchName: "atmikotester/eng-95-blocking",
+				branchName: "mikotester/eng-95-blocking",
 			};
 
 			const issue = makeIssue({
 				parent: Promise.resolve({
 					identifier: "ENG-96",
 					title: "Parent issue",
-					branchName: "atmikotester/eng-96-parent",
+					branchName: "mikotester/eng-96-parent",
 				}),
 				labels: () =>
 					Promise.resolve({
@@ -1913,7 +1883,7 @@ describe("GitService", () => {
 			mockExecSync.mockImplementation((cmd: any) => {
 				const cmdStr = String(cmd);
 				if (
-					cmdStr.includes('git rev-parse --verify "atmikotester/eng-96-parent"')
+					cmdStr.includes('git rev-parse --verify "mikotester/eng-96-parent"')
 				) {
 					return Buffer.from("abc123\n");
 				}
@@ -1922,7 +1892,7 @@ describe("GitService", () => {
 
 			const result = await gitService.determineBaseBranch(issue, repository);
 
-			expect(result.branch).toBe("atmikotester/eng-96-parent");
+			expect(result.branch).toBe("mikotester/eng-96-parent");
 			expect(result.source).toBe("parent-issue");
 			expect(result.detail).toContain("ENG-96");
 		});

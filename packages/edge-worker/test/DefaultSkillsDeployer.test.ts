@@ -2,7 +2,7 @@ import { access, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ILogger } from "atmiko-core";
+import type { ILogger } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DefaultSkillsDeployer } from "../src/DefaultSkillsDeployer.js";
 
@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const BUNDLED_SKILLS_DIR = join(
 	__dirname,
 	"..",
-	"atmiko-skills-plugin",
+	"miko-skills-plugin",
 	"skills",
 );
 
@@ -40,7 +40,7 @@ describe("DefaultSkillsDeployer", () => {
 	beforeEach(async () => {
 		testHome = join(
 			tmpdir(),
-			`atmiko-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+			`miko-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		);
 		await mkdir(testHome, { recursive: true });
 		deployer = new DefaultSkillsDeployer(
@@ -57,7 +57,7 @@ describe("DefaultSkillsDeployer", () => {
 	it("should deploy default skills when plugin directory does not exist", async () => {
 		await deployer.ensureDeployed();
 
-		const pluginPath = join(testHome, "atmiko-skills-plugin");
+		const pluginPath = join(testHome, "miko-skills-plugin");
 		expect(await exists(pluginPath)).toBe(true);
 
 		// Plugin manifest should exist
@@ -65,7 +65,7 @@ describe("DefaultSkillsDeployer", () => {
 		expect(await exists(manifestPath)).toBe(true);
 
 		const manifest = JSON.parse(await readFile(manifestPath, "utf-8"));
-		expect(manifest.name).toBe("atmiko-skills");
+		expect(manifest.name).toBe("miko-skills");
 
 		// Skills directory should exist with skills copied
 		const skillsPath = join(pluginPath, "skills");
@@ -85,7 +85,7 @@ describe("DefaultSkillsDeployer", () => {
 		// Deploy once
 		await deployer.ensureDeployed();
 
-		const pluginPath = join(testHome, "atmiko-skills-plugin");
+		const pluginPath = join(testHome, "miko-skills-plugin");
 		const skillsPath = join(pluginPath, "skills");
 
 		// Remove a skill to simulate user customization
@@ -101,7 +101,7 @@ describe("DefaultSkillsDeployer", () => {
 	it("should create SKILL.md files in each deployed skill directory", async () => {
 		await deployer.ensureDeployed();
 
-		const skillsPath = join(testHome, "atmiko-skills-plugin", "skills");
+		const skillsPath = join(testHome, "miko-skills-plugin", "skills");
 		const skillDirs = await readdir(skillsPath, { withFileTypes: true });
 
 		for (const entry of skillDirs) {

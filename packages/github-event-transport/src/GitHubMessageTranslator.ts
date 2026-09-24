@@ -17,7 +17,7 @@ import type {
 	TranslationContext,
 	TranslationResult,
 	UserPromptMessage,
-} from "atmiko-core";
+} from "miko-core";
 import type {
 	GitHubIssueCommentPayload,
 	GitHubPullRequestReviewCommentPayload,

@@ -1,4 +1,4 @@
-import { NoopErrorReporter } from "atmiko-core";
+import { NoopErrorReporter } from "miko-core";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@sentry/node", () => ({
@@ -25,16 +25,16 @@ import { createErrorReporter } from "./createErrorReporter.js";
 import { SentryErrorReporter } from "./SentryErrorReporter.js";
 
 describe("createErrorReporter", () => {
-	it("returns a NoopErrorReporter when ATMIKO_SENTRY_DISABLED is truthy", () => {
+	it("returns a NoopErrorReporter when MIKO_SENTRY_DISABLED is truthy", () => {
 		const reporter = createErrorReporter({
-			env: { ATMIKO_SENTRY_DISABLED: "1", ATMIKO_SENTRY_DSN: "https://x@y/1" },
+			env: { MIKO_SENTRY_DISABLED: "1", MIKO_SENTRY_DSN: "https://x@y/1" },
 		});
 		expect(reporter).toBeInstanceOf(NoopErrorReporter);
 		expect(reporter.isEnabled).toBe(false);
 		expect(Sentry.init).not.toHaveBeenCalled();
 	});
 
-	it("returns Noop when ATMIKO_TEAM_ID is unset (gates both Issues and Logs)", () => {
+	it("returns Noop when MIKO_TEAM_ID is unset (gates both Issues and Logs)", () => {
 		const reporter = createErrorReporter({ env: {} });
 		expect(reporter).toBeInstanceOf(NoopErrorReporter);
 		expect(reporter.isEnabled).toBe(false);
@@ -44,7 +44,7 @@ describe("createErrorReporter", () => {
 	it("falls back to the bundled DEFAULT_SENTRY_DSN when no env DSN is configured", async () => {
 		const { DEFAULT_SENTRY_DSN } = await import("./createErrorReporter.js");
 		const reporter = createErrorReporter({
-			env: { ATMIKO_TEAM_ID: "team-42" },
+			env: { MIKO_TEAM_ID: "team-42" },
 		});
 		if (DEFAULT_SENTRY_DSN) {
 			expect(reporter).toBeInstanceOf(SentryErrorReporter);
@@ -60,22 +60,22 @@ describe("createErrorReporter", () => {
 		"on",
 		"TRUE",
 		"1",
-	])("treats ATMIKO_SENTRY_DISABLED=%s as opt-out", (value) => {
+	])("treats MIKO_SENTRY_DISABLED=%s as opt-out", (value) => {
 		const reporter = createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DISABLED: value,
-				ATMIKO_SENTRY_DSN: "https://x@y/1",
-				ATMIKO_TEAM_ID: "team-42",
+				MIKO_SENTRY_DISABLED: value,
+				MIKO_SENTRY_DSN: "https://x@y/1",
+				MIKO_TEAM_ID: "team-42",
 			},
 		});
 		expect(reporter.isEnabled).toBe(false);
 	});
 
-	it("returns a SentryErrorReporter when a DSN and ATMIKO_TEAM_ID are provided", () => {
+	it("returns a SentryErrorReporter when a DSN and MIKO_TEAM_ID are provided", () => {
 		const reporter = createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1",
-				ATMIKO_TEAM_ID: "team-42",
+				MIKO_SENTRY_DSN: "https://abc@sentry.io/1",
+				MIKO_TEAM_ID: "team-42",
 			},
 			release: "1.2.3",
 		});
@@ -90,11 +90,11 @@ describe("createErrorReporter", () => {
 		);
 	});
 
-	it("applies ATMIKO_TEAM_ID as the team_id tag and structured atmiko context on initialScope", () => {
+	it("applies MIKO_TEAM_ID as the team_id tag and structured miko context on initialScope", () => {
 		createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1",
-				ATMIKO_TEAM_ID: "team-42",
+				MIKO_SENTRY_DSN: "https://abc@sentry.io/1",
+				MIKO_TEAM_ID: "team-42",
 			},
 			release: "1.2.3",
 		});
@@ -103,7 +103,7 @@ describe("createErrorReporter", () => {
 				initialScope: {
 					tags: { team_id: "team-42" },
 					contexts: {
-						atmiko: {
+						miko: {
 							team_id: "team-42",
 							environment: "production",
 							release: "1.2.3",
@@ -114,33 +114,33 @@ describe("createErrorReporter", () => {
 		);
 	});
 
-	it("includes optional ATMIKO_LINEAR_WORKSPACE / ATMIKO_DEPLOYMENT_ID in the structured context", () => {
+	it("includes optional MIKO_LINEAR_WORKSPACE / MIKO_DEPLOYMENT_ID in the structured context", () => {
 		createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1",
-				ATMIKO_TEAM_ID: "team-42",
-				ATMIKO_LINEAR_WORKSPACE: "ceedar",
-				ATMIKO_DEPLOYMENT_ID: "fly-iad-1",
+				MIKO_SENTRY_DSN: "https://abc@sentry.io/1",
+				MIKO_TEAM_ID: "team-42",
+				MIKO_LINEAR_WORKSPACE: "ceedar",
+				MIKO_DEPLOYMENT_ID: "fly-iad-1",
 			},
 		});
 		const initArg = (
 			Sentry.init as unknown as { mock: { calls: unknown[][] } }
 		).mock.calls.at(-1)?.[0] as {
-			initialScope: { contexts: { atmiko: Record<string, unknown> } };
+			initialScope: { contexts: { miko: Record<string, unknown> } };
 		};
-		expect(initArg.initialScope.contexts.atmiko).toMatchObject({
+		expect(initArg.initialScope.contexts.miko).toMatchObject({
 			team_id: "team-42",
 			linear_workspace: "ceedar",
 			deployment_id: "fly-iad-1",
 		});
 	});
 
-	it("forwards ATMIKO_SENTRY_ENVIRONMENT", () => {
+	it("forwards MIKO_SENTRY_ENVIRONMENT", () => {
 		createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1",
-				ATMIKO_TEAM_ID: "team-42",
-				ATMIKO_SENTRY_ENVIRONMENT: "staging",
+				MIKO_SENTRY_DSN: "https://abc@sentry.io/1",
+				MIKO_TEAM_ID: "team-42",
+				MIKO_SENTRY_ENVIRONMENT: "staging",
 			},
 		});
 		expect(Sentry.init).toHaveBeenCalledWith(
@@ -148,12 +148,12 @@ describe("createErrorReporter", () => {
 		);
 	});
 
-	it("forwards ATMIKO_SENTRY_SAMPLE_RATE when valid", () => {
+	it("forwards MIKO_SENTRY_SAMPLE_RATE when valid", () => {
 		createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1",
-				ATMIKO_TEAM_ID: "team-42",
-				ATMIKO_SENTRY_SAMPLE_RATE: "0.25",
+				MIKO_SENTRY_DSN: "https://abc@sentry.io/1",
+				MIKO_TEAM_ID: "team-42",
+				MIKO_SENTRY_SAMPLE_RATE: "0.25",
 			},
 		});
 		expect(Sentry.init).toHaveBeenCalledWith(
@@ -166,12 +166,12 @@ describe("createErrorReporter", () => {
 		"-1",
 		"2",
 		"",
-	])("falls back to default sampleRate when ATMIKO_SENTRY_SAMPLE_RATE=%s is invalid", (value) => {
+	])("falls back to default sampleRate when MIKO_SENTRY_SAMPLE_RATE=%s is invalid", (value) => {
 		createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1",
-				ATMIKO_TEAM_ID: "team-42",
-				ATMIKO_SENTRY_SAMPLE_RATE: value,
+				MIKO_SENTRY_DSN: "https://abc@sentry.io/1",
+				MIKO_TEAM_ID: "team-42",
+				MIKO_SENTRY_SAMPLE_RATE: value,
 			},
 		});
 		expect(Sentry.init).toHaveBeenCalledWith(
@@ -182,8 +182,8 @@ describe("createErrorReporter", () => {
 	it("enables Sentry Logs whenever the reporter is constructed (gate is upstream)", () => {
 		createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1",
-				ATMIKO_TEAM_ID: "team-42",
+				MIKO_SENTRY_DSN: "https://abc@sentry.io/1",
+				MIKO_TEAM_ID: "team-42",
 			},
 		});
 		expect(Sentry.init).toHaveBeenCalledWith(
@@ -191,18 +191,18 @@ describe("createErrorReporter", () => {
 		);
 	});
 
-	it("does not capture Issues when ATMIKO_TEAM_ID is unset", () => {
+	it("does not capture Issues when MIKO_TEAM_ID is unset", () => {
 		const reporter = createErrorReporter({
-			env: { ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1" },
+			env: { MIKO_SENTRY_DSN: "https://abc@sentry.io/1" },
 		});
 		expect(reporter.isEnabled).toBe(false);
 		reporter.captureException(new Error("boom"));
 		expect(Sentry.captureException).not.toHaveBeenCalled();
 	});
 
-	it("does not forward logs when ATMIKO_TEAM_ID is unset", () => {
+	it("does not forward logs when MIKO_TEAM_ID is unset", () => {
 		const reporter = createErrorReporter({
-			env: { ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1" },
+			env: { MIKO_SENTRY_DSN: "https://abc@sentry.io/1" },
 		});
 		reporter.log("info", "hello", { component: "EdgeWorker" });
 		expect(Sentry.logger.info).not.toHaveBeenCalled();
@@ -211,8 +211,8 @@ describe("createErrorReporter", () => {
 	it("forwards logger.* calls to Sentry.logger.* with team_id attribute", () => {
 		const reporter = createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1",
-				ATMIKO_TEAM_ID: "team-42",
+				MIKO_SENTRY_DSN: "https://abc@sentry.io/1",
+				MIKO_TEAM_ID: "team-42",
 			},
 		});
 		reporter.log("info", "hello world", { component: "EdgeWorker" });
@@ -231,8 +231,8 @@ describe("createErrorReporter", () => {
 	it("installs the scrub hook as beforeSend", () => {
 		createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1",
-				ATMIKO_TEAM_ID: "team-42",
+				MIKO_SENTRY_DSN: "https://abc@sentry.io/1",
+				MIKO_TEAM_ID: "team-42",
 			},
 		});
 		const call = (Sentry.init as unknown as { mock: { calls: unknown[][] } })
@@ -248,8 +248,8 @@ describe("createErrorReporter", () => {
 	it("installs the log scrub hook as beforeSendLog", () => {
 		createErrorReporter({
 			env: {
-				ATMIKO_SENTRY_DSN: "https://abc@sentry.io/1",
-				ATMIKO_TEAM_ID: "team-42",
+				MIKO_SENTRY_DSN: "https://abc@sentry.io/1",
+				MIKO_TEAM_ID: "team-42",
 			},
 		});
 		const call = (Sentry.init as unknown as { mock: { calls: unknown[][] } })
@@ -266,7 +266,7 @@ describe("createErrorReporter", () => {
 
 	it("Noop reporter flush resolves true and no-ops capture methods", async () => {
 		const reporter = createErrorReporter({
-			env: { ATMIKO_SENTRY_DISABLED: "1" },
+			env: { MIKO_SENTRY_DISABLED: "1" },
 		});
 		expect(() => reporter.captureException(new Error("x"))).not.toThrow();
 		expect(() => reporter.captureMessage("hello")).not.toThrow();

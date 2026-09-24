@@ -16,12 +16,12 @@ describe("CodexRunner MCP config mapping", () => {
 						Authorization: "Bearer linear-token",
 					},
 				},
-				"atmiko-tools": {
+				"miko-tools": {
 					type: "http",
-					url: "http://127.0.0.1:4444/mcp/atmiko-tools",
+					url: "http://127.0.0.1:4444/mcp/miko-tools",
 					headers: {
-						Authorization: "Bearer atmiko-api-key",
-						"x-atmiko-mcp-context-id": "repo-1:session-1",
+						Authorization: "Bearer miko-api-key",
+						"x-miko-mcp-context-id": "repo-1:session-1",
 					},
 				},
 			},
@@ -30,9 +30,9 @@ describe("CodexRunner MCP config mapping", () => {
 		expect(mcpServers.linear.http_headers).toEqual({
 			Authorization: "Bearer linear-token",
 		});
-		expect(mcpServers["atmiko-tools"].http_headers).toEqual({
-			Authorization: "Bearer atmiko-api-key",
-			"x-atmiko-mcp-context-id": "repo-1:session-1",
+		expect(mcpServers["miko-tools"].http_headers).toEqual({
+			Authorization: "Bearer miko-api-key",
+			"x-miko-mcp-context-id": "repo-1:session-1",
 		});
 	});
 
@@ -63,7 +63,7 @@ describe("CodexRunner MCP config mapping", () => {
 		expect(mcpServers.linear.bearer_token_env_var).toBe("LINEAR_API_TOKEN");
 	});
 
-	it("translates per-tool Atmiko MCP allowedTools to Codex enabled_tools", () => {
+	it("translates per-tool Miko MCP allowedTools to Codex enabled_tools", () => {
 		const mcpServers = buildCodexMcpServersConfig({
 			workingDirectory: process.cwd(),
 			allowedTools: [
@@ -71,16 +71,16 @@ describe("CodexRunner MCP config mapping", () => {
 				"mcp__linear__list_issues",
 				"mcp__linear__create_issue",
 				"mcp__linear__list_issues",
-				"mcp__atmiko-tools__linear_agent_session_create_on_comment",
+				"mcp__miko-tools__linear_agent_session_create_on_comment",
 			],
 			mcpConfig: {
 				linear: {
 					type: "http",
 					url: "https://mcp.linear.app/mcp",
 				},
-				"atmiko-tools": {
+				"miko-tools": {
 					type: "http",
-					url: "http://127.0.0.1:4444/mcp/atmiko-tools",
+					url: "http://127.0.0.1:4444/mcp/miko-tools",
 				},
 			},
 		});
@@ -91,16 +91,16 @@ describe("CodexRunner MCP config mapping", () => {
 		]);
 		expect(mcpServers.linear.default_tools_approval_mode).toBe("approve");
 		expect(mcpServers.linear.tools).toBeUndefined();
-		expect(mcpServers["atmiko-tools"].enabled_tools).toEqual([
+		expect(mcpServers["miko-tools"].enabled_tools).toEqual([
 			"linear_agent_session_create_on_comment",
 		]);
-		expect(mcpServers["atmiko-tools"].default_tools_approval_mode).toBe(
+		expect(mcpServers["miko-tools"].default_tools_approval_mode).toBe(
 			"approve",
 		);
-		expect(mcpServers["atmiko-tools"].tools).toBeUndefined();
+		expect(mcpServers["miko-tools"].tools).toBeUndefined();
 	});
 
-	it("leaves Codex MCP servers unrestricted for server-wide Atmiko MCP allowedTools", () => {
+	it("leaves Codex MCP servers unrestricted for server-wide Miko MCP allowedTools", () => {
 		const mcpServers = buildCodexMcpServersConfig({
 			workingDirectory: process.cwd(),
 			allowedTools: ["mcp__linear", "mcp__linear__list_issues"],
@@ -117,7 +117,7 @@ describe("CodexRunner MCP config mapping", () => {
 		expect(mcpServers.linear.default_tools_approval_mode).toBe("approve");
 	});
 
-	it("matches underscore Atmiko MCP server names to hyphenated Codex MCP server names", () => {
+	it("matches underscore Miko MCP server names to hyphenated Codex MCP server names", () => {
 		const mcpServers = buildCodexMcpServersConfig({
 			workingDirectory: process.cwd(),
 			allowedTools: [
@@ -142,7 +142,7 @@ describe("CodexRunner MCP config mapping", () => {
 		expect(mcpServers["slack-fixed"].tools).toBeUndefined();
 	});
 
-	it("keeps Codex-native MCP tool filters ahead of Atmiko allowedTools translation", () => {
+	it("keeps Codex-native MCP tool filters ahead of Miko allowedTools translation", () => {
 		const mcpServers = buildCodexMcpServersConfig({
 			workingDirectory: process.cwd(),
 			allowedTools: [
@@ -173,7 +173,7 @@ describe("CodexRunner MCP config mapping", () => {
 	});
 
 	it("loads hosted file-based MCP configs and preserves Codex MCP options", () => {
-		const tmp = mkdtempSync(join(tmpdir(), "atmiko-codex-mcp-"));
+		const tmp = mkdtempSync(join(tmpdir(), "miko-codex-mcp-"));
 		try {
 			const mcpConfigPath = join(tmp, "mcp-hosted.json");
 			writeFileSync(

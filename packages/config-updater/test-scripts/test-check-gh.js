@@ -9,7 +9,7 @@
  *   node test-scripts/test-check-gh.js
  *
  * Note: This requires a running EdgeWorker server with ConfigUpdater registered
- * and a valid ATMIKO_API_KEY environment variable set.
+ * and a valid MIKO_API_KEY environment variable set.
  */
 
 import { handleCheckGh } from "../dist/handlers/checkGh.js";
@@ -18,7 +18,7 @@ async function testCheckGh() {
 	console.log("Testing handleCheckGh handler...\n");
 
 	try {
-		const result = await handleCheckGh({}, "/tmp/test-atmiko-home");
+		const result = await handleCheckGh({}, "/tmp/test-miko-home");
 
 		console.log("Result:", JSON.stringify(result, null, 2));
 

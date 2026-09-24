@@ -7,7 +7,7 @@
  * - File-based configuration
  */
 
-import { EdgeWorker } from "atmiko-edge-worker";
+import { EdgeWorker } from "miko-edge-worker";
 import { FSWorkspaceService } from "../cli/adapters/FSWorkspaceService";
 import { OAuthHelper } from "../cli/utils/OAuthHelper";
 
@@ -17,9 +17,7 @@ export async function createCLIEdgeWorker(config: any) {
 	const linearToken = await oauthHelper.getAccessToken();
 
 	if (!linearToken) {
-		throw new Error(
-			'No Linear OAuth token available. Run "atmiko auth" first.',
-		);
+		throw new Error('No Linear OAuth token available. Run "miko auth" first.');
 	}
 
 	// Create workspace service for git worktrees

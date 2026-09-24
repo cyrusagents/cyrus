@@ -3,8 +3,8 @@
  * `agent-browser` CLI (Playwright-backed) and a local Chromium for taking
  * screenshots and driving real browsers.
  *
- * Only injected when the environment variable `ATMIKO_BROWSER_USE_ENABLED` is
- * set to a truthy value. atmiko-hosted sets this on cloud-runtime droplets
+ * Only injected when the environment variable `MIKO_BROWSER_USE_ENABLED` is
+ * set to a truthy value. miko-hosted sets this on cloud-runtime droplets
  * (where chromium + agent-browser are pre-installed) and leaves it unset for
  * self-host runtimes (where the binaries may not be available).
  */
@@ -35,7 +35,7 @@ changes, capture screenshots for the user, and drive real browser flows.
 
 /**
  * Append the browser-use addendum to a system prompt fragment, but only when
- * the `ATMIKO_BROWSER_USE_ENABLED` env var is truthy. Returns the existing
+ * the `MIKO_BROWSER_USE_ENABLED` env var is truthy. Returns the existing
  * prompt unchanged otherwise.
  */
 export function appendBrowserUseAddendum(
@@ -50,7 +50,7 @@ export function appendBrowserUseAddendum(
 }
 
 function isBrowserUseEnabled(): boolean {
-	const raw = process.env.ATMIKO_BROWSER_USE_ENABLED;
+	const raw = process.env.MIKO_BROWSER_USE_ENABLED;
 	if (!raw) return false;
 	const normalized = raw.trim().toLowerCase();
 	return normalized === "1" || normalized === "true" || normalized === "yes";

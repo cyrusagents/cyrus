@@ -13,11 +13,11 @@
 
 import os from "node:os";
 import path from "node:path";
-import { SimpleCodexRunner } from "atmiko-codex-runner";
-import { SimpleCursorRunner } from "atmiko-cursor-runner";
-import { SimpleGeminiRunner } from "atmiko-gemini-runner";
+import { SimpleCodexRunner } from "miko-codex-runner";
+import { SimpleCursorRunner } from "miko-cursor-runner";
+import { SimpleGeminiRunner } from "miko-gemini-runner";
 // Import all SimpleRunner implementations
-import { SimpleClaudeRunner } from "atmiko-simple-agent-runner";
+import { SimpleClaudeRunner } from "miko-simple-agent-runner";
 
 const VALID_RESPONSES = ["yes", "no", "maybe"];
 const TEST_PROMPT =
@@ -32,7 +32,7 @@ async function testRunner(name, RunnerClass, model) {
 	try {
 		const runner = new RunnerClass({
 			validResponses: VALID_RESPONSES,
-			atmikoHome: path.join(os.homedir(), ".atmiko"),
+			mikoHome: path.join(os.homedir(), ".miko"),
 			workingDirectory: process.cwd(),
 			model,
 			maxTurns: 3,

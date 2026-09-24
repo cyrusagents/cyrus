@@ -5,7 +5,7 @@
  * holding a semaphore slot across that promise bounds concurrent sessions.
  */
 
-import type { AgentSessionInfo, IAgentRunner } from "atmiko-core";
+import type { AgentSessionInfo, IAgentRunner } from "miko-core";
 import { describe, expect, it, vi } from "vitest";
 import { capRunnerStarts, SessionSemaphore } from "../src/RunnerConcurrency.js";
 

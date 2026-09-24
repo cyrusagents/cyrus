@@ -28,7 +28,7 @@ export interface ZulipEventTransportConfig {
  * REST API credentials for a Zulip bot.
  *
  * Zulip's outgoing webhook protocol expects the reply in the HTTP response,
- * which cannot work for an agent turn that takes minutes. Everything Atmiko
+ * which cannot work for an agent turn that takes minutes. Everything Miko
  * does after acknowledging a webhook — posting the reply, adding reactions,
  * back-reading a topic — goes through the REST API with these credentials
  * instead.
@@ -57,7 +57,7 @@ export interface ZulipEventTransportEvents {
  *
  * An outgoing webhook bot is only ever notified about messages that address
  * it directly: an @mention in a channel, or a direct message. There is no
- * equivalent of Slack's plain `message` event, so Atmiko cannot passively
+ * equivalent of Slack's plain `message` event, so Miko cannot passively
  * follow a Zulip topic — the catch-up read in ZulipChatAdapter covers what
  * was said between two mentions instead.
  */

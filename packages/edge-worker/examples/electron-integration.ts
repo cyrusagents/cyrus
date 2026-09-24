@@ -7,8 +7,8 @@
  * - System notifications
  */
 
-import { EdgeWorker } from "atmiko-edge-worker";
 import { app, type BrowserWindow, ipcMain, Notification } from "electron";
+import { EdgeWorker } from "miko-edge-worker";
 
 export async function createElectronEdgeWorker(
 	mainWindow: BrowserWindow,

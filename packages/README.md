@@ -1,10 +1,10 @@
-# Atmiko Packages
+# Miko Packages
 
-This directory contains the core packages that make up the Atmiko monorepo. Each package has a specific scope of concerns and well-defined responsibilities.
+This directory contains the core packages that make up the Miko monorepo. Each package has a specific scope of concerns and well-defined responsibilities.
 
 ## Package Overview
 
-### @atmiko/core
+### @miko/core
 **Scope**: Core domain models and business logic entities
 
 **Responsibilities**:
@@ -20,7 +20,7 @@ This directory contains the core packages that make up the Atmiko monorepo. Each
 - `Workspace` - Working directory model
 - `Comment` - Issue comment model
 
-### @atmiko/claude-parser
+### @miko/claude-parser
 **Scope**: Parse and interpret Claude's stdout/stderr output
 
 **Responsibilities**:
@@ -36,7 +36,7 @@ This directory contains the core packages that make up the Atmiko monorepo. Each
 - `ClaudeEvent` - TypeScript types for all Claude events
 - Message type definitions
 
-### @atmiko/claude-runner
+### @miko/claude-runner
 **Scope**: Manage Claude CLI process lifecycle
 
 **Responsibilities**:
@@ -52,7 +52,7 @@ This directory contains the core packages that make up the Atmiko monorepo. Each
 - `getAllTools()` - List available Claude tools
 - Process configuration types
 
-### @atmiko/ndjson-client
+### @miko/ndjson-client
 **Scope**: NDJSON streaming communication with edge proxy
 
 **Responsibilities**:
@@ -69,7 +69,7 @@ This directory contains the core packages that make up the Atmiko monorepo. Each
 - `StatusUpdate` - Status update types
 - Configuration interfaces
 
-### @atmiko/edge-worker
+### @miko/edge-worker
 **Scope**: Orchestrate Linear webhooks, Claude processing, and API responses
 
 **Responsibilities**:
@@ -89,23 +89,23 @@ This directory contains the core packages that make up the Atmiko monorepo. Each
 ## Package Dependencies
 
 ```
-@atmiko/edge-worker
-  ├── @atmiko/core (Session, SessionManager)
-  ├── @atmiko/claude-parser (ClaudeEvent types)
-  ├── @atmiko/claude-runner (ClaudeRunner)
-  ├── @atmiko/ndjson-client (NdjsonClient)
+@miko/edge-worker
+  ├── @miko/core (Session, SessionManager)
+  ├── @miko/claude-parser (ClaudeEvent types)
+  ├── @miko/claude-runner (ClaudeRunner)
+  ├── @miko/ndjson-client (NdjsonClient)
   └── @linear/sdk (Linear API)
 
-@atmiko/claude-runner
-  └── @atmiko/claude-parser (for event types)
+@miko/claude-runner
+  └── @miko/claude-parser (for event types)
 
-@atmiko/ndjson-client
+@miko/ndjson-client
   └── (no internal dependencies)
 
-@atmiko/claude-parser
+@miko/claude-parser
   └── (no internal dependencies)
 
-@atmiko/core
+@miko/core
   └── (no internal dependencies)
 ```
 

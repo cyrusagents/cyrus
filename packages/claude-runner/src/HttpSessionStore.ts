@@ -3,13 +3,13 @@ import type {
 	SessionStore,
 	SessionStoreEntry,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ILogger } from "atmiko-core";
+import type { ILogger } from "miko-core";
 
 /**
  * HTTP-backed Claude Agent SDK SessionStore.
  *
  * Mirrors session transcripts from an edge-worker / ClaudeRunner to the
- * Atmiko hosted control plane, which persists them in a per-team Supabase
+ * Miko hosted control plane, which persists them in a per-team Supabase
  * table.
  *
  * References (CYPACK-1121):
@@ -21,9 +21,9 @@ import type { ILogger } from "atmiko-core";
  * Every request carries two pieces of identity, provided by the edge's
  * environment:
  *
- *   - `Authorization: Bearer <ATMIKO_API_KEY>` — proves the caller holds the
+ *   - `Authorization: Bearer <MIKO_API_KEY>` — proves the caller holds the
  *     team's API key.
- *   - `X-Atmiko-Team-Id:  <ATMIKO_TEAM_ID>`    — names the team the request
+ *   - `X-Miko-Team-Id:  <MIKO_TEAM_ID>`    — names the team the request
  *     belongs to.
  *
  * The server looks up the team by id (O(1) primary-key lookup) and verifies
@@ -41,7 +41,7 @@ import type { ILogger } from "atmiko-core";
  *
  * The adapter passes the 13-contract conformance suite from the upstream
  * examples (`examples/session-stores/shared/conformance.ts`) when pointed
- * at a conforming backend. The atmiko-hosted implementation of these routes
+ * at a conforming backend. The miko-hosted implementation of these routes
  * is the canonical conforming backend.
  */
 export interface HttpSessionStoreOptions {
@@ -50,7 +50,7 @@ export interface HttpSessionStoreOptions {
 	/** Team-scoped API key. Sent as `Authorization: Bearer <apiKey>`. */
 	apiKey: string;
 	/**
-	 * Team id this edge belongs to. Sent as `X-Atmiko-Team-Id: <teamId>`.
+	 * Team id this edge belongs to. Sent as `X-Miko-Team-Id: <teamId>`.
 	 * The server verifies the bearer token actually belongs to this team.
 	 */
 	teamId: string;
@@ -71,7 +71,7 @@ type JsonBody = Record<string, unknown>;
  * Header name used to identify the team. Extracted as a module-level
  * constant so tests and any future alternate transport stay in sync.
  */
-export const ATMIKO_TEAM_ID_HEADER = "X-Atmiko-Team-Id";
+export const MIKO_TEAM_ID_HEADER = "X-Miko-Team-Id";
 
 export class HttpSessionStore implements SessionStore {
 	private readonly baseUrl: string;
@@ -159,7 +159,7 @@ export class HttpSessionStore implements SessionStore {
 		return {
 			"Content-Type": "application/json",
 			Authorization: `Bearer ${this.apiKey}`,
-			[ATMIKO_TEAM_ID_HEADER]: this.teamId,
+			[MIKO_TEAM_ID_HEADER]: this.teamId,
 		};
 	}
 

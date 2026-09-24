@@ -55,22 +55,22 @@ importers:
       '@sentry/node':
         specifier: ^10.65.0
         version: 10.65.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.218.0(@opentelemetry/api@1.9.1))
-      atmiko-claude-runner:
+      miko-claude-runner:
         specifier: workspace:*
         version: link:../../packages/claude-runner
-      atmiko-cloudflare-tunnel-client:
+      miko-cloudflare-tunnel-client:
         specifier: workspace:*
         version: link:../../packages/cloudflare-tunnel-client
-      atmiko-config-updater:
+      miko-config-updater:
         specifier: workspace:*
         version: link:../../packages/config-updater
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../../packages/core
-      atmiko-edge-worker:
+      miko-edge-worker:
         specifier: workspace:*
         version: link:../../packages/edge-worker
-      atmiko-slack-event-transport:
+      miko-slack-event-transport:
         specifier: workspace:*
         version: link:../../packages/slack-event-transport
       commander:
@@ -119,16 +119,16 @@ importers:
 
   apps/f1:
     dependencies:
-      atmiko-claude-runner:
+      miko-claude-runner:
         specifier: workspace:*
         version: link:../../packages/claude-runner
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../../packages/core
-      atmiko-edge-worker:
+      miko-edge-worker:
         specifier: workspace:*
         version: link:../../packages/edge-worker
-      atmiko-slack-event-transport:
+      miko-slack-event-transport:
         specifier: workspace:*
         version: link:../../packages/slack-event-transport
       commander:
@@ -178,7 +178,7 @@ importers:
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
       dotenv:
@@ -231,10 +231,10 @@ importers:
       '@openai/codex-sdk':
         specifier: ^0.153.3
         version: 0.153.3
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
-      atmiko-simple-agent-runner:
+      miko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
     devDependencies:
@@ -253,7 +253,7 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: '>=1.30.0'
         version: 1.30.0(zod@4.3.6)
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
       fastify:
@@ -306,10 +306,10 @@ importers:
       '@cursor/sdk':
         specifier: ^1.0.31
         version: 1.0.31
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
-      atmiko-simple-agent-runner:
+      miko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
     devDependencies:
@@ -334,49 +334,49 @@ importers:
       '@ngrok/ngrok':
         specifier: ^1.5.1
         version: 1.7.0
-      atmiko-claude-runner:
+      miko-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
-      atmiko-cloudflare-tunnel-client:
+      miko-cloudflare-tunnel-client:
         specifier: workspace:*
         version: link:../cloudflare-tunnel-client
-      atmiko-codex-runner:
+      miko-codex-runner:
         specifier: workspace:*
         version: link:../codex-runner
-      atmiko-config-updater:
+      miko-config-updater:
         specifier: workspace:*
         version: link:../config-updater
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
-      atmiko-cursor-runner:
+      miko-cursor-runner:
         specifier: workspace:*
         version: link:../cursor-runner
-      atmiko-gemini-runner:
+      miko-gemini-runner:
         specifier: workspace:*
         version: link:../gemini-runner
-      atmiko-github-event-transport:
+      miko-github-event-transport:
         specifier: workspace:*
         version: link:../github-event-transport
-      atmiko-gitlab-event-transport:
+      miko-gitlab-event-transport:
         specifier: workspace:*
         version: link:../gitlab-event-transport
-      atmiko-linear-event-transport:
+      miko-linear-event-transport:
         specifier: workspace:*
         version: link:../linear-event-transport
-      atmiko-mcp-tools:
+      miko-mcp-tools:
         specifier: workspace:*
         version: link:../mcp-tools
-      atmiko-opencode-runner:
+      miko-opencode-runner:
         specifier: workspace:*
         version: link:../opencode-runner
-      atmiko-simple-agent-runner:
+      miko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
-      atmiko-slack-event-transport:
+      miko-slack-event-transport:
         specifier: workspace:*
         version: link:../slack-event-transport
-      atmiko-zulip-event-transport:
+      miko-zulip-event-transport:
         specifier: workspace:*
         version: link:../zulip-event-transport
       chokidar:
@@ -497,13 +497,13 @@ importers:
       '@linear/sdk':
         specifier: ^60.0.0
         version: 60.0.0(encoding@0.1.13)
-      atmiko-claude-runner:
+      miko-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
-      atmiko-simple-agent-runner:
+      miko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
       dotenv:
@@ -531,7 +531,7 @@ importers:
 
   packages/github-event-transport:
     dependencies:
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
       fastify:
@@ -550,7 +550,7 @@ importers:
 
   packages/gitlab-event-transport:
     dependencies:
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
       fastify:
@@ -572,7 +572,7 @@ importers:
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
       fastify:
@@ -622,10 +622,10 @@ importers:
 
   packages/opencode-runner:
     dependencies:
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
-      atmiko-simple-agent-runner:
+      miko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
     devDependencies:
@@ -644,10 +644,10 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.268
         version: 0.3.268(@anthropic-ai/sdk@0.125.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(zod@4.6.5))(zod@4.6.5)
-      atmiko-claude-runner:
+      miko-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -663,7 +663,7 @@ importers:
 
   packages/slack-event-transport:
     dependencies:
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
       fastify:
@@ -682,7 +682,7 @@ importers:
 
   packages/zulip-event-transport:
     dependencies:
-      atmiko-core:
+      miko-core:
         specifier: workspace:*
         version: link:../core
       fastify:

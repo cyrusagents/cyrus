@@ -49,8 +49,8 @@ import type {
 	Team,
 	User,
 	WorkflowState,
-} from "atmiko-core";
-import { createLogger, type ILogger } from "atmiko-core";
+} from "miko-core";
+import { createLogger, type ILogger } from "miko-core";
 import { LinearEventTransport } from "./LinearEventTransport.js";
 
 /**

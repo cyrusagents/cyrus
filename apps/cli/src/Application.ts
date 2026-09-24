@@ -1,12 +1,12 @@
 import { existsSync, mkdirSync, watch } from "node:fs";
 import { dirname, join } from "node:path";
+import dotenv from "dotenv";
 import {
 	type ErrorReporter,
 	NoopErrorReporter,
 	type RepositoryConfig,
-} from "atmiko-core";
-import { GitService, SharedApplicationServer } from "atmiko-edge-worker";
-import dotenv from "dotenv";
+} from "miko-core";
+import { GitService, SharedApplicationServer } from "miko-edge-worker";
 import { DEFAULT_SERVER_PORT, parsePort } from "./config/constants.js";
 import { ConfigService } from "./services/ConfigService.js";
 import { Logger } from "./services/Logger.js";
@@ -31,7 +31,7 @@ export class Application {
 	private readonly envFilePath: string;
 
 	constructor(
-		public readonly atmikoHome: string,
+		public readonly mikoHome: string,
 		customEnvPath?: string,
 		version?: string,
 		errorReporter: ErrorReporter = new NoopErrorReporter(),
@@ -45,8 +45,8 @@ export class Application {
 		// Error reporter (Sentry or noop). Injected so tests can supply a fake.
 		this.errorReporter = errorReporter;
 
-		// Determine the env file path: use custom path if provided, otherwise default to ~/.atmiko/.env
-		this.envFilePath = customEnvPath || join(atmikoHome, ".env");
+		// Determine the env file path: use custom path if provided, otherwise default to ~/.miko/.env
+		this.envFilePath = customEnvPath || join(mikoHome, ".env");
 
 		// Ensure required directories exist
 		this.ensureRequiredDirectories();
@@ -58,12 +58,12 @@ export class Application {
 		this.setupEnvFileWatcher();
 
 		// Initialize services
-		this.config = new ConfigService(atmikoHome, this.logger);
-		this.git = new GitService({ atmikoHome }, this.logger);
+		this.config = new ConfigService(mikoHome, this.logger);
+		this.git = new GitService({ mikoHome }, this.logger);
 		this.worker = new WorkerService(
 			this.config,
 			this.git,
-			atmikoHome,
+			mikoHome,
 			this.logger,
 			this.version,
 		);
@@ -107,16 +107,16 @@ export class Application {
 	}
 
 	/**
-	 * Ensure required Atmiko directories exist
-	 * Creates repos dir (ATMIKO_REPOS_DIR or ~/.atmiko/repos),
-	 * worktrees dir (ATMIKO_WORKTREES_DIR or ~/.atmiko/worktrees),
-	 * and ~/.atmiko/mcp-configs
+	 * Ensure required Miko directories exist
+	 * Creates repos dir (MIKO_REPOS_DIR or ~/.miko/repos),
+	 * worktrees dir (MIKO_WORKTREES_DIR or ~/.miko/worktrees),
+	 * and ~/.miko/mcp-configs
 	 */
 	private ensureRequiredDirectories(): void {
 		const requiredDirs = [
-			getDefaultReposDir(this.atmikoHome),
-			getDefaultWorktreesDir(this.atmikoHome),
-			join(this.atmikoHome, "mcp-configs"),
+			getDefaultReposDir(this.mikoHome),
+			getDefaultWorktreesDir(this.mikoHome),
+			join(this.mikoHome, "mcp-configs"),
 		];
 
 		for (const dirPath of requiredDirs) {
@@ -139,7 +139,7 @@ export class Application {
 		const proxyUrl = process.env.PROXY_URL?.trim();
 		if (!proxyUrl) {
 			throw new Error(
-				"Configure your own PROXY_URL or authenticate with atmiko self-auth-linear.",
+				"Configure your own PROXY_URL or authenticate with miko self-auth-linear.",
 			);
 		}
 		return proxyUrl;
@@ -150,7 +150,7 @@ export class Application {
 	 */
 	async createTempServer(): Promise<SharedApplicationServer> {
 		const serverPort = parsePort(
-			process.env.ATMIKO_SERVER_PORT,
+			process.env.MIKO_SERVER_PORT,
 			DEFAULT_SERVER_PORT,
 		);
 		return new SharedApplicationServer(serverPort);
@@ -214,7 +214,7 @@ export class Application {
 							`📦 Starting edge worker with ${repositories.length} repository(ies)...`,
 						);
 
-						// Remove ATMIKO_SETUP_PENDING flag from .env (only in setup waiting mode)
+						// Remove MIKO_SETUP_PENDING flag from .env (only in setup waiting mode)
 						if (this.isInSetupWaitingMode) {
 							await this.removeSetupPendingFlag();
 						}
@@ -234,11 +234,11 @@ export class Application {
 	}
 
 	/**
-	 * Remove ATMIKO_SETUP_PENDING flag from .env file
+	 * Remove MIKO_SETUP_PENDING flag from .env file
 	 */
 	private async removeSetupPendingFlag(): Promise<void> {
 		const { readFile, writeFile } = await import("node:fs/promises");
-		const envPath = join(this.atmikoHome, ".env");
+		const envPath = join(this.mikoHome, ".env");
 
 		if (!existsSync(envPath)) {
 			return;
@@ -248,17 +248,17 @@ export class Application {
 			const envContent = await readFile(envPath, "utf-8");
 			const updatedContent = envContent
 				.split("\n")
-				.filter((line) => !line.startsWith("ATMIKO_SETUP_PENDING="))
+				.filter((line) => !line.startsWith("MIKO_SETUP_PENDING="))
 				.join("\n");
 
 			await writeFile(envPath, updatedContent, "utf-8");
-			this.logger.info("✅ Removed ATMIKO_SETUP_PENDING flag from .env");
+			this.logger.info("✅ Removed MIKO_SETUP_PENDING flag from .env");
 
 			// Reload environment variables
 			this.loadEnvFile();
 		} catch (error) {
 			this.logger.error(
-				`❌ Failed to remove ATMIKO_SETUP_PENDING flag: ${error}`,
+				`❌ Failed to remove MIKO_SETUP_PENDING flag: ${error}`,
 			);
 		}
 	}

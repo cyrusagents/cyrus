@@ -28,7 +28,7 @@ import type {
 	TranslationResult,
 	UnassignMessage,
 	UserPromptMessage,
-} from "atmiko-core";
+} from "miko-core";
 import {
 	type AgentSessionCreatedWebhook,
 	type AgentSessionPromptedWebhook,
@@ -44,7 +44,7 @@ import {
 	isIssueUnassignedWebhook,
 	type Webhook,
 	type WebhookIssue,
-} from "atmiko-core";
+} from "miko-core";
 
 // Helper type for safely accessing nested properties that may not exist in webhook types
 type SafeRecord = Record<string, unknown>;

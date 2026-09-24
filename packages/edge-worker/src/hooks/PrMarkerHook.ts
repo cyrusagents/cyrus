@@ -3,15 +3,15 @@ import type {
 	HookCallbackMatcher,
 	HookEvent,
 	PostToolUseHookInput,
-} from "atmiko-claude-runner";
-import type { ILogger } from "atmiko-core";
+} from "miko-claude-runner";
+import type { ILogger } from "miko-core";
 
 /**
- * The hidden HTML marker that identifies a PR/MR description as Atmiko-authored.
+ * The hidden HTML marker that identifies a PR/MR description as Miko-authored.
  * Its presence is what tells our GitHub/GitLab webhook handlers that a
- * "Changes requested" or comment event should be forwarded back to Atmiko.
+ * "Changes requested" or comment event should be forwarded back to Miko.
  */
-export const ATMIKO_PR_MARKER = "<!-- generated-by-atmiko -->";
+export const MIKO_PR_MARKER = "<!-- generated-by-miko -->";
 
 /**
  * Provider-specific knowledge about how to detect PR/MR mutating commands and
@@ -37,14 +37,14 @@ export interface PrMarkerProvider {
  */
 export function appendMarker(body: string | null | undefined): string {
 	const current = body ?? "";
-	if (current.includes(ATMIKO_PR_MARKER)) {
+	if (current.includes(MIKO_PR_MARKER)) {
 		return current;
 	}
 	const trimmed = current.replace(/\s+$/, "");
 	if (trimmed.length === 0) {
-		return ATMIKO_PR_MARKER;
+		return MIKO_PR_MARKER;
 	}
-	return `${trimmed}\n\n${ATMIKO_PR_MARKER}`;
+	return `${trimmed}\n\n${MIKO_PR_MARKER}`;
 }
 
 /**
@@ -105,7 +105,7 @@ export class GitHubPrMarkerProvider implements PrMarkerProvider {
 			return;
 		}
 		log.info(
-			`[PrMarkerHook] Appended Atmiko marker to GitHub PR #${payload.number}`,
+			`[PrMarkerHook] Appended Miko marker to GitHub PR #${payload.number}`,
 		);
 	}
 }
@@ -159,14 +159,14 @@ export class GitLabMrMarkerProvider implements PrMarkerProvider {
 			return;
 		}
 		log.info(
-			`[PrMarkerHook] Appended Atmiko marker to GitLab MR !${payload.iid}`,
+			`[PrMarkerHook] Appended Miko marker to GitLab MR !${payload.iid}`,
 		);
 	}
 }
 
 /**
- * Build the PostToolUse hook that ensures Atmiko's identifying marker is
- * present on every PR/MR Atmiko creates or updates.
+ * Build the PostToolUse hook that ensures Miko's identifying marker is
+ * present on every PR/MR Miko creates or updates.
  *
  * Wired alongside the screenshot/stop hooks in RunnerConfigBuilder. Designed
  * around the strategy pattern: `providers` is injectable so tests can stub

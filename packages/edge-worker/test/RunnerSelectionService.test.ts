@@ -1,4 +1,4 @@
-import type { EdgeWorkerConfig } from "atmiko-core";
+import type { EdgeWorkerConfig } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RunnerSelectionService } from "../src/RunnerSelectionService.js";
 

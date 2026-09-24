@@ -2,8 +2,8 @@ import type {
 	SDKAssistantMessage,
 	SDKResultMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import { ClaudeMessageFormatter } from "atmiko-claude-runner";
-import type { AgentPendingWork } from "atmiko-core";
+import { ClaudeMessageFormatter } from "miko-claude-runner";
+import type { AgentPendingWork } from "miko-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
 import {
@@ -114,7 +114,7 @@ describe("AgentSessionManager pending-work activities", () => {
 		postActivitySpy = mockActivitySink.postActivity as ReturnType<typeof vi.fn>;
 
 		manager = new AgentSessionManager();
-		manager.createAtmikoAgentSession(
+		manager.createMikoAgentSession(
 			sessionId,
 			issueId,
 			{

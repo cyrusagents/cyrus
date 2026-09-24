@@ -28,7 +28,7 @@ export function stripMention(text: string): string {
 
 /**
  * The prompt text for a Zulip message — the user's own words, with the
- * mention that summoned Atmiko removed.
+ * mention that summoned Miko removed.
  */
 export function buildPromptText(content: string): string {
 	return stripMention(content || "");

@@ -2,8 +2,8 @@
  * Types for Slack event transport
  */
 
-import type { InternalMessage } from "atmiko-core";
 import type { FastifyInstance } from "fastify";
+import type { InternalMessage } from "miko-core";
 
 /**
  * Verification mode for Slack webhooks
@@ -20,10 +20,10 @@ export interface SlackEventTransportConfig {
 	fastifyServer: FastifyInstance;
 	/** Verification mode: 'proxy' (via CYHOST) or 'direct' (Slack signing secret) */
 	verificationMode: SlackVerificationMode;
-	/** Secret for verification (ATMIKO_API_KEY for proxy, SLACK_SIGNING_SECRET for direct) */
+	/** Secret for verification (MIKO_API_KEY for proxy, SLACK_SIGNING_SECRET for direct) */
 	secret: string;
 	/**
-	 * Live predicate for whether Atmiko should follow plain (non-@mention)
+	 * Live predicate for whether Miko should follow plain (non-@mention)
 	 * messages in a thread. When it returns false, `message` events are ignored
 	 * entirely (app_mention-only behaviour) — they're dropped before the
 	 * app_mention/message de-dup so a mention's `message` twin never suppresses
@@ -214,7 +214,7 @@ export interface SlackAppMentionEvent {
  * Slack message event payload
  *
  * Fired for plain messages in channels/threads the bot can see (requires the
- * `message.*` bot event subscriptions and matching `*:history` scopes). Atmiko
+ * `message.*` bot event subscriptions and matching `*:history` scopes). Miko
  * only acts on threaded replies (`thread_ts` present) in threads it is already
  * bound to; the gating lives in SlackEventTransport (cheap structural filters)
  * and ChatSessionHandler (binding check).

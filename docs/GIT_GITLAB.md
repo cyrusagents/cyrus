@@ -1,20 +1,20 @@
 # Git & GitLab Setup
 
-Atmiko uses your local Git and GitLab CLI (`glab`) authentication to create commits and merge requests. This guide explains how to configure these tools and what permissions Atmiko will have.
+Miko uses your local Git and GitLab CLI (`glab`) authentication to create commits and merge requests. This guide explains how to configure these tools and what permissions Miko will have.
 
 ---
 
 ## Understanding Permissions
 
-**Important:** Atmiko operates with the same permissions as your authenticated Git and GitLab CLI user.
+**Important:** Miko operates with the same permissions as your authenticated Git and GitLab CLI user.
 
-When Atmiko creates commits and MRs:
+When Miko creates commits and MRs:
 - All commits are attributed to your Git user (`git config user.name` and `user.email`)
 - All MRs are created under your GitLab account
 - Your repository access permissions apply to all operations
 - Co-authored-by attribution is disabled by default (configured via `.claude/settings.json`)
 
-This means Atmiko can access any repository your authenticated user can access. Configure authentication carefully based on what repositories you want Atmiko to work with.
+This means Miko can access any repository your authenticated user can access. Configure authentication carefully based on what repositories you want Miko to work with.
 
 ---
 
@@ -101,7 +101,7 @@ glab auth status
 
 ## Security Considerations
 
-- **Use a dedicated account** for Atmiko if you want to limit its access
+- **Use a dedicated account** for Miko if you want to limit its access
 - **Repository access** is determined by your SSH key and GitLab token permissions
-- **Review permissions** before adding repositories to Atmiko
-- **Audit commits** - Atmiko-authored MRs include a `<!-- generated-by-atmiko -->` marker for traceability
+- **Review permissions** before adding repositories to Miko
+- **Audit commits** - Miko-authored MRs include a `<!-- generated-by-miko -->` marker for traceability

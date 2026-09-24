@@ -1,5 +1,5 @@
-import type { SDKMessage } from "atmiko-claude-runner";
-import type { AtmikoAgentSession, Issue, Workspace } from "atmiko-core";
+import type { SDKMessage } from "miko-claude-runner";
+import type { Issue, MikoAgentSession, Workspace } from "miko-core";
 
 /**
  * Events emitted by EdgeWorker
@@ -47,7 +47,7 @@ export interface EdgeWorkerEvents {
  * Data returned from createAgentSession
  */
 export interface AgentSessionData {
-	session: AtmikoAgentSession;
+	session: MikoAgentSession;
 	fullIssue: Issue;
 	workspace: Workspace;
 	attachmentResult: { manifest: string; attachmentsDir: string | null };

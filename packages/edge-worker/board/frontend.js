@@ -133,10 +133,10 @@ function renderConnection() {
 		: paused
 			? "Display paused"
 			: !state?.online
-				? "Atmiko offline"
+				? "Miko offline"
 				: state.status === "busy"
-					? "Atmiko busy"
-					: "Atmiko idle";
+					? "Miko busy"
+					: "Miko idle";
 	$("connection").textContent = text;
 	$("connection").title =
 		text +

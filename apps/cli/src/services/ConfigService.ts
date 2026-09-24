@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { migrateEdgeConfig } from "atmiko-core";
+import { migrateEdgeConfig } from "miko-core";
 import type { EdgeConfig } from "../config/types.js";
 import type { Logger } from "./Logger.js";
 
@@ -12,10 +12,10 @@ export class ConfigService {
 	private configPath: string;
 
 	constructor(
-		atmikoHome: string,
+		mikoHome: string,
 		private logger: Logger,
 	) {
-		this.configPath = resolve(atmikoHome, "config.json");
+		this.configPath = resolve(mikoHome, "config.json");
 	}
 
 	/**
@@ -130,7 +130,7 @@ export class ConfigService {
 	save(config: EdgeConfig): void {
 		const configDir = dirname(this.configPath);
 
-		// Ensure the ~/.atmiko directory exists
+		// Ensure the ~/.miko directory exists
 		if (!existsSync(configDir)) {
 			mkdirSync(configDir, { recursive: true });
 		}

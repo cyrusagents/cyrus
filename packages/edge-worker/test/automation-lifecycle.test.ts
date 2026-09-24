@@ -146,7 +146,7 @@ it("builds standalone runner config without Linear identity or native Linear too
 		allowedTools: ["Read(**)"],
 		allowedDirectories: ["/tmp/repo"],
 		disallowedTools: [],
-		atmikoHome: "/tmp/atmiko",
+		mikoHome: "/tmp/miko",
 		logger: { debug() {}, info() {}, warn() {}, error() {} },
 		onMessage() {},
 		onError() {},

@@ -733,16 +733,16 @@ describe("SlackEventTransport", () => {
 
 		afterEach(() => {
 			delete process.env.SLACK_SIGNING_SECRET;
-			delete process.env.ATMIKO_HOST_EXTERNAL;
+			delete process.env.MIKO_HOST_EXTERNAL;
 		});
 
-		it("switches to direct verification when SLACK_SIGNING_SECRET and ATMIKO_HOST_EXTERNAL are set at request time", async () => {
+		it("switches to direct verification when SLACK_SIGNING_SECRET and MIKO_HOST_EXTERNAL are set at request time", async () => {
 			const eventListener = vi.fn();
 			transport.on("event", eventListener);
 
 			// Add env vars after startup
 			process.env.SLACK_SIGNING_SECRET = runtimeSigningSecret;
-			process.env.ATMIKO_HOST_EXTERNAL = "true";
+			process.env.MIKO_HOST_EXTERNAL = "true";
 
 			const request = createMockRequest(testEventEnvelope);
 			const { timestamp, signature } = signSlackRequest(
@@ -765,13 +765,13 @@ describe("SlackEventTransport", () => {
 			);
 		});
 
-		it("stays in proxy mode when only SLACK_SIGNING_SECRET is set (no ATMIKO_HOST_EXTERNAL)", async () => {
+		it("stays in proxy mode when only SLACK_SIGNING_SECRET is set (no MIKO_HOST_EXTERNAL)", async () => {
 			const eventListener = vi.fn();
 			transport.on("event", eventListener);
 
 			// Only set signing secret, not external host flag
 			process.env.SLACK_SIGNING_SECRET = runtimeSigningSecret;
-			delete process.env.ATMIKO_HOST_EXTERNAL;
+			delete process.env.MIKO_HOST_EXTERNAL;
 
 			const request = createMockRequest(testEventEnvelope, {
 				authorization: `Bearer ${testSecret}`,
@@ -794,7 +794,7 @@ describe("SlackEventTransport", () => {
 			transport.on("event", eventListener);
 
 			delete process.env.SLACK_SIGNING_SECRET;
-			delete process.env.ATMIKO_HOST_EXTERNAL;
+			delete process.env.MIKO_HOST_EXTERNAL;
 
 			const request = createMockRequest(testEventEnvelope, {
 				authorization: `Bearer ${testSecret}`,
@@ -815,7 +815,7 @@ describe("SlackEventTransport", () => {
 		it("rejects proxy-style request after switching to direct mode", async () => {
 			// Add env vars to trigger direct mode
 			process.env.SLACK_SIGNING_SECRET = runtimeSigningSecret;
-			process.env.ATMIKO_HOST_EXTERNAL = "true";
+			process.env.MIKO_HOST_EXTERNAL = "true";
 
 			// Send request with Bearer token (proxy style) — should fail
 			// because direct mode expects Slack signature headers

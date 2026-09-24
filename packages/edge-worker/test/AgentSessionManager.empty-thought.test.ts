@@ -2,7 +2,7 @@ import type {
 	SDKAssistantMessage,
 	SDKSystemMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import { ClaudeMessageFormatter } from "atmiko-claude-runner";
+import { ClaudeMessageFormatter } from "miko-claude-runner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager";
 import type { IActivitySink } from "../src/sinks/IActivitySink";
@@ -34,7 +34,7 @@ describe("AgentSessionManager - empty assistant thought suppression", () => {
 		postActivitySpy = mockActivitySink.postActivity as ReturnType<typeof vi.fn>;
 
 		manager = new AgentSessionManager();
-		manager.createAtmikoAgentSession(
+		manager.createMikoAgentSession(
 			sessionId,
 			issueId,
 			{

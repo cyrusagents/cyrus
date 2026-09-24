@@ -3,12 +3,12 @@ import http from "node:http";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { NetworkPolicy, SandboxConfig } from "atmiko-core";
-import { TRUSTED_DOMAINS } from "atmiko-core";
+import type { NetworkPolicy, SandboxConfig } from "miko-core";
+import { TRUSTED_DOMAINS } from "miko-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { EgressProxy } from "../src/EgressProxy.js";
 
-const TEST_ATMIKO_HOME = join(tmpdir(), `atmiko-egress-test-${Date.now()}`);
+const TEST_MIKO_HOME = join(tmpdir(), `miko-egress-test-${Date.now()}`);
 
 function createConfig(overrides: Partial<SandboxConfig> = {}): SandboxConfig {
 	return {
@@ -32,8 +32,8 @@ describe("EgressProxy", () => {
 			await proxy.stop();
 		}
 		// Clean up test certs
-		if (existsSync(TEST_ATMIKO_HOME)) {
-			rmSync(TEST_ATMIKO_HOME, { recursive: true, force: true });
+		if (existsSync(TEST_MIKO_HOME)) {
+			rmSync(TEST_MIKO_HOME, { recursive: true, force: true });
 		}
 	});
 
@@ -41,11 +41,11 @@ describe("EgressProxy", () => {
 		it("generates CA certificate on first run", () => {
 			proxy = new EgressProxy(
 				createConfig({ httpProxyPort: httpPort, socksProxyPort: socksPort }),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 
 			const caCertPath = proxy.getCACertPath();
-			expect(caCertPath).toContain("atmiko-egress-ca.pem");
+			expect(caCertPath).toContain("miko-egress-ca.pem");
 			expect(existsSync(caCertPath)).toBe(true);
 		});
 
@@ -55,10 +55,10 @@ describe("EgressProxy", () => {
 				socksProxyPort: socksPort,
 			});
 
-			const proxy1 = new EgressProxy(config, TEST_ATMIKO_HOME);
+			const proxy1 = new EgressProxy(config, TEST_MIKO_HOME);
 			const cert1 = proxy1.getCACertPath();
 
-			const proxy2 = new EgressProxy(config, TEST_ATMIKO_HOME);
+			const proxy2 = new EgressProxy(config, TEST_MIKO_HOME);
 			const cert2 = proxy2.getCACertPath();
 
 			expect(cert1).toEqual(cert2);
@@ -67,7 +67,7 @@ describe("EgressProxy", () => {
 		it("returns actual bound ports after start", async () => {
 			proxy = new EgressProxy(
 				createConfig({ httpProxyPort: httpPort, socksProxyPort: socksPort }),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 
 			// Before start(), getters return the configured port (0 in tests).
@@ -86,7 +86,7 @@ describe("EgressProxy", () => {
 		it("starts and stops without error", async () => {
 			proxy = new EgressProxy(
 				createConfig({ httpProxyPort: httpPort, socksProxyPort: socksPort }),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 
 			await proxy.start();
@@ -96,7 +96,7 @@ describe("EgressProxy", () => {
 		it("is idempotent on start", async () => {
 			proxy = new EgressProxy(
 				createConfig({ httpProxyPort: httpPort, socksProxyPort: socksPort }),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 
 			await proxy.start();
@@ -109,7 +109,7 @@ describe("EgressProxy", () => {
 		it("allows all traffic when no policy is set", async () => {
 			proxy = new EgressProxy(
 				createConfig({ httpProxyPort: httpPort, socksProxyPort: socksPort }),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 			await proxy.start();
 
@@ -129,7 +129,7 @@ describe("EgressProxy", () => {
 					socksProxyPort: socksPort,
 					networkPolicy: policy,
 				}),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 			await proxy.start();
 
@@ -153,7 +153,7 @@ describe("EgressProxy", () => {
 					socksProxyPort: socksPort,
 					networkPolicy: policy,
 				}),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 			await proxy.start();
 
@@ -191,7 +191,7 @@ describe("EgressProxy", () => {
 					socksProxyPort: socksPort,
 					networkPolicy: policy,
 				}),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 			await proxy.start();
 
@@ -234,7 +234,7 @@ describe("EgressProxy", () => {
 					socksProxyPort: socksPort,
 					networkPolicy: policy,
 				}),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 			await proxy.start();
 
@@ -265,7 +265,7 @@ describe("EgressProxy", () => {
 						},
 					},
 				}),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 			await proxy.start();
 
@@ -303,7 +303,7 @@ describe("EgressProxy", () => {
 						preset: "trusted",
 					},
 				}),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 			await proxy.start();
 
@@ -334,7 +334,7 @@ describe("EgressProxy", () => {
 						},
 					},
 				}),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 			await proxy.start();
 
@@ -369,7 +369,7 @@ describe("EgressProxy", () => {
 		it("responds to SOCKS5 greeting", async () => {
 			proxy = new EgressProxy(
 				createConfig({ httpProxyPort: httpPort, socksProxyPort: socksPort }),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 			await proxy.start();
 
@@ -413,7 +413,7 @@ describe("EgressProxy", () => {
 					socksProxyPort: socksPort,
 					networkPolicy: policy,
 				}),
-				TEST_ATMIKO_HOME,
+				TEST_MIKO_HOME,
 			);
 			await proxy.start();
 

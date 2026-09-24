@@ -1,4 +1,4 @@
-import type { RepositoryConfig } from "atmiko-core";
+import type { RepositoryConfig } from "miko-core";
 
 /**
  * Abstraction for accessing the current set of chat-accessible repositories.

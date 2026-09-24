@@ -2,7 +2,7 @@
  * Unit tests for GlobalSessionRegistry
  */
 
-import type { AtmikoAgentSession, AtmikoAgentSessionEntry } from "@atmiko/core";
+import type { MikoAgentSession, MikoAgentSessionEntry } from "@miko/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GlobalSessionRegistry } from "../src/GlobalSessionRegistry.js";
 
@@ -12,8 +12,8 @@ describe("GlobalSessionRegistry", () => {
 	// Helper to create a mock session
 	const createMockSession = (
 		sessionId: string,
-		overrides?: Partial<AtmikoAgentSession>,
-	): AtmikoAgentSession => ({
+		overrides?: Partial<MikoAgentSession>,
+	): MikoAgentSession => ({
 		id: sessionId,
 		externalSessionId: sessionId,
 		type: "comment-thread" as const,
@@ -45,7 +45,7 @@ describe("GlobalSessionRegistry", () => {
 	const createMockEntry = (
 		type: "user" | "assistant" | "system" | "result",
 		content: string,
-	): AtmikoAgentSessionEntry => ({
+	): MikoAgentSessionEntry => ({
 		type,
 		content,
 		metadata: {

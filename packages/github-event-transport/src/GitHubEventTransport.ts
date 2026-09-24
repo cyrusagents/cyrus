@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { EventEmitter } from "node:events";
-import type { TranslationContext } from "atmiko-core";
-import { createLogger, type ILogger, ipMatchesAllowlist } from "atmiko-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { TranslationContext } from "miko-core";
+import { createLogger, type ILogger, ipMatchesAllowlist } from "miko-core";
 import { GitHubMessageTranslator } from "./GitHubMessageTranslator.js";
 import type {
 	GitHubEventTransportConfig,
@@ -72,7 +72,7 @@ export class GitHubEventTransport extends EventEmitter {
 	/**
 	 * Resolve the effective verification mode and secret at request time.
 	 * When started in proxy mode, checks if GITHUB_WEBHOOK_SECRET and
-	 * ATMIKO_HOST_EXTERNAL have been added to the environment since startup,
+	 * MIKO_HOST_EXTERNAL have been added to the environment since startup,
 	 * enabling a runtime switch to signature verification.
 	 *
 	 * Encapsulates all mode-switch detection and logging so callers only
@@ -89,7 +89,7 @@ export class GitHubEventTransport extends EventEmitter {
 
 		// Check if signature mode env vars have been added at runtime
 		const isExternalHost =
-			process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+			process.env.MIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 		const githubSecret = process.env.GITHUB_WEBHOOK_SECRET;
 		const hasGithubSecret = githubSecret != null && githubSecret !== "";
 

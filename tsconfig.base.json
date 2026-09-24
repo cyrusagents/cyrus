@@ -20,19 +20,19 @@
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedIndexedAccess": true,
 		"paths": {
-			"atmiko-core": ["./packages/core"],
-			"atmiko-claude-parser": ["./packages/claude-parser"],
-			"atmiko-linear-client": ["./packages/linear-client"],
-			"atmiko-history-stream": ["./packages/history-stream"],
-			"atmiko-edge-worker": ["./packages/edge-worker"],
-			"atmiko-claude-runner": ["./packages/claude-runner"],
-			"atmiko-codex-runner": ["./packages/codex-runner"],
-			"atmiko-cursor-runner": ["./packages/cursor-runner"],
-			"atmiko-gemini-runner": ["./packages/gemini-runner"],
-			"atmiko-mcp-tools": ["./packages/mcp-tools"],
-			"atmiko-simple-agent-runner": ["./packages/simple-agent-runner"],
-			"atmiko-config-updater": ["./packages/config-updater"],
-			"atmiko-linear-event-transport": ["./packages/linear-event-transport"]
+			"miko-core": ["./packages/core"],
+			"miko-claude-parser": ["./packages/claude-parser"],
+			"miko-linear-client": ["./packages/linear-client"],
+			"miko-history-stream": ["./packages/history-stream"],
+			"miko-edge-worker": ["./packages/edge-worker"],
+			"miko-claude-runner": ["./packages/claude-runner"],
+			"miko-codex-runner": ["./packages/codex-runner"],
+			"miko-cursor-runner": ["./packages/cursor-runner"],
+			"miko-gemini-runner": ["./packages/gemini-runner"],
+			"miko-mcp-tools": ["./packages/mcp-tools"],
+			"miko-simple-agent-runner": ["./packages/simple-agent-runner"],
+			"miko-config-updater": ["./packages/config-updater"],
+			"miko-linear-event-transport": ["./packages/linear-event-transport"]
 		}
 	},
 	"exclude": ["node_modules", "dist", "build"]

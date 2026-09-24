@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Cursor SDK hook entrypoint that enforces Atmiko allow/deny permissions.
+// Cursor SDK hook entrypoint that enforces Miko allow/deny permissions.
 //
-// Runs once per hook invocation. Reads a sibling `atmiko-permissions.json`
+// Runs once per hook invocation. Reads a sibling `miko-permissions.json`
 // alongside this script, matches the hook payload against the configured
 // patterns, and prints a JSON decision document on stdout for the SDK.
 //
@@ -14,15 +14,15 @@
 //   Tool(<Name>)           — preToolUse name (Shell, Read, Write, ...)
 //
 // We only ever return permission "allow" or "deny" — never "ask", because
-// "ask" auto-allows in headless and that is never what Atmiko wants.
+// "ask" auto-allows in headless and that is never what Miko wants.
 
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CONFIG_PATH = resolve(HERE, "atmiko-permissions.json");
-const LOG_PATH = process.env.ATMIKO_PERM_LOG; // optional debug log
+const CONFIG_PATH = resolve(HERE, "miko-permissions.json");
+const LOG_PATH = process.env.MIKO_PERM_LOG; // optional debug log
 
 function log(obj) {
 	if (!LOG_PATH) return;
@@ -151,7 +151,7 @@ function evaluate() {
 			if (patternMatches(pat, cand)) {
 				return {
 					permission: "deny",
-					user_message: `Atmiko blocked: ${pat} (event=${eventName})`,
+					user_message: `Miko blocked: ${pat} (event=${eventName})`,
 				};
 			}
 		}
@@ -165,7 +165,7 @@ function evaluate() {
 		if (!matched) {
 			return {
 				permission: "deny",
-				user_message: `Atmiko blocked: no allow rule matched (event=${eventName}, candidates=${JSON.stringify(candidates)})`,
+				user_message: `Miko blocked: no allow rule matched (event=${eventName}, candidates=${JSON.stringify(candidates)})`,
 			};
 		}
 	}

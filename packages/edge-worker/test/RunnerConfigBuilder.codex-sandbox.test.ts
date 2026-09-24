@@ -1,8 +1,4 @@
-import type {
-	AtmikoAgentSession,
-	ILogger,
-	RepositoryConfig,
-} from "atmiko-core";
+import type { ILogger, MikoAgentSession, RepositoryConfig } from "miko-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -38,12 +34,12 @@ function makeCodexBuilder(): RunnerConfigBuilder {
 	);
 }
 
-function makeSession(): AtmikoAgentSession {
+function makeSession(): MikoAgentSession {
 	return {
 		issueId: "issue-1",
 		issue: { identifier: "ABC-1" },
 		workspace: { path: "/ws/root", isGitWorktree: true },
-	} as unknown as AtmikoAgentSession;
+	} as unknown as MikoAgentSession;
 }
 
 function buildCodexConfig(sandboxSettings?: Record<string, unknown>) {
@@ -60,7 +56,7 @@ function buildCodexConfig(sandboxSettings?: Record<string, unknown>) {
 		allowedTools: ["Read(**)"],
 		allowedDirectories: ["/ws/root", "/repos/repo-a"],
 		disallowedTools: [],
-		atmikoHome: "/tmp/atmiko-home",
+		mikoHome: "/tmp/miko-home",
 		linearWorkspaceId: "ws-1",
 		logger: silentLogger,
 		onMessage: () => {},

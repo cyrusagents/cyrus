@@ -59,7 +59,7 @@ echo "Running Claude Code to capture init block..."
 tmpfile=$(mktemp "${TMPDIR:-/tmp}/claude-tools.XXXXXX")
 trap 'rm -f "$tmpfile"' EXIT
 # SDK 0.3.233+ hides the task-tracking tools from newer models unless they are
-# explicitly enabled. Atmiko intentionally opts into those tools, so include
+# explicitly enabled. Miko intentionally opts into those tools, so include
 # them while extracting the complete supported tool surface.
 CLAUDE_CODE_ENABLE_TODO_TOOLS=1 "$CLI_PATH" -p "say hi" --output-format stream-json --verbose 2>/dev/null > "$tmpfile" || true
 

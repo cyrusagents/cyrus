@@ -10,7 +10,7 @@ import type {
 	AgentSessionInfo,
 	McpServerConfig,
 	SDKMessage,
-} from "atmiko-core";
+} from "miko-core";
 
 /**
  * Gemini CLI MCP server configuration
@@ -161,7 +161,7 @@ export {
 	WriteTodosToolResultSchema,
 	WriteTodosToolUseEventSchema,
 } from "./schemas.js";
-// Re-export McpServerConfig from atmiko-core for convenience
+// Re-export McpServerConfig from miko-core for convenience
 export type { McpServerConfig };
 
 /**
@@ -177,7 +177,7 @@ export type { McpServerConfig };
  * @example
  * ```typescript
  * const config: GeminiRunnerConfig = {
- *   atmikoHome: '/home/user/.atmiko',
+ *   mikoHome: '/home/user/.miko',
  *   workingDirectory: '/path/to/repo',
  *   mcpConfig: {
  *     linear: {

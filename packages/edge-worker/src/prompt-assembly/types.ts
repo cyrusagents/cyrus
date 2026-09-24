@@ -6,13 +6,13 @@
  */
 
 import type {
-	AtmikoAgentSession,
 	BaseBranchResolution,
 	GuidanceRule,
 	Issue,
+	MikoAgentSession,
 	RepositoryConfig,
 	WebhookAgentSession,
-} from "atmiko-core";
+} from "miko-core";
 
 /**
  * Output structure from buildPrompt - contains everything needed to start a Claude session
@@ -64,8 +64,8 @@ export type PromptType =
  */
 export interface PromptAssemblyInput {
 	// ===== Session Context =====
-	/** The Atmiko agent session */
-	session: AtmikoAgentSession;
+	/** The Miko agent session */
+	session: MikoAgentSession;
 
 	/** Full issue details */
 	fullIssue: Issue;

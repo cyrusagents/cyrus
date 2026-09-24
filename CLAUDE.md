@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Atmiko (Linear Claude Agent) is a monorepo JavaScript/TypeScript application that integrates Linear's issue tracking with Anthropic's Claude Code to automate software development tasks. The project is transitioning to an edge-proxy architecture that separates OAuth/webhook handling (proxy) from Claude processing (edge workers).
+Miko (Linear Claude Agent) is a monorepo JavaScript/TypeScript application that integrates Linear's issue tracking with Anthropic's Claude Code to automate software development tasks. The project is transitioning to an edge-proxy architecture that separates OAuth/webhook handling (proxy) from Claude processing (edge workers).
 
 **Key capabilities:**
 - Monitors Linear issues assigned to a specific user
@@ -15,9 +15,9 @@ Atmiko (Linear Claude Agent) is a monorepo JavaScript/TypeScript application tha
 - Supports edge worker mode for distributed processing
 
 
-## How Atmiko Works
+## How Miko Works
 
-When a Linear issue is assigned to Atmiko, the following sequence occurs:
+When a Linear issue is assigned to Miko, the following sequence occurs:
 
 1. **Issue Detection & Routing**: The EdgeWorker receives a webhook from Linear and routes the issue to the appropriate repository based on configured patterns or workspace catch-all rules.
 
@@ -53,30 +53,30 @@ A typical session flow:
 
 ### Test Drives
 
-To see Atmiko in action, refer to the test drives in `apps/f1/test-drives/`. These documents showcase real interactions demonstrating:
+To see Miko in action, refer to the test drives in `apps/f1/test-drives/`. These documents showcase real interactions demonstrating:
 - How issues are processed end-to-end
 - Mid-implementation prompting in action
 - Subroutine transitions and activity logging
 - Final repository state after completion
 
-The F1 (Formula 1) testing framework provides a controlled environment to test Atmiko without affecting production Linear workspaces.
+The F1 (Formula 1) testing framework provides a controlled environment to test Miko without affecting production Linear workspaces.
 
 CRITICAL: you must use the f1 test drive protocol during the 'testing and validation' stage of any major work undertaking. You CAN also use it in development situations where you want to test drive the version of the product that you're working on.
 
 ## Linear Webhooks Reference
 
-Atmiko processes Linear webhooks to respond to events like issue assignments, user prompts, and issue updates. The Linear SDK and webhook schemas are documented at:
+Miko processes Linear webhooks to respond to events like issue assignments, user prompts, and issue updates. The Linear SDK and webhook schemas are documented at:
 
 - **EntityWebhookPayload**: https://studio.apollographql.com/public/Linear-Webhooks/variant/current/schema/reference/objects/EntityWebhookPayload
 - **DataWebhookPayload**: https://studio.apollographql.com/public/Linear-Webhooks/variant/current/schema/reference/unions/DataWebhookPayload
 - **IssueWebhookPayload**: https://studio.apollographql.com/public/Linear-Webhooks/variant/current/schema/reference/objects/IssueWebhookPayload
 
 Key webhook types handled:
-- `AgentSessionEvent` (created/prompted) - When issues are assigned to Atmiko or users send prompts
+- `AgentSessionEvent` (created/prompted) - When issues are assigned to Miko or users send prompts
 - `AppUserNotification` (issueUnassignedFromYou) - When issues are unassigned
 - `Issue` (update with title/description changes) - When issue title or description is modified
 
-The `EntityWebhookPayload` contains an `updatedFrom` field that holds previous values of changed properties, enabling Atmiko to detect what changed and compare old vs new values.
+The `EntityWebhookPayload` contains an `updatedFrom` field that holds previous values of changed properties, enabling Miko to detect what changed and compare old vs new values.
 
 ## Working with SDKs
 
@@ -150,7 +150,7 @@ When implementing a new runner/harness (for example Codex, Gemini, OpenCode, or 
 - Validate `tools`, `allowedTools`, and `disallowedTools` semantics for the SDK.
 - Validate approval/sandbox behavior for tool execution.
 - Verify tool calls produce both start and completion signals.
-- For providers that rely on static/project config files (for example Cursor CLI), implement a permission translation layer from Atmiko/Claude tool names to provider-native permission tokens and write that config before session start. This must support subroutine-time updates when allowed/disallowed tools change. For Cursor MCP servers, pre-enable them before session start (`agent mcp list` + `agent mcp enable <server>` per server) so tools are available in headless runs. When using Cursor in Atmiko, only MCP servers configured in `.cursor/mcp.json` should be treated as project MCP config; use Cursor's MCP config-location and file-format docs as the source of truth: https://cursor.com/docs/context/mcp#configuration-locations. For broad file permissions, map wildcard `Read(**)` / `Write(**)` to workspace-scoped patterns (for example `Read(./**)` / `Write(./**)`) to avoid unintentionally permitting absolute system paths. Reference: https://cursor.com/docs/cli/reference/permissions
+- For providers that rely on static/project config files (for example Cursor CLI), implement a permission translation layer from Miko/Claude tool names to provider-native permission tokens and write that config before session start. This must support subroutine-time updates when allowed/disallowed tools change. For Cursor MCP servers, pre-enable them before session start (`agent mcp list` + `agent mcp enable <server>` per server) so tools are available in headless runs. When using Cursor in Miko, only MCP servers configured in `.cursor/mcp.json` should be treated as project MCP config; use Cursor's MCP config-location and file-format docs as the source of truth: https://cursor.com/docs/context/mcp#configuration-locations. For broad file permissions, map wildcard `Read(**)` / `Write(**)` to workspace-scoped patterns (for example `Read(./**)` / `Write(./**)`) to avoid unintentionally permitting absolute system paths. Reference: https://cursor.com/docs/cli/reference/permissions
 
 ### 6) Prompt Streaming Input
 
@@ -205,7 +205,7 @@ Codex emitted tool activity at `item.started`/`item.completed` events, but those
 
 ### Cursor Integration Lesson Learned
 
-Cursor CLI permissions are enforced from config (`~/.cursor/cli-config.json` or `<project>/.cursor/cli.json`) instead of dynamic per-request tool allowlists. For Cursor-like providers, do not rely on dynamic SDK tool constraints alone—add a translation layer (for example `mcp__server__tool` -> `Mcp(server:tool)`, `Bash(...)` -> `Shell(...)`) and sync project permissions before each run and between subroutines. Also pre-enable MCP servers via `agent mcp list` + `agent mcp enable <server>` using both project-listed and runner-configured server names so headless sessions can invoke MCP tools immediately. In Atmiko Cursor runs, treat `.cursor/mcp.json` as the project MCP source and follow Cursor's configuration-location and file-syntax docs (these differ from Claude's MCP interpretation): https://cursor.com/docs/context/mcp#configuration-locations. Use workspace-scoped wildcard file permissions (`Read(./**)`, `Write(./**)`) rather than unscoped `Read(**)` / `Write(**)` in translation defaults. Reference: https://cursor.com/docs/cli/reference/permissions
+Cursor CLI permissions are enforced from config (`~/.cursor/cli-config.json` or `<project>/.cursor/cli.json`) instead of dynamic per-request tool allowlists. For Cursor-like providers, do not rely on dynamic SDK tool constraints alone—add a translation layer (for example `mcp__server__tool` -> `Mcp(server:tool)`, `Bash(...)` -> `Shell(...)`) and sync project permissions before each run and between subroutines. Also pre-enable MCP servers via `agent mcp list` + `agent mcp enable <server>` using both project-listed and runner-configured server names so headless sessions can invoke MCP tools immediately. In Miko Cursor runs, treat `.cursor/mcp.json` as the project MCP source and follow Cursor's configuration-location and file-syntax docs (these differ from Claude's MCP interpretation): https://cursor.com/docs/context/mcp#configuration-locations. Use workspace-scoped wildcard file permissions (`Read(./**)`, `Write(./**)`) rather than unscoped `Read(**)` / `Write(**)` in translation defaults. Reference: https://cursor.com/docs/cli/reference/permissions
 
 ## Navigating GitHub Repositories
 
@@ -234,7 +234,7 @@ Simply replace `github.com` with `uuithub.com` in any GitHub URL.
 The codebase follows a pnpm monorepo structure:
 
 ```
-atmiko/
+miko/
 ├── apps/
 │   ├── cli/          # Main CLI application
 │   ├── electron/     # Future Electron GUI (in development)
@@ -334,7 +334,7 @@ pnpm test:watch  # Watch mode
 
 # Local development setup (link development version globally)
 pnpm build                    # Build all packages first
-pnpm uninstall atmiko -g    # Remove published version
+pnpm uninstall miko -g    # Remove published version
 cd apps/cli                   # Navigate to CLI directory
 pnpm install -g .            # Install local version globally
 pnpm link -g .               # Link local development version
@@ -397,15 +397,15 @@ The agent automatically moves issues to the "started" state when assigned. Linea
    - Uses pnpm as package manager (v10.11.0)
    - TypeScript for all new packages
 
-3. **Git Worktrees**: When processing issues, the agent creates separate git worktrees. If a `atmiko-setup.sh` script exists in the repository root, it's executed in new worktrees for project-specific initialization. Symmetrically, if a `atmiko-teardown.sh` script exists in the repository root, it's executed in the worktree directory immediately before the worktree is removed when the issue reaches a terminal state (completed / canceled / deleted).
+3. **Git Worktrees**: When processing issues, the agent creates separate git worktrees. If a `miko-setup.sh` script exists in the repository root, it's executed in new worktrees for project-specific initialization. Symmetrically, if a `miko-teardown.sh` script exists in the repository root, it's executed in the worktree directory immediately before the worktree is removed when the issue reaches a terminal state (completed / canceled / deleted).
 
 4. **Testing**: Uses Vitest for all packages. Run tests before committing changes.
 
-5. **Sandbox Egress Proxy & CA Certificates**: When sandbox is enabled, the egress proxy generates a CA cert at `~/.atmiko/certs/atmiko-egress-ca.pem` for TLS interception. Per-session env vars are set in `RunnerConfigBuilder.buildSandboxConfig()` to cover most tools:
+5. **Sandbox Egress Proxy & CA Certificates**: When sandbox is enabled, the egress proxy generates a CA cert at `~/.miko/certs/miko-egress-ca.pem` for TLS interception. Per-session env vars are set in `RunnerConfigBuilder.buildSandboxConfig()` to cover most tools:
    - `NODE_EXTRA_CA_CERTS` (Node.js), `GIT_SSL_CAINFO` (Git), `SSL_CERT_FILE` (OpenSSL/Ruby), `REQUESTS_CA_BUNDLE` / `PIP_CERT` (Python), `CURL_CA_BUNDLE` (curl/OpenSSL), `CARGO_HTTP_CAINFO` (Rust), `AWS_CA_BUNDLE` (AWS CLI), `DENO_CERT` (Deno)
-   - **`systemWideCert` config flag**: When `sandbox.systemWideCert: true` is set in `config.json`, all per-session CA cert env vars above are skipped — the OS cert store handles trust for all tools. Set this after trusting the CA cert system-wide via `sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/.atmiko/certs/atmiko-egress-ca.pem` (macOS) or `sudo cp ~/.atmiko/certs/atmiko-egress-ca.pem /usr/local/share/ca-certificates/atmiko-egress-ca.crt && sudo update-ca-certificates` (Linux).
+   - **`systemWideCert` config flag**: When `sandbox.systemWideCert: true` is set in `config.json`, all per-session CA cert env vars above are skipped — the OS cert store handles trust for all tools. Set this after trusting the CA cert system-wide via `sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/.miko/certs/miko-egress-ca.pem` (macOS) or `sudo cp ~/.miko/certs/miko-egress-ca.pem /usr/local/share/ca-certificates/miko-egress-ca.crt && sudo update-ca-certificates` (Linux).
    - **Gotchas — tools that ignore env vars and require system keychain trust**: Bun, .NET/nuget, curl on macOS (compiled against SecureTransport, the default). For these, users must trust the cert system-wide (see above) regardless of the `systemWideCert` setting.
-   - **Gotcha — parent process env vars**: If `GIT_SSL_CAINFO`, `SSL_CERT_FILE`, or `CURL_CA_BUNDLE` are set in the Atmiko parent process env (e.g., from a previous test or `.env`), they can break git push/fetch from the Atmiko process itself (not child sessions). The parent process does not route through the egress proxy, so these vars should not be set in `~/.atmiko/.env`.
+   - **Gotcha — parent process env vars**: If `GIT_SSL_CAINFO`, `SSL_CERT_FILE`, or `CURL_CA_BUNDLE` are set in the Miko parent process env (e.g., from a previous test or `.env`), they can break git push/fetch from the Miko process itself (not child sessions). The parent process does not route through the egress proxy, so these vars should not be set in `~/.miko/.env`.
    - Pre-existing `NODE_EXTRA_CA_CERTS` from the host environment are merged into a combined bundle via `EgressProxy.buildCACertBundle()`.
 
 6. **Two Separate Permission Systems — Tool vs. Sandbox**:
@@ -431,7 +431,7 @@ The agent automatically moves issues to the "started" state when assigned. Linea
    ```
    This executes `claude -p "say hi" --output-format stream-json --verbose` and extracts the tool names from the `init` block. Compare the output against the `availableTools` array in `config.ts` and update it to match. Also review `readOnlyTools`, `writeTools`, and the helper functions to ensure new tools are categorized correctly. Failing to do this can cause sessions to silently miss new tools or reference removed ones.
 
-8. **Routing Behavior & Self-Describing Prompts**: When changing repository routing behavior (e.g., description-tag syntax, label routing, base branch overrides, multi-repo support), you **must also update the system prompts that describe these capabilities to Atmiko itself**. The product relies on self-describing prompts so that Atmiko can correctly instruct users and create properly-routed sub-issues. Known locations (not exhaustive):
+8. **Routing Behavior & Self-Describing Prompts**: When changing repository routing behavior (e.g., description-tag syntax, label routing, base branch overrides, multi-repo support), you **must also update the system prompts that describe these capabilities to Miko itself**. The product relies on self-describing prompts so that Miko can correctly instruct users and create properly-routed sub-issues. Known locations (not exhaustive):
    - `packages/edge-worker/src/PromptBuilder.ts` — Generates the `<repository_routing_context>` XML block included in session system prompts, documenting routing methods and priority order
    - `packages/edge-worker/src/SlackChatAdapter.ts` — Builds the Slack chat system prompt including orchestration notes with repo routing syntax
    - `packages/edge-worker/src/ZulipChatAdapter.ts` — Same, for the Zulip chat system prompt
@@ -444,13 +444,13 @@ The agent automatically moves issues to the "started" state when assigned. Linea
 
    So the workflow for a new field is: add it to `EdgeConfigSchema`, let `tsc` and the CLI test point at the two sites, add the merge line + `RELOAD_MERGED_KEYS` entry (hot reload) and — only if it needs env precedence — an explicit override in `startEdgeWorker()`.
 
-11. **Adding a new path-bearing field to `EdgeWorkerConfig`**: atmiko-hosted emits self-host paths with literal `~/` prefixes (e.g. `~/.atmiko/mcp-configs/mcp-supabase.json`) because the user's home directory is not known server-side. Node's `fs.readFileSync` does **not** expand `~`, so any path string that flows from `config.json` to `readFileSync` (or to a child SDK that does the same) must be run through `resolvePath` from `atmiko-core` first.
+11. **Adding a new path-bearing field to `EdgeWorkerConfig`**: miko-hosted emits self-host paths with literal `~/` prefixes (e.g. `~/.miko/mcp-configs/mcp-supabase.json`) because the user's home directory is not known server-side. Node's `fs.readFileSync` does **not** expand `~`, so any path string that flows from `config.json` to `readFileSync` (or to a child SDK that does the same) must be run through `resolvePath` from `miko-core` first.
 
    Per-repository paths (`repositoryPath`, `workspaceBaseDir`, `mcpConfigPath`, `promptTemplatePath`) are already normalized at three sites in `EdgeWorker.ts`: the constructor, `addNewRepositories`, and `updateModifiedRepositories`. Each builds a `resolvedRepo` via `resolvePath(...)` before inserting into `this.repositories`, so downstream consumers (e.g. `RunnerConfigBuilder`, `McpConfigService.buildMergedMcpConfigPath`) get already-absolute paths.
 
    **Top-level (non-repo-scoped) path fields are a separate, easy-to-miss codepath.** They live directly on `EdgeWorkerConfig` and are read straight off `this.config.<field>` — they do not go through the repo-resolution loop. When you add one, you must also normalize it. The canonical site for this is `EdgeWorker.normalizeConfigPaths()` (called once in the constructor and once on `configChanged`); add your field there alongside `slackMcpConfigs` / `linearMcpConfigs` / `githubMcpConfigs`.
 
-   Symptom of forgetting this: self-host sessions crash with `ENOENT: no such file or directory, open '~/.atmiko/...'` while cloud sessions (which get absolute paths from atmiko-hosted) work fine. This bit us with the three platform MCP config arrays added in CYHOST-967 / v0.2.53 — they were the only path-bearing fields on `EdgeWorkerConfig` that bypassed normalization, and crashed every self-host session that had a connected platform MCP integration.
+   Symptom of forgetting this: self-host sessions crash with `ENOENT: no such file or directory, open '~/.miko/...'` while cloud sessions (which get absolute paths from miko-hosted) work fine. This bit us with the three platform MCP config arrays added in CYHOST-967 / v0.2.53 — they were the only path-bearing fields on `EdgeWorkerConfig` that bypassed normalization, and crashed every self-host session that had a connected platform MCP integration.
 
 ## Dependency Security Policy (MANDATE)
 
@@ -506,7 +506,7 @@ When working on this codebase, follow these practices:
 
 3. **Changelog Format**:
    - Follow [Keep a Changelog](https://keepachangelog.com/) format
-   - **Focus only on end-user impact**: Write entries from the perspective of users running the `atmiko` CLI binary
+   - **Focus only on end-user impact**: Write entries from the perspective of users running the `miko` CLI binary
    - Avoid technical implementation details, package names, or internal architecture changes
    - Be concise but descriptive about what users will experience differently
    - Group related changes together
@@ -556,7 +556,7 @@ The script will show:
 - Current user information
 - Issues in your Linear workspace
 
-This integration is automatically available in all Atmiko sessions - the EdgeWorker automatically configures the official Linear MCP server for each repository using its Linear token.
+This integration is automatically available in all Miko sessions - the EdgeWorker automatically configures the official Linear MCP server for each repository using its Linear token.
 
 ## Publishing
 

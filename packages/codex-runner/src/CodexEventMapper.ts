@@ -5,7 +5,7 @@ import type {
 	SDKMessage,
 	SDKResultMessage,
 	SDKUserMessage,
-} from "atmiko-core";
+} from "miko-core";
 import type {
 	NormalizedCodexEvent,
 	NormalizedCodexItem,
@@ -268,7 +268,7 @@ function createResultUsage(parsed: NormalizedUsage): SDKResultMessage["usage"] {
 }
 
 /**
- * Translates backend-neutral {@link NormalizedCodexEvent}s into Atmiko
+ * Translates backend-neutral {@link NormalizedCodexEvent}s into Miko
  * `SDKMessage`s and accumulates the session message list. Single responsibility:
  * event → message mapping. Knows nothing about transports or session lifecycle.
  */

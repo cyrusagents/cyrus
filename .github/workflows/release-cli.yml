@@ -1,8 +1,8 @@
-name: Release Atmiko CLI
+name: Release Miko CLI
 
 run-name: >-
   ${{ inputs.dry_run && 'Dry run' || 'Release' }}
-  atmiko@${{ inputs.version }} (${{ inputs.dist_tag }})
+  miko@${{ inputs.version }} (${{ inputs.dist_tag }})
 
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ on:
         type: boolean
 
 concurrency:
-  group: release-atmiko-cli
+  group: release-miko-cli
   cancel-in-progress: false
 
 permissions:
@@ -49,13 +49,13 @@ jobs:
         shell: bash
         run: |
           if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "Atmiko releases must be dispatched from main; received $GITHUB_REF." >&2
+            echo "Miko releases must be dispatched from main; received $GITHUB_REF." >&2
             exit 1
           fi
 
       - name: Initialize release paths
         shell: bash
-        run: echo "RELEASE_ARTIFACTS=$RUNNER_TEMP/atmiko-release" >> "$GITHUB_ENV"
+        run: echo "RELEASE_ARTIFACTS=$RUNNER_TEMP/miko-release" >> "$GITHUB_ENV"
 
       - name: Check out the release source
         uses: actions/checkout@v7
@@ -102,7 +102,7 @@ jobs:
             echo "::error title=Unpublished npm package(s)::Every release package must already exist on npm before this workflow runs."
             printf '  - %s\n' "${missing_packages[@]}"
             echo "Bootstrap each missing package through the approved npm first-publish process, then configure its GitHub Actions trusted publisher."
-            echo "Trusted publisher command: npm trust github <package> --repo nexmoe/atmiko --file release-cli.yml --allow-publish --yes"
+            echo "Trusted publisher command: npm trust github <package> --repo mikoagents/miko --file release-cli.yml --allow-publish --yes"
             exit 1
           fi
 
@@ -121,7 +121,7 @@ jobs:
       - name: Test packages and CLI
         run: |
           pnpm test:packages:run
-          pnpm --filter atmiko test:run
+          pnpm --filter miko test:run
 
       - name: Type-check
         run: pnpm typecheck
@@ -172,7 +172,7 @@ jobs:
             release_tarballs+=("$RELEASE_ARTIFACTS/${package_name}-${REQUESTED_VERSION}.tgz")
           done < <(node scripts/release-packages.mjs list)
           npm install --global "${release_tarballs[@]}"
-          ACTUAL_VERSION="$(ATMIKO_SENTRY_DISABLED=1 atmiko --version)"
+          ACTUAL_VERSION="$(MIKO_SENTRY_DISABLED=1 miko --version)"
           if [[ "$ACTUAL_VERSION" != "$REQUESTED_VERSION" ]]; then
             echo "Packed CLI reports ${ACTUAL_VERSION}; expected ${REQUESTED_VERSION}." >&2
             exit 1
@@ -181,8 +181,8 @@ jobs:
       - name: Upload inspected release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: atmiko-${{ inputs.version }}-packages
-          path: ${{ runner.temp }}/atmiko-release/*.tgz
+          name: miko-${{ inputs.version }}-packages
+          path: ${{ runner.temp }}/miko-release/*.tgz
           if-no-files-found: error
           retention-days: 14
 
@@ -241,7 +241,7 @@ jobs:
               | tr -d ' '
           )" || package_count="unknown"
           {
-            echo "## Atmiko CLI"
+            echo "## Miko CLI"
             echo
             echo "- **Result:** ${action}"
             echo "- **Version:** \`${REQUESTED_VERSION}\`"

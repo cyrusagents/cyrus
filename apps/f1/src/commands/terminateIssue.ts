@@ -2,7 +2,7 @@
  * Terminate Issue command - move an issue to a terminal state (completed /
  * canceled / deleted) and emit an IssueStateChangeMessage on the unified
  * message bus, so EdgeWorker runs its terminal-state cleanup (stops sessions,
- * runs atmiko-teardown.sh in each repo's worktree, removes worktrees).
+ * runs miko-teardown.sh in each repo's worktree, removes worktrees).
  */
 
 import { Command } from "commander";
@@ -28,7 +28,7 @@ export function createTerminateIssueCommand(): Command {
 
 	cmd
 		.description(
-			"Terminate an issue (completed / canceled / deleted). Triggers EdgeWorker terminal-state cleanup including atmiko-teardown.sh.",
+			"Terminate an issue (completed / canceled / deleted). Triggers EdgeWorker terminal-state cleanup including miko-teardown.sh.",
 		)
 		.requiredOption("-i, --issue-id <id>", "Issue ID to terminate")
 		.option(

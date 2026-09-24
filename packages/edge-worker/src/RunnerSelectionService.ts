@@ -1,4 +1,4 @@
-import type { EdgeWorkerConfig, RunnerType } from "atmiko-core";
+import type { EdgeWorkerConfig, RunnerType } from "miko-core";
 
 export class RunnerSelectionService {
 	private config: EdgeWorkerConfig;

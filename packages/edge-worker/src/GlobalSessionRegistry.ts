@@ -9,11 +9,11 @@
 
 import { EventEmitter } from "node:events";
 import type {
-	AtmikoAgentSession,
-	AtmikoAgentSessionEntry,
-	SerializedAtmikoAgentSession,
-	SerializedAtmikoAgentSessionEntry,
-} from "atmiko-core";
+	MikoAgentSession,
+	MikoAgentSessionEntry,
+	SerializedMikoAgentSession,
+	SerializedMikoAgentSessionEntry,
+} from "miko-core";
 
 /**
  * Serialization format for GlobalSessionRegistry state
@@ -21,8 +21,8 @@ import type {
  */
 export interface SerializedGlobalRegistryState {
 	version: "3.0";
-	sessions: Record<string, SerializedAtmikoAgentSession>;
-	entries: Record<string, SerializedAtmikoAgentSessionEntry[]>;
+	sessions: Record<string, SerializedMikoAgentSession>;
+	entries: Record<string, SerializedMikoAgentSessionEntry[]>;
 	childToParentMap: Record<string, string>;
 }
 
@@ -30,21 +30,21 @@ export interface SerializedGlobalRegistryState {
  * Events emitted by GlobalSessionRegistry
  */
 export interface GlobalSessionRegistryEvents {
-	sessionCreated: (session: AtmikoAgentSession) => void;
+	sessionCreated: (session: MikoAgentSession) => void;
 	sessionUpdated: (
 		sessionId: string,
-		session: AtmikoAgentSession,
-		updates: Partial<AtmikoAgentSession>,
+		session: MikoAgentSession,
+		updates: Partial<MikoAgentSession>,
 	) => void;
-	sessionCompleted: (sessionId: string, session: AtmikoAgentSession) => void;
+	sessionCompleted: (sessionId: string, session: MikoAgentSession) => void;
 }
 
 /**
  * GlobalSessionRegistry centralizes all session storage across repositories.
  *
  * Responsibilities:
- * - Store ALL AtmikoAgentSession objects (all repos)
- * - Store ALL AtmikoAgentSessionEntry arrays (all repos)
+ * - Store ALL MikoAgentSession objects (all repos)
+ * - Store ALL MikoAgentSessionEntry arrays (all repos)
  * - Maintain parent-child session relationships
  * - Emit lifecycle events for session changes
  * - Support serialization/deserialization for persistence
@@ -54,12 +54,12 @@ export class GlobalSessionRegistry extends EventEmitter {
 	/**
 	 * All sessions keyed by session id
 	 */
-	private sessions: Map<string, AtmikoAgentSession> = new Map();
+	private sessions: Map<string, MikoAgentSession> = new Map();
 
 	/**
 	 * All entries keyed by session id
 	 */
-	private entries: Map<string, AtmikoAgentSessionEntry[]> = new Map();
+	private entries: Map<string, MikoAgentSessionEntry[]> = new Map();
 
 	/**
 	 * Child session ID → parent session ID mapping
@@ -72,7 +72,7 @@ export class GlobalSessionRegistry extends EventEmitter {
 	 * @param session The session to create
 	 * @throws Error if session with same ID already exists
 	 */
-	createSession(session: AtmikoAgentSession): void {
+	createSession(session: MikoAgentSession): void {
 		if (this.sessions.has(session.id)) {
 			throw new Error(`Session with ID ${session.id} already exists`);
 		}
@@ -88,7 +88,7 @@ export class GlobalSessionRegistry extends EventEmitter {
 	 * @param sessionId The session id
 	 * @returns The session or undefined if not found
 	 */
-	getSession(sessionId: string): AtmikoAgentSession | undefined {
+	getSession(sessionId: string): MikoAgentSession | undefined {
 		return this.sessions.get(sessionId);
 	}
 
@@ -98,7 +98,7 @@ export class GlobalSessionRegistry extends EventEmitter {
 	 * @param updates Partial session data to merge
 	 * @throws Error if session doesn't exist
 	 */
-	updateSession(sessionId: string, updates: Partial<AtmikoAgentSession>): void {
+	updateSession(sessionId: string, updates: Partial<MikoAgentSession>): void {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
 			throw new Error(`Session with ID ${sessionId} not found`);
@@ -142,7 +142,7 @@ export class GlobalSessionRegistry extends EventEmitter {
 	 * Get all sessions
 	 * @returns Array of all sessions
 	 */
-	getAllSessions(): AtmikoAgentSession[] {
+	getAllSessions(): MikoAgentSession[] {
 		return Array.from(this.sessions.values());
 	}
 
@@ -152,7 +152,7 @@ export class GlobalSessionRegistry extends EventEmitter {
 	 * @param entry The entry to add
 	 * @throws Error if session doesn't exist
 	 */
-	addEntry(sessionId: string, entry: AtmikoAgentSessionEntry): void {
+	addEntry(sessionId: string, entry: MikoAgentSessionEntry): void {
 		if (!this.sessions.has(sessionId)) {
 			throw new Error(`Session with ID ${sessionId} not found`);
 		}
@@ -173,7 +173,7 @@ export class GlobalSessionRegistry extends EventEmitter {
 	 * @param sessionId The session id
 	 * @returns Array of entries (empty if session has no entries or doesn't exist)
 	 */
-	getEntries(sessionId: string): AtmikoAgentSessionEntry[] {
+	getEntries(sessionId: string): MikoAgentSessionEntry[] {
 		return this.entries.get(sessionId) || [];
 	}
 
@@ -187,7 +187,7 @@ export class GlobalSessionRegistry extends EventEmitter {
 	updateEntry(
 		sessionId: string,
 		entryIndex: number,
-		updates: Partial<AtmikoAgentSessionEntry>,
+		updates: Partial<MikoAgentSessionEntry>,
 	): void {
 		const sessionEntries = this.entries.get(sessionId);
 		if (!sessionEntries) {
@@ -201,7 +201,7 @@ export class GlobalSessionRegistry extends EventEmitter {
 		}
 
 		const existingEntry = sessionEntries[entryIndex]!; // Safe: bounds checked above
-		const updatedEntry: AtmikoAgentSessionEntry = {
+		const updatedEntry: MikoAgentSessionEntry = {
 			...existingEntry,
 			...updates,
 			// Ensure required fields are never undefined
@@ -257,7 +257,7 @@ export class GlobalSessionRegistry extends EventEmitter {
 	 * @returns Serialized state
 	 */
 	serializeState(): SerializedGlobalRegistryState {
-		const serializedSessions: Record<string, SerializedAtmikoAgentSession> = {};
+		const serializedSessions: Record<string, SerializedMikoAgentSession> = {};
 		const sessionEntries = Array.from(this.sessions.entries());
 		for (const [sessionId, session] of sessionEntries) {
 			// Exclude non-serializable agentRunner
@@ -265,10 +265,8 @@ export class GlobalSessionRegistry extends EventEmitter {
 			serializedSessions[sessionId] = serializableSession;
 		}
 
-		const serializedEntries: Record<
-			string,
-			SerializedAtmikoAgentSessionEntry[]
-		> = Object.fromEntries(Array.from(this.entries.entries()));
+		const serializedEntries: Record<string, SerializedMikoAgentSessionEntry[]> =
+			Object.fromEntries(Array.from(this.entries.entries()));
 
 		const serializedChildToParent: Record<string, string> = Object.fromEntries(
 			Array.from(this.childToParentMap.entries()),
@@ -295,16 +293,16 @@ export class GlobalSessionRegistry extends EventEmitter {
 
 		// Restore sessions (migrate old sessions without repositories field)
 		for (const [sessionId, session] of Object.entries(state.sessions)) {
-			const migrated: AtmikoAgentSession = {
-				...(session as AtmikoAgentSession),
-				repositories: (session as AtmikoAgentSession).repositories ?? [],
+			const migrated: MikoAgentSession = {
+				...(session as MikoAgentSession),
+				repositories: (session as MikoAgentSession).repositories ?? [],
 			};
 			this.sessions.set(sessionId, migrated);
 		}
 
 		// Restore entries
 		for (const [sessionId, entries] of Object.entries(state.entries)) {
-			this.entries.set(sessionId, entries as AtmikoAgentSessionEntry[]);
+			this.entries.set(sessionId, entries as MikoAgentSessionEntry[]);
 		}
 
 		// Restore parent-child mapping

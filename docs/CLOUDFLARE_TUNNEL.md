@@ -1,8 +1,8 @@
 # Cloudflare Tunnel Setup (Optional)
 
-This guide covers setting up a Cloudflare Tunnel to expose your local Atmiko instance to the public internet for receiving Linear webhooks.
+This guide covers setting up a Cloudflare Tunnel to expose your local Miko instance to the public internet for receiving Linear webhooks.
 
-> **Note:** This is one option for exposing your Atmiko instance. Other options include ngrok, a reverse proxy with a public domain, or a server with a public IP. See [Self-Hosting Guide](./SELF_HOSTING.md) for alternatives.
+> **Note:** This is one option for exposing your Miko instance. Other options include ngrok, a reverse proxy with a public domain, or a server with a public IP. See [Self-Hosting Guide](./SELF_HOSTING.md) for alternatives.
 
 ---
 
@@ -35,7 +35,7 @@ This guide covers setting up a Cloudflare Tunnel to expose your local Atmiko ins
 
 3. **Create New Tunnel:**
    - Click **Create a tunnel**
-   - Name it: `atmiko-local`
+   - Name it: `miko-local`
    - Click **Save tunnel**
 
 4. **Copy Tunnel Token:**
@@ -49,7 +49,7 @@ This guide covers setting up a Cloudflare Tunnel to expose your local Atmiko ins
    - Click **Add a public hostname**
 
    Fill in:
-   - **Subdomain:** `atmiko` (or whatever you want)
+   - **Subdomain:** `miko` (or whatever you want)
    - **Domain:** Select your domain from dropdown
    - **Path:** Leave empty
    - **Type:** HTTP
@@ -57,8 +57,8 @@ This guide covers setting up a Cloudflare Tunnel to expose your local Atmiko ins
 
 6. **Save Hostname:**
    - Click **Save hostname**
-   - **Copy the full public URL** (e.g., `https://atmiko.yourdomain.com`)
-   - **SAVE THIS** - this is your `ATMIKO_BASE_URL`
+   - **Copy the full public URL** (e.g., `https://miko.yourdomain.com`)
+   - **SAVE THIS** - this is your `MIKO_BASE_URL`
 
 ---
 
@@ -67,12 +67,12 @@ This guide covers setting up a Cloudflare Tunnel to expose your local Atmiko ins
 Set these environment variables for Cloudflare Tunnel integration:
 
 ```bash
-export ATMIKO_BASE_URL=https://atmiko.yourdomain.com
-export ATMIKO_SERVER_PORT=3456
+export MIKO_BASE_URL=https://miko.yourdomain.com
+export MIKO_SERVER_PORT=3456
 export CLOUDFLARE_TOKEN=eyJhIjoiXXXXXXX...your_token_here...XXXXXXX
 ```
 
-Atmiko will automatically start the Cloudflare tunnel in the background when it detects the `CLOUDFLARE_TOKEN` environment variable.
+Miko will automatically start the Cloudflare tunnel in the background when it detects the `CLOUDFLARE_TOKEN` environment variable.
 
 ---
 
@@ -105,19 +105,19 @@ If you see an error like "Timeout waiting for Cloudflare tunnel (0/4 connections
 If you cannot resolve the connectivity issue, consider these alternatives:
 - Use [ngrok](https://ngrok.com/) instead of Cloudflare tunnel
 - Set up a reverse proxy on a server with a public IP
-- Use a cloud VM with Docker to host Atmiko
+- Use a cloud VM with Docker to host Miko
 - See [Self-Hosting Guide](./SELF_HOSTING.md) for more options
 
 ### Tunnel Not Starting
 
 - Verify `CLOUDFLARE_TOKEN` is set correctly
-- Check Atmiko logs for tunnel-related errors
+- Check Miko logs for tunnel-related errors
 - Ensure the token hasn't expired in Cloudflare dashboard
 
 ### Webhooks Not Received
 
 - Verify the public hostname is configured correctly in Cloudflare
-- Check that `ATMIKO_BASE_URL` matches your Cloudflare hostname exactly
+- Check that `MIKO_BASE_URL` matches your Cloudflare hostname exactly
 - Ensure Linear webhook URL uses the same base URL
 
 ---

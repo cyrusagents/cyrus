@@ -27,7 +27,7 @@ describe("SlackMessageService", () => {
 			await service.postMessage({
 				token: "xoxb-test-token",
 				channel: "C9876543210",
-				text: "Hello from Atmiko!",
+				text: "Hello from Miko!",
 				thread_ts: "1704110400.000100",
 			});
 
@@ -41,7 +41,7 @@ describe("SlackMessageService", () => {
 					},
 					body: JSON.stringify({
 						channel: "C9876543210",
-						text: "Hello from Atmiko!",
+						text: "Hello from Miko!",
 						thread_ts: "1704110400.000100",
 					}),
 				},
@@ -57,7 +57,7 @@ describe("SlackMessageService", () => {
 			await service.postMessage({
 				token: "xoxb-test-token",
 				channel: "C9876543210",
-				text: "Hello from Atmiko!",
+				text: "Hello from Miko!",
 			});
 
 			expect(mockFetch).toHaveBeenCalledWith(
@@ -70,7 +70,7 @@ describe("SlackMessageService", () => {
 					},
 					body: JSON.stringify({
 						channel: "C9876543210",
-						text: "Hello from Atmiko!",
+						text: "Hello from Miko!",
 					}),
 				},
 			);

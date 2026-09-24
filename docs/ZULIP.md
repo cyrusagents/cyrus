@@ -1,9 +1,9 @@
 # Zulip
 
-Atmiko can join a Zulip realm as a bot: @mention it in a topic and it replies in
+Miko can join a Zulip realm as a bot: @mention it in a topic and it replies in
 that topic, exactly as it does in a Slack thread.
 
-A Zulip **topic** is the thread unit, so one Atmiko session is bound to one
+A Zulip **topic** is the thread unit, so one Miko session is bound to one
 `channel + topic` pair. Direct messages to the bot get a session of their own.
 
 ## What you need
@@ -17,7 +17,7 @@ Four values, all from the same bot user:
 | `ZULIP_API_KEY` | **Personal settings → Bots → manage bot → API key** |
 | `ZULIP_WEBHOOK_TOKEN` | The `token` value in the bot's downloadable Zulip Botserver config — it is *not* the API key |
 
-Atmiko registers the Zulip endpoint only when all four are set.
+Miko registers the Zulip endpoint only when all four are set.
 
 ## Setup
 
@@ -25,16 +25,16 @@ Atmiko registers the Zulip endpoint only when all four are set.
    bot** and choose **Outgoing webhook** as the bot type. Creating this bot type
    requires organization administrator permissions.
 
-2. **Point it at Atmiko.** Set the bot's **Endpoint URL** to your Atmiko host plus
+2. **Point it at Miko.** Set the bot's **Endpoint URL** to your Miko host plus
    `/zulip-webhook`, e.g.
-   `https://atmiko.example.com/zulip-webhook`. Leave the interface as
+   `https://miko.example.com/zulip-webhook`. Leave the interface as
    **Generic**.
 
 3. **Collect the credentials.** The API key is on the bot's *manage bot* screen.
    The webhook token is only exposed in the bot's downloadable Zulip Botserver
    config file, so download that and copy the `token` value out of it.
 
-4. **Put them in `~/.atmiko/.env`:**
+4. **Put them in `~/.miko/.env`:**
 
    ```sh
    ZULIP_SITE=https://example.zulipchat.com
@@ -43,7 +43,7 @@ Atmiko registers the Zulip endpoint only when all four are set.
    ZULIP_WEBHOOK_TOKEN=...
    ```
 
-5. **Restart Atmiko.** The log line `Zulip event transport registered` confirms
+5. **Restart Miko.** The log line `Zulip event transport registered` confirms
    the endpoint is mounted.
 
 6. **Subscribe the bot** to the channels you want to use it in. This is required
@@ -55,10 +55,10 @@ Atmiko registers the Zulip endpoint only when all four are set.
 
 **It only hears messages addressed to it.** A Zulip outgoing webhook bot is
 notified about @mentions and DMs, and nothing else. There is no equivalent of
-Slack's thread following, so Atmiko cannot passively watch a topic.
+Slack's thread following, so Miko cannot passively watch a topic.
 
 **It catches up on what it missed.** Because of the above, everything said in a
-topic between two mentions would otherwise be invisible. Atmiko records the last
+topic between two mentions would otherwise be invisible. Miko records the last
 message it had context for, and on the next mention reads the newest 50
 messages of the topic and hands the agent the ones posted since. That read is a
 single request whose cost does not grow with the topic, so a busy channel is no
@@ -67,20 +67,20 @@ last mention, the agent gets the most recent 50 and is told that older ones are
 not shown.
 
 **Resolving a topic does not end the conversation.** Zulip marks a topic
-resolved by renaming it with a `\u2714 ` prefix, so Atmiko identifies a session by
+resolved by renaming it with a `\u2714 ` prefix, so Miko identifies a session by
 the topic's name without that marker. Resolving or unresolving mid-thread keeps
 the same session and its catch-up position. Renaming a topic outright, or
 moving messages to another topic, still starts a new session.
 
 **Replies do not come back through the webhook.** Zulip's protocol expects the
 bot's answer in the HTTP response, which cannot work for a turn that takes
-minutes. Atmiko acknowledges the webhook immediately and posts the real reply
+minutes. Miko acknowledges the webhook immediately and posts the real reply
 through the REST API with the bot's API key. That same key adds the 👀 reaction
 on receipt and swaps it for ✅ when the turn completes.
 
 ## Configuration
 
-`zulipMcpConfigs` in `~/.atmiko/config.json` takes a list of paths to custom
+`zulipMcpConfigs` in `~/.miko/config.json` takes a list of paths to custom
 `.mcp.json` files to load for Zulip sessions only, mirroring `slackMcpConfigs`.
 Like all chat sessions, the tool allow-list comes from `slackAllowedTools`
 (which governs every chat platform, not just Slack) or the built-in read-only
@@ -89,7 +89,7 @@ chat default.
 ## Security note
 
 Zulip does not sign outgoing webhook requests. The only credential in the
-payload is the bot's fixed token, so that is what Atmiko verifies — a
+payload is the bot's fixed token, so that is what Miko verifies — a
 constant-time comparison against `ZULIP_WEBHOOK_TOKEN`. This is weaker than
 Slack's request signing: anyone who learns the token can invoke your agent.
 Serve the endpoint over TLS, and rotate the bot if the token leaks.

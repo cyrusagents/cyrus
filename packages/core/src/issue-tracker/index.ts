@@ -2,7 +2,7 @@
  * Issue Tracker Abstraction Layer
  *
  * This module provides a platform-agnostic interface for issue tracking operations.
- * It decouples the Atmiko codebase from Linear-specific implementations, enabling
+ * It decouples the Miko codebase from Linear-specific implementations, enabling
  * support for multiple issue tracking platforms (Linear, GitHub, Jira, etc.).
  *
  * @module issue-tracker
@@ -10,7 +10,7 @@
  * @example
  * Basic usage:
  * ```typescript
- * import { IIssueTrackerService, Issue, Comment } from '@atmiko/core/issue-tracker';
+ * import { IIssueTrackerService, Issue, Comment } from '@miko/core/issue-tracker';
  *
  * // Use the service interface (implementation provided elsewhere)
  * async function processIssue(service: IIssueTrackerService, issueId: string) {
@@ -27,7 +27,7 @@
  *   AgentEvent,
  *   isIssueAssignedEvent,
  *   isNewCommentEvent
- * } from '@atmiko/core/issue-tracker';
+ * } from '@miko/core/issue-tracker';
  *
  * function handleWebhook(event: AgentEvent) {
  *   if (isIssueAssignedEvent(event)) {
@@ -88,8 +88,8 @@ export {
 // CLI adapters for F1 testing framework
 export * from "./adapters/index.js";
 
-// Linear adapters have been moved to atmiko-linear-event-transport package
-// Import them directly from that package instead of from atmiko-core
+// Linear adapters have been moved to miko-linear-event-transport package
+// Import them directly from that package instead of from miko-core
 
 // ============================================================================
 // MODULE METADATA

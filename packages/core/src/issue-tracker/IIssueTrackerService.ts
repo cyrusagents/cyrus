@@ -3,7 +3,7 @@
  *
  * This interface provides a unified API for interacting with issue tracking
  * platforms like Linear, GitHub Issues, Jira, etc. It abstracts away platform-specific
- * details while supporting all operations needed for Atmiko agent functionality.
+ * details while supporting all operations needed for Miko agent functionality.
  *
  * @module issue-tracker/IIssueTrackerService
  */
@@ -798,7 +798,7 @@ export interface IIssueTrackerService {
 	 * const transport = issueTracker.createEventTransport({
 	 *   fastifyServer: server.getFastifyInstance(),
 	 *   verificationMode: 'proxy',
-	 *   secret: process.env.ATMIKO_API_KEY
+	 *   secret: process.env.MIKO_API_KEY
 	 * });
 	 *
 	 * // Register HTTP endpoints

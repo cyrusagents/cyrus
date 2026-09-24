@@ -22,7 +22,7 @@ describe("handleUpdateSkill — scope persistence", () => {
 	beforeEach(async () => {
 		home = join(
 			tmpdir(),
-			`atmiko-skill-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+			`miko-skill-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		);
 		await mkdir(home, { recursive: true });
 	});

@@ -7,7 +7,7 @@ import {
 	type ILogger,
 	type RepositoryConfig,
 	type Webhook,
-} from "atmiko-core";
+} from "miko-core";
 
 /**
  * Repository routing result types
@@ -413,7 +413,7 @@ export class RepositoryRouter {
 					let isMatch = false;
 
 					// Match by GitHub/GitLab URL path segment (e.g., "org/repo-name" or "repo-name")
-					// Use endsWith to avoid substring false positives (e.g., "atmiko" matching "atmiko-hosted")
+					// Use endsWith to avoid substring false positives (e.g., "miko" matching "miko-hosted")
 					if (
 						repo.githubUrl?.endsWith(`/${repoTag.repo}`) ||
 						repo.githubUrl?.endsWith(`/${repoTag.repo}.git`) ||

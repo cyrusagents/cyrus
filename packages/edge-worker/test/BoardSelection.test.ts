@@ -79,7 +79,7 @@ describe("activity row selection", () => {
 			},
 			{
 				at: 4000,
-				source: "atmiko",
+				source: "miko",
 				kind: "service",
 				level: "info",
 				text: "Not selected",

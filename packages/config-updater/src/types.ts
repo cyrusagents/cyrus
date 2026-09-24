@@ -1,9 +1,9 @@
-import { EdgeConfigPayloadSchema } from "atmiko-core";
+import { EdgeConfigPayloadSchema } from "miko-core";
 import { z } from "zod";
 
 /**
  * Repository configuration payload
- * Matches the format sent by atmiko-hosted
+ * Matches the format sent by miko-hosted
  */
 export interface RepositoryPayload {
 	repository_url: string; // Git clone URL
@@ -14,7 +14,7 @@ export interface RepositoryPayload {
 
 /**
  * Repository deletion payload
- * Sent by atmiko-hosted when removing a repository
+ * Sent by miko-hosted when removing a repository
  */
 export interface DeleteRepositoryPayload {
 	repository_name: string; // Repository name to delete
@@ -22,25 +22,25 @@ export interface DeleteRepositoryPayload {
 }
 
 /**
- * Atmiko config update payload schema
+ * Miko config update payload schema
  * Extends EdgeConfigPayloadSchema with operation flags for the update process.
  * Uses EdgeConfigPayloadSchema (not EdgeConfigSchema) because incoming payloads
  * may omit workspaceBaseDir - the handler applies a default value.
  */
-export const AtmikoConfigPayloadSchema = EdgeConfigPayloadSchema.extend({
-	restartAtmiko: z.boolean().optional(),
+export const MikoConfigPayloadSchema = EdgeConfigPayloadSchema.extend({
+	restartMiko: z.boolean().optional(),
 	backupConfig: z.boolean().optional(),
 });
 
-export type AtmikoConfigPayload = z.infer<typeof AtmikoConfigPayloadSchema>;
+export type MikoConfigPayload = z.infer<typeof MikoConfigPayloadSchema>;
 
 /**
- * Atmiko environment variables payload (for Claude token)
+ * Miko environment variables payload (for Claude token)
  */
-export interface AtmikoEnvPayload {
+export interface MikoEnvPayload {
 	variables?: Record<string, string>;
 	ANTHROPIC_API_KEY?: string;
-	restartAtmiko?: boolean;
+	restartMiko?: boolean;
 	backupEnv?: boolean;
 	[key: string]: string | boolean | Record<string, string> | undefined;
 }
@@ -104,7 +104,7 @@ export interface CheckGlabData {
 
 /**
  * GitHub installation tokens push payload schema.
- * Sent by atmiko-hosted with one short-lived GitHub App installation token
+ * Sent by miko-hosted with one short-lived GitHub App installation token
  * per installation (org or user account) the team has attached.
  */
 export const GitHubTokensPayloadSchema = z.object({
@@ -126,7 +126,7 @@ export const GitHubTokensPayloadSchema = z.object({
 export type GitHubTokensPayload = z.infer<typeof GitHubTokensPayloadSchema>;
 
 /**
- * Error response to send back to atmiko-hosted
+ * Error response to send back to miko-hosted
  */
 export interface ErrorResponse {
 	success: false;
@@ -135,7 +135,7 @@ export interface ErrorResponse {
 }
 
 /**
- * Success response to send back to atmiko-hosted
+ * Success response to send back to miko-hosted
  */
 export interface SuccessResponse {
 	success: true;
@@ -147,7 +147,7 @@ export type ApiResponse = SuccessResponse | ErrorResponse;
 
 /**
  * Create or update a user skill
- * Sent by atmiko-hosted when a user creates/edits a skill
+ * Sent by miko-hosted when a user creates/edits a skill
  */
 export interface UpdateSkillPayload {
 	/** Skill name — used as the directory name and invocation name */
@@ -169,7 +169,7 @@ export interface UpdateSkillPayload {
 
 /**
  * Delete a user skill
- * Sent by atmiko-hosted when a user removes a skill
+ * Sent by miko-hosted when a user removes a skill
  */
 export interface DeleteSkillPayload {
 	/** Skill name to delete */

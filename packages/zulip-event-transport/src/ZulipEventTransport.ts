@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { createLogger, type ILogger } from "atmiko-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { createLogger, type ILogger } from "miko-core";
 import type {
 	ZulipEventTransportConfig,
 	ZulipEventTransportEvents,

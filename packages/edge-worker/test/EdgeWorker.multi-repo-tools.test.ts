@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TEST_ATMIKO_HOME } from "./test-dirs.js";
+import { TEST_MIKO_HOME } from "./test-dirs.js";
 
 // Mock dependencies BEFORE imports
-vi.mock("atmiko-claude-runner", () => ({
+vi.mock("miko-claude-runner", () => ({
 	ClaudeRunner: vi.fn(),
 	getSafeTools: vi.fn(() => [
 		"Read",
@@ -119,7 +119,7 @@ vi.mock("atmiko-claude-runner", () => ({
 	]),
 }));
 vi.mock("@linear/sdk");
-vi.mock("atmiko-linear-event-transport");
+vi.mock("miko-linear-event-transport");
 vi.mock("../src/SharedApplicationServer.js");
 vi.mock("../src/AgentSessionManager.js");
 vi.mock("fs/promises", () => ({
@@ -133,8 +133,8 @@ import { LinearClient } from "@linear/sdk";
 import {
 	LINEAR_DEFAULT_ALLOWED_TOOLS,
 	SLACK_DEFAULT_ALLOWED_TOOLS,
-} from "atmiko-core";
-import { LinearEventTransport } from "atmiko-linear-event-transport";
+} from "miko-core";
+import { LinearEventTransport } from "miko-linear-event-transport";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 import { SharedApplicationServer } from "../src/SharedApplicationServer.js";
@@ -157,7 +157,7 @@ describe("EdgeWorker - Multi-Repo Tool Authorization", () => {
 
 		mockConfig = {
 			proxyUrl: "http://localhost:3000",
-			atmikoHome: TEST_ATMIKO_HOME,
+			mikoHome: TEST_MIKO_HOME,
 			linearAllowedTools: ["Read", "Write", "Edit"],
 			repositories: [
 				{

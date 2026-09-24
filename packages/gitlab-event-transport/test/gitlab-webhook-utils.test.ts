@@ -41,7 +41,7 @@ function createNoteEvent(
 		},
 		object_attributes: {
 			id: 100,
-			note: "Hello @atmikoagent please fix the tests",
+			note: "Hello @mikoagent please fix the tests",
 			noteable_type: "MergeRequest",
 			author_id: 1,
 			created_at: "2025-01-01T00:00:00Z",
@@ -126,7 +126,7 @@ describe("gitlab-webhook-utils", () => {
 		it("extracts note body from note event", () => {
 			const event = createNoteEvent();
 			expect(extractNoteBody(event)).toBe(
-				"Hello @atmikoagent please fix the tests",
+				"Hello @mikoagent please fix the tests",
 			);
 		});
 	});
@@ -153,8 +153,8 @@ describe("gitlab-webhook-utils", () => {
 	});
 
 	describe("stripMention", () => {
-		it("strips @atmikoagent mention from note body", () => {
-			expect(stripMention("Hello @atmikoagent fix tests")).toBe(
+		it("strips @mikoagent mention from note body", () => {
+			expect(stripMention("Hello @mikoagent fix tests")).toBe(
 				"Hello fix tests",
 			);
 		});

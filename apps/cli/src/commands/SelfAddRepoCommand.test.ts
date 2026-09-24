@@ -57,7 +57,7 @@ import {
 
 // Mock Application
 const createMockApp = () => ({
-	atmikoHome: "/home/user/.atmiko",
+	mikoHome: "/home/user/.miko",
 	config: {
 		exists: vi.fn().mockReturnValue(true),
 		load: vi.fn(),
@@ -523,7 +523,7 @@ describe("SelfAddRepoCommand", () => {
 			expect(mockExit).toHaveBeenCalledWith(0);
 
 			expect(mocks.mockExecSync).toHaveBeenCalledWith(
-				"git clone https://github.com/user/my-repo.git /home/user/.atmiko/repos/my-repo",
+				"git clone https://github.com/user/my-repo.git /home/user/.miko/repos/my-repo",
 				{ stdio: "inherit" },
 			);
 		});
@@ -619,9 +619,9 @@ describe("SelfAddRepoCommand", () => {
 			expect(addedRepo).toEqual({
 				id: "generated-uuid-123",
 				name: "new-repo",
-				repositoryPath: "/home/user/.atmiko/repos/new-repo",
+				repositoryPath: "/home/user/.miko/repos/new-repo",
 				baseBranch: "main",
-				workspaceBaseDir: "/home/user/.atmiko/worktrees",
+				workspaceBaseDir: "/home/user/.miko/worktrees",
 				linearWorkspaceId: "ws-123",
 				isActive: true,
 				routingLabels: ["new-repo"],

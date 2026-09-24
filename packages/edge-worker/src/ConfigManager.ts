@@ -1,12 +1,12 @@
 import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
+import { watch as chokidarWatch, type FSWatcher } from "chokidar";
 import type {
 	EdgeConfig,
 	EdgeWorkerConfig,
 	ILogger,
 	RepositoryConfig,
-} from "atmiko-core";
-import { watch as chokidarWatch, type FSWatcher } from "chokidar";
+} from "miko-core";
 
 // ------------------------------------------------------------------
 // Exhaustiveness guard for hot-reload key handling

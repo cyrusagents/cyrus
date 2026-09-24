@@ -2,11 +2,11 @@ import type {
 	SDKAssistantMessage,
 	SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { SimpleAgentRunnerConfig } from "atmiko-simple-agent-runner";
+import type { SimpleAgentRunnerConfig } from "miko-simple-agent-runner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GeminiRunner } from "../src/GeminiRunner.js";
 import { SimpleGeminiRunner } from "../src/SimpleGeminiRunner.js";
-import { TEST_ATMIKO_HOME, TEST_WORKING_DIR } from "./test-dirs.js";
+import { TEST_MIKO_HOME, TEST_WORKING_DIR } from "./test-dirs.js";
 
 // Mock GeminiRunner
 vi.mock("../src/GeminiRunner.js", () => {
@@ -24,7 +24,7 @@ describe("SimpleGeminiRunner", () => {
 
 	const defaultConfig: SimpleAgentRunnerConfig<"approve" | "reject"> = {
 		validResponses: ["approve", "reject"] as const,
-		atmikoHome: TEST_ATMIKO_HOME,
+		mikoHome: TEST_MIKO_HOME,
 		workingDirectory: TEST_WORKING_DIR,
 		model: "gemini-2.5-flash",
 	};
@@ -101,14 +101,14 @@ describe("SimpleGeminiRunner", () => {
 			);
 		});
 
-		it("should throw when atmikoHome is not provided", () => {
+		it("should throw when mikoHome is not provided", () => {
 			const invalidConfig = {
 				validResponses: ["approve", "reject"] as const,
 				workingDirectory: TEST_WORKING_DIR,
 			};
 
 			expect(() => new SimpleGeminiRunner(invalidConfig as any)).toThrow(
-				"atmikoHome is required",
+				"mikoHome is required",
 			);
 		});
 
@@ -425,7 +425,7 @@ describe("SimpleGeminiRunner", () => {
 			type BooleanResponse = "true" | "false";
 			const boolConfig: SimpleAgentRunnerConfig<BooleanResponse> = {
 				validResponses: ["true", "false"] as const,
-				atmikoHome: TEST_ATMIKO_HOME,
+				mikoHome: TEST_MIKO_HOME,
 				workingDirectory: TEST_WORKING_DIR,
 			};
 
@@ -453,7 +453,7 @@ describe("SimpleGeminiRunner", () => {
 					"needs-info",
 					"escalated",
 				] as const,
-				atmikoHome: TEST_ATMIKO_HOME,
+				mikoHome: TEST_MIKO_HOME,
 				workingDirectory: TEST_WORKING_DIR,
 			};
 

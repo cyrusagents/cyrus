@@ -2,7 +2,7 @@ import {
 	type AgentActivityContent,
 	AgentActivitySignal,
 	type IIssueTrackerService,
-} from "atmiko-core";
+} from "miko-core";
 import type {
 	ActivityPostOptions,
 	ActivityPostResult,

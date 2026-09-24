@@ -1,5 +1,5 @@
 /**
- * Basic usage example for atmiko-simple-agent-runner
+ * Basic usage example for miko-simple-agent-runner
  *
  * This example demonstrates how to use SimpleClaudeRunner to get
  * yes/no answers from an agent.
@@ -15,7 +15,7 @@ async function main() {
 	// Create runner
 	const runner = new SimpleClaudeRunner<YesNoResponse>({
 		validResponses: VALID_RESPONSES,
-		atmikoHome: process.env.ATMIKO_HOME || "/tmp/atmiko",
+		mikoHome: process.env.MIKO_HOME || "/tmp/miko",
 		model: "sonnet",
 		maxTurns: 3,
 		timeoutMs: 30000, // 30 seconds

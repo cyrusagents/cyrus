@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { ILogger, RunnerType } from "atmiko-core";
+import type { ILogger, RunnerType } from "miko-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -71,7 +71,7 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 			workspaceName: "slack-thread-x",
 			systemPrompt: "test",
 			sessionId: "sess-1",
-			atmikoHome: "/tmp/atmiko-home-test",
+			mikoHome: "/tmp/miko-home-test",
 			platformName: "slack",
 			logger: silentLogger,
 			onMessage: () => {},
@@ -89,8 +89,8 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 
 	it("includes autoMemoryDirectory in allowedDirectories so the session can read existing memory files (CYPACK-1197)", () => {
 		const builder = makeBuilder();
-		const atmikoHome = "/tmp/atmiko-home-test";
-		const workspacePath = join(atmikoHome, "slack-workspaces", "thread-x");
+		const mikoHome = "/tmp/miko-home-test";
+		const workspacePath = join(mikoHome, "slack-workspaces", "thread-x");
 		const repositoryPaths = ["/repo/one", "/repo/two"];
 
 		const config = builder.buildChatConfig({
@@ -98,7 +98,7 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 			workspaceName: "slack-thread-x",
 			systemPrompt: "test",
 			sessionId: "sess-1",
-			atmikoHome,
+			mikoHome,
 			platformName: "slack",
 			repositoryPaths,
 			logger: silentLogger,
@@ -106,7 +106,7 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 			onError: () => {},
 		});
 
-		const expectedAutoMemoryDir = join(atmikoHome, "slack-memory");
+		const expectedAutoMemoryDir = join(mikoHome, "slack-memory");
 		expect(config.autoMemoryDirectory).toBe(expectedAutoMemoryDir);
 		expect(config.allowedDirectories).toEqual([
 			workspacePath,
@@ -117,14 +117,14 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 
 	it("passes managed skill plugins and scoped skill names to chat runner configs", () => {
 		const builder = makeBuilder();
-		const plugins = [{ type: "local" as const, path: "/atmiko/user-skills" }];
+		const plugins = [{ type: "local" as const, path: "/miko/user-skills" }];
 
 		const config = builder.buildChatConfig({
 			workspacePath: "/tmp/slack-workspace",
 			workspaceName: "slack-thread-x",
 			systemPrompt: "test",
 			sessionId: "sess-1",
-			atmikoHome: "/tmp/atmiko-home-test",
+			mikoHome: "/tmp/miko-home-test",
 			platformName: "slack",
 			plugins,
 			skills: ["agent-browser", "test-user-skills"],
@@ -152,7 +152,7 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 				workspaceName: "slack-thread-x",
 				systemPrompt: "test",
 				sessionId: "sess-1",
-				atmikoHome: "/tmp/atmiko-home-test",
+				mikoHome: "/tmp/miko-home-test",
 				platformName: "slack",
 				repository: {
 					id: "repo-1",
@@ -189,7 +189,7 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 			sessionId: "sess-1",
 			resumeSessionId: "opencode-chat-session",
 			runnerType: "opencode",
-			atmikoHome: "/tmp/atmiko-home-test",
+			mikoHome: "/tmp/miko-home-test",
 			platformName: "slack",
 			logger: silentLogger,
 			onMessage: () => {},
@@ -204,7 +204,7 @@ describe("RunnerConfigBuilder.buildChatConfig", () => {
 describe("RunnerConfigBuilder.buildIssueConfig", () => {
 	it("does not pass Claude SDK skills plugins to OpenCode issue sessions", () => {
 		const builder = makeIssueBuilder("opencode");
-		const plugins = [{ type: "local", path: "/tmp/atmiko-skills-plugin" }];
+		const plugins = [{ type: "local", path: "/tmp/miko-skills-plugin" }];
 
 		const { config, runnerType } = builder.buildIssueConfig({
 			session: {
@@ -222,7 +222,7 @@ describe("RunnerConfigBuilder.buildIssueConfig", () => {
 			allowedDirectories: ["/tmp/worktree"],
 			disallowedTools: [],
 			labels: ["opencode"],
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			logger: silentLogger,
 			onMessage: () => {},
 			onError: () => {},
@@ -238,7 +238,7 @@ describe("RunnerConfigBuilder.buildIssueConfig", () => {
 
 	it("passes scoped skills plugins to Claude issue sessions", () => {
 		const builder = makeIssueBuilder("claude");
-		const plugins = [{ type: "local", path: "/tmp/atmiko-skills-plugin" }];
+		const plugins = [{ type: "local", path: "/tmp/miko-skills-plugin" }];
 
 		const { config, runnerType } = builder.buildIssueConfig({
 			session: {
@@ -256,7 +256,7 @@ describe("RunnerConfigBuilder.buildIssueConfig", () => {
 			allowedDirectories: ["/tmp/worktree"],
 			disallowedTools: [],
 			labels: ["claude"],
-			atmikoHome: "/tmp/atmiko",
+			mikoHome: "/tmp/miko",
 			logger: silentLogger,
 			onMessage: () => {},
 			onError: () => {},
@@ -297,7 +297,7 @@ describe("RunnerConfigBuilder.buildIssueConfig", () => {
 				allowedDirectories: ["/tmp/worktree"],
 				disallowedTools: [],
 				labels: [selectedRunner],
-				atmikoHome: "/tmp/atmiko",
+				mikoHome: "/tmp/miko",
 				logger: silentLogger,
 				onMessage: () => {},
 				onError: () => {},

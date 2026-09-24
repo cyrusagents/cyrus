@@ -8,12 +8,12 @@ const execAsync = promisify(exec);
  * Check if GitHub CLI (gh) is installed and authenticated
  *
  * @param _payload - Empty payload (no parameters needed)
- * @param _atmikoHome - Atmiko home directory (not used)
+ * @param _mikoHome - Miko home directory (not used)
  * @returns ApiResponse with installation and authentication status
  */
 export async function handleCheckGh(
 	_payload: CheckGhPayload,
-	_atmikoHome: string,
+	_mikoHome: string,
 ): Promise<ApiResponse> {
 	try {
 		// Check if gh is installed

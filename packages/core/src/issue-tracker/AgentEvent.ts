@@ -19,7 +19,7 @@ import type { LinearWebhookPayload } from "@linear/sdk/webhooks";
  *
  * @example
  * ```typescript
- * import { AgentEvent } from '@atmiko/core/issue-tracker';
+ * import { AgentEvent } from '@miko/core/issue-tracker';
  *
  * function handleWebhook(event: AgentEvent) {
  *   // Process the webhook event

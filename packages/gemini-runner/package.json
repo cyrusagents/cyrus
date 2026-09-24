@@ -1,10 +1,10 @@
 {
-	"name": "atmiko-gemini-runner",
+	"name": "miko-gemini-runner",
 	"version": "0.2.72",
-	"description": "Gemini CLI process spawning and management for Atmiko",
+	"description": "Gemini CLI process spawning and management for Miko",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/nexmoe/atmiko.git",
+		"url": "git+https://github.com/mikoagents/miko.git",
 		"directory": "packages/gemini-runner"
 	},
 	"type": "module",
@@ -22,9 +22,9 @@
 	},
 	"dependencies": {
 		"@linear/sdk": "^60.0.0",
-		"atmiko-claude-runner": "workspace:*",
-		"atmiko-core": "workspace:*",
-		"atmiko-simple-agent-runner": "workspace:*",
+		"miko-claude-runner": "workspace:*",
+		"miko-core": "workspace:*",
+		"miko-simple-agent-runner": "workspace:*",
 		"dotenv": "^16.6.1",
 		"fs-extra": "^11.3.0",
 		"zod": "^4.3.6"

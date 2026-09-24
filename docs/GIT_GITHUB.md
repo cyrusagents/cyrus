@@ -1,20 +1,20 @@
 # Git & GitHub Setup
 
-Atmiko uses your local Git and GitHub CLI (`gh`) authentication to create commits and pull requests. This guide explains how to configure these tools and what permissions Atmiko will have.
+Miko uses your local Git and GitHub CLI (`gh`) authentication to create commits and pull requests. This guide explains how to configure these tools and what permissions Miko will have.
 
 ---
 
 ## Understanding Permissions
 
-**Important:** Atmiko operates with the same permissions as your authenticated Git and GitHub CLI user.
+**Important:** Miko operates with the same permissions as your authenticated Git and GitHub CLI user.
 
-When Atmiko creates commits and PRs:
+When Miko creates commits and PRs:
 - All commits are attributed to your Git user (`git config user.name` and `user.email`)
 - All PRs are created under your GitHub account
 - Your repository access permissions apply to all operations
 - Co-authored-by attribution is disabled by default (configured via `.claude/settings.json`)
 
-This means Atmiko can access any repository your authenticated user can access. Configure authentication carefully based on what repositories you want Atmiko to work with.
+This means Miko can access any repository your authenticated user can access. Configure authentication carefully based on what repositories you want Miko to work with.
 
 ---
 
@@ -51,13 +51,13 @@ Add the public key to your GitHub account at [github.com/settings/keys](https://
 
 ## Replies to GitHub requests
 
-For an inline pull request review comment, Atmiko replies in the same review thread, including when the request itself is a reply. Ordinary PR timeline comments have no native reply endpoint, so Atmiko prefixes its response with a direct link to the triggering comment.
+For an inline pull request review comment, Miko replies in the same review thread, including when the request itself is a reply. Ordinary PR timeline comments have no native reply endpoint, so Miko prefixes its response with a direct link to the triggering comment.
 
-Atmiko adds 👀 to a comment when it accepts the request. A queued request keeps 👀 until it runs. After the task finishes and its reply is delivered, Atmiko adds 👍 and removes its own 👀 reaction. An unsuccessful task or a failed reply produces 😕 instead. Other people's reactions are left untouched. Review submissions are separate GitHub objects and do not support comment reactions through this API.
+Miko adds 👀 to a comment when it accepts the request. A queued request keeps 👀 until it runs. After the task finishes and its reply is delivered, Miko adds 👍 and removes its own 👀 reaction. An unsuccessful task or a failed reply produces 😕 instead. Other people's reactions are left untouched. Review submissions are separate GitHub objects and do not support comment reactions through this API.
 
-Atmiko does not post receipt or queue-status comments. The agent is instructed to handle the triggering request and return one final answer for Atmiko to publish, rather than posting its own progress or completion comments. Explicitly requested formal reviews and inline review replies are still supported.
+Miko does not post receipt or queue-status comments. The agent is instructed to handle the triggering request and return one final answer for Miko to publish, rather than posting its own progress or completion comments. Explicitly requested formal reviews and inline review replies are still supported.
 
-Before starting an automated Codex review request, Atmiko rechecks the referenced review. If every thread belonging to that exact review is already resolved, the notification gets 👍 without another agent run or summary. This only applies to structured `Review: <review URL>` notifications from `github-actions[bot]` for Codex `COMMENTED` reviews. Human requests, unresolved reviews, and reviews whose completion cannot be verified still run normally.
+Before starting an automated Codex review request, Miko rechecks the referenced review. If every thread belonging to that exact review is already resolved, the notification gets 👍 without another agent run or summary. This only applies to structured `Review: <review URL>` notifications from `github-actions[bot]` for Codex `COMMENTED` reviews. Human requests, unresolved reviews, and reviews whose completion cannot be verified still run normally.
 
 See GitHub's [review comment reply API](https://docs.github.com/en/rest/pulls/comments#create-a-reply-for-a-review-comment) and [comment reaction API](https://docs.github.com/en/rest/reactions/reactions).
 
@@ -106,7 +106,7 @@ gh auth status
 
 ## Security Considerations
 
-- **Use a dedicated account** for Atmiko if you want to limit its access
+- **Use a dedicated account** for Miko if you want to limit its access
 - **Repository access** is determined by your SSH key and GitHub token permissions
-- **Review permissions** before adding repositories to Atmiko
-- **Audit commits** - Atmiko-authored PRs include a `<!-- generated-by-atmiko -->` marker for traceability
+- **Review permissions** before adding repositories to Miko
+- **Audit commits** - Miko-authored PRs include a `<!-- generated-by-miko -->` marker for traceability

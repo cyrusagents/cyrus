@@ -2,14 +2,14 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import Fastify from "fastify";
 import {
 	type AgentMessage,
-	type AtmikoAgentSession,
-	type AtmikoAgentSessionEntry,
 	createLogger,
 	type IAgentRunner,
-} from "atmiko-core";
-import Fastify from "fastify";
+	type MikoAgentSession,
+	type MikoAgentSessionEntry,
+} from "miko-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
 import {
@@ -24,7 +24,7 @@ afterEach(async () => {
 	for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-function session(id = "session-1", running = false): AtmikoAgentSession {
+function session(id = "session-1", running = false): MikoAgentSession {
 	return {
 		id,
 		type: "commentThread",
@@ -44,9 +44,9 @@ function session(id = "session-1", running = false): AtmikoAgentSession {
 			isRunning: () => running,
 			getMessages: () => [],
 		} as unknown as IAgentRunner,
-	} as AtmikoAgentSession;
+	} as MikoAgentSession;
 }
-function options(sessions: AtmikoAgentSession[] = []): BoardOptions {
+function options(sessions: MikoAgentSession[] = []): BoardOptions {
 	return {
 		getSessions: () => sessions,
 		getEntries: () => [],
@@ -54,7 +54,7 @@ function options(sessions: AtmikoAgentSession[] = []): BoardOptions {
 		getRepositoryName: () => "example/repo",
 	};
 }
-function board(sessions: AtmikoAgentSession[] = []) {
+function board(sessions: MikoAgentSession[] = []) {
 	const result = new StatusBoard(options(sessions));
 	cleanups.push(() => result.close());
 	return result;
@@ -143,7 +143,7 @@ describe("status board snapshots", () => {
 		const removed = session("removed");
 		let running = false;
 		ongoing.agentRunner!.isRunning = () => running;
-		let remove!: (session: AtmikoAgentSession) => void;
+		let remove!: (session: MikoAgentSession) => void;
 		const sessions = [ongoing, removed];
 		const view = new StatusBoard({
 			...options(sessions),
@@ -170,7 +170,7 @@ describe("status board snapshots", () => {
 		cleanups.push(() => rm(directory, { recursive: true, force: true }));
 		const manager = new AgentSessionManager();
 		const task = session("old-task");
-		task.status = "complete" as AtmikoAgentSession["status"];
+		task.status = "complete" as MikoAgentSession["status"];
 		manager.restoreState(
 			{ [task.id]: task },
 			{
@@ -231,7 +231,7 @@ describe("status board snapshots", () => {
 				errors: ["New turn failed"],
 			}),
 		];
-		const entries: AtmikoAgentSessionEntry[] = [
+		const entries: MikoAgentSessionEntry[] = [
 			{
 				type: "assistant",
 				content: "Previous investigation",
@@ -314,7 +314,7 @@ describe("status board snapshots", () => {
 	});
 	it("uses each live runner, not a stale session status or the process-wide busy flag", () => {
 		const running = session("running", true);
-		running.status = "error" as AtmikoAgentSession["status"];
+		running.status = "error" as MikoAgentSession["status"];
 		const idle = session("idle", false);
 		const result = board([idle, running]).snapshot();
 		expect(result.tasks.map((task) => [task.id, task.status])).toEqual([
@@ -395,7 +395,7 @@ describe("status board snapshots", () => {
 				expect.objectContaining({ text: "Done", kind: "lifecycle" }),
 				expect.objectContaining({
 					sessionId: task.id,
-					source: "atmiko",
+					source: "miko",
 					text: "[BoardTest] GH_TOKEN=[REDACTED]",
 				}),
 			]),
@@ -405,7 +405,7 @@ describe("status board snapshots", () => {
 
 async function server() {
 	const app = Fastify({ trustProxy: true });
-	const directory = await mkdtemp(join(tmpdir(), "atmiko-board-test-"));
+	const directory = await mkdtemp(join(tmpdir(), "miko-board-test-"));
 	await writeFile(
 		join(directory, "index.html"),
 		'<html lang="en">Board</html>',
@@ -440,7 +440,7 @@ describe("status board routes", () => {
 			remoteAddress: "::1",
 		});
 		expect(snapshot.json()).toMatchObject({
-			app: "atmiko-board",
+			app: "miko-board",
 			tasks: [],
 			service: { status: "busy" },
 		});

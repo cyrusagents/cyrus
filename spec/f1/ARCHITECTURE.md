@@ -2,7 +2,7 @@
 
 ## Overview
 
-The F1 testing framework provides an end-to-end observable testing platform for the Atmiko agent system. It enables automated "test drives" of the product by implementing a CLI-based issue tracker that simulates Linear's functionality without requiring external dependencies.
+The F1 testing framework provides an end-to-end observable testing platform for the Miko agent system. It enables automated "test drives" of the product by implementing a CLI-based issue tracker that simulates Linear's functionality without requiring external dependencies.
 
 ## High-Level Flow
 

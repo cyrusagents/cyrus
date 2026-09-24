@@ -2,7 +2,7 @@ import type {
 	AgentPendingWork,
 	BackgroundTaskSummary,
 	SessionCronSummary,
-} from "atmiko-core";
+} from "miko-core";
 
 /**
  * Formatting helpers for sessions that end a turn with work still scheduled

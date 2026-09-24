@@ -29,7 +29,7 @@ describe("JSON Schema export", () => {
 
 		it("has $id", () => {
 			expect(schema.$id).toBe(
-				"https://raw.githubusercontent.com/nexmoe/atmiko/main/packages/core/schemas/EdgeConfig.json",
+				"https://raw.githubusercontent.com/mikoagents/miko/main/packages/core/schemas/EdgeConfig.json",
 			);
 		});
 
@@ -193,7 +193,7 @@ describe("JSON Schema export", () => {
 
 			for (const { name, schema } of pairs) {
 				const generated = {
-					$id: `https://raw.githubusercontent.com/nexmoe/atmiko/main/packages/core/schemas/${name}.json`,
+					$id: `https://raw.githubusercontent.com/mikoagents/miko/main/packages/core/schemas/${name}.json`,
 					...schema.toJSONSchema({ target: "draft-2020-12" }),
 				};
 				const committed = loadSchema(name);

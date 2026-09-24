@@ -1,10 +1,10 @@
 {
-	"name": "atmiko-linear-event-transport",
+	"name": "miko-linear-event-transport",
 	"version": "0.2.72",
 	"description": "Linear event transport for receiving and verifying Linear webhooks",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/nexmoe/atmiko.git",
+		"url": "git+https://github.com/mikoagents/miko.git",
 		"directory": "packages/linear-event-transport"
 	},
 	"type": "module",
@@ -22,7 +22,7 @@
 	},
 	"dependencies": {
 		"@linear/sdk": "^64.0.0",
-		"atmiko-core": "workspace:*",
+		"miko-core": "workspace:*",
 		"fastify": "^5.12.1"
 	},
 	"devDependencies": {

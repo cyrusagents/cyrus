@@ -9,16 +9,16 @@ import type {
 	SDKMessage,
 	SdkPluginConfig,
 	StopHookInput,
-} from "atmiko-claude-runner";
+} from "miko-claude-runner";
 import type {
 	AgentRunnerConfig,
-	AtmikoAgentSession,
 	ILogger,
+	MikoAgentSession,
 	OnAskUserQuestion,
 	OpenCodeConfigOverrides,
 	RepositoryConfig,
 	RunnerType,
-} from "atmiko-core";
+} from "miko-core";
 import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
@@ -75,12 +75,12 @@ export interface ChatRunnerConfigInput {
 	systemPrompt: string;
 	sessionId: string;
 	resumeSessionId?: string;
-	atmikoHome: string;
+	mikoHome: string;
 	/** Chat platform name (e.g. "slack") — used to namespace the shared auto-memory dir */
 	platformName: string;
 	/** Linear workspace ID for building fresh MCP config at session start */
 	linearWorkspaceId?: string;
-	/** Repository whose MCP runtime servers (Linear MCP, Atmiko tools, etc.) get
+	/** Repository whose MCP runtime servers (Linear MCP, Miko tools, etc.) get
 	 * spun up for this chat session — chat sessions are repo-agnostic at the
 	 * session level, so this just picks one repo to seed those native servers. */
 	repository?: RepositoryConfig;
@@ -106,9 +106,9 @@ export interface ChatRunnerConfigInput {
 	 * these skills into its repository discovery layout.
 	 */
 	skills?: string[] | "all";
-	/** Global OpenCode runtime config overrides from Atmiko config */
+	/** Global OpenCode runtime config overrides from Miko config */
 	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
-	/** Global OpenCode CLI state scope from Atmiko config */
+	/** Global OpenCode CLI state scope from Miko config */
 	opencodeGlobalStateScope?: OpenCodeConfigOverrides["stateScope"];
 	/** Existing runner type to preserve when resuming a completed chat session */
 	runnerType?: RunnerType;
@@ -123,7 +123,7 @@ export interface ChatRunnerConfigInput {
 export interface IssueRunnerConfigInput {
 	/** Local repository tasks have no issue tracker or native Linear tools. */
 	standalone?: boolean;
-	session: AtmikoAgentSession;
+	session: MikoAgentSession;
 	repository: RepositoryConfig;
 	sessionId: string;
 	systemPrompt: string | undefined;
@@ -148,7 +148,7 @@ export interface IssueRunnerConfigInput {
 	/** Whether Claude should ignore ambient MCP configuration. Defaults to true. */
 	strictMcpConfig?: boolean;
 	linearWorkspaceId?: string;
-	atmikoHome: string;
+	mikoHome: string;
 	logger: ILogger;
 	onMessage: (message: SDKMessage) => void | Promise<void>;
 	onError: (error: Error) => void;
@@ -161,9 +161,9 @@ export interface IssueRunnerConfigInput {
 	requireLinearWorkspaceId: (repo: RepositoryConfig) => string;
 	/** Plugins to load for the session (provides skills, hooks, etc.) */
 	plugins?: SdkPluginConfig[];
-	/** Global OpenCode runtime config overrides from Atmiko config */
+	/** Global OpenCode runtime config overrides from Miko config */
 	opencodeGlobalConfig?: OpenCodeConfigOverrides["config"];
-	/** Global OpenCode CLI state scope from Atmiko config */
+	/** Global OpenCode CLI state scope from Miko config */
 	opencodeGlobalStateScope?: OpenCodeConfigOverrides["stateScope"];
 	/**
 	 * Allow-list of skill names enabled for the session (after scope filtering),
@@ -178,8 +178,8 @@ export interface IssueRunnerConfigInput {
 	egressCaCertPath?: string;
 	/**
 	 * GitHub App installation token matched to the session repository's org
-	 * (from the atmiko-hosted-pushed token store). When set, it's exposed to
-	 * the session ONLY as `ATMIKO_GH_TOKEN` — the droplet's gh wrapper maps
+	 * (from the miko-hosted-pushed token store). When set, it's exposed to
+	 * the session ONLY as `MIKO_GH_TOKEN` — the droplet's gh wrapper maps
 	 * it to `GH_TOKEN` inside the gh process. We deliberately do NOT set
 	 * `GH_TOKEN` itself: customers set their own `GH_TOKEN` (e.g. for
 	 * private npm registries on GitHub Packages) and clobbering it would
@@ -289,10 +289,10 @@ export class RunnerConfigBuilder {
 			input.runnerType ?? this.runnerSelector.getDefaultRunner();
 
 		// Shared auto-memory across all chat threads on this platform. Lives
-		// under atmikoHome (not the per-thread workspace) so memory built up in
+		// under mikoHome (not the per-thread workspace) so memory built up in
 		// one Slack thread is available to every other Slack thread.
 		const autoMemoryDirectory = join(
-			input.atmikoHome,
+			input.mikoHome,
 			`${input.platformName}-memory`,
 		);
 
@@ -307,7 +307,7 @@ export class RunnerConfigBuilder {
 				...repositoryPaths,
 			],
 			workspaceName: input.workspaceName,
-			atmikoHome: input.atmikoHome,
+			mikoHome: input.mikoHome,
 			autoMemoryDirectory,
 			appendSystemPrompt: appendGitHubCliMediaAddendum(
 				appendBrowserUseAddendum(appendFailureModeAddendum(input.systemPrompt)),
@@ -459,7 +459,7 @@ export class RunnerConfigBuilder {
 				input.session.issue?.identifier ||
 				input.session.issueId ||
 				input.session.id,
-			atmikoHome: input.atmikoHome,
+			mikoHome: input.mikoHome,
 			mcpConfigPath,
 			mcpConfig,
 			strictMcpConfig: input.strictMcpConfig ?? true,
@@ -511,14 +511,14 @@ export class RunnerConfigBuilder {
 		// Expose the org-matched GitHub App installation token to the session
 		// env. Merged on top of any sandbox additionalEnv (CA cert vars) so
 		// both survive. Only set when a token store entry matched the repo's
-		// org — sessions without a match see zero env change. ATMIKO_GH_TOKEN
+		// org — sessions without a match see zero env change. MIKO_GH_TOKEN
 		// only — never GH_TOKEN, which customers set themselves (e.g. private
 		// npm registries on GitHub Packages); the droplet's gh wrapper maps
-		// ATMIKO_GH_TOKEN to GH_TOKEN inside the gh process.
+		// MIKO_GH_TOKEN to GH_TOKEN inside the gh process.
 		if (input.githubToken) {
 			config.additionalEnv = {
 				...config.additionalEnv,
-				ATMIKO_GH_TOKEN: input.githubToken,
+				MIKO_GH_TOKEN: input.githubToken,
 			};
 		}
 
@@ -745,7 +745,7 @@ export function buildStopHook(
  *
  * Uses `--untracked-files=no` so that pre-existing untracked files in the
  * customer's worktree (scratch files, local env files, IDE artifacts) do not
- * wedge the session. Files Atmiko creates via Write/Edit are marked with
+ * wedge the session. Files Miko creates via Write/Edit are marked with
  * `git add --intent-to-add` by `IntentToAddHook` so they still show as a
  * tracked diff and block the stop when left uncommitted.
  */

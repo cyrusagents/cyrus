@@ -30,19 +30,19 @@ const configuredPackages = [
 	),
 ].map(([, directory, name]) => ({ directory, name }));
 
-describe("trusted Atmiko release workflow", () => {
+describe("trusted Miko release workflow", () => {
 	it("is an on-demand, main-only, serialized workflow", () => {
 		expect(workflow).toContain("workflow_dispatch:");
 		expect(workflow).not.toMatch(/^\s+push:/m);
 		expect(workflow).not.toMatch(/^\s+pull_request:/m);
 		expect(workflow).toContain('"refs/heads/main"');
-		expect(workflow).toContain("group: release-atmiko-cli");
+		expect(workflow).toContain("group: release-miko-cli");
 		expect(workflow).toContain("cancel-in-progress: false");
 		expect(workflow).not.toContain(
-			`RELEASE_ARTIFACTS: \${{ runner.temp }}/atmiko-release`,
+			`RELEASE_ARTIFACTS: \${{ runner.temp }}/miko-release`,
 		);
 		expect(workflow).toContain(
-			'echo "RELEASE_ARTIFACTS=$RUNNER_TEMP/atmiko-release" >> "$GITHUB_ENV"',
+			'echo "RELEASE_ARTIFACTS=$RUNNER_TEMP/miko-release" >> "$GITHUB_ENV"',
 		);
 	});
 
@@ -76,7 +76,7 @@ describe("trusted Atmiko release workflow", () => {
 	it("gates publishing on audit, tests, types, build, and package inspection", () => {
 		expect(workflow).toContain("pnpm audit --audit-level low");
 		expect(workflow).toContain("pnpm test:packages:run");
-		expect(workflow).toContain("pnpm --filter atmiko test:run");
+		expect(workflow).toContain("pnpm --filter miko test:run");
 		expect(workflow).toContain("pnpm typecheck");
 		expect(workflow).toContain("pnpm build");
 		expect(workflow.indexOf("run: pnpm build")).toBeLessThan(
@@ -90,10 +90,10 @@ describe("trusted Atmiko release workflow", () => {
 			`npm install --global "\${release_tarballs[@]}"`,
 		);
 		expect(workflow).not.toContain(
-			`npm install --global "$RELEASE_ARTIFACTS/atmiko-\${REQUESTED_VERSION}.tgz"`,
+			`npm install --global "$RELEASE_ARTIFACTS/miko-\${REQUESTED_VERSION}.tgz"`,
 		);
 		expect(workflow).toContain(
-			'ACTUAL_VERSION="$(ATMIKO_SENTRY_DISABLED=1 atmiko --version)"',
+			'ACTUAL_VERSION="$(MIKO_SENTRY_DISABLED=1 miko --version)"',
 		);
 		expect(workflow).toContain("run: node scripts/publish-release.mjs");
 	});
@@ -151,7 +151,7 @@ describe("trusted Atmiko release workflow", () => {
 			"Every release package must already exist on npm before this workflow runs.",
 		);
 		expect(workflow).toContain(
-			"npm trust github <package> --repo nexmoe/atmiko --file release-cli.yml --allow-publish --yes",
+			"npm trust github <package> --repo mikoagents/miko --file release-cli.yml --allow-publish --yes",
 		);
 		expect(workflow.indexOf("missing_packages=()")).toBeLessThan(
 			workflow.indexOf("Install locked dependencies"),
@@ -169,7 +169,7 @@ describe("trusted Atmiko release workflow", () => {
 
 	it("documents the npm trust identity and complete release lifecycle", () => {
 		expect(releaseGuide).toContain("`nexmoe`");
-		expect(releaseGuide).toContain("`atmiko`");
+		expect(releaseGuide).toContain("`miko`");
 		expect(releaseGuide).toContain("`release-cli.yml`");
 		expect(releaseGuide).toContain("`npm publish`");
 		expect(releaseGuide).toContain("gh workflow run release-cli.yml");

@@ -5,8 +5,8 @@ import { join } from "node:path";
 import type {
 	HookCallbackMatcher,
 	PostToolUseHookInput,
-} from "atmiko-claude-runner";
-import type { ILogger } from "atmiko-core";
+} from "miko-claude-runner";
+import type { ILogger } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	applyIntentToAdd,
@@ -182,7 +182,7 @@ describe("DefaultIntentToAddGitClient (integration with real git)", () => {
 	let workdir: string;
 
 	beforeEach(() => {
-		workdir = mkdtempSync(join(tmpdir(), "atmiko-intent-to-add-"));
+		workdir = mkdtempSync(join(tmpdir(), "miko-intent-to-add-"));
 	});
 
 	afterEach(() => {

@@ -1,5 +1,5 @@
 import { LinearClient } from "@linear/sdk";
-import type { EdgeWorkerConfig } from "atmiko-core";
+import type { EdgeWorkerConfig } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 
@@ -76,7 +76,7 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 					linearWorkspaceName: "Test Workspace",
 				},
 			},
-			atmikoHome: "/test/.atmiko",
+			mikoHome: "/test/.miko",
 			serverPort: 3456,
 			serverHost: "localhost",
 		};
@@ -238,7 +238,7 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 				storedConfig = String(data);
 			});
 			edgeWorker = new EdgeWorker(mockConfig);
-			edgeWorker.setConfigPath("/test/.atmiko/config.json");
+			edgeWorker.setConfigPath("/test/.miko/config.json");
 			vi.mocked(fetch).mockImplementation(async (_url, options) => {
 				const params = new URLSearchParams(String(options?.body));
 				const suffix = params.get("client_id") === "app-a" ? "a" : "b";

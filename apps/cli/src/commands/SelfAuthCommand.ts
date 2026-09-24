@@ -1,12 +1,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { LinearClient } from "@linear/sdk";
+import Fastify, { type FastifyInstance } from "fastify";
 import {
 	DEFAULT_CONFIG_FILENAME,
 	type EdgeConfig,
 	migrateEdgeConfig,
-} from "atmiko-core";
-import Fastify, { type FastifyInstance } from "fastify";
+} from "miko-core";
 import open from "open";
 import { BaseCommand } from "./ICommand.js";
 
@@ -16,16 +16,16 @@ import { BaseCommand } from "./ICommand.js";
  */
 export class SelfAuthCommand extends BaseCommand {
 	private server: FastifyInstance | null = null;
-	private callbackPort = parseInt(process.env.ATMIKO_SERVER_PORT || "3456", 10);
+	private callbackPort = parseInt(process.env.MIKO_SERVER_PORT || "3456", 10);
 
 	async execute(_args: string[]): Promise<void> {
-		console.log("\nAtmiko Linear Self-Authentication");
+		console.log("\nMiko Linear Self-Authentication");
 		this.logDivider();
 
 		// Check required environment variables
 		const clientId = process.env.LINEAR_CLIENT_ID;
 		const clientSecret = process.env.LINEAR_CLIENT_SECRET;
-		const baseUrl = process.env.ATMIKO_BASE_URL;
+		const baseUrl = process.env.MIKO_BASE_URL;
 		const webhookSecret = process.env.LINEAR_WEBHOOK_SECRET;
 		const needsWebhookSecret =
 			process.env.LINEAR_DIRECT_WEBHOOKS?.toLowerCase() === "true";
@@ -39,20 +39,18 @@ export class SelfAuthCommand extends BaseCommand {
 			this.logError("Missing required environment variables:");
 			if (!clientId) console.log("   - LINEAR_CLIENT_ID");
 			if (!clientSecret) console.log("   - LINEAR_CLIENT_SECRET");
-			if (!baseUrl) console.log("   - ATMIKO_BASE_URL");
+			if (!baseUrl) console.log("   - MIKO_BASE_URL");
 			if (needsWebhookSecret && !webhookSecret)
 				console.log("   - LINEAR_WEBHOOK_SECRET");
-			console.log(
-				`\nAdd these to your env file (${this.app.atmikoHome}/.env):`,
-			);
+			console.log(`\nAdd these to your env file (${this.app.mikoHome}/.env):`);
 			console.log("  LINEAR_CLIENT_ID=your-client-id");
 			console.log("  LINEAR_CLIENT_SECRET=your-client-secret");
-			console.log("  ATMIKO_BASE_URL=https://your-tunnel-domain.com");
+			console.log("  MIKO_BASE_URL=https://your-tunnel-domain.com");
 			process.exit(1);
 		}
 
 		// Check config file exists
-		const configPath = resolve(this.app.atmikoHome, DEFAULT_CONFIG_FILENAME);
+		const configPath = resolve(this.app.mikoHome, DEFAULT_CONFIG_FILENAME);
 		let config: EdgeConfig;
 		try {
 			config = migrateEdgeConfig(
@@ -60,7 +58,7 @@ export class SelfAuthCommand extends BaseCommand {
 			) as EdgeConfig;
 		} catch {
 			this.logError(`Config file not found: ${configPath}`);
-			console.log("Run 'atmiko' first to create initial configuration.");
+			console.log("Run 'miko' first to create initial configuration.");
 			process.exit(1);
 		}
 
@@ -75,7 +73,7 @@ export class SelfAuthCommand extends BaseCommand {
 			if (process.env.CLOUDFLARE_TOKEN) {
 				this.logger.info("Starting cloudflare tunnel...");
 
-				const { SharedApplicationServer } = await import("atmiko-edge-worker");
+				const { SharedApplicationServer } = await import("miko-edge-worker");
 				const sharedApplicationServer = new SharedApplicationServer(
 					this.callbackPort,
 					baseUrl,
@@ -131,13 +129,13 @@ export class SelfAuthCommand extends BaseCommand {
 			this.logSuccess(`Saved credentials for workspace: ${workspace.name}`);
 			if (!config.repositories || config.repositories.length === 0) {
 				console.log(
-					"   No repositories configured yet. Run 'atmiko self-add-repo' to add one.",
+					"   No repositories configured yet. Run 'miko self-add-repo' to add one.",
 				);
 			}
 
 			console.log();
 			this.logSuccess(
-				"Authentication complete! Restart atmiko to use the new tokens.",
+				"Authentication complete! Restart miko to use the new tokens.",
 			);
 			process.exit(0);
 		} catch (error) {
@@ -151,9 +149,9 @@ export class SelfAuthCommand extends BaseCommand {
 
 	private async waitForCallback(clientId: string): Promise<string> {
 		return new Promise((resolve, reject) => {
-			const baseUrl = process.env.ATMIKO_BASE_URL;
+			const baseUrl = process.env.MIKO_BASE_URL;
 			if (!baseUrl) {
-				reject(new Error("ATMIKO_BASE_URL environment variable is required"));
+				reject(new Error("MIKO_BASE_URL environment variable is required"));
 				return;
 			}
 			const redirectUri = `${baseUrl}/callback`;
@@ -189,7 +187,7 @@ export class SelfAuthCommand extends BaseCommand {
 						.send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="font-family: system-ui; padding: 40px; text-align: center;">
-<h2>Atmiko authorized successfully</h2>
+<h2>Miko authorized successfully</h2>
 <p>You can close this window and return to the terminal.</p>
 </body></html>`);
 					resolve(code);
@@ -208,7 +206,7 @@ export class SelfAuthCommand extends BaseCommand {
 			});
 
 			const isExternalHost =
-				process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+				process.env.MIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 			const listenHost = isExternalHost ? "0.0.0.0" : "localhost";
 
 			this.server
@@ -239,7 +237,7 @@ export class SelfAuthCommand extends BaseCommand {
 		clientId: string,
 		clientSecret: string,
 	): Promise<{ accessToken: string; refreshToken?: string }> {
-		const baseUrl = process.env.ATMIKO_BASE_URL;
+		const baseUrl = process.env.MIKO_BASE_URL;
 		const redirectUri = `${baseUrl}/callback`;
 
 		// https://linear.app/developers/oauth-2-0-authentication

@@ -1,9 +1,9 @@
-# Releasing the Atmiko CLI
+# Releasing the Miko CLI
 
-Atmiko releases are published on demand by
+Miko releases are published on demand by
 `.github/workflows/release-cli.yml`. A CLI release is a coordinated monorepo
-release: the workflow packages and publishes every public Atmiko workspace in
-dependency order before publishing `atmiko`.
+release: the workflow packages and publishes every public Miko workspace in
+dependency order before publishing `miko`.
 
 The publish boundary uses npm trusted publishing with GitHub Actions OIDC. It
 does not read or store a long-lived npm publish token.
@@ -17,7 +17,7 @@ Configure the trusted publisher on every package listed by
 | -------------------- | ----------------- |
 | Publisher            | GitHub Actions    |
 | Organization or user | `nexmoe`     |
-| Repository           | `atmiko`           |
+| Repository           | `miko`           |
 | Workflow filename    | `release-cli.yml` |
 | Environment          | Leave blank       |
 | Allowed actions      | `npm publish`     |
@@ -32,7 +32,7 @@ the CLI after authenticating with 2FA:
 ```bash
 node scripts/release-packages.mjs list | while IFS=$'\t' read -r _ package; do
   npm trust github "$package" \
-    --repo nexmoe/atmiko \
+    --repo mikoagents/miko \
     --file release-cli.yml \
     --allow-publish \
     --yes
@@ -65,12 +65,12 @@ Before a release workflow can publish, every package listed by
 publishing cannot create a package on its first publish, so adding a new public
 workspace requires a one-time bootstrap through the approved npm first-publish
 process. After that initial version exists, configure the package's GitHub
-Actions trusted publisher with the exact `nexmoe/atmiko` repository and
+Actions trusted publisher with the exact `mikoagents/miko` repository and
 `release-cli.yml` workflow:
 
 ```sh
 npm trust github <package-name> \
-  --repo nexmoe/atmiko \
+  --repo mikoagents/miko \
   --file release-cli.yml \
   --allow-publish \
   --yes
@@ -83,7 +83,7 @@ publishing the dependency graph.
 
 ## Dispatch a release
 
-From GitHub, open **Actions → Release Atmiko CLI → Run workflow**, select
+From GitHub, open **Actions → Release Miko CLI → Run workflow**, select
 `main`, enter the exact committed version, and choose the npm distribution tag.
 Use **dry run** to exercise every local verification step without publishing,
 tagging, or creating a GitHub release.
@@ -114,7 +114,7 @@ audit, runs lint, tests, type checks, and the full build, then packs every
 package using pnpm so `workspace:*` references become exact published versions.
 It inspects each tarball, installs all local release tarballs together so the
 CLI smoke test does not depend on unpublished internal versions, verifies
-`atmiko --version`, and publishes the same inspected artifacts through npm's
+`miko --version`, and publishes the same inspected artifacts through npm's
 OIDC-capable CLI in dependency order, using `scripts/publish-release.mjs`.
 
 ### Ordered uploads and the final registry gate
@@ -157,7 +157,7 @@ Behavioral fixtures execute the workflow's publish/tag/release steps with fake
 npm, registry downloads, git, and GitHub commands:
 
 ```sh
-pnpm --filter atmiko test:run release-publish.test.ts release-workflow.test.ts
+pnpm --filter miko test:run release-publish.test.ts release-workflow.test.ts
 ```
 
 The baseline and synthetic-delay evidence are recorded in
@@ -170,8 +170,8 @@ Move each Linear issue referenced in the version's changelog section from
 issue identifiers as a reminder. Then verify the public CLI independently:
 
 ```sh
-npm view atmiko@0.2.68 version
-npx atmiko@0.2.68 --version
+npm view miko@0.2.68 version
+npx miko@0.2.68 --version
 ```
 
 After the first successful OIDC release, set every package's npm publishing

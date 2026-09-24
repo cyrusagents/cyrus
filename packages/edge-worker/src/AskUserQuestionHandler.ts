@@ -21,8 +21,8 @@ import type {
 	AskUserQuestionResult,
 	IIssueTrackerService,
 	ILogger,
-} from "atmiko-core";
-import { AgentActivitySignal, createLogger } from "atmiko-core";
+} from "miko-core";
+import { AgentActivitySignal, createLogger } from "miko-core";
 
 /**
  * Pending question data stored while awaiting user response

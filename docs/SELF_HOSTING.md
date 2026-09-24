@@ -2,16 +2,16 @@
 
 ## Quick Start (Recommended)
 
-If you're using any AI coding agent (Claude Code, Codex, Cursor, etc.), set up Atmiko with a single command:
+If you're using any AI coding agent (Claude Code, Codex, Cursor, etc.), set up Miko with a single command:
 
 ```bash
-npx skills add nexmoe/atmiko -g
+npx skills add mikoagents/miko -g
 ```
 
 Then in your agent:
 
 ```
-/atmiko-setup
+/miko-setup
 ```
 
 The setup skill builds this fork from source, then walks you through everything below.
@@ -20,7 +20,7 @@ The setup skill builds this fork from source, then walks you through everything 
 
 ## Manual Setup
 
-This guide walks you through setting up Atmiko completely self-hosted, including your own Linear OAuth application. This is the free, zero-cost option that gives you full control.
+This guide walks you through setting up Miko completely self-hosted, including your own Linear OAuth application. This is the free, zero-cost option that gives you full control.
 
 ---
 
@@ -60,16 +60,16 @@ You'll complete these steps:
 1. Set up a public URL for webhooks
 2. Configure Claude Code authentication
 3. Create a Linear OAuth application
-4. Install Atmiko and complete your environment file
-5. Start Atmiko, authorize with Linear, and add repositories
+4. Install Miko and complete your environment file
+5. Start Miko, authorize with Linear, and add repositories
 
-> **Tip:** Atmiko automatically loads environment variables from `~/.atmiko/.env` on startup. Pass `--env-file=/path/to/your/env` through the verified fork launcher to override it.
+> **Tip:** Miko automatically loads environment variables from `~/.miko/.env` on startup. Pass `--env-file=/path/to/your/env` through the verified fork launcher to override it.
 
 ---
 
 ## Step 1: Set Up Public URL
 
-Linear needs to send webhooks to your Atmiko instance. Choose one option:
+Linear needs to send webhooks to your Miko instance. Choose one option:
 
 | Option | Best For | Persistence |
 |--------|----------|-------------|
@@ -79,14 +79,14 @@ Linear needs to send webhooks to your Atmiko instance. Choose one option:
 | Reverse proxy (nginx/caddy) | Existing infrastructure | Permanent URL |
 
 You'll need:
-- A public URL (e.g., `https://atmiko.yourdomain.com`)
+- A public URL (e.g., `https://miko.yourdomain.com`)
 - The URL must be accessible from the internet
 
 ---
 
 ## Step 2: Configure Claude Code Authentication
 
-Atmiko needs Claude Code credentials. Choose one option and add it to your env file (`~/.atmiko/.env`):
+Miko needs Claude Code credentials. Choose one option and add it to your env file (`~/.miko/.env`):
 
 **Option A: API Key** (recommended)
 ```bash
@@ -125,8 +125,8 @@ For Vertex AI, Azure, AWS Bedrock, and other providers, see the [Third-Party Int
 1. Click **Create new OAuth Application** button
 
 2. Fill in the form:
-   - **Name:** `Atmiko`
-   - **Description:** `Self-hosted Atmiko agent for automated development`
+   - **Name:** `Miko`
+   - **Description:** `Self-hosted Miko agent for automated development`
    - **Callback URLs:** `https://your-public-url.com/callback`
 
 3. **Enable Client credentials** toggle
@@ -136,7 +136,7 @@ For Vertex AI, Azure, AWS Bedrock, and other providers, see the [Third-Party Int
 5. **Configure Webhook Settings:**
    - **Webhook URL:** `https://your-public-url.com/linear-webhook`
    - **App events** - Check these boxes:
-     - **Agent session events** (REQUIRED - makes Atmiko appear as agent)
+     - **Agent session events** (REQUIRED - makes Miko appear as agent)
      - **Inbox notifications** (recommended)
      - **Permission changes** (recommended)
 
@@ -152,7 +152,7 @@ After saving, copy these values:
 
 ### 3.4 Add to Environment File
 
-Add these to your env file (`~/.atmiko/.env`):
+Add these to your env file (`~/.miko/.env`):
 
 ```bash
 # Linear OAuth configuration
@@ -164,25 +164,25 @@ LINEAR_WEBHOOK_SECRET=lin_whs_s56dlmfhg72038474nmfojhsn7
 
 ---
 
-## Step 4: Install and Configure Atmiko
+## Step 4: Install and Configure Miko
 
-### 4.1 Install Atmiko
+### 4.1 Install Miko
 
 ```bash
-node "<atmiko-setup-prerequisites>/scripts/install-fork.mjs"
+node "<miko-setup-prerequisites>/scripts/install-fork.mjs"
 ```
 
-Follow [Fork Installation](./FORK_INSTALLATION.md) to obtain the installer and set `ATMIKO_ENTRY` to its printed launcher path. Verify `node "$ATMIKO_ENTRY" --installation` reports the expected fork commit. All commands below use this launcher; the launcher uses the locally built Atmiko workspace packages.
+Follow [Fork Installation](./FORK_INSTALLATION.md) to obtain the installer and set `MIKO_ENTRY` to its printed launcher path. Verify `node "$MIKO_ENTRY" --installation` reports the expected fork commit. All commands below use this launcher; the launcher uses the locally built Miko workspace packages.
 
 ### 4.2 Complete Your Environment File
 
-Your env file (`~/.atmiko/.env`) should now contain:
+Your env file (`~/.miko/.env`) should now contain:
 
 ```bash
 # Server configuration
 LINEAR_DIRECT_WEBHOOKS=true
-ATMIKO_BASE_URL=https://your-public-url.com
-ATMIKO_SERVER_PORT=3456
+MIKO_BASE_URL=https://your-public-url.com
+MIKO_SERVER_PORT=3456
 
 # Linear OAuth
 LINEAR_CLIENT_ID=your_client_id
@@ -204,7 +204,7 @@ ANTHROPIC_API_KEY=your-api-key
 ### 5.1 Authorize with Linear
 
 ```bash
-node "$ATMIKO_ENTRY" self-auth-linear
+node "$MIKO_ENTRY" self-auth-linear
 ```
 
 This will:
@@ -214,32 +214,32 @@ This will:
 
 #### Additional private Linear apps
 
-One Atmiko instance can serve private apps from multiple Linear workspaces. Each
+One Miko instance can serve private apps from multiple Linear workspaces. Each
 app can use the same public callback URL (`/callback`) and webhook URL
 (`/linear-webhook`). No additional port, domain, or worker is needed.
 
 Create the private app in the additional workspace using the manifest flow in
-`skills/atmiko-setup-linear/SKILL.md`. Save its settings in a separate file, such as
-`~/.atmiko/linear-nexmoe.env`; keep the existing `~/.atmiko/.env` unchanged:
+`skills/miko-setup-linear/SKILL.md`. Save its settings in a separate file, such as
+`~/.miko/linear-nexmoe.env`; keep the existing `~/.miko/.env` unchanged:
 
 ```dotenv
-ATMIKO_BASE_URL=https://your-public-url.com
-ATMIKO_SERVER_PORT=3456
-ATMIKO_HOST_EXTERNAL=true
+MIKO_BASE_URL=https://your-public-url.com
+MIKO_SERVER_PORT=3456
+MIKO_HOST_EXTERNAL=true
 LINEAR_DIRECT_WEBHOOKS=true
 LINEAR_CLIENT_ID=the_new_app_client_id
 LINEAR_CLIENT_SECRET=the_new_app_client_secret
 LINEAR_WEBHOOK_SECRET=the_new_app_webhook_secret
 ```
 
-Protect this file with `chmod 600`. Wait until Atmiko is idle, stop the worker to
+Protect this file with `chmod 600`. Wait until Miko is idle, stop the worker to
 free its callback port, and keep the tunnel running. Authorize the additional app:
 
 ```bash
-node "$ATMIKO_ENTRY" --env-file "$HOME/.atmiko/linear-nexmoe.env" self-auth-linear
+node "$MIKO_ENTRY" --env-file "$HOME/.miko/linear-nexmoe.env" self-auth-linear
 ```
 
-Select the new workspace in Linear, then restart the normal Atmiko service **without
+Select the new workspace in Linear, then restart the normal Miko service **without
 the `--env-file` override**. Authorization saves that app's client ID, client secret,
 and webhook secret under the workspace's `linearOAuth` entry in `config.json`.
 Other workspaces and repositories are preserved. Protect `config.json` as a secret
@@ -254,27 +254,27 @@ secret. Reauthorizing an app replaces credentials only for its own workspace.
 ### 5.2 Add a Repository
 
 ```bash
-node "$ATMIKO_ENTRY" self-add-repo https://github.com/yourorg/yourrepo.git
+node "$MIKO_ENTRY" self-add-repo https://github.com/yourorg/yourrepo.git
 ```
 
-This clones the repository to `~/.atmiko/repos/` and configures it with your Linear workspace credentials.
+This clones the repository to `~/.miko/repos/` and configures it with your Linear workspace credentials.
 
 For multiple workspaces, specify which one:
 ```bash
-node "$ATMIKO_ENTRY" self-add-repo https://github.com/yourorg/yourrepo.git "My Workspace"
+node "$MIKO_ENTRY" self-add-repo https://github.com/yourorg/yourrepo.git "My Workspace"
 ```
 
-You can run `node "$ATMIKO_ENTRY" self-add-repo` while Atmiko is running. It automatically picks up the new repository configuration.
+You can run `node "$MIKO_ENTRY" self-add-repo` while Miko is running. It automatically picks up the new repository configuration.
 
-### 5.3 Start Atmiko
+### 5.3 Start Miko
 
-Once authorization is complete and repositories are added, start Atmiko:
+Once authorization is complete and repositories are added, start Miko:
 
 ```bash
-node "$ATMIKO_ENTRY" start
+node "$MIKO_ENTRY" start
 ```
 
-Atmiko automatically loads `~/.atmiko/.env` on startup. You'll see Atmiko start up and show logs.
+Miko automatically loads `~/.miko/.env` on startup. You'll see Miko start up and show logs.
 
 > **Note:** To use a different env file location, pass `--env-file=/path/to/your/env` through the same launcher.
 
@@ -282,7 +282,7 @@ Atmiko automatically loads `~/.atmiko/.env` on startup. You'll see Atmiko start 
 
 ## Step 6: Set Up GitHub (Optional)
 
-For Atmiko to create pull requests, configure Git and GitHub CLI authentication.
+For Miko to create pull requests, configure Git and GitHub CLI authentication.
 
 See the **[Git & GitHub Setup Guide](./GIT_GITHUB.md)** for complete instructions.
 
@@ -290,39 +290,39 @@ See the **[Git & GitHub Setup Guide](./GIT_GITHUB.md)** for complete instruction
 
 ## Running as a Service
 
-For 24/7 availability, run Atmiko as a persistent process.
+For 24/7 availability, run Miko as a persistent process.
 
 ### Using tmux
 
 ```bash
-tmux new-session -s atmiko
-node "$ATMIKO_ENTRY" start
+tmux new-session -s miko
+node "$MIKO_ENTRY" start
 # Ctrl+B, D to detach
-# tmux attach -t atmiko to reattach
+# tmux attach -t miko to reattach
 ```
 
 ### Using pm2
 
 ```bash
-pm2 start "$ATMIKO_ENTRY" --name atmiko --interpreter "$(command -v node)" -- start
+pm2 start "$MIKO_ENTRY" --name miko --interpreter "$(command -v node)" -- start
 pm2 save
 pm2 startup
 ```
 
 ### Using systemd (Linux)
 
-Create `/etc/systemd/system/atmiko.service`:
+Create `/etc/systemd/system/miko.service`:
 
 ```ini
 [Unit]
-Description=Atmiko AI Agent
+Description=Miko AI Agent
 After=network.target
 
 [Service]
 Type=simple
 User=your-user
-EnvironmentFile=/home/your-user/.atmiko/.env
-ExecStart=/absolute/path/to/node /home/your-user/.local/share/atmiko-nexmoe/atmiko.mjs start
+EnvironmentFile=/home/your-user/.miko/.env
+ExecStart=/absolute/path/to/node /home/your-user/.local/share/miko/miko.mjs start
 Restart=always
 
 [Install]
@@ -332,15 +332,15 @@ WantedBy=multi-user.target
 Then:
 
 ```bash
-sudo systemctl enable atmiko
-sudo systemctl start atmiko
+sudo systemctl enable miko
+sudo systemctl start miko
 ```
 
 ---
 
 ## Configuration
 
-Atmiko stores its configuration in `~/.atmiko/config.json`. You can customize tool permissions, issue routing rules, MCP server integrations, and label-based AI modes by editing this file. Atmiko watches the config file and automatically picks up changes—no restart required.
+Miko stores its configuration in `~/.miko/config.json`. You can customize tool permissions, issue routing rules, MCP server integrations, and label-based AI modes by editing this file. Miko watches the config file and automatically picks up changes—no restart required.
 
 For detailed options, see the [Configuration File Reference](./CONFIG_FILE.md).
 
@@ -350,21 +350,21 @@ For detailed options, see the [Configuration File Reference](./CONFIG_FILE.md).
 
 ### OAuth Authorization Fails
 
-- Verify `ATMIKO_BASE_URL` matches your Linear OAuth callback URL exactly
+- Verify `MIKO_BASE_URL` matches your Linear OAuth callback URL exactly
 - Check that your public URL is accessible from the internet
 - Ensure all Linear environment variables are set
 
 ### Webhooks Not Received
 
-- Verify Linear webhook URL matches `ATMIKO_BASE_URL/linear-webhook` (the legacy `/webhook` path still works but is deprecated)
-- Check Atmiko logs for incoming webhook attempts
+- Verify Linear webhook URL matches `MIKO_BASE_URL/linear-webhook` (the legacy `/webhook` path still works but is deprecated)
+- Check Miko logs for incoming webhook attempts
 - Ensure your public URL is accessible
 
 ### Repository Not Processing
 
-- Check that the repository is in your config (`~/.atmiko/config.json`)
-- Verify Linear tokens are valid with `node "$ATMIKO_ENTRY" check-tokens`
-- Ensure the issue is assigned to Atmiko in Linear
+- Check that the repository is in your config (`~/.miko/config.json`)
+- Verify Linear tokens are valid with `node "$MIKO_ENTRY" check-tokens`
+- Ensure the issue is assigned to Miko in Linear
 
 ### Claude Code Not Working
 
@@ -376,10 +376,10 @@ For detailed options, see the [Configuration File Reference](./CONFIG_FILE.md).
 
 ## Development Mode
 
-If you're developing Atmiko from source:
+If you're developing Miko from source:
 
 ```bash
-cd /path/to/atmiko
+cd /path/to/miko
 pnpm install
 
 cd apps/cli
@@ -388,6 +388,6 @@ pnpm link --global
 # In a separate terminal
 pnpm dev
 
-# Then run atmiko normally
-atmiko
+# Then run miko normally
+miko
 ```

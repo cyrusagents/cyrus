@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { CloudflareTunnelClient } from "atmiko-cloudflare-tunnel-client";
-import { createLogger, type ILogger } from "atmiko-core";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import { CloudflareTunnelClient } from "miko-cloudflare-tunnel-client";
+import { createLogger, type ILogger } from "miko-core";
 
 const ROBOTS_TXT = "User-agent: *\nDisallow: /\n";
 const ROBOTS_HEADER = "noindex, nofollow";
@@ -200,7 +200,7 @@ export class SharedApplicationServer {
 				if (connectionCount < requiredConnections) {
 					reject(
 						new Error(
-							`Timeout waiting for Cloudflare tunnel (${connectionCount}/${requiredConnections} connections). This is usually caused by firewall/VPN/proxy blocking cloudflared. See troubleshooting: https://github.com/nexmoe/atmiko/blob/main/docs/CLOUDFLARE_TUNNEL.md#troubleshooting`,
+							`Timeout waiting for Cloudflare tunnel (${connectionCount}/${requiredConnections} connections). This is usually caused by firewall/VPN/proxy blocking cloudflared. See troubleshooting: https://github.com/mikoagents/miko/blob/main/docs/CLOUDFLARE_TUNNEL.md#troubleshooting`,
 						),
 					);
 				}
@@ -317,7 +317,7 @@ export class SharedApplicationServer {
 
 			// Check if we should use direct Linear OAuth (when self-hosting)
 			const isExternalHost =
-				process.env.ATMIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+				process.env.MIKO_HOST_EXTERNAL?.toLowerCase().trim() === "true";
 			const useDirectOAuth = isExternalHost && process.env.LINEAR_CLIENT_ID;
 
 			const callbackBaseUrl = `http://${this.host}:${this.port}`;
@@ -326,7 +326,7 @@ export class SharedApplicationServer {
 			if (useDirectOAuth) {
 				// Use local OAuth authorize endpoint
 				authUrl = `${callbackBaseUrl}/oauth/authorize?callback=${encodeURIComponent(`${callbackBaseUrl}/callback`)}`;
-				this.logger.info(`Using direct OAuth mode (ATMIKO_HOST_EXTERNAL=true)`);
+				this.logger.info(`Using direct OAuth mode (MIKO_HOST_EXTERNAL=true)`);
 			} else {
 				// Use proxy OAuth endpoint
 				authUrl = `${proxyUrl}/oauth/authorize?callback=${encodeURIComponent(`${callbackBaseUrl}/callback`)}`;

@@ -5,11 +5,11 @@ import type {
 	ResolvedCodexSandbox,
 } from "../backend/types.js";
 
-/** Stable id for the per-thread permission profile Atmiko builds. */
-export const ATMIKO_SANDBOX_PROFILE_ID = "atmiko-sandbox";
+/** Stable id for the per-thread permission profile Miko builds. */
+export const MIKO_SANDBOX_PROFILE_ID = "miko-sandbox";
 
 /**
- * Atmiko filesystem sandbox intent (subset of the agent SDK `SandboxSettings`).
+ * Miko filesystem sandbox intent (subset of the agent SDK `SandboxSettings`).
  * Paths are expected absolute by the time they reach here (the EdgeWorker layer
  * resolves `~`/`.`/relative entries before plumbing them in).
  *
@@ -18,9 +18,9 @@ export const ATMIKO_SANDBOX_PROFILE_ID = "atmiko-sandbox";
  * `allowRead`/`allowWrite`. Anything else (e.g. the home directory) is denied.
  * `denyRead` is honored by omission — a denied path simply never appears in the
  * allow-list. Sub-path denies inside an allowed root are not expressible (and
- * not needed by Atmiko's deny-broad / allow-narrow posture).
+ * not needed by Miko's deny-broad / allow-narrow posture).
  */
-export interface AtmikoSandboxFilesystem {
+export interface MikoSandboxFilesystem {
 	allowRead?: string[];
 	allowWrite?: string[];
 	denyRead?: string[];
@@ -35,7 +35,7 @@ export interface SandboxResolveInput {
 	writableRoots: string[];
 	networkAccess: boolean;
 	/** When present, produces a granular `profile`; otherwise a `workspace-mode`. */
-	sandboxSettings?: AtmikoSandboxFilesystem;
+	sandboxSettings?: MikoSandboxFilesystem;
 }
 
 function uniqueAbsolute(paths: string[]): string[] {
@@ -98,7 +98,7 @@ export function resolveCodexSandbox(
 
 	return {
 		kind: "profile",
-		profileId: ATMIKO_SANDBOX_PROFILE_ID,
+		profileId: MIKO_SANDBOX_PROFILE_ID,
 		filesystem,
 		networkAccess,
 	};

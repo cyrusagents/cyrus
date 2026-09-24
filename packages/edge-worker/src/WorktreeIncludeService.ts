@@ -6,8 +6,8 @@ import {
 	readFileSync,
 } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { createLogger, type ILogger } from "atmiko-core";
 import ignore, { type Ignore } from "ignore";
+import { createLogger, type ILogger } from "miko-core";
 
 /**
  * Service responsible for handling .worktreeinclude file processing

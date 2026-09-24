@@ -10,7 +10,7 @@
  * kernel OOM killer).
  */
 
-import type { IAgentRunner } from "atmiko-core";
+import type { IAgentRunner } from "miko-core";
 
 /**
  * Counting semaphore with FIFO waiters and a live-adjustable limit.

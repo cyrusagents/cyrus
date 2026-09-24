@@ -1,4 +1,4 @@
-import type { AskUserQuestionInput, IIssueTrackerService } from "atmiko-core";
+import type { AskUserQuestionInput, IIssueTrackerService } from "miko-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AskUserQuestionHandler } from "../src/AskUserQuestionHandler.js";
 
