@@ -101,8 +101,50 @@ function normalizeCursorModel(
 				{ id: "fast", value: grok[3] ? "true" : "false" },
 			],
 		};
+	// Grok 4.7 CLI ids are `grok-4.7-<effort>[-fast]` (optional `cursor-`
+	// prefix). The SDK parameter is `reasoning_effort`, not `effort`.
+	// Do not add `context`: models.list advertises it, but Agent.send
+	// rejects the selection as invalid parameters.
+	const grok47 = /^(?:cursor-)?grok-4\.7-(low|medium|high|xhigh)(-fast)?$/.exec(
+		lowered,
+	);
+	if (grok47)
+		return {
+			id: "grok-4.7",
+			params: [
+				{ id: "reasoning_effort", value: grok47[1]! },
+				{ id: "fast", value: grok47[2] ? "true" : "false" },
+			],
+		};
 	if (lowered === "gpt-5" || lowered === "auto") return { id: "default" };
 	return { id: model };
+}
+
+function effortParamValue(
+	params: Array<{ id: string; value: string }> | undefined,
+): string | undefined {
+	return params?.find(
+		(param) => param.id === "effort" || param.id === "reasoning_effort",
+	)?.value;
+}
+
+function hasExplicitEffort(
+	params: Array<{ id: string; value: string }> | undefined,
+): boolean {
+	return (
+		params?.some(
+			(param) => param.id === "effort" || param.id === "reasoning_effort",
+		) ?? false
+	);
+}
+
+function catalogParamsForRuntime(
+	modelId: string,
+	params: Array<{ id: string; value: string }>,
+): Array<{ id: string; value: string }> {
+	// grok-4.7's catalog default includes `context`, which Agent.send rejects.
+	if (modelId !== "grok-4.7") return params;
+	return params.filter((param) => param.id !== "context");
 }
 
 function createAssistantToolUseMessage(
@@ -505,16 +547,16 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 			const apiKey = this.config.cursorApiKey ?? process.env.CURSOR_API_KEY;
 			let normalizedModel = normalizeCursorModel(this.config.model);
 			const { Agent, Cursor } = await import("@cursor/sdk");
-			if (
-				normalizedModel &&
-				!normalizedModel.params?.some((param) => param.id === "effort")
-			) {
+			if (normalizedModel && !hasExplicitEffort(normalizedModel.params)) {
 				try {
 					const models = await Cursor.models.list({ apiKey });
-					const defaults = models
-						.find((model) => model.id === normalizedModel?.id)
-						?.variants?.find((variant) => variant.isDefault)?.params;
-					if (defaults?.length) {
+					const defaults = catalogParamsForRuntime(
+						normalizedModel.id,
+						models
+							.find((model) => model.id === normalizedModel?.id)
+							?.variants?.find((variant) => variant.isDefault)?.params ?? [],
+					);
+					if (defaults.length) {
 						const params = new Map(
 							defaults.map((param) => [param.id, param.value]),
 						);
@@ -1155,8 +1197,8 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		const sessionId = this.sessionInfo?.sessionId || crypto.randomUUID();
 		const selection = this.agent?.model ?? this.selectedModel;
 		const reasoningEffort =
-			selection?.params?.find((param) => param.id === "effort")?.value ??
-			this.selectedModel?.params?.find((param) => param.id === "effort")?.value;
+			effortParamValue(selection?.params) ??
+			effortParamValue(this.selectedModel?.params);
 		const fastValue =
 			selection?.params?.find((param) => param.id === "fast")?.value ??
 			this.selectedModel?.params?.find((param) => param.id === "fast")?.value;

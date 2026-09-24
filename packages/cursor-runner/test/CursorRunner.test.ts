@@ -336,10 +336,87 @@ describe("CursorRunner (SDK adapter)", () => {
 		);
 	});
 
+	it("keeps an explicit Grok 4.7 selector without merging catalog context", async () => {
+		sdkMock.__install({ events: [] });
+		sdkMock.listModels.mockResolvedValue([
+			{
+				id: "grok-4.7",
+				variants: [
+					{
+						isDefault: true,
+						params: [
+							{ id: "context", value: "500k" },
+							{ id: "reasoning_effort", value: "high" },
+							{ id: "fast", value: "true" },
+						],
+					},
+				],
+			},
+		]);
+		const runner = new CursorRunner({
+			workingDirectory: tempWorkspace(),
+			model: "cursor-grok-4.7-xhigh-fast",
+		});
+		await runner.start("hi");
+		expect(sdkMock.listModels).not.toHaveBeenCalled();
+		expect(sdkMock.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: {
+					id: "grok-4.7",
+					params: [
+						{ id: "reasoning_effort", value: "xhigh" },
+						{ id: "fast", value: "true" },
+					],
+				},
+			}),
+		);
+		expect(runner.getMessages()[0]).toMatchObject({
+			model: "grok-4.7",
+			reasoningEffort: "xhigh",
+			fastMode: true,
+		});
+	});
+
+	it("drops grok-4.7 catalog context because the agent runtime rejects it", async () => {
+		sdkMock.__install({ events: [] });
+		sdkMock.listModels.mockResolvedValue([
+			{
+				id: "grok-4.7",
+				variants: [
+					{
+						isDefault: true,
+						params: [
+							{ id: "context", value: "500k" },
+							{ id: "reasoning_effort", value: "high" },
+							{ id: "fast", value: "true" },
+						],
+					},
+				],
+			},
+		]);
+		await new CursorRunner({
+			workingDirectory: tempWorkspace(),
+			model: "grok-4.7",
+		}).start("hi");
+		expect(sdkMock.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: {
+					id: "grok-4.7",
+					params: [
+						{ id: "reasoning_effort", value: "high" },
+						{ id: "fast", value: "true" },
+					],
+				},
+			}),
+		);
+	});
+
 	it.each([
 		["cursor-grok-4.6-high", "grok-4.6", "high", "false"],
 		["cursor-grok-4.6-xhigh-fast", "grok-4.6", "xhigh", "true"],
 		["cursor-grok-4.5-low", "grok-4.5", "low", "false"],
+		["grok-4.7-high", "grok-4.7", "high", "false"],
+		["cursor-grok-4.7-xhigh-fast", "grok-4.7", "xhigh", "true"],
 	])("maps CLI selector %s to SDK parameters on create and resume", async (model, id, effort, fast) => {
 		sdkMock.__install({ events: [] });
 		for (const resumeSessionId of [undefined, "agent-existing"]) {
@@ -356,7 +433,10 @@ describe("CursorRunner (SDK adapter)", () => {
 				model: {
 					id,
 					params: [
-						{ id: "effort", value: effort },
+						{
+							id: id === "grok-4.7" ? "reasoning_effort" : "effort",
+							value: effort,
+						},
 						{ id: "fast", value: fast },
 					],
 				},

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Cursor Grok 4.7 sessions now accept reasoning-effort and Fast selectors, avoid unsupported model parameters, and display the selected effort in task history. ([#15](https://github.com/nexmoe/atmiko/pull/15))
+
 ### Changed
 - Renamed the product to Atmiko, including the `atmiko` CLI, `ATMIKO_*` environment variables, `~/.atmiko` configuration, setup skills, integration names, and repository links. ([#10](https://github.com/nexmoe/atmiko/pull/10))
 - Source installations resolve the selected ref to an exact recorded commit; use `--ref <commit>` for reproducible installs. ([#10](https://github.com/nexmoe/atmiko/pull/10))
