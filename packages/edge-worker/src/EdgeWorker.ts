@@ -89,6 +89,7 @@ import {
 	extractCommentBody,
 	extractCommentId,
 	extractCommentUrl,
+	extractInstallationId,
 	extractPRBaseBranchRef,
 	extractPRBranchRef,
 	extractPRNumber,
@@ -1111,18 +1112,22 @@ export class EdgeWorker extends EventEmitter {
 		// Register the /github-webhook endpoint
 		this.gitHubEventTransport.register();
 
-		// Initialize GitHub App token provider for self-hosted users
+		// Initialize GitHub App token provider for self-hosted users.
+		// Tokens are minted per webhook installation.id when present; the env
+		// GITHUB_APP_INSTALLATION_ID is only a fallback default.
 		const appId = process.env.GITHUB_APP_ID;
 		const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
-		if (appId && installationId) {
-			const pemPath = join(this.mikoHome, "github-app.pem");
+		const pemPath = join(this.mikoHome, "github-app.pem");
+		if (appId && existsSync(pemPath)) {
 			this.gitHubAppTokenProvider = new GitHubAppTokenProvider({
 				appId,
-				installationId,
+				installationId: installationId || undefined,
 				privateKeyPath: pemPath,
 			});
 			this.logger.info(
-				"GitHub App token provider initialized (self-hosted mode)",
+				installationId
+					? "GitHub App token provider initialized (self-hosted mode, env installation fallback)"
+					: "GitHub App token provider initialized (self-hosted mode, mint from webhook installation.id)",
 			);
 		}
 
@@ -1459,7 +1464,16 @@ export class EdgeWorker extends EventEmitter {
 		if (event.installationToken) return event.installationToken;
 		if (this.gitHubAppTokenProvider) {
 			try {
-				return await this.gitHubAppTokenProvider.getToken();
+				const fromEvent =
+					event &&
+					typeof event === "object" &&
+					"payload" in event &&
+					(event as GitHubWebhookEvent).payload
+						? extractInstallationId(event as GitHubWebhookEvent)
+						: null;
+				const installationId =
+					fromEvent != null ? String(fromEvent) : undefined;
+				return await this.gitHubAppTokenProvider.getToken(installationId);
 			} catch (error) {
 				this.logger.warn(
 					"Failed to mint GitHub App installation token, falling back to GITHUB_TOKEN",

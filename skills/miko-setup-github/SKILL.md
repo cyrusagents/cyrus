@@ -332,6 +332,17 @@ grep -c '^GITHUB_APP_INSTALLATION_ID=.' ~/.miko/.env
 
 Must return 1.
 
+
+
+## Multi-organization / personal account installs
+
+For one Public GitHub App serving multiple orgs or a personal account:
+
+1. Make the App **Public**, then Install it on each account/org that should send webhooks.
+2. Keep using a single webhook URL (`MIKO_BASE_URL/github-webhook`).
+3. Restrict which repos Miko actually works on via `~/.miko/config.json` (`self-add-repo`).
+4. Self-hosted Miko mints App tokens from each webhook's `installation.id`. `GITHUB_APP_INSTALLATION_ID` remains an optional fallback when an event has no installation (not required for normal App webhooks).
+
 ## Completion
 
 > ✓ GitHub CLI authenticated

@@ -222,4 +222,52 @@ describe("GitHubAppTokenProvider", () => {
 
 		fetchSpy.mockRestore();
 	});
+
+	it("mints and caches tokens per installation id", async () => {
+		const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({ token: "ghs_install_1", expires_at: expiresAt }),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({ token: "ghs_install_2", expires_at: expiresAt }),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+			);
+
+		const provider = new GitHubAppTokenProvider({
+			appId: "12345",
+			privateKeyPath: pemPath,
+		});
+
+		const t1 = await provider.getToken("111");
+		const t2 = await provider.getToken("222");
+		const t1Again = await provider.getToken("111");
+
+		expect(t1).toBe("ghs_install_1");
+		expect(t2).toBe("ghs_install_2");
+		expect(t1Again).toBe("ghs_install_1");
+		expect(fetchSpy).toHaveBeenCalledTimes(2);
+		expect(fetchSpy.mock.calls[0][0]).toBe(
+			"https://api.github.com/app/installations/111/access_tokens",
+		);
+		expect(fetchSpy.mock.calls[1][0]).toBe(
+			"https://api.github.com/app/installations/222/access_tokens",
+		);
+
+		fetchSpy.mockRestore();
+	});
+
+	it("throws when no installation id is available", async () => {
+		const provider = new GitHubAppTokenProvider({
+			appId: "12345",
+			privateKeyPath: pemPath,
+		});
+		await expect(provider.getToken()).rejects.toThrow("No installation id");
+	});
 });

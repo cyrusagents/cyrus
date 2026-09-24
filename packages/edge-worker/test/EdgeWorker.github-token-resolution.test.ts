@@ -175,6 +175,22 @@ describe("EdgeWorker.resolveGitHubToken precedence (CYHOST-913)", () => {
 
 		const token = await resolve({}, repository, provider);
 		expect(token).toBe("ghs_minted");
-		expect(provider.getToken).toHaveBeenCalled();
+		expect(provider.getToken).toHaveBeenCalledWith(undefined);
+	});
+
+	it("passes webhook installation.id to the App token provider", async () => {
+		const provider = {
+			getToken: vi.fn().mockResolvedValue("ghs_from_event_install"),
+		};
+		const event = {
+			payload: { installation: { id: 999001 } },
+		};
+		const token = await resolve(
+			event as { installationToken?: string },
+			repository,
+			provider,
+		);
+		expect(token).toBe("ghs_from_event_install");
+		expect(provider.getToken).toHaveBeenCalledWith("999001");
 	});
 });
