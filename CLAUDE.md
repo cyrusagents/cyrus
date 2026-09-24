@@ -251,6 +251,20 @@ For a detailed visual representation of how these components interact and map Cl
 
 ## Testing Best Practices
 
+### Proportionate Verification
+
+Follow the canonical [verification policy](skills/verify-and-ship/SKILL.md#2-quality-checks).
+Every change needs appropriate verification, not necessarily new automated tests
+or a full-suite run. Routine release scripts, packaging, CI, documentation, and
+instruction edits often need only syntax checks, a safe dry run, install smoke
+checks, or direct review. Add tests for concrete consequential failures when
+ongoing protection outweighs maintenance. Avoid brittle text/source assertions,
+implementation-mirroring tests, and scaffolding that costs more than it protects.
+Preserve safeguards against wrong artifact publication, unintended stable-tag
+moves, invalid release evidence, and other consequential regressions. Choose by
+behavior and risk, never filenames alone; retain required CI gates and relevant
+functional F1 validation.
+
 ### Prompt Assembly Tests
 
 When working with prompt assembly tests in `packages/edge-worker/test/prompt-assembly*.test.ts`:
@@ -399,7 +413,7 @@ The agent automatically moves issues to the "started" state when assigned. Linea
 
 3. **Git Worktrees**: When processing issues, the agent creates separate git worktrees. If a `cyrus-setup.sh` script exists in the repository root, it's executed in new worktrees for project-specific initialization. Symmetrically, if a `cyrus-teardown.sh` script exists in the repository root, it's executed in the worktree directory immediately before the worktree is removed when the issue reaches a terminal state (completed / canceled / deleted).
 
-4. **Testing**: Uses Vitest for all packages. Run tests before committing changes.
+4. **Testing**: Uses Vitest for automated tests. Choose proportionate pre-commit validation using the policy above; do not add tests solely because a file changed.
 
 5. **Sandbox Egress Proxy & CA Certificates**: When sandbox is enabled, the egress proxy generates a CA cert at `~/.cyrus/certs/cyrus-egress-ca.pem` for TLS interception. Per-session env vars are set in `RunnerConfigBuilder.buildSandboxConfig()` to cover most tools:
    - `NODE_EXTRA_CA_CERTS` (Node.js), `GIT_SSL_CAINFO` (Git), `SSL_CERT_FILE` (OpenSSL/Ruby), `REQUESTS_CA_BUNDLE` / `PIP_CERT` (Python), `CURL_CA_BUNDLE` (curl/OpenSSL), `CARGO_HTTP_CAINFO` (Rust), `AWS_CA_BUNDLE` (AWS CLI), `DENO_CERT` (Deno)
@@ -499,9 +513,8 @@ When working on this codebase, follow these practices:
    - Use appropriate subsections: `### Added`, `### Changed`, `### Fixed`, `### Removed`
    - Include brief, clear descriptions of what was changed and why
    - **Include the PR number/link**: If the PR is already created, include the link (e.g., `([#123](https://github.com/ceedaragents/cyrus/pull/123))`). If not, create the PR first, then update the changelog with the link, commit, and push.
-   - Run `pnpm test:packages` to ensure all package tests pass
-   - Run `pnpm typecheck` to verify TypeScript compilation
-   - Consider running `pnpm build` to ensure the build succeeds
+   - Run relevant existing checks per the verification policy; use `pnpm test:packages:run` when package-wide regression coverage is warranted
+   - Run `pnpm typecheck` and `pnpm build` when affected by the change or required by repository hooks/CI
 
 2. **Internal Changelog**:
    - For internal development changes, refactors, tooling updates, or other non-user-facing modifications, update `CHANGELOG.internal.md`.

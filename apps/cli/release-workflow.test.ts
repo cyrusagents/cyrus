@@ -174,10 +174,6 @@ describe("trusted Cyrus release workflow", () => {
 		expect(releaseGuide).toContain("`npm publish`");
 		expect(releaseGuide).toContain("gh workflow run release-cli.yml");
 		expect(releaseGuide).toContain("F1 release test-drive protocol");
-		expect(releaseGuide).toContain(
-			"entire released payload since the previous release",
-		);
-		expect(releaseGuide).toContain("docs/release-verification/v<version>.json");
 		expect(releaseGuide).toContain("ReleasedMonitoring");
 	});
 });

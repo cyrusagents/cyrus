@@ -41,7 +41,7 @@ Preserve historical reports.
 | Actual change | Validation choice |
 | --- | --- |
 | PR #1502 artifact workflow and isolated installer tooling, without the separate agent-identity feature | Workflow/script tests, bundle integrity, isolated install and CLI smoke checks; no unrelated identity F1 fixture or report. |
-| README wording or instruction-only policy such as CYPACK-1537 | Review consistency, links, and policy examples; no F1 report. Release-validator edits additionally need focused gate tests. |
+| README wording or instruction-only policy such as CYPACK-1537 | Review consistency, links, and policy examples; no F1 report. Release-validator edits use proportionate verification; retain tests for consequential evidence-acceptance failures. |
 | Runtime routing fix plus documentation | F1 scenario asserting changed routing; documentation checks for the rest. |
 | EdgeWorker auth, routing, or session lifecycle | Relevant F1 scenarios asserting identity isolation, selected repository, or session continuation/termination as changed. |
 | F1 RPC command, fixture execution, or activity renderer behavior | Exercise the changed harness path end-to-end and its unit/integration tests. Editing only F1 documentation still uses documentation checks. |
