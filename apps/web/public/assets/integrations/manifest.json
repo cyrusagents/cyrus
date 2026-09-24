@@ -1,0 +1,60 @@
+[
+	{
+		"name": "linear",
+		"source": "https://www.atcyrus.com/images/integrations-app-icons/linear-app-icon.webp",
+		"file": "assets/integrations/linear.webp"
+	},
+	{
+		"name": "claude",
+		"source": "https://www.atcyrus.com/images/integrations-app-icons/claude-app-icon.webp",
+		"file": "assets/integrations/claude.webp"
+	},
+	{
+		"name": "openai",
+		"source": "https://www.atcyrus.com/images/integrations-app-icons/openai-app-icon.webp",
+		"file": "assets/integrations/openai.webp"
+	},
+	{
+		"name": "cursor",
+		"source": "https://www.atcyrus.com/images/integrations-app-icons/cursor-app-icon-light.webp",
+		"file": "assets/integrations/cursor.webp"
+	},
+	{
+		"name": "github",
+		"source": "https://www.atcyrus.com/images/integrations-app-icons/github-app-icon.webp",
+		"file": "assets/integrations/github.webp"
+	},
+	{
+		"name": "slack",
+		"source": "https://www.atcyrus.com/images/integrations-app-icons/slack-app-icon.webp",
+		"file": "assets/integrations/slack.webp"
+	},
+	{
+		"name": "gitlab",
+		"source": "https://macosicons.com/icon/gitlab-S12XX4PAcU",
+		"download": "https://s3-new.macosicons.com/macosicons/parse/Gitlab_S12XX4PAcU_icns-b72f0244b2.icns",
+		"author": "Pierre",
+		"file": "assets/integrations/gitlab.png"
+	},
+	{
+		"name": "zulip",
+		"source": "https://macosicons.com/icon/zulip-My1LX6BG80",
+		"download": "https://s3-new.macosicons.com/macosicons/parse/Zulip_My1LX6BG80_icns-749c3f83c4.icns",
+		"author": "metagroove",
+		"file": "assets/integrations/zulip.png"
+	},
+	{
+		"name": "gemini",
+		"source": "https://macosicons.com/icon/gemini-z0UyZ2GW0D",
+		"download": "https://s3-new.macosicons.com/macosicons/parse/Gemini_z0UyZ2GW0D_icns-7b3d659091.icns",
+		"author": "dmnksanchez90",
+		"file": "assets/integrations/gemini.png"
+	},
+	{
+		"name": "opencode",
+		"source": "https://macosicons.com/icon/opencode-asORabqMmv",
+		"download": "https://s3-new.macosicons.com/macosicons/parse/OpenCode_asORabqMmv_icns-a84f51e60d.icns",
+		"author": "iigiovanni",
+		"file": "assets/integrations/opencode.png"
+	}
+]

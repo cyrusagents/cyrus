@@ -21,7 +21,10 @@
 	},
 	"overrides": [
 		{
-			"includes": ["packages/edge-worker/board/fluid/**"],
+			"includes": [
+				"packages/edge-worker/board/fluid/**",
+				"apps/web/public/assets/reference.css"
+			],
 			"formatter": { "enabled": false },
 			"linter": { "enabled": false },
 			"assist": { "enabled": false }

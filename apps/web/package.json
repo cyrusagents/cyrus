@@ -1,0 +1,22 @@
+{
+	"name": "@atmiko/web",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev --host 127.0.0.1",
+		"build": "astro build",
+		"preview": "astro preview --host 127.0.0.1",
+		"typecheck": "astro check"
+	},
+	"dependencies": {
+		"astro": "^7.3.3",
+		"@tailwindcss/vite": "^4.2.0",
+		"tailwindcss": "^4.2.0"
+	},
+	"devDependencies": {
+		"@astrojs/check": "^0.9.10",
+		"typescript": "^5.9.3",
+		"vite": "^8.0.16"
+	}
+}

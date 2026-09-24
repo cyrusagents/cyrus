@@ -1,0 +1,126 @@
+---
+const repo = "https://github.com/nexmoe/atmiko";
+const columns: {
+	title: string;
+	links: { label: string; href: string; external?: boolean }[];
+}[] = [
+	{
+		title: "With Miko",
+		links: [
+			{ label: "Features", href: "#features" },
+			{ label: "Integrations", href: "#integrations" },
+			{ label: "Workflows", href: "#use-cases" },
+			{ label: "Board", href: "#video" },
+			{ label: "BYOK", href: "#pricing" },
+			{ label: "Questions", href: "#faqs" },
+			{ label: "Get started", href: "#get-started" },
+		],
+	},
+	{
+		title: "Guides",
+		links: [
+			{
+				label: "Quick start",
+				href: `${repo}#self-hosted-setup`,
+				external: true,
+			},
+			{
+				label: "Self-hosting",
+				href: `${repo}/blob/main/docs/SELF_HOSTING.md`,
+				external: true,
+			},
+			{
+				label: "Configuration",
+				href: `${repo}/blob/main/docs/CONFIG_FILE.md`,
+				external: true,
+			},
+			{
+				label: "Status board",
+				href: `${repo}/blob/main/docs/STATUS_BOARD.md`,
+				external: true,
+			},
+			{
+				label: "Setup scripts",
+				href: `${repo}/blob/main/docs/SETUP_SCRIPTS.md`,
+				external: true,
+			},
+			{
+				label: "Install from source",
+				href: `${repo}/blob/main/docs/FORK_INSTALLATION.md`,
+				external: true,
+			},
+		],
+	},
+	{
+		title: "Project",
+		links: [
+			{ label: "Source", href: repo, external: true },
+			{
+				label: "Changelog",
+				href: `${repo}/blob/main/CHANGELOG.md`,
+				external: true,
+			},
+			{
+				label: "Contributing",
+				href: `${repo}/blob/main/CONTRIBUTING.md`,
+				external: true,
+			},
+			{ label: "License", href: `${repo}/blob/main/LICENSE`, external: true },
+			{ label: "Issues", href: `${repo}/issues`, external: true },
+		],
+	},
+];
+---
+
+<footer class="miko-footer">
+  <div class="miko-footer-inner">
+    <div class="miko-footer-brand">
+      <a class="miko-portrait" href="#hero" aria-label="Miko">
+        <span class="site-logo" aria-hidden="true">
+          <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
+        </span>
+      </a>
+      <a class="miko-footer-name" href="#hero">Miko</a>
+      <p class="miko-footer-line">Your background coding teammate.</p>
+      <p class="miko-footer-meta">Miko Agent · Apache 2.0</p>
+      <div class="miko-footer-tools">
+        <button
+          class="miko-theme"
+          type="button"
+          data-theme-toggle
+          aria-label="Switch to dark mode"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              fill-rule="evenodd"
+              d="M12 3a9 9 0 1 0 8.48 12.03A7 7 0 0 1 12 3Zm0 2a5 5 0 0 0 0 10 7 7 0 0 0 5.66-2.9A7 7 0 0 1 12 5Z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+        <a class="miko-footer-repo" href={repo} target="_blank" rel="noopener noreferrer">nexmoe/atmiko</a>
+      </div>
+    </div>
+    <nav class="miko-footer-nav" aria-label="Footer">
+      {columns.map((column) => (
+        <div class="miko-footer-col">
+          <h2>{column.title}</h2>
+          <ul>
+            {column.links.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  target={link.external ? "_blank" : undefined}
+                  rel={link.external ? "noopener noreferrer" : undefined}
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  </div>
+</footer>

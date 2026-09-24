@@ -1,0 +1,266 @@
+---
+import LinearDemo from "./LinearDemo.astro";
+---
+
+<section id="use-cases">
+  <div class="mx-auto grid w-full max-w-[var(--site-content-width)] gap-12 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-2 lg:gap-16">
+    <div class="flex flex-col gap-8 text-center lg:min-h-[730px] lg:py-10 lg:text-left">
+      <h2 class="font-display text-3xl tracking-tight text-balance sm:text-4xl">
+        Give your agent a task
+      </h2>
+      <div class="flex flex-col gap-2">
+        <div class="flex justify-center gap-2 lg:justify-start">
+          <button
+            aria-pressed="true"
+            class="inline-flex h-8 cursor-pointer items-center rounded-full pr-3 text-sm font-medium whitespace-nowrap transition-[background-color,color,box-shadow,padding] duration-300 pl-[5px]"
+            data-pill-item="true"
+            style="background: light-dark(var(--color-brand-cyan-100), color-mix(in srgb, var(--color-brand-cyan-550) 32%, transparent)); color: light-dark(var(--color-brand-cyan-400), var(--color-brand-cyan-300)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand-cyan-300) 28%, transparent);"
+            type="button"
+          >
+            <span class="flex shrink-0 overflow-hidden" style="width: 28px;">
+              <span
+                class="flex shrink-0 items-center justify-center overflow-hidden rounded-full"
+                style="width: 22px; height: 22px; --fg: #54B9A6; --bg: light-dark(var(--color-brand-cyan-100), color-mix(in srgb, var(--color-brand-cyan-550) 32%, var(--color-theme-bg))); opacity: 1; transform: none;"
+              >
+                <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
+              </span>
+            </span>
+            Bug Fixes
+          </button>
+          <button
+            aria-pressed="false"
+            class="inline-flex h-8 cursor-pointer items-center rounded-full pr-3 text-sm font-medium whitespace-nowrap transition-[background-color,color,box-shadow,padding] duration-300 pl-3 text-theme-text/70"
+            data-pill-item="true"
+            style="background: transparent; box-shadow: inset 0 0 0 1px var(--color-theme-border);"
+            type="button"
+          >
+            <span class="flex shrink-0 overflow-hidden" style="width: 0px;">
+              <span
+                class="flex shrink-0 items-center justify-center overflow-hidden rounded-full"
+                style="width: 22px; height: 22px; --fg: #885CF5; --bg: light-dark(var(--color-brand-violet-100), color-mix(in srgb, var(--color-brand-violet-550) 32%, var(--color-theme-bg))); opacity: 0; transform: scale(0);"
+              >
+                <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
+              </span>
+            </span>
+            Feature Work
+          </button>
+          <button
+            aria-pressed="false"
+            class="inline-flex h-8 cursor-pointer items-center rounded-full pr-3 text-sm font-medium whitespace-nowrap transition-[background-color,color,box-shadow,padding] duration-300 pl-3 text-theme-text/70"
+            data-pill-item="true"
+            style="background: transparent; box-shadow: inset 0 0 0 1px var(--color-theme-border);"
+            type="button"
+          >
+            <span class="flex shrink-0 overflow-hidden" style="width: 0px;">
+              <span
+                class="flex shrink-0 items-center justify-center overflow-hidden rounded-full"
+                style="width: 22px; height: 22px; --fg: #EB4699; --bg: light-dark(var(--color-brand-magenta-100), color-mix(in srgb, var(--color-brand-magenta-550) 32%, var(--color-theme-bg))); opacity: 0; transform: scale(0);"
+              >
+                <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
+              </span>
+            </span>
+            PR Follow-ups
+          </button>
+        </div>
+        <div class="flex justify-center gap-2 lg:justify-start">
+          <button
+            aria-pressed="false"
+            class="inline-flex h-8 cursor-pointer items-center rounded-full pr-3 text-sm font-medium whitespace-nowrap transition-[background-color,color,box-shadow,padding] duration-300 pl-3 text-theme-text/70"
+            data-pill-item="true"
+            style="background: transparent; box-shadow: inset 0 0 0 1px var(--color-theme-border);"
+            type="button"
+          >
+            <span class="flex shrink-0 overflow-hidden" style="width: 0px;">
+              <span
+                class="flex shrink-0 items-center justify-center overflow-hidden rounded-full"
+                style="width: 22px; height: 22px; --fg: #5BC67A; --bg: light-dark(var(--color-brand-green-100), color-mix(in srgb, var(--color-brand-green-550) 32%, var(--color-theme-bg))); opacity: 0; transform: scale(0);"
+              >
+                <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
+              </span>
+            </span>
+            Test Coverage
+          </button>
+          <button
+            aria-pressed="false"
+            class="inline-flex h-8 cursor-pointer items-center rounded-full pr-3 text-sm font-medium whitespace-nowrap transition-[background-color,color,box-shadow,padding] duration-300 pl-3 text-theme-text/70"
+            data-pill-item="true"
+            style="background: transparent; box-shadow: inset 0 0 0 1px var(--color-theme-border);"
+            type="button"
+          >
+            <span class="flex shrink-0 overflow-hidden" style="width: 0px;">
+              <span
+                class="flex shrink-0 items-center justify-center overflow-hidden rounded-full"
+                style="width: 22px; height: 22px; --fg: #EA4045; --bg: light-dark(var(--color-brand-red-100), color-mix(in srgb, var(--color-brand-red-550) 32%, var(--color-theme-bg))); opacity: 0; transform: scale(0);"
+              >
+                <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
+              </span>
+            </span>
+            Code Questions
+          </button>
+        </div>
+        <div class="flex justify-center gap-2 lg:justify-start">
+          <button
+            aria-pressed="false"
+            class="inline-flex h-8 cursor-pointer items-center rounded-full pr-3 text-sm font-medium whitespace-nowrap transition-[background-color,color,box-shadow,padding] duration-300 pl-3 text-theme-text/70"
+            data-pill-item="true"
+            style="background: transparent; box-shadow: inset 0 0 0 1px var(--color-theme-border);"
+            type="button"
+          >
+            <span class="flex shrink-0 overflow-hidden" style="width: 0px;">
+              <span
+                class="flex shrink-0 items-center justify-center overflow-hidden rounded-full"
+                style="width: 22px; height: 22px; --fg: #EA4045; --bg: light-dark(var(--color-brand-red-100), color-mix(in srgb, var(--color-brand-red-550) 32%, var(--color-theme-bg))); opacity: 0; transform: scale(0);"
+              >
+                <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
+              </span>
+            </span>
+            Refactoring
+          </button>
+          <button
+            aria-pressed="false"
+            class="inline-flex h-8 cursor-pointer items-center rounded-full pr-3 text-sm font-medium whitespace-nowrap transition-[background-color,color,box-shadow,padding] duration-300 pl-3 text-theme-text/70"
+            data-pill-item="true"
+            style="background: transparent; box-shadow: inset 0 0 0 1px var(--color-theme-border);"
+            type="button"
+          >
+            <span class="flex shrink-0 overflow-hidden" style="width: 0px;">
+              <span
+                class="flex shrink-0 items-center justify-center overflow-hidden rounded-full"
+                style="width: 22px; height: 22px; --fg: #3C82F6; --bg: light-dark(var(--color-brand-blue-100), color-mix(in srgb, var(--color-brand-blue-550) 32%, var(--color-theme-bg))); opacity: 0; transform: scale(0);"
+              >
+                <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
+              </span>
+            </span>
+            Documentation
+          </button>
+        </div>
+        <div class="flex justify-center gap-2 lg:justify-start">
+          <button
+            aria-pressed="false"
+            class="inline-flex h-8 cursor-pointer items-center rounded-full pr-3 text-sm font-medium whitespace-nowrap transition-[background-color,color,box-shadow,padding] duration-300 pl-3 text-theme-text/70"
+            data-pill-item="true"
+            style="background: transparent; box-shadow: inset 0 0 0 1px var(--color-theme-border);"
+            type="button"
+          >
+            <span class="flex shrink-0 overflow-hidden" style="width: 0px;">
+              <span
+                class="flex shrink-0 items-center justify-center overflow-hidden rounded-full"
+                style="width: 22px; height: 22px; --fg: #ED712E; --bg: light-dark(var(--color-brand-orange-100), color-mix(in srgb, var(--color-brand-orange-550) 32%, var(--color-theme-bg))); opacity: 0; transform: scale(0);"
+              >
+                <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
+              </span>
+            </span>
+            Parallel Tasks
+          </button>
+        </div>
+      </div>
+      <div class="hidden lg:mt-2 lg:block lg:min-h-[6.5rem]">
+        <p
+          class="max-w-md text-pretty text-base"
+          style="opacity: 1; transform: none;"
+        >
+          <span class="text-theme-text font-medium">
+            Turn a report into a fix.
+          </span>{" "}
+          <span class="text-theme-text-muted font-normal">
+            Investigates the repository, implements the change, runs checks, and returns a pull request for review.
+          </span>
+        </p>
+      </div>
+      <div class="hidden lg:block">
+        <a
+          class="relative isolate inline-flex shrink-0 items-center justify-center border-0 text-sm font-medium transition-[color,background-color,border-color,filter] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&amp;&gt;[data-slot=icon]]:-mx-0.5 [&amp;&gt;[data-slot=icon]]:shrink-0 gap-x-3 px-[18px] py-2.5 sm:text-sm [&amp;&gt;[data-slot=icon]]:size-5 [&amp;&gt;[data-slot=icon]]:sm:size-4 bg-[--btn-bg] text-[--btn-text] hover:bg-[--btn-hover] rounded-full [--btn-bg:color-mix(in_srgb,hsl(var(--primary))_3%,hsl(var(--card)))] [--btn-hover:color-mix(in_srgb,hsl(var(--primary))_7%,hsl(var(--card)))] [--btn-text:theme(colors.primary)]"
+          data-fill="soft"
+          href="https://github.com/nexmoe/atmiko/tree/main/skills"
+        >
+          <span
+            aria-hidden="true"
+            class="absolute left-1/2 top-1/2 size-[max(100%,2.75rem)] -translate-x-1/2 -translate-y-1/2 [@media(pointer:fine)]:hidden"
+          ></span>
+          Explore the workflows
+        </a>
+      </div>
+    </div>
+    <div class="min-w-0" style="min-height: 730px;">
+      <div
+        class="baby-grok-bot-mount-fade relative w-full"
+
+        style="height: 730px;"
+      >
+        <div class="relative z-10 h-full w-full">
+          <div
+            class="relative w-full overflow-hidden rounded-xs"
+            style="height: 730px;"
+          >
+            <div
+              class="absolute top-1/2 left-[calc(50%-150px)] -translate-y-1/2"
+              style="width: 300px; height: 650px;"
+            >
+              <div
+                class="absolute rounded-r-[2px]"
+                style="right: -3px; top: 120px; height: 42px; width: 4px; background: linear-gradient(to right, rgb(28, 28, 30), rgb(44, 44, 46));"
+              ></div>
+              <div
+                class="absolute rounded-l-[2px]"
+                style="left: -3px; top: 75px; height: 20px; width: 4px; background: linear-gradient(to left, rgb(28, 28, 30), rgb(44, 44, 46));"
+              ></div>
+              <div
+                class="absolute rounded-l-[2px]"
+                style="left: -3px; top: 105px; height: 36px; width: 4px; background: linear-gradient(to left, rgb(28, 28, 30), rgb(44, 44, 46));"
+              ></div>
+              <div
+                class="absolute rounded-l-[2px]"
+                style="left: -3px; top: 150px; height: 36px; width: 4px; background: linear-gradient(to left, rgb(28, 28, 30), rgb(44, 44, 46));"
+              ></div>
+              <div
+                class="relative overflow-hidden"
+                style="width: 300px; height: 650px; border-radius: 44px; clip-path: inset(0px round 44px); contain: paint; padding: 4px;"
+              >
+                <div
+                  class="absolute inset-0"
+                  style="border-radius: 44px; background-color: rgb(58, 58, 60);"
+                ></div>
+                <div
+                  class="bg-theme-product-editor border-theme-border relative h-full w-full overflow-hidden border mobile-phone-screen"
+                  style="border-radius: 40px; clip-path: inset(0px round 40px); contain: paint;"
+                >
+                  <div class="relative h-[48px]" style="background: #fff;">
+                    <div
+                      class="absolute left-1/2 z-50 -translate-x-1/2 rounded-full bg-black"
+                      style="top: 8px; width: 96px; height: 28px;"
+                    ></div>
+                  </div>
+                  <LinearDemo />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p
+      class="max-w-md text-pretty text-base mx-auto hidden text-center sm:block lg:hidden"
+      style="opacity: 1; transform: none;"
+    >
+      <span class="text-theme-text font-medium">
+        Turn a report into a fix.
+      </span>{" "}
+      <span class="text-theme-text-muted font-normal">
+        Investigates the repository, implements the change, runs checks, and returns a pull request for review.
+      </span>
+    </p>
+  </div>
+  <div class="mt-10 flex justify-center lg:hidden">
+    <a
+      class="relative isolate inline-flex shrink-0 items-center justify-center border-0 text-sm font-medium transition-[color,background-color,border-color,filter] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&amp;&gt;[data-slot=icon]]:-mx-0.5 [&amp;&gt;[data-slot=icon]]:shrink-0 gap-x-3 px-[18px] py-2.5 sm:text-sm [&amp;&gt;[data-slot=icon]]:size-5 [&amp;&gt;[data-slot=icon]]:sm:size-4 bg-[--btn-bg] text-[--btn-text] hover:bg-[--btn-hover] rounded-full [--btn-bg:color-mix(in_srgb,hsl(var(--primary))_3%,hsl(var(--card)))] [--btn-hover:color-mix(in_srgb,hsl(var(--primary))_7%,hsl(var(--card)))] [--btn-text:theme(colors.primary)]"
+      data-fill="soft"
+      href="https://github.com/nexmoe/atmiko/tree/main/skills"
+    >
+      <span
+        aria-hidden="true"
+        class="absolute left-1/2 top-1/2 size-[max(100%,2.75rem)] -translate-x-1/2 -translate-y-1/2 [@media(pointer:fine)]:hidden"
+      ></span>
+      Explore the workflows
+    </a>
+  </div>
+</section>

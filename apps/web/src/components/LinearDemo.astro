@@ -1,0 +1,38 @@
+---
+import LinearIcon from "./LinearIcon.astro";
+import "../styles/linear-demo.css";
+import cases from "../data/use-cases.json";
+---
+
+<div class="linear-demo" aria-label="Interactive Linear issue examples">
+  <div class="linear-toolbar" aria-hidden="true">
+    <span class="linear-glass linear-back"><LinearIcon name="back" size={19} /></span>
+    <span class="linear-glass linear-actions"><LinearIcon name="edit" size={18} /><LinearIcon name="more" size={18} /></span>
+  </div>
+  {cases.map((item, index) => (
+    <article class="linear-issue" data-linear-case={item.id} hidden={item.id !== "bug-fixes"} tabindex="0" aria-label={item.title}>
+      <div class="linear-issue-body">
+        <h3>{item.title}</h3>
+        <p class="linear-description">{item.request}</p>
+        <h4>Acceptance criteria</h4>
+        <p class="linear-description">{item.followup}</p>
+        {item.id !== "code-questions" && <div class="linear-pr"><img src="/assets/integrations/github.webp" alt="GitHub" /><span>{item.title}</span><small>#{851 + index}</small><i class="linear-pull"><LinearIcon name="pull" size={15} /></i></div>}
+      </div>
+      <section class="linear-activity" aria-label="Issue activity">
+        <div class="linear-activity-heading"><h4>Activity</h4><div><span class="linear-avatar linear-person"><img class="avatar-photo" src="/assets/avatars/nexmoe.jpeg" alt="" /></span><span class="linear-avatar"><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span></div></div>
+        <div class="linear-response">
+          <header><span class="linear-avatar"><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span><strong>Miko</strong><span>· 17h ago</span><span class="linear-more" aria-hidden="true"><LinearIcon name="more" size={16} /></span></header>
+          <div class="linear-response-body"><p>{item.result}</p>{item.id !== "code-questions" && <span class="linear-link"><LinearIcon name="external" size={13} /> Pull request ready for review</span>}</div>
+          <footer><LinearIcon name="delegate" size={14} /> <strong>nexmoe</strong> delegated the issue to <strong>Miko</strong></footer>
+        </div>
+        <details class="linear-history">
+          <summary>Show 2 earlier activities</summary>
+          <div class="linear-event"><strong>Miko</strong> · {item.progress}<small>18 hours ago</small></div>
+          <div class="linear-event">Miko changed status from Backlog to In Progress<small>19 hours ago</small></div>
+        </details>
+        <div class="linear-event linear-last">Nexmoe created the issue<small>19 hours ago</small></div>
+      </section>
+    </article>
+  ))}
+  <div class="linear-composer" aria-hidden="true"><span class="linear-glass linear-tool"><LinearIcon name="pickaxe" size={22} /></span><span class="linear-glass linear-comment"><LinearIcon name="plus" size={20} /> Comment</span><span class="linear-glass linear-tool linear-agent"><LinearIcon name="agent" size={22} /></span></div>
+</div>

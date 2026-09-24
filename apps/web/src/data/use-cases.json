@@ -1,0 +1,82 @@
+[
+	{
+		"id": "refactoring",
+		"description": "Make room for the next change. Delegate bounded cleanup and review the diff and checks before merging.",
+		"title": "Extract shared event validation",
+		"issue": "ENG-278",
+		"request": "Extract repeated event validation into a helper. Keep behavior unchanged.",
+		"progress": "I compared the handlers and identified the shared validation.",
+		"followup": "Keep the public interfaces unchanged too.",
+		"result": "The helper is extracted. Existing tests pass and interfaces are unchanged."
+	},
+	{
+		"id": "pr-follow-ups",
+		"description": "Continue in the review thread. Mention your configured agent in a GitHub PR or GitLab MR to request the next change.",
+		"title": "Handle null states from the PR review",
+		"issue": "ENG-279",
+		"request": "Handle the reviewer’s null-state feedback in this PR.",
+		"progress": "I read the thread and updated the null handling.",
+		"followup": "Can you cover it with a regression test?",
+		"result": "The test passes. Follow-up changes are ready on this branch."
+	},
+	{
+		"id": "parallel-tasks",
+		"description": "Move independent work forward. Tasks get separate Git worktrees and can be routed to different repositories.",
+		"title": "Validate incoming API requests",
+		"issue": "ENG-280",
+		"request": "Take the API validation issue while the dashboard task runs.",
+		"progress": "I’ve selected the API repository and created its own worktree.",
+		"followup": "Keep the dashboard branch untouched.",
+		"result": "The API change is ready in its own branch for review."
+	},
+	{
+		"id": "test-coverage",
+		"description": "Cover the overlooked cases. Ask for tests around a concrete behavior using your project’s existing patterns.",
+		"title": "Cover invalid configuration reloads",
+		"issue": "ENG-281",
+		"request": "Add tests for missing values and invalid settings during config reload.",
+		"progress": "I found the configuration loader and its existing suite.",
+		"followup": "Make sure the last valid configuration stays active.",
+		"result": "Both cases are covered. The affected test suite passes."
+	},
+	{
+		"id": "feature-work",
+		"description": "Keep small features moving. Give Miko acceptance criteria and let it work through implementation, checks, and a pull request.",
+		"title": "Add a persistent task status filter",
+		"issue": "ENG-282",
+		"request": "Add a status filter to the task list. Preserve the selection after a reload.",
+		"progress": "I’ve checked the existing list patterns and added a persistent filter.",
+		"followup": "Please include the empty state.",
+		"result": "Added the empty state and checked the affected components. Ready for review."
+	},
+	{
+		"id": "code-questions",
+		"description": "Get answers grounded in code. Investigate how a system works before deciding what to change.",
+		"title": "Explain repository routing",
+		"issue": "ENG-283",
+		"request": "How does an incoming issue choose a repository?",
+		"progress": "I’m tracing selectors, labels, and repository defaults.",
+		"followup": "Include references to the implementation.",
+		"result": "The explanation is ready with code references. No files changed."
+	},
+	{
+		"id": "bug-fixes",
+		"description": "Turn a report into a fix. Investigates the repository, implements the change, runs checks, and returns a pull request for review.",
+		"title": "Fix duplicate tasks on webhook retries",
+		"issue": "ENG-284",
+		"request": "A retried webhook creates a second task. Reproduce it, make processing idempotent, and add a test.",
+		"progress": "I found the duplicate delivery path. I’m adding an idempotency check and regression coverage.",
+		"followup": "Also cover an empty payload.",
+		"result": "The fix and tests are ready. Review the branch before merging."
+	},
+	{
+		"id": "documentation",
+		"description": "Keep the docs close to reality. Trace the implementation and update setup steps and configuration examples.",
+		"title": "Update the setup guide",
+		"issue": "ENG-285",
+		"request": "Update the setup guide to match the source installer.",
+		"progress": "I’m checking the installer and launcher against the current instructions.",
+		"followup": "Include how to open the status board.",
+		"result": "The guide now covers installation, launch, and the local /board."
+	}
+]

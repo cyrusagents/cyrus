@@ -1,0 +1,50 @@
+---
+const links = [
+	{ href: "#features", label: "Features" },
+	{ href: "#integrations", label: "Integrations" },
+	{ href: "#use-cases", label: "Workflows" },
+	{ href: "#video", label: "Board" },
+	{ href: "#pricing", label: "BYOK" },
+];
+const repo = "https://github.com/nexmoe/atmiko";
+---
+
+<header class="miko-header">
+  <div
+    aria-hidden="true"
+    class="bg-background/85 pointer-events-none absolute inset-0 -z-10"
+    style="-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)"
+  ></div>
+  <div class="mx-auto w-full px-4 lg:px-6 xl:max-w-7xl relative">
+    <div
+      aria-hidden="true"
+      class="bg-border/50 pointer-events-none absolute inset-x-0 bottom-0 h-px"
+    ></div>
+    <div class="miko-header-bar">
+      <a class="miko-brand" href="#hero" aria-label="Miko">
+        <span class="site-logo" aria-hidden="true">
+          <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
+        </span>
+        <span class="miko-brand-name">Miko</span>
+      </a>
+      <nav class="miko-nav" aria-label="Primary">
+        <ul>
+          {links.map((link) => (
+            <li>
+              <a href={link.href}>{link.label}</a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div class="miko-header-actions">
+        <a class="miko-chip miko-chip-ghost miko-chip-desktop" href={repo} target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a class="miko-chip miko-chip-solid" href="#get-started">Get started</a>
+        <button class="miko-menu" type="button" aria-label="Open navigation" aria-expanded="false" data-mobile-menu>
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M20 7H4V5h16v2ZM20 13H4v-2h16v2ZM20 19H4v-2h16v2Z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</header>

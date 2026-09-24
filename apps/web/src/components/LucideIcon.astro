@@ -1,0 +1,49 @@
+---
+import icon0 from "../icons/lucide/arrow-left.svg?raw";
+import icon1 from "../icons/lucide/arrow-right.svg?raw";
+import icon13 from "../icons/lucide/at-sign.svg?raw";
+import icon8 from "../icons/lucide/calendar-days.svg?raw";
+import icon11 from "../icons/lucide/check.svg?raw";
+import icon5 from "../icons/lucide/chevron-down.svg?raw";
+import icon4 from "../icons/lucide/circle-help.svg?raw";
+import icon7 from "../icons/lucide/hash.svg?raw";
+import icon2 from "../icons/lucide/history.svg?raw";
+import icon9 from "../icons/lucide/message-square.svg?raw";
+import icon15 from "../icons/lucide/mic.svg?raw";
+import icon10 from "../icons/lucide/plus.svg?raw";
+import icon3 from "../icons/lucide/search.svg?raw";
+import icon16 from "../icons/lucide/send-horizontal.svg?raw";
+import icon12 from "../icons/lucide/smile.svg?raw";
+import icon6 from "../icons/lucide/square-pen.svg?raw";
+import icon14 from "../icons/lucide/video.svg?raw";
+
+const icons = {
+	"arrow-left": icon0,
+	"arrow-right": icon1,
+	history: icon2,
+	search: icon3,
+	"circle-help": icon4,
+	"chevron-down": icon5,
+	"square-pen": icon6,
+	hash: icon7,
+	"calendar-days": icon8,
+	"message-square": icon9,
+	plus: icon10,
+	check: icon11,
+	smile: icon12,
+	"at-sign": icon13,
+	video: icon14,
+	mic: icon15,
+	"send-horizontal": icon16,
+};
+interface Props {
+	name: keyof typeof icons;
+	size?: number;
+	class?: string;
+}
+const { name, size = 18, class: className } = Astro.props;
+const content = icons[name]
+	.replace(/^[\s\S]*?<svg[^>]*>/, "")
+	.replace(/<\/svg>[\s\S]*$/, "");
+---
+<svg class:list={["lucide", `lucide-${name}`, className]} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><Fragment set:html={content} /></svg>

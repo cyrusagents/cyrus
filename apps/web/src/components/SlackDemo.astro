@@ -1,0 +1,111 @@
+---
+import cases from "../data/use-cases.json";
+import Icon from "./LucideIcon.astro";
+import "../styles/slack-demo.css";
+const channels = [
+	{ name: "engineering", caseId: "bug-fixes" },
+	{ name: "product", caseId: "feature-work" },
+	{ name: "docs", caseId: "documentation" },
+];
+---
+<div class="slack-demo" aria-label="Slack interactive example">
+  <div class="slack-topbar">
+    <div class="slack-window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+    <span class="slack-history-icons" aria-hidden="true"><Icon name="arrow-left" /><Icon name="arrow-right" /><Icon name="history" /></span>
+    <label class="slack-search"><Icon name="search" /><input type="search" placeholder="Search Acme" aria-label="Search demo channels" /><span aria-hidden="true">⌘ K</span></label>
+    <span class="slack-help"><Icon name="circle-help" /></span>
+  </div>
+  <div class="slack-layout">
+    <aside class="slack-sidebar" aria-label="Demo channels">
+      <div class="slack-workspace-title"><strong>Acme</strong><Icon name="chevron-down" size={14} /><Icon name="square-pen" /></div>
+      <div class="slack-channel-label"><Icon name="chevron-down" size={13} /> Channels</div>
+      <div class="slack-channel-list">
+        {channels.map((channel, i) => <button type="button" data-slack-channel={channel.name} aria-pressed={i === 0}><Icon name="hash" size={17} /> {channel.name}</button>)}
+      </div>
+      <p class="slack-search-empty" hidden>No matching channels</p>
+      <div class="slack-channel-label slack-dms-label"><Icon name="chevron-down" size={13} /> Direct messages</div>
+      <div class="slack-dm"><span class="slack-mini-avatar"><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span> Miko <span class="slack-online"></span></div>
+      <div class="slack-dm"><span class="slack-mini-avatar slack-mini-person"><img class="avatar-photo" src="/assets/avatars/nexmoe.jpeg" alt="" /></span> Nexmoe <small>you</small></div>
+      <div class="slack-sidebar-footer"><span class="slack-online"></span> Your team, connected.</div>
+    </aside>
+    <div class="slack-channel-main">
+      {channels.map((channel, i) => {
+        const task = cases.find(item => item.id === channel.caseId)!;
+        return <section class="slack-channel-panel" data-slack-panel={channel.name} hidden={i !== 0} aria-label={`${channel.name} channel`}>
+          <header class="slack-channel-header"><h3><Icon name="hash" size={21} /> {channel.name} <Icon name="chevron-down" size={14} /></h3><div class="slack-members" aria-label="3 channel members"><span><img class="avatar-photo" src="/assets/avatars/nexmoe.jpeg" alt="" /></span><span><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span><small>3</small></div><Icon name="calendar-days" /></header>
+          <div class="slack-channel-tabs"><span class="slack-selected-tab"><Icon name="message-square" /> Messages</span><Icon name="plus" size={16} /></div>
+          <div class="slack-messages" tabindex="0" aria-label={`${channel.name} messages`}>
+            <div class="slack-date-divider"><span>Today <Icon name="chevron-down" size={14} /></span></div>
+            <article class="slack-message"><span class="slack-avatar slack-avatar-person"><img class="avatar-photo" src="/assets/avatars/nexmoe.jpeg" alt="" /></span><div><div class="slack-message-meta"><strong>Nexmoe</strong><time>10:24 AM</time></div><p><span class="slack-mention">@Miko</span> {task.request}</p><span class="slack-reaction" aria-label="Eyes, one reaction">👀 <span>1</span></span></div></article>
+            <article class="slack-message"><span class="slack-avatar slack-avatar-bot"><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span><div><div class="slack-message-meta"><strong>Miko</strong><span class="slack-app-badge">APP</span><time>10:24 AM</time></div><p>{task.progress}</p></div></article>
+            <article class="slack-message"><span class="slack-avatar slack-avatar-person"><img class="avatar-photo" src="/assets/avatars/nexmoe.jpeg" alt="" /></span><div><div class="slack-message-meta"><strong>Nexmoe</strong><time>10:25 AM</time></div><p>{task.followup}</p></div></article>
+            <article class="slack-message"><span class="slack-avatar slack-avatar-bot"><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span><div><div class="slack-message-meta"><strong>Miko</strong><span class="slack-app-badge">APP</span><time>10:28 AM</time></div><p>{task.result}</p><div class="slack-result"><img src="/assets/integrations/github.webp" alt="GitHub" width="16" height="16"/><div><strong>{task.title}</strong><span>Ready for review <span aria-hidden="true">·</span> Checks passed</span></div><Icon name="check" /></div><span class="slack-reaction" aria-label="Raised hands, one reaction">🙌 <span>1</span></span></div></article>
+          </div>
+          <form class="slack-composer" data-slack-form>
+            <textarea rows="2" aria-label={`Message ${channel.name}`} placeholder={`Message # ${channel.name}`} required></textarea>
+            <div class="slack-composer-bottom"><span aria-hidden="true" class="slack-composer-tools"><span class="slack-add-context"><Icon name="plus" size={18} /></span><Icon name="smile" size={18} /><Icon name="at-sign" size={18} /><span class="slack-tool-divider"></span><Icon name="video" /><Icon name="mic" /></span><button type="submit" aria-label="Send demo message"><Icon name="send-horizontal" /></button></div>
+          </form>
+          <p class="slack-demo-note" role="status">Interactive preview · messages stay in this demo</p>
+        </section>;
+      })}
+    </div>
+  </div>
+</div>
+
+<script>
+  const demo = document.querySelector<HTMLElement>(".slack-demo");
+  const buttons = demo?.querySelectorAll<HTMLButtonElement>("[data-slack-channel]");
+  buttons?.forEach(button => button.addEventListener("click", () => {
+    buttons.forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+    demo?.querySelectorAll<HTMLElement>("[data-slack-panel]").forEach(panel => {
+      panel.hidden = panel.dataset.slackPanel !== button.dataset.slackChannel;
+    });
+  }));
+  demo?.querySelector<HTMLInputElement>('input[type="search"]')?.addEventListener("input", event => {
+    const query = (event.target as HTMLInputElement).value.trim().toLowerCase();
+    buttons?.forEach(button => { button.hidden = !button.dataset.slackChannel?.includes(query); });
+    const empty = demo.querySelector<HTMLElement>(".slack-search-empty");
+    if (empty) empty.hidden = Array.from(buttons ?? []).some(button => !button.hidden);
+  });
+  demo?.querySelectorAll<HTMLFormElement>("[data-slack-form]").forEach(form => {
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const input = form.querySelector("textarea")!;
+      const text = input.value.trim();
+      if (!text) return;
+      const panel = form.closest<HTMLElement>("[data-slack-panel]")!;
+      const message = document.createElement("article");
+      message.className = "slack-message";
+      const avatar = document.createElement("span");
+      avatar.className = "slack-avatar slack-avatar-person";
+      const photo = document.createElement("img");
+      photo.className = "avatar-photo";
+      photo.src = "/assets/avatars/nexmoe.jpeg";
+      photo.alt = "";
+      avatar.append(photo);
+      const body = document.createElement("div");
+      const meta = document.createElement("div");
+      meta.className = "slack-message-meta";
+      const author = document.createElement("strong");
+      author.textContent = "Nexmoe";
+      const time = document.createElement("span");
+      time.textContent = "Just now";
+      meta.append(author, time);
+      const content = document.createElement("p");
+      content.textContent = text;
+      body.append(meta, content);
+      message.append(avatar, body);
+      const messages = panel.querySelector<HTMLElement>(".slack-messages")!;
+      messages.append(message);
+      messages.scrollTop = messages.scrollHeight;
+      input.value = "";
+      panel.querySelector<HTMLElement>(".slack-demo-note")!.textContent = "Message added to this preview. Set up Miko to connect your Slack.";
+    });
+    form.querySelector("textarea")?.addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+  });
+</script>
