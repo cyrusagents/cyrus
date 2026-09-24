@@ -244,6 +244,11 @@ export class WorkerService {
 			opencodeDefaultFallbackModel:
 				process.env.MIKO_OPENCODE_DEFAULT_FALLBACK_MODEL ||
 				edgeConfig.opencodeDefaultFallbackModel,
+			grokDefaultModel:
+				process.env.MIKO_GROK_DEFAULT_MODEL || edgeConfig.grokDefaultModel,
+			grokDefaultFallbackModel:
+				process.env.MIKO_GROK_DEFAULT_FALLBACK_MODEL ||
+				edgeConfig.grokDefaultFallbackModel,
 			inferOpenCodeRunnerFromProviderModel:
 				parseBooleanEnv(
 					process.env.MIKO_INFER_OPENCODE_RUNNER_FROM_PROVIDER_MODEL,
@@ -255,6 +260,7 @@ export class WorkerService {
 					| "codex"
 					| "cursor"
 					| "opencode"
+					| "grok"
 					| undefined) || edgeConfig.defaultRunner,
 			webhookBaseUrl: process.env.MIKO_BASE_URL,
 			serverPort: parsePort(process.env.MIKO_SERVER_PORT, DEFAULT_SERVER_PORT),

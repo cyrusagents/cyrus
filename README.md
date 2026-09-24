@@ -7,7 +7,7 @@
 
 </div>
 
-Miko is a self-hosted development agent for Linear, GitHub, GitLab, Slack, and Zulip. It works on tasks in isolated Git worktrees and sends progress and results back to your team. Choose Claude Code, Codex, Cursor, Gemini, or OpenCode as the coding engine.
+Miko is a self-hosted development agent for Linear, GitHub, GitLab, Slack, and Zulip. It works on tasks in isolated Git worktrees and sends progress and results back to your team. Choose Claude Code, Codex, Cursor, Gemini, OpenCode, or Grok as the coding engine.
 
 Use your own API keys or coding-agent subscriptions.
 

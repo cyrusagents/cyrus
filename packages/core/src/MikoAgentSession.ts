@@ -95,6 +95,7 @@ export interface MikoAgentSession {
 	codexSessionId?: string; // Codex-specific session ID (assigned once it initializes)
 	cursorSessionId?: string; // Cursor-specific session ID (assigned once it initializes)
 	opencodeSessionId?: string; // OpenCode-specific session ID (assigned once it initializes)
+	grokSessionId?: string; // Grok-specific session ID (assigned once it initializes)
 	agentRunner?: IAgentRunner;
 	metadata?: {
 		model?: string;
@@ -117,6 +118,7 @@ export interface MikoAgentSessionEntry {
 	codexSessionId?: string; // originated in this Codex session (if using Codex)
 	cursorSessionId?: string; // originated in this Cursor session (if using Cursor)
 	opencodeSessionId?: string; // originated in this OpenCode session (if using OpenCode)
+	grokSessionId?: string; // originated in this Grok session (if using Grok)
 	linearAgentActivityId?: string; // got assigned this ID in linear, after creation, for this 'agent activity'
 	type: "user" | "assistant" | "system" | "result";
 	content: string;

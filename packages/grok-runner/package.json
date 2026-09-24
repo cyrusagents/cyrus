@@ -1,0 +1,35 @@
+{
+	"name": "miko-grok-runner",
+	"version": "0.2.72",
+	"description": "Grok CLI process wrapper for Miko",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/mikoagents/miko.git",
+		"directory": "packages/grok-runner"
+	},
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsgo",
+		"dev": "tsgo --watch",
+		"test": "vitest",
+		"test:run": "vitest run --passWithNoTests",
+		"typecheck": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"miko-core": "workspace:*",
+		"miko-simple-agent-runner": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
+		"vitest": "^4.1.11"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}

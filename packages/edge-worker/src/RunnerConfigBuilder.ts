@@ -397,6 +397,11 @@ export class RunnerConfigBuilder {
 			modelOverride = this.runnerSelector.getDefaultModelForRunner("opencode");
 			fallbackModelOverride =
 				this.runnerSelector.getDefaultFallbackModelForRunner("opencode");
+		} else if (input.session.grokSessionId && runnerType !== "grok") {
+			runnerType = "grok";
+			modelOverride = this.runnerSelector.getDefaultModelForRunner("grok");
+			fallbackModelOverride =
+				this.runnerSelector.getDefaultFallbackModelForRunner("grok");
 		}
 
 		// Log model override if found

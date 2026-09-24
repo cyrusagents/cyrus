@@ -41,6 +41,9 @@ export class RunnerSelectionService {
 		if (process.env.CURSOR_API_KEY) {
 			available.push("cursor");
 		}
+		if (process.env.XAI_API_KEY) {
+			available.push("grok");
+		}
 
 		if (available.length === 1 && available[0]) {
 			return available[0];
@@ -66,6 +69,9 @@ export class RunnerSelectionService {
 		}
 		if (runnerType === "opencode") {
 			return this.config.opencodeDefaultModel;
+		}
+		if (runnerType === "grok") {
+			return this.config.grokDefaultModel || "grok-4.6";
 		}
 		return this.config.codexDefaultModel || "gpt-5.5";
 	}
@@ -96,6 +102,9 @@ export class RunnerSelectionService {
 		if (runnerType === "opencode") {
 			return this.config.opencodeDefaultFallbackModel;
 		}
+		if (runnerType === "grok") {
+			return this.config.grokDefaultFallbackModel || "grok-4.5";
+		}
 		return "gpt-5";
 	}
 
@@ -121,11 +130,11 @@ export class RunnerSelectionService {
 	 * Determine runner type and model using labels + issue description tags.
 	 *
 	 * Supported description tags:
-	 * - [agent=claude|gemini|codex|cursor|opencode]
+	 * - [agent=claude|gemini|codex|cursor|opencode|grok]
 	 * - [model=<model-name>]
 	 *
 	 * Supported Linear label selectors:
-	 * - <provider>/<model>, where provider is claude, gemini, codex, cursor, or openai
+	 * - <provider>/<model>, where provider is claude, gemini, codex, cursor, grok, or openai
 	 * - opencode/<provider>/<model> for OpenCode provider-qualified models
 	 *
 	 * Precedence:
@@ -160,6 +169,7 @@ export class RunnerSelectionService {
 			codex: this.getDefaultModelForRunner("codex"),
 			cursor: this.getDefaultModelForRunner("cursor"),
 			opencode: this.getDefaultModelForRunner("opencode"),
+			grok: this.getDefaultModelForRunner("grok"),
 		};
 		const defaultFallbackByRunner: Record<RunnerType, string | undefined> = {
 			claude: this.getDefaultFallbackModelForRunner("claude"),
@@ -167,6 +177,7 @@ export class RunnerSelectionService {
 			codex: this.getDefaultFallbackModelForRunner("codex"),
 			cursor: this.getDefaultFallbackModelForRunner("cursor"),
 			opencode: this.getDefaultFallbackModelForRunner("opencode"),
+			grok: this.getDefaultFallbackModelForRunner("grok"),
 		};
 
 		const isCodexModel = (model: string): boolean =>
@@ -194,6 +205,7 @@ export class RunnerSelectionService {
 			) {
 				return "claude";
 			}
+			if (normalizedModel.startsWith("grok")) return "grok";
 			if (isCodexModel(normalizedModel)) return "codex";
 			return undefined;
 		};
@@ -236,6 +248,9 @@ export class RunnerSelectionService {
 			if (runnerType === "opencode") {
 				return defaultFallbackByRunner.opencode;
 			}
+			if (runnerType === "grok") {
+				return defaultFallbackByRunner.grok || "grok-4.5";
+			}
 			if (isCodexModel(normalizedModel)) {
 				return "gpt-5.2-codex";
 			}
@@ -245,6 +260,7 @@ export class RunnerSelectionService {
 		const resolveRunnerFromName = (name?: string): RunnerType | undefined => {
 			if (!name) return undefined;
 			if (name === "opencode") return "opencode";
+			if (name === "grok") return "grok";
 			if (name === "cursor") return "cursor";
 			if (name === "codex" || name === "openai") return "codex";
 			if (name === "gemini") return "gemini";
@@ -257,6 +273,9 @@ export class RunnerSelectionService {
 		): RunnerType | undefined => {
 			if (lowercaseLabels.includes("opencode")) {
 				return "opencode";
+			}
+			if (lowercaseLabels.includes("grok")) {
+				return "grok";
 			}
 			if (lowercaseLabels.includes("cursor")) {
 				return "cursor";
@@ -285,6 +304,11 @@ export class RunnerSelectionService {
 				);
 				if (opencodeMatch?.[1]) {
 					return { runnerType: "opencode", model: opencodeMatch[1] };
+				}
+
+				const grokMatch = label.match(/^grok\/([a-z0-9_.:/-]+)$/i);
+				if (grokMatch?.[1]) {
+					return { runnerType: "grok", model: grokMatch[1] };
 				}
 
 				const match = label.match(/^([a-z0-9_.-]+)\/([a-z0-9_.:/-]+)$/i);
@@ -335,6 +359,13 @@ export class RunnerSelectionService {
 			if (lowercaseLabels.includes("opus")) return "opus";
 			if (lowercaseLabels.includes("sonnet")) return "sonnet";
 			if (lowercaseLabels.includes("haiku")) return "haiku";
+
+			const grokModelLabel = lowercaseLabels.find((label) =>
+				label.startsWith("grok"),
+			);
+			if (grokModelLabel) {
+				return grokModelLabel;
+			}
 
 			return undefined;
 		};

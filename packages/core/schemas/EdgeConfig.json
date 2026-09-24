@@ -580,6 +580,12 @@
 		"opencodeDefaultFallbackModel": {
 			"type": "string"
 		},
+		"grokDefaultModel": {
+			"type": "string"
+		},
+		"grokDefaultFallbackModel": {
+			"type": "string"
+		},
 		"inferOpenCodeRunnerFromProviderModel": {
 			"type": "boolean"
 		},
@@ -604,7 +610,7 @@
 		},
 		"defaultRunner": {
 			"type": "string",
-			"enum": ["claude", "gemini", "codex", "cursor", "opencode"]
+			"enum": ["claude", "gemini", "codex", "cursor", "opencode", "grok"]
 		},
 		"defaultModel": {
 			"type": "string"

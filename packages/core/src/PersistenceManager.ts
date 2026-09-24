@@ -49,6 +49,7 @@ interface V2MikoAgentSession {
 	codexSessionId?: string;
 	cursorSessionId?: string;
 	opencodeSessionId?: string;
+	grokSessionId?: string;
 	metadata?: Record<string, unknown>;
 }
 
@@ -328,6 +329,7 @@ export class PersistenceManager {
 			codexSessionId: v2Session.codexSessionId,
 			cursorSessionId: v2Session.cursorSessionId,
 			opencodeSessionId: v2Session.opencodeSessionId,
+			grokSessionId: v2Session.grokSessionId,
 			metadata: v2Session.metadata,
 			// New field: structured issue context
 			issueContext,

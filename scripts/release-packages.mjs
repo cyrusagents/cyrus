@@ -45,6 +45,7 @@ export const releasePackages = [
 	{ directory: "packages/codex-runner", name: "miko-codex-runner" },
 	{ directory: "packages/cursor-runner", name: "miko-cursor-runner" },
 	{ directory: "packages/gemini-runner", name: "miko-gemini-runner" },
+	{ directory: "packages/grok-runner", name: "miko-grok-runner" },
 	{ directory: "packages/edge-worker", name: "miko-edge-worker" },
 	{ directory: "apps/cli", name: "miko" },
 ];

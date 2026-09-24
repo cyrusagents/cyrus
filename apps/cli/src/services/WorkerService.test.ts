@@ -105,6 +105,8 @@ describe("WorkerService", () => {
 			cursorDefaultFallbackModel: "gpt-5.4",
 			opencodeDefaultModel: "anthropic/claude-sonnet-4.5",
 			opencodeDefaultFallbackModel: "anthropic/claude-haiku-4.5",
+			grokDefaultModel: "grok-4.6",
+			grokDefaultFallbackModel: "grok-4.5",
 			inferOpenCodeRunnerFromProviderModel: true,
 			opencode: { config: { theme: "dark" } },
 			defaultRunner: "claude",

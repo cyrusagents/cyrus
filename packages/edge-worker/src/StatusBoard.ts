@@ -316,6 +316,7 @@ export class StatusBoard {
 					entry.geminiSessionId ??
 					entry.cursorSessionId ??
 					entry.opencodeSessionId ??
+					entry.grokSessionId ??
 					"";
 				const key = outputKey(runnerSessionId, log);
 				if (log.kind === "tool" || log.kind === "output") {

@@ -55,24 +55,6 @@ importers:
       '@sentry/node':
         specifier: ^10.65.0
         version: 10.65.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.218.0(@opentelemetry/api@1.9.1))
-      miko-claude-runner:
-        specifier: workspace:*
-        version: link:../../packages/claude-runner
-      miko-cloudflare-tunnel-client:
-        specifier: workspace:*
-        version: link:../../packages/cloudflare-tunnel-client
-      miko-config-updater:
-        specifier: workspace:*
-        version: link:../../packages/config-updater
-      miko-core:
-        specifier: workspace:*
-        version: link:../../packages/core
-      miko-edge-worker:
-        specifier: workspace:*
-        version: link:../../packages/edge-worker
-      miko-slack-event-transport:
-        specifier: workspace:*
-        version: link:../../packages/slack-event-transport
       commander:
         specifier: ^14.0.2
         version: 14.0.3
@@ -91,6 +73,24 @@ importers:
       fs-extra:
         specifier: ^11.3.0
         version: 11.3.4
+      miko-claude-runner:
+        specifier: workspace:*
+        version: link:../../packages/claude-runner
+      miko-cloudflare-tunnel-client:
+        specifier: workspace:*
+        version: link:../../packages/cloudflare-tunnel-client
+      miko-config-updater:
+        specifier: workspace:*
+        version: link:../../packages/config-updater
+      miko-core:
+        specifier: workspace:*
+        version: link:../../packages/core
+      miko-edge-worker:
+        specifier: workspace:*
+        version: link:../../packages/edge-worker
+      miko-slack-event-transport:
+        specifier: workspace:*
+        version: link:../../packages/slack-event-transport
       node-fetch:
         specifier: ^2.7.0
         version: 2.7.0(encoding@0.1.13)
@@ -119,6 +119,9 @@ importers:
 
   apps/f1:
     dependencies:
+      commander:
+        specifier: ^14.0.2
+        version: 14.0.3
       miko-claude-runner:
         specifier: workspace:*
         version: link:../../packages/claude-runner
@@ -131,9 +134,6 @@ importers:
       miko-slack-event-transport:
         specifier: workspace:*
         version: link:../../packages/slack-event-transport
-      commander:
-        specifier: ^14.0.2
-        version: 14.0.3
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -178,15 +178,15 @@ importers:
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
-      miko-core:
-        specifier: workspace:*
-        version: link:../core
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
       fs-extra:
         specifier: ^11.3.2
         version: 11.3.4
+      miko-core:
+        specifier: workspace:*
+        version: link:../core
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -253,12 +253,12 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: '>=1.30.0'
         version: 1.30.0(zod@4.3.6)
-      miko-core:
-        specifier: workspace:*
-        version: link:../core
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
+      miko-core:
+        specifier: workspace:*
+        version: link:../core
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -334,6 +334,24 @@ importers:
       '@ngrok/ngrok':
         specifier: ^1.5.1
         version: 1.7.0
+      chokidar:
+        specifier: ^4.0.3
+        version: 4.0.3
+      cron-parser:
+        specifier: ^5.10.1
+        version: 5.10.1
+      fastify:
+        specifier: ^5.12.1
+        version: 5.12.1
+      fastify-mcp:
+        specifier: ^2.1.0
+        version: 2.1.0(zod@4.3.6)
+      file-type:
+        specifier: ^21.3.2
+        version: 21.3.4
+      ignore:
+        specifier: ^7.0.5
+        version: 7.0.5
       miko-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
@@ -361,6 +379,9 @@ importers:
       miko-gitlab-event-transport:
         specifier: workspace:*
         version: link:../gitlab-event-transport
+      miko-grok-runner:
+        specifier: workspace:*
+        version: link:../grok-runner
       miko-linear-event-transport:
         specifier: workspace:*
         version: link:../linear-event-transport
@@ -379,24 +400,6 @@ importers:
       miko-zulip-event-transport:
         specifier: workspace:*
         version: link:../zulip-event-transport
-      chokidar:
-        specifier: ^4.0.3
-        version: 4.0.3
-      cron-parser:
-        specifier: ^5.10.1
-        version: 5.10.1
-      fastify:
-        specifier: ^5.12.1
-        version: 5.12.1
-      fastify-mcp:
-        specifier: ^2.1.0
-        version: 2.1.0(zod@4.3.6)
-      file-type:
-        specifier: ^21.3.2
-        version: 21.3.4
-      ignore:
-        specifier: ^7.0.5
-        version: 7.0.5
       node-forge:
         specifier: ^1.4.0
         version: 1.4.0
@@ -497,6 +500,12 @@ importers:
       '@linear/sdk':
         specifier: ^60.0.0
         version: 60.0.0(encoding@0.1.13)
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
+      fs-extra:
+        specifier: ^11.3.0
+        version: 11.3.4
       miko-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
@@ -506,12 +515,6 @@ importers:
       miko-simple-agent-runner:
         specifier: workspace:*
         version: link:../simple-agent-runner
-      dotenv:
-        specifier: ^16.6.1
-        version: 16.6.1
-      fs-extra:
-        specifier: ^11.3.0
-        version: 11.3.4
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -531,12 +534,12 @@ importers:
 
   packages/github-event-transport:
     dependencies:
-      miko-core:
-        specifier: workspace:*
-        version: link:../core
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
+      miko-core:
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -550,12 +553,31 @@ importers:
 
   packages/gitlab-event-transport:
     dependencies:
-      miko-core:
-        specifier: workspace:*
-        version: link:../core
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
+      miko-core:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.39
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260707.2
+        version: 7.0.0-dev.20260707.2
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(vite@8.0.16(@types/node@20.19.39)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.8.3))
+
+  packages/grok-runner:
+    dependencies:
+      miko-core:
+        specifier: workspace:*
+        version: link:../core
+      miko-simple-agent-runner:
+        specifier: workspace:*
+        version: link:../simple-agent-runner
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -572,12 +594,12 @@ importers:
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
-      miko-core:
-        specifier: workspace:*
-        version: link:../core
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
+      miko-core:
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -663,12 +685,12 @@ importers:
 
   packages/slack-event-transport:
     dependencies:
-      miko-core:
-        specifier: workspace:*
-        version: link:../core
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
+      miko-core:
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -682,12 +704,12 @@ importers:
 
   packages/zulip-event-transport:
     dependencies:
-      miko-core:
-        specifier: workspace:*
-        version: link:../core
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
+      miko-core:
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^20.0.0

@@ -44,6 +44,7 @@
 		"miko-linear-event-transport": "workspace:*",
 		"miko-mcp-tools": "workspace:*",
 		"miko-opencode-runner": "workspace:*",
+		"miko-grok-runner": "workspace:*",
 		"miko-simple-agent-runner": "workspace:*",
 		"miko-slack-event-transport": "workspace:*",
 		"miko-zulip-event-transport": "workspace:*",

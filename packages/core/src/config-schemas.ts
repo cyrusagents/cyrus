@@ -9,6 +9,7 @@ export const RunnerTypeSchema = z.enum([
 	"codex",
 	"cursor",
 	"opencode",
+	"grok",
 ]);
 export type RunnerType = z.infer<typeof RunnerTypeSchema>;
 
@@ -417,6 +418,12 @@ export const EdgeConfigSchema = z.object({
 
 	/** Default OpenCode fallback model if primary OpenCode model is unavailable */
 	opencodeDefaultFallbackModel: z.string().optional(),
+
+	/** Default Grok model to use across all repositories (e.g., "grok-4.6", "grok-4.5") */
+	grokDefaultModel: z.string().optional(),
+
+	/** Default Grok fallback model if primary Grok model is unavailable */
+	grokDefaultFallbackModel: z.string().optional(),
 
 	/** Infer OpenCode runner when a model selector uses OpenCode provider/model syntax (e.g., "openai/gpt-5.5", "anthropic/claude-sonnet-4.5") */
 	inferOpenCodeRunnerFromProviderModel: z.boolean().optional(),

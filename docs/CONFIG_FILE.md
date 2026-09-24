@@ -244,8 +244,21 @@ Implement the change in both repositories.
 | `[repos=frontend,backend]` | Select multiple repositories in the issue's Linear workspace. Separate names with commas, without spaces. |
 | `[repo=frontend#develop]` | Use `develop` as that repository's base branch. |
 | `[repos=frontend,backend#develop]` | Use `develop` as the base branch for every repository in this selector. |
-| `[agent=codex]` | Choose the configured agent harness. Other supported names include `claude`, `gemini`, `cursor`, and `opencode`. |
+| `[agent=codex]` | Choose the configured agent harness. Other supported names include `claude`, `gemini`, `cursor`, `opencode`, and `grok`. |
 | `[model=gpt-6-astra]` | Choose a model supported by that harness. |
+
+### Grok Build CLI
+
+Set `defaultRunner: "grok"` (or use the `grok` Linear/GitHub label / `[agent=grok]` description tag) to run sessions through the [Grok Build CLI](https://x.ai/cli).
+
+Optional config keys:
+
+- `grokDefaultModel` — default model id (built-in default: `grok-4.6`)
+- `grokDefaultFallbackModel` — fallback model id (built-in default: `grok-4.5`)
+
+Authenticate the CLI with `XAI_API_KEY`, or `grok login` / `grok login --device-auth` (alias: `--device-code`). Miko invokes:
+
+`grok --output-format streaming-messages-json --always-approve --cwd <workspace> --prompt-file <prompt> ...`
 
 Use separate tags for different base branches, such as `[repo=frontend#develop] [repo=backend#main]`. `[repo=frontend,backend]` is also accepted. Linear-escaped brackets are supported.
 

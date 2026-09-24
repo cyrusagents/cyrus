@@ -40,6 +40,8 @@ const RELOAD_MERGED_KEYS = [
 	"cursorDefaultFallbackModel",
 	"opencodeDefaultModel",
 	"opencodeDefaultFallbackModel",
+	"grokDefaultModel",
+	"grokDefaultFallbackModel",
 	"opencode",
 	"inferOpenCodeRunnerFromProviderModel",
 	"defaultRunner",
@@ -326,6 +328,11 @@ export class ConfigManager extends EventEmitter {
 				opencodeDefaultFallbackModel:
 					parsedConfig.opencodeDefaultFallbackModel ||
 					this.config.opencodeDefaultFallbackModel,
+				grokDefaultModel:
+					parsedConfig.grokDefaultModel || this.config.grokDefaultModel,
+				grokDefaultFallbackModel:
+					parsedConfig.grokDefaultFallbackModel ||
+					this.config.grokDefaultFallbackModel,
 				opencode: parsedConfig.opencode ?? this.config.opencode,
 				inferOpenCodeRunnerFromProviderModel:
 					parsedConfig.inferOpenCodeRunnerFromProviderModel ??

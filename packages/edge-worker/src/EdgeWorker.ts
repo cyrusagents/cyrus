@@ -128,6 +128,7 @@ import {
 	isNoteOnMergeRequest,
 	stripMention as stripGitLabMention,
 } from "miko-gitlab-event-transport";
+import { GrokRunner } from "miko-grok-runner";
 import {
 	LinearEventTransport,
 	LinearIssueTrackerService,
@@ -6076,6 +6077,8 @@ ${await this.loadSharedInstructions()}`;
 				return new CursorRunner(config);
 			case "opencode":
 				return new OpenCodeRunner(config);
+			case "grok":
+				return new GrokRunner(config);
 			default:
 				throw new Error(`Unknown runner type: ${runnerType satisfies never}`);
 		}
@@ -6583,13 +6586,16 @@ ${await this.loadSharedInstructions()}`;
 						? "cursor"
 						: session.opencodeSessionId
 							? "opencode"
-							: null;
+							: session.grokSessionId
+								? "grok"
+								: null;
 		const runnerSessionId =
 			session.claudeSessionId ??
 			session.geminiSessionId ??
 			session.codexSessionId ??
 			session.cursorSessionId ??
 			session.opencodeSessionId ??
+			session.grokSessionId ??
 			null;
 
 		const sessionSource = session.id.startsWith("automation-")
@@ -8066,13 +8072,15 @@ ${input.userComment}
 		const hasCursorSession = !isNewSession && Boolean(session.cursorSessionId);
 		const hasOpenCodeSession =
 			!isNewSession && Boolean(session.opencodeSessionId);
+		const hasGrokSession = !isNewSession && Boolean(session.grokSessionId);
 		const needsNewSession =
 			isNewSession ||
 			(!hasClaudeSession &&
 				!hasGeminiSession &&
 				!hasCodexSession &&
 				!hasCursorSession &&
-				!hasOpenCodeSession);
+				!hasOpenCodeSession &&
+				!hasGrokSession);
 
 		// Fetch system prompt based on labels
 
@@ -8117,7 +8125,9 @@ ${input.userComment}
 						? session.codexSessionId
 						: session.cursorSessionId
 							? session.cursorSessionId
-							: session.opencodeSessionId;
+							: session.opencodeSessionId
+								? session.opencodeSessionId
+								: session.grokSessionId;
 
 		console.log(
 			`[resumeAgentSession] needsNewSession=${needsNewSession}, resumeSessionId=${resumeSessionId ?? "none"}`,

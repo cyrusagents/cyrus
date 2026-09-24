@@ -47,6 +47,8 @@ describe("JSON Schema export", () => {
 				"codexDefaultModel",
 				"opencodeDefaultModel",
 				"opencodeDefaultFallbackModel",
+				"grokDefaultModel",
+				"grokDefaultFallbackModel",
 				"inferOpenCodeRunnerFromProviderModel",
 				"defaultRunner",
 				"defaultModel",
@@ -81,6 +83,7 @@ describe("JSON Schema export", () => {
 				"codex",
 				"cursor",
 				"opencode",
+				"grok",
 			]);
 		});
 

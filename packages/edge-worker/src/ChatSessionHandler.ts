@@ -597,6 +597,9 @@ export class ChatSessionHandler<TEvent> {
 		if (session.opencodeSessionId) {
 			return { sessionId: session.opencodeSessionId, runnerType: "opencode" };
 		}
+		if (session.grokSessionId) {
+			return { sessionId: session.grokSessionId, runnerType: "grok" };
+		}
 		return undefined;
 	}
 

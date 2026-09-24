@@ -171,4 +171,66 @@ describe("RunnerSelectionService", () => {
 		expect(selection.runnerType).toBe("claude");
 		expect(selection.modelOverride).toBe("sonnet");
 	});
+
+	it("supports explicit Grok default runner", () => {
+		const service = new RunnerSelectionService({
+			defaultRunner: "grok",
+			grokDefaultModel: "grok-4.6",
+			grokDefaultFallbackModel: "grok-4.5",
+		} as EdgeWorkerConfig);
+
+		expect(service.getDefaultRunner()).toBe("grok");
+		expect(service.getDefaultModelForRunner("grok")).toBe("grok-4.6");
+		expect(service.getDefaultFallbackModelForRunner("grok")).toBe("grok-4.5");
+	});
+
+	it("selects Grok from [agent=grok] description tag", () => {
+		const service = new RunnerSelectionService({
+			defaultRunner: "claude",
+		} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection(
+			[],
+			"[agent=grok]\n[model=grok-4.6]",
+		);
+
+		expect(selection.runnerType).toBe("grok");
+		expect(selection.modelOverride).toBe("grok-4.6");
+	});
+
+	it("selects Grok from grok label", () => {
+		const service = new RunnerSelectionService({
+			defaultRunner: "claude",
+		} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection(["grok"], "");
+		expect(selection.runnerType).toBe("grok");
+	});
+
+	it("selects Grok from grok/<model> label", () => {
+		const service = new RunnerSelectionService({
+			defaultRunner: "claude",
+		} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection(["grok/grok-4.6"], "");
+		expect(selection.runnerType).toBe("grok");
+		expect(selection.modelOverride).toBe("grok-4.6");
+	});
+
+	it("infers Grok runner from grok model names", () => {
+		const service = new RunnerSelectionService({
+			defaultRunner: "claude",
+		} as EdgeWorkerConfig);
+
+		const selection = service.determineRunnerSelection([], "[model=grok-4.6]");
+		expect(selection.runnerType).toBe("grok");
+		expect(selection.modelOverride).toBe("grok-4.6");
+	});
+
+	it("auto-detects Grok from XAI_API_KEY when it is the only configured provider", () => {
+		process.env.XAI_API_KEY = "xai-test-key";
+		const service = new RunnerSelectionService({} as EdgeWorkerConfig);
+		expect(service.getDefaultRunner()).toBe("grok");
+		delete process.env.XAI_API_KEY;
+	});
 });
