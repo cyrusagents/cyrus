@@ -61,7 +61,7 @@ To see Cyrus in action, refer to the test drives in `apps/f1/test-drives/`. Thes
 
 The F1 (Formula 1) testing framework provides a controlled environment to test Cyrus without affecting production Linear workspaces.
 
-CRITICAL: you must use the f1 test drive protocol during the 'testing and validation' stage of any major work undertaking. You CAN also use it in development situations where you want to test drive the version of the product that you're working on.
+Choose validation by the actual changed behavior, not the size of the task or filenames. Follow the canonical [F1 applicability policy](skills/f1-test-drive/SKILL.md#applicability-required-before-setup): F1-covered product/runtime changes and functional changes to the F1 harness require relevant F1 validation. Changes with no relevant workflow behavior use targeted checks and a brief PR validation note, without running F1 or creating, attaching, or committing an F1 report. For releases, assess the full payload since the previous release, not just the release PR. Preserve historical test-drive evidence.
 
 ## Linear Webhooks Reference
 

@@ -13,6 +13,12 @@ Use the issue tracker `get_issue` tool to fetch the current issue details. Extra
 
 ## 2. Quality Checks
 
+Choose checks from the actual diff and behavior. Where the repository uses F1,
+apply its canonical `skills/f1-test-drive/SKILL.md` applicability policy before
+invoking a test-drive agent or requesting evidence. Nonapplicable changes need
+targeted checks and a brief PR validation note, without an F1 run or report.
+Do not infer an F1 requirement from this skill's instruction to run tests.
+
 Run all applicable quality checks:
 - **Tests** — Run the full test suite. If tests fail, fix the issues and re-run. Retry up to 3 times. If you cannot resolve failures after 3 attempts, proceed and note the failures in your summary.
 - **Linting** — Run linting tools and fix any issues found.

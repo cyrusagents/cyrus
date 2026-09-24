@@ -14,6 +14,10 @@ Read `apps/cli/RELEASING.md` completely before taking release actions. Treat it
 as the canonical operator guide and `scripts/release-packages.mjs` as the
 canonical package list and dependency order.
 
+Editing release workflows, scripts, installers, or release documentation does
+not invoke this release procedure. Validate those changes with targeted checks
+and the F1 applicability policy in `skills/f1-test-drive/SKILL.md`.
+
 ## Workflow
 
 1. Fetch `origin/main`, start from current main, and preserve unrelated local
@@ -23,8 +27,12 @@ canonical package list and dependency order.
    - Set the same version in every manifest printed by
      `node scripts/release-packages.mjs list`.
    - Run `pnpm install` and commit any lockfile change.
-   - Run the F1 release test-drive protocol and save its report with the
-     required `-release-v<version>.md` suffix.
+   - Assess the entire payload since the previous release using the canonical
+     F1 applicability policy, including functional changes merged before the
+     version-bump PR. For F1-covered behavior changes, run relevant F1 scenarios
+     and save evidence with the required `-release-v<version>.md` suffix.
+     Otherwise record the payload assessment and targeted checks as non-F1
+     release verification per `apps/cli/RELEASING.md`; do not invent an F1 report.
    - List every released `package@version` in `CHANGELOG.md`.
 3. Run `node scripts/release-packages.mjs validate <version>`, then all checks
    required by `apps/cli/RELEASING.md`. Fix failures before continuing.

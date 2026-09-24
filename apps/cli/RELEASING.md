@@ -39,6 +39,15 @@ node scripts/release-packages.mjs list | while IFS=$'\t' read -r _ package; do
 done
 ```
 
+## Scope of release validation
+
+Editing release tooling, CI, installers, build metadata, or this guide is not a
+release. Apply the [canonical F1 applicability policy](../../skills/f1-test-drive/SKILL.md#applicability-required-before-setup)
+to the actual changed behavior. Use targeted script/unit/integration tests,
+package inspection, and isolated install/CLI smoke checks as appropriate. When
+no F1-covered behavior changes, a brief PR validation note is enough; do not
+run an unrelated F1 fixture or create an F1 report.
+
 ## Prepare a release
 
 Release preparation remains a reviewed pull request. Start from current
@@ -48,17 +57,21 @@ Release preparation remains a reviewed pull request. Start from current
 2. Set the same exact version in every package printed by
    `node scripts/release-packages.mjs list`.
 3. Run `pnpm install` and commit `pnpm-lock.yaml` if it changes.
-4. Run the F1 release test-drive protocol and commit its evidence under
-   `apps/f1/test-drives/` with a filename ending in
-   `-release-v<version>.md`.
+4. Assess the **entire released payload since the previous release**, including
+   changes merged before this version-bump PR. For F1-covered runtime or harness
+   behavior changes, run the F1 release test-drive protocol with scenarios that
+   assert those changes and commit evidence under `apps/f1/test-drives/` with a
+   filename ending in `-release-v<version>.md`. For payloads with no relevant
+   workflow behavior change, use non-F1 release verification below instead.
 5. Add every `package@version` entry to the release section in `CHANGELOG.md`.
 6. Run `node scripts/release-packages.mjs validate <version>`.
 7. Run `pnpm test:packages:run`, `pnpm typecheck`, and `pnpm build`.
 8. Commit, push, open the release PR, and merge it to `main`.
 
 The validator rejects version drift, missing packages, incorrect dependency
-order, stale repository metadata, incomplete changelogs, and missing F1 release
-evidence.
+order, stale repository metadata, incomplete changelogs, and missing release
+verification. Relevant F1 evidence remains required for runtime-bearing releases;
+a version-only PR is not evidence of a nonfunctional payload.
 
 Before a release workflow can publish, every package listed by
 `node scripts/release-packages.mjs list` must already exist on npm. npm trusted
@@ -80,6 +93,56 @@ The release workflow preflights package existence before installing
 dependencies or publishing anything. If a package is missing, it stops with
 the bootstrap and trusted-publisher instructions instead of partially
 publishing the dependency graph.
+
+## Non-F1 release verification
+
+Use this only when review of the full payload finds no changed F1-covered
+behavior. File categories alone do not establish applicability: dependency,
+build, packaging, or prompt changes can alter installed runtime behavior.
+A blocked F1 scenario is not a nonapplicable scenario.
+
+1. Commit the prepared release payload, including versions and changelogs.
+2. Fetch release tags and inspect the full diff from the previous release tag
+   on the first-parent history to `HEAD`. Run all relevant targeted checks,
+   including installer/build/release tests and install smoke checks where
+   affected. The normal release workflow's audit, tests, types, build, tarball
+   inspection, and install smoke gates still run.
+3. Run `node scripts/release-evidence.mjs <version>` from the repository root.
+   It prints `previousRelease`, `previousReleaseCommit`, and `payloadSha256`.
+   This command binds evidence to the committed payload; it does **not** decide
+   whether that payload is functional. If no previous release tag is available,
+   restore the history before assessing applicability.
+4. Create `docs/release-verification/v<version>.json` using those exact fields
+   plus the fields below (replace the illustrative values with actual results):
+
+   ```json
+   {
+     "version": "0.2.73",
+     "previousRelease": "v0.2.72",
+     "previousReleaseCommit": "<commit from command>",
+     "payloadSha256": "<hash from command>",
+     "f1Applicability": "not-applicable",
+     "rationale": "Describe the complete payload and why it changes no F1-covered workflow behavior.",
+     "checks": [
+       {
+         "command": "<actual targeted validation command>",
+         "status": "passed",
+         "result": "<observed result and scope or limitations>"
+       }
+     ]
+   }
+   ```
+
+5. Have the release reviewer verify the behavior assessment and results against
+   the full diff. Commit the evidence and run the release validator. It requires
+   the previous release and payload hash to match, a nonempty rationale, and
+   successful checks. Any subsequent payload change requires reassessment and
+   fresh checks/hash. Only this evidence file is excluded from the hash.
+
+This is release verification, not an F1 drive; no file belongs in
+`apps/f1/test-drives/` for this case. Historical F1 evidence remains valid and
+must not be deleted or relabeled. A functional release keeps the relevant F1
+report route; no filename-based exemption or automatic skip is provided.
 
 ## Dispatch a release
 
