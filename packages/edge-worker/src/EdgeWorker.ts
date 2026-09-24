@@ -20,11 +20,7 @@ import {
 } from "miko-claude-runner";
 import { getMikoAppUrl } from "miko-cloudflare-tunnel-client";
 import { CodexRunner } from "miko-codex-runner";
-import {
-	ConfigUpdater,
-	ensureGhTokenResolver,
-	ensureGitHubCredentialHelper,
-} from "miko-config-updater";
+import { ConfigUpdater, ensureSelfHostedGitHubAuth } from "miko-config-updater";
 import type {
 	AgentActivityCreateInput,
 	AgentEvent,
@@ -79,6 +75,8 @@ import {
 	isUserPromptMessage,
 	PersistenceManager,
 	requireLinearWorkspaceId,
+	resolveGitHubAppBotIdentity,
+	resolveGitHubAppSlugFromEnv,
 	resolvePath,
 	WebhookIpValidator,
 } from "miko-core";
@@ -681,23 +679,30 @@ export class EdgeWorker extends EventEmitter {
 	 */
 	async start(): Promise<void> {
 		if (this.updateTrial) this.sharedApplicationServer.tryDrainForUpdate();
-		// If miko-hosted has pushed per-org GitHub App tokens previously, make
-		// sure the git credential helper and the per-invocation gh token
-		// resolver are wired up (idempotent). Covers the case where the
-		// process restarted after the helper config was wiped.
-		if (existsSync(this.githubTokenStore.filePath)) {
-			try {
-				ensureGitHubCredentialHelper(this.mikoHome);
-				ensureGhTokenResolver(this.mikoHome);
-				this.logger.info(
-					"✅ GitHub auth scripts configured from existing token store",
-				);
-			} catch (error) {
-				this.logger.warn(
-					"Failed to configure GitHub auth scripts on startup (non-fatal):",
-					error instanceof Error ? error : new Error(String(error)),
-				);
+		// Prefer GitHub App installation tokens for self-hosted git/gh when
+		// App credentials exist: mint into GitHubTokenStore and wire the
+		// credential helper + gh resolver. Falls back to any cloud-pushed
+		// token file, then to local git/gh credentials when no App is set.
+		try {
+			const auth = await ensureSelfHostedGitHubAuth(this.mikoHome, {
+				provider: this.createOrGetGitHubAppTokenProvider(),
+				logger: {
+					info: (message) => this.logger.info(message),
+					warn: (message, error) =>
+						this.logger.warn(
+							message,
+							error instanceof Error ? error : undefined,
+						),
+				},
+			});
+			if (auth.provider && !this.gitHubAppTokenProvider) {
+				this.gitHubAppTokenProvider = auth.provider;
 			}
+		} catch (error) {
+			this.logger.warn(
+				"Self-hosted GitHub auth setup failed (non-fatal; local git/gh fallback remains):",
+				error instanceof Error ? error : new Error(String(error)),
+			);
 		}
 
 		// Deploy default skills to mikoHome if not already present (one-time setup)
@@ -1116,22 +1121,19 @@ export class EdgeWorker extends EventEmitter {
 		// Register the /github-webhook endpoint
 		this.gitHubEventTransport.register();
 
-		// Initialize GitHub App token provider for self-hosted users.
+		// Initialize GitHub App token provider for self-hosted users (may
+		// already have been created during startup token-store population).
 		// Tokens are minted per webhook installation.id when present; the env
 		// GITHUB_APP_INSTALLATION_ID is only a fallback default.
-		const appId = process.env.GITHUB_APP_ID;
-		const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
-		const pemPath = join(this.mikoHome, "github-app.pem");
-		if (appId && existsSync(pemPath)) {
-			this.gitHubAppTokenProvider = new GitHubAppTokenProvider({
-				appId,
-				installationId: installationId || undefined,
-				privateKeyPath: pemPath,
-			});
+		if (!this.gitHubAppTokenProvider) {
+			this.createOrGetGitHubAppTokenProvider();
+		}
+		if (this.gitHubAppTokenProvider) {
+			const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
 			this.logger.info(
 				installationId
-					? "GitHub App token provider initialized (self-hosted mode, env installation fallback)"
-					: "GitHub App token provider initialized (self-hosted mode, mint from webhook installation.id)",
+					? "GitHub App token provider ready (self-hosted mode, env installation fallback)"
+					: "GitHub App token provider ready (self-hosted mode, mint from webhook installation.id)",
 			);
 		}
 
@@ -1447,6 +1449,63 @@ export class EdgeWorker extends EventEmitter {
 	 * This creates a new session for the GitHub PR comment, checks out the PR branch
 	 * via git worktree, and processes the comment as a task prompt.
 	 */
+	/**
+	 * Create (or return) the self-hosted GitHub App token provider when
+	 * GITHUB_APP_ID + github-app.pem are present. App is optional.
+	 */
+	private createOrGetGitHubAppTokenProvider(): GitHubAppTokenProvider | null {
+		if (this.gitHubAppTokenProvider) return this.gitHubAppTokenProvider;
+		const appId = process.env.GITHUB_APP_ID;
+		const pemPath = join(this.mikoHome, "github-app.pem");
+		if (!appId || !existsSync(pemPath)) return null;
+		this.gitHubAppTokenProvider = new GitHubAppTokenProvider({
+			appId,
+			installationId: process.env.GITHUB_APP_INSTALLATION_ID || undefined,
+			privateKeyPath: pemPath,
+		});
+		return this.gitHubAppTokenProvider;
+	}
+
+	/**
+	 * Resolve git/gh credentials for a session repository.
+	 * Prefer an org-matched App installation token from the store (populated
+	 * on startup for self-hosted, or pushed by miko-hosted). When using the
+	 * App path, also return bot author identity for THAT app (operator slug).
+	 * Returns undefined token when callers should fall back to local git/gh.
+	 */
+	private resolveSessionGitHubAuth(repository: RepositoryConfig): {
+		token?: string;
+		usingAppToken: boolean;
+		gitAuthor?: { name: string; email: string };
+	} {
+		if (!repository.githubUrl) {
+			return { usingAppToken: false };
+		}
+		const token = this.githubTokenStore.getTokenForRepoUrl(
+			repository.githubUrl,
+		);
+		if (!token) {
+			return { usingAppToken: false };
+		}
+		const appId = process.env.GITHUB_APP_ID;
+		const slug = resolveGitHubAppSlugFromEnv();
+		if (appId && slug) {
+			try {
+				const identity = resolveGitHubAppBotIdentity(appId, slug);
+				return {
+					token,
+					usingAppToken: true,
+					gitAuthor: { name: identity.name, email: identity.email },
+				};
+			} catch {
+				return { token, usingAppToken: true };
+			}
+		}
+		// Store token present (cloud-pushed) but no local App identity —
+		// still prefer the token for gh/git; leave author to local git config.
+		return { token, usingAppToken: true };
+	}
+
 	/**
 	 * Resolve a GitHub API token from (in priority order):
 	 * 1. Org-matched installation token from the local token store (pushed by
@@ -7179,10 +7238,7 @@ ${input.userComment}
 	private buildAgentContextBlock(): string {
 		const githubBot = process.env.GITHUB_BOT_USERNAME || "";
 		const gitlabBot = process.env.GITLAB_BOT_USERNAME || "";
-
-		if (!githubBot && !gitlabBot) {
-			return "";
-		}
+		const appSlug = resolveGitHubAppSlugFromEnv() || "";
 
 		const lines: string[] = ["\n\n<agent_context>"];
 		if (githubBot) {
@@ -7191,6 +7247,15 @@ ${input.userComment}
 		if (gitlabBot) {
 			lines.push(`  <gitlab_bot_username>${gitlabBot}</gitlab_bot_username>`);
 		}
+		if (appSlug) {
+			lines.push(`  <github_app_slug>${appSlug}</github_app_slug>`);
+		}
+		// Always document authorship rules so verify-and-ship / commits stay consistent.
+		lines.push("  <github_commit_authorship>");
+		lines.push(
+			"    Prefer the GitHub App installation token for git fetch/push and gh when available; authorship then appears as the operator-defined App bot (<slug>[bot]), not a hard-coded product bot. Fall back to local git config + gh auth when no App token can be minted. Always append the trailer Co-authored-by: mikoagent <332957360+mikoagent@users.noreply.github.com> exactly once (preserve other co-authors; do not change git user.name/email to impersonate mikoagent).",
+		);
+		lines.push("  </github_commit_authorship>");
 		lines.push("</agent_context>");
 
 		return lines.join("\n");
@@ -7392,14 +7457,18 @@ ${input.userComment}
 			strictMcpConfig: this.config.strictMcpConfig,
 			linearWorkspaceId,
 			mikoHome: this.mikoHome,
-			// Org-matched GitHub App installation token (pushed by miko-hosted):
-			// exposed to the session as GH_TOKEN / MIKO_GH_TOKEN so `gh` and
-			// other tools authenticate against this repo's org. Undefined when
-			// no token store entry matches — zero behavior change for self-host
-			// users without the token file.
-			githubToken: repository.githubUrl
-				? this.githubTokenStore.getTokenForRepoUrl(repository.githubUrl)
-				: undefined,
+			// Prefer org-matched GitHub App installation token (self-hosted
+			// mint on startup, or pushed by miko-hosted). Exposed as
+			// MIKO_GH_TOKEN for gh/git. When App path is used and an operator
+			// slug is configured, also set GIT_AUTHOR/COMMITTER to that App's
+			// bot identity. Undefined token → local git/gh fallback.
+			...(() => {
+				const auth = this.resolveSessionGitHubAuth(repository);
+				return {
+					githubToken: auth.token,
+					gitAuthor: auth.gitAuthor,
+				};
+			})(),
 			logger: log,
 			plugins,
 			opencodeGlobalConfig: this.config.opencode?.config,

@@ -16,7 +16,6 @@ export const releasePackages = [
 	{ directory: "packages/mcp-tools", name: "miko-mcp-tools" },
 	{ directory: "packages/core", name: "miko-core" },
 	{ directory: "packages/claude-runner", name: "miko-claude-runner" },
-	{ directory: "packages/config-updater", name: "miko-config-updater" },
 	{
 		directory: "packages/linear-event-transport",
 		name: "miko-linear-event-transport",
@@ -25,6 +24,7 @@ export const releasePackages = [
 		directory: "packages/github-event-transport",
 		name: "miko-github-event-transport",
 	},
+	{ directory: "packages/config-updater", name: "miko-config-updater" },
 	{
 		directory: "packages/gitlab-event-transport",
 		name: "miko-gitlab-event-transport",

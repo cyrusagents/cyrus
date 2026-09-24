@@ -31,7 +31,8 @@
 		"@modelcontextprotocol/sdk": "^1.30.0",
 		"miko-core": "workspace:*",
 		"fastify": "^5.12.1",
-		"zod": "^4.3.6"
+		"zod": "^4.3.6",
+		"miko-github-event-transport": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^20.12.7",

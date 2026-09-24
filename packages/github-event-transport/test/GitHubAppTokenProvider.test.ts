@@ -270,4 +270,81 @@ describe("GitHubAppTokenProvider", () => {
 		});
 		await expect(provider.getToken()).rejects.toThrow("No installation id");
 	});
+
+	it("lists installations and mints store-shaped tokens", async () => {
+		const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockImplementation(async (input) => {
+				const url = String(input);
+				if (
+					url.includes("/app/installations?") ||
+					url.endsWith("/app/installations")
+				) {
+					return new Response(
+						JSON.stringify([
+							{ id: 11, account: { login: "OrgOne", type: "Organization" } },
+							{ id: 22, account: { login: "user-two", type: "User" } },
+						]),
+						{ status: 200 },
+					);
+				}
+				if (url.includes("/installations/11/access_tokens")) {
+					return new Response(
+						JSON.stringify({ token: "ghs_one", expires_at: expiresAt }),
+						{ status: 200 },
+					);
+				}
+				if (url.includes("/installations/22/access_tokens")) {
+					return new Response(
+						JSON.stringify({ token: "ghs_two", expires_at: expiresAt }),
+						{ status: 200 },
+					);
+				}
+				return new Response("nope", { status: 404 });
+			});
+
+		const provider = new GitHubAppTokenProvider({
+			appId: "12345",
+			privateKeyPath: pemPath,
+		});
+		const tokens = await provider.mintInstallationTokens();
+		expect(tokens).toEqual([
+			{
+				installationId: "11",
+				organization: "OrgOne",
+				accountType: "Organization",
+				token: "ghs_one",
+				expiresAt,
+			},
+			{
+				installationId: "22",
+				organization: "user-two",
+				accountType: "User",
+				token: "ghs_two",
+				expiresAt,
+			},
+		]);
+		fetchSpy.mockRestore();
+	});
+
+	it("getTokenDetails returns expiry for store persistence", async () => {
+		const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({ token: "ghs_detail", expires_at: expiresAt }),
+					{ status: 200 },
+				),
+			);
+		const provider = new GitHubAppTokenProvider({
+			appId: "12345",
+			installationId: "55",
+			privateKeyPath: pemPath,
+		});
+		const details = await provider.getTokenDetails();
+		expect(details).toEqual({ token: "ghs_detail", expiresAt });
+		fetchSpy.mockRestore();
+	});
 });

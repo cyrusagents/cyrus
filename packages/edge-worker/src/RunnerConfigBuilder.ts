@@ -178,15 +178,23 @@ export interface IssueRunnerConfigInput {
 	egressCaCertPath?: string;
 	/**
 	 * GitHub App installation token matched to the session repository's org
-	 * (from the miko-hosted-pushed token store). When set, it's exposed to
-	 * the session ONLY as `MIKO_GH_TOKEN` — the droplet's gh wrapper maps
-	 * it to `GH_TOKEN` inside the gh process. We deliberately do NOT set
-	 * `GH_TOKEN` itself: customers set their own `GH_TOKEN` (e.g. for
-	 * private npm registries on GitHub Packages) and clobbering it would
-	 * break their installs. Bare `gh` with no env var is covered by the
-	 * `gh auth login` the github-tokens push handler performs.
+	 * (from the token store — self-hosted mint on startup, or miko-hosted
+	 * push). When set, it's exposed to the session ONLY as `MIKO_GH_TOKEN`
+	 * — the droplet's gh wrapper maps it to `GH_TOKEN` inside the gh
+	 * process. We deliberately do NOT set `GH_TOKEN` itself: customers set
+	 * their own `GH_TOKEN` (e.g. for private npm registries on GitHub
+	 * Packages) and clobbering it would break their installs. Bare `gh`
+	 * with no env var falls back to local `gh auth`. Undefined when no
+	 * store entry matches — local git/gh credentials are used instead.
 	 */
 	githubToken?: string;
+	/**
+	 * When using the App token path, set GIT_AUTHOR/COMMITTER to this App
+	 * bot identity so commits/PRs appear as `<slug>[bot]` for the
+	 * operator-defined App (not a hard-coded product bot). Omit on the
+	 * local-credential fallback path so the machine's git user is kept.
+	 */
+	gitAuthor?: { name: string; email: string };
 }
 
 export function resolveIssueMcpConfigPath(
@@ -516,14 +524,24 @@ export class RunnerConfigBuilder {
 		// Expose the org-matched GitHub App installation token to the session
 		// env. Merged on top of any sandbox additionalEnv (CA cert vars) so
 		// both survive. Only set when a token store entry matched the repo's
-		// org — sessions without a match see zero env change. MIKO_GH_TOKEN
-		// only — never GH_TOKEN, which customers set themselves (e.g. private
-		// npm registries on GitHub Packages); the droplet's gh wrapper maps
-		// MIKO_GH_TOKEN to GH_TOKEN inside the gh process.
-		if (input.githubToken) {
+		// org — sessions without a match see zero env change (local git/gh
+		// fallback). MIKO_GH_TOKEN only — never GH_TOKEN, which customers set
+		// themselves (e.g. private npm registries on GitHub Packages); the
+		// droplet's gh wrapper maps MIKO_GH_TOKEN to GH_TOKEN inside gh.
+		// When gitAuthor is provided (App path + operator slug), also set
+		// GIT_AUTHOR/COMMITTER so commits appear as that App's bot.
+		if (input.githubToken || input.gitAuthor) {
 			config.additionalEnv = {
 				...config.additionalEnv,
-				MIKO_GH_TOKEN: input.githubToken,
+				...(input.githubToken ? { MIKO_GH_TOKEN: input.githubToken } : {}),
+				...(input.gitAuthor
+					? {
+							GIT_AUTHOR_NAME: input.gitAuthor.name,
+							GIT_AUTHOR_EMAIL: input.gitAuthor.email,
+							GIT_COMMITTER_NAME: input.gitAuthor.name,
+							GIT_COMMITTER_EMAIL: input.gitAuthor.email,
+						}
+					: {}),
 			};
 		}
 

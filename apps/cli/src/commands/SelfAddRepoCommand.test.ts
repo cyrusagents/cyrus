@@ -41,6 +41,20 @@ vi.mock("node:readline", () => ({
 	})),
 }));
 
+const authMocks = vi.hoisted(() => ({
+	ensureSelfHostedGitHubAuth: vi.fn().mockResolvedValue({
+		attempted: false,
+		tokensCount: 0,
+		provider: null,
+	}),
+	resolveGitHubTokenForRepoUrl: vi.fn().mockReturnValue(undefined),
+}));
+
+vi.mock("miko-config-updater", () => ({
+	ensureSelfHostedGitHubAuth: authMocks.ensureSelfHostedGitHubAuth,
+	resolveGitHubTokenForRepoUrl: authMocks.resolveGitHubTokenForRepoUrl,
+}));
+
 // Mock process.exit
 const mockExit = vi.spyOn(process, "exit").mockImplementation(() => {
 	throw new Error("process.exit called");
@@ -53,6 +67,7 @@ const mockConsoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
 import {
 	detectDefaultBranch,
 	SelfAddRepoCommand,
+	toHttpsGitHubUrl,
 } from "./SelfAddRepoCommand.js";
 
 // Mock Application
@@ -78,6 +93,12 @@ describe("SelfAddRepoCommand", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		authMocks.ensureSelfHostedGitHubAuth.mockResolvedValue({
+			attempted: false,
+			tokensCount: 0,
+			provider: null,
+		});
+		authMocks.resolveGitHubTokenForRepoUrl.mockReturnValue(undefined);
 		mockApp = createMockApp();
 		command = new SelfAddRepoCommand(mockApp as any);
 		mocks.mockRandomUUID.mockReturnValue("generated-uuid-123");
@@ -504,6 +525,45 @@ describe("SelfAddRepoCommand", () => {
 	});
 
 	describe("Git Clone", () => {
+		it("uses HTTPS clone when an App installation token is available", async () => {
+			mocks.mockReadFileSync.mockReturnValue(
+				JSON.stringify({
+					linearWorkspaces: {
+						"ws-123": {
+							linearToken: "token",
+							linearRefreshToken: "refresh",
+							linearWorkspaceName: "Test",
+						},
+					},
+					repositories: [],
+				}),
+			);
+			authMocks.resolveGitHubTokenForRepoUrl.mockReturnValue("ghs_app_token");
+			authMocks.ensureSelfHostedGitHubAuth.mockResolvedValue({
+				attempted: true,
+				tokensCount: 1,
+				provider: {},
+			});
+
+			await expect(
+				command.execute(["git@github.com:acme/private-repo.git"]),
+			).rejects.toThrow("process.exit called");
+			expect(mockExit).toHaveBeenCalledWith(0);
+
+			expect(authMocks.ensureSelfHostedGitHubAuth).toHaveBeenCalled();
+			expect(mocks.mockExecSync).toHaveBeenCalledWith(
+				"git clone https://github.com/acme/private-repo.git /home/user/.miko/repos/private-repo",
+				expect.objectContaining({
+					stdio: "inherit",
+					env: expect.objectContaining({ MIKO_HOME: "/home/user/.miko" }),
+				}),
+			);
+			// Must not embed the token in the clone argv
+			expect(mocks.mockExecSync.mock.calls[0][0]).not.toContain(
+				"ghs_app_token",
+			);
+		});
+
 		it("should clone repository to correct path", async () => {
 			mocks.mockReadFileSync.mockReturnValue(
 				JSON.stringify({
@@ -889,5 +949,20 @@ describe("SelfAddRepoCommand", () => {
 				expect.stringContaining("Workspace: My Workspace"),
 			);
 		});
+	});
+});
+
+describe("toHttpsGitHubUrl", () => {
+	it("rewrites scp and https github URLs", () => {
+		expect(toHttpsGitHubUrl("git@github.com:acme/repo.git")).toBe(
+			"https://github.com/acme/repo.git",
+		);
+		expect(toHttpsGitHubUrl("https://github.com/acme/repo")).toBe(
+			"https://github.com/acme/repo.git",
+		);
+	});
+
+	it("returns null for non-GitHub hosts", () => {
+		expect(toHttpsGitHubUrl("https://gitlab.com/acme/repo.git")).toBeNull();
 	});
 });

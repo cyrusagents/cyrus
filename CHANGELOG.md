@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Self-hosted GitHub auth prefers App installation tokens for git fetch/push and `gh` when App credentials exist, falls back to local git/`gh` auth, always adds a `Co-authored-by: mikoagent` trailer, and uses the operator-defined App bot (not a hard-coded product bot) for commit authorship on the App path. Startup mints tokens into the token store; `self-add-repo` can clone private repos with those tokens.
+
 ### Fixed
 - Cursor Grok 4.7 sessions now accept reasoning-effort and Fast selectors, avoid unsupported model parameters, and display the selected effort in task history. ([#15](https://github.com/nexmoe/atmiko/pull/15))
 

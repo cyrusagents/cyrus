@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { GitHubTokenStore, getDefaultReposDir } from "miko-core";
+import { ensureSelfHostedGitHubAuth } from "../selfHostedGitHubAuth.js";
 import type {
 	ApiResponse,
 	DeleteRepositoryPayload,
@@ -99,13 +100,14 @@ export async function handleRepository(
 			};
 		}
 
-		// Clone the repository. When miko-hosted has pushed per-installation
-		// GitHub tokens (cloud runtime), use plain `git clone` so auth flows
-		// through the Miko git credential helper, which resolves the token
-		// for the repo's OWN org — `gh repo clone` would authenticate with
-		// gh's stored login (the first org's token) and fail for repos added
-		// from a different org. Without pushed tokens (self-host), fall back
-		// to `gh repo clone` using the user's own gh authentication.
+		// Prefer App installation tokens (self-hosted mint or cloud-pushed)
+		// with plain `git clone` via the credential helper. Fall back to
+		// `gh repo clone` using the user's own gh authentication.
+		try {
+			await ensureSelfHostedGitHubAuth(mikoHome);
+		} catch {
+			// Non-fatal — continue with whatever tokens/credentials exist.
+		}
 		const tokenStore = new GitHubTokenStore(mikoHome);
 		const usePushedTokens = Boolean(
 			tokenStore.getTokenForRepoUrl(payload.repository_url) ??

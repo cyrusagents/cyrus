@@ -114,6 +114,16 @@ export {
 	getDefaultReposDir,
 	getDefaultWorktreesDir,
 } from "./constants.js";
+// GitHub commit authorship (App bot + mikoagent co-author trailer)
+export type { GitHubAppBotIdentity } from "./github-authorship.js";
+export {
+	ensureMikoagentCoAuthorTrailer,
+	MIKOAGENT_COAUTHOR_EMAIL,
+	MIKOAGENT_COAUTHOR_NAME,
+	MIKOAGENT_COAUTHOR_TRAILER,
+	resolveGitHubAppBotIdentity,
+	resolveGitHubAppSlugFromEnv,
+} from "./github-authorship.js";
 // GitHub App installation token store (multi-org GitHub support)
 export type {
 	GitHubInstallationToken,

@@ -53,6 +53,7 @@ git diff <base_branch> -- CHANGELOG.md CHANGELOG.internal.md 2>/dev/null
   Co-authored-by: mikoagent <332957360+mikoagent@users.noreply.github.com>
   ```
   Preserve the original author and any other co-author trailers; include the mikoagent trailer only once. This is commit metadata, not PR description text. Do not change `git user.name` or `git user.email` to impersonate mikoagent.
+- Prefer the GitHub App installation token for `git push` / `gh pr create` when available (session `MIKO_GH_TOKEN` / credential helper). Authorship then appears as the operator-defined App bot from `<github_app_slug>` / `<github_bot_username>` (e.g. `whatever-slug[bot]`), not a hard-coded product bot. If no App token is available, use local git/`gh` credentials and keep the local git author. If neither path can authenticate, stop with a clear error rather than inventing credentials.
 - Push to the remote repository
 
 Before creating or updating a GitHub PR, inspect the commit messages on the task branch relative to the base branch and verify that every commit you created for this task includes the trailer above. Fix missing attribution on your own unpushed commits before pushing. Do not rewrite other contributors' commits or force-push published history solely to add attribution; report any already-published commits that are missing it.

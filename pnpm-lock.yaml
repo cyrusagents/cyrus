@@ -259,6 +259,9 @@ importers:
       miko-core:
         specifier: workspace:*
         version: link:../core
+      miko-github-event-transport:
+        specifier: workspace:*
+        version: link:../github-event-transport
       zod:
         specifier: ^4.3.6
         version: 4.3.6

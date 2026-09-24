@@ -7,7 +7,15 @@ description: Configure GitHub for Miko — gh CLI login and git config for PRs, 
 
 # Setup GitHub
 
-Configures GitHub CLI and git so Miko can create branches, commits, and pull requests. Optionally creates a GitHub App so Miko can receive and respond to @mentions in PR comments and reviews, automate rebases and merges, and auto-fix based on CI failures (coming soon).
+Configures GitHub so Miko can create branches, commits, and pull requests. Optionally creates a GitHub App so Miko can receive and respond to @mentions in PR comments and reviews, automate rebases and merges, and auto-fix based on CI failures (coming soon).
+
+**Credential preference:** When a GitHub App is configured (`GITHUB_APP_ID` + `~/.miko/github-app.pem`), Miko mints installation tokens for known installs, populates `~/.miko/github-tokens.json`, and uses those tokens for `git fetch`/`push` and `gh` (PR create). Push/PR authorship then appears as **that App's bot** (`<slug>[bot]`). The App name/slug/id is **operator-defined** — not hard-coded to a product bot. If no App is present or minting fails, Miko falls back to local `git` config + `gh auth` (Linear-only setups do not need an App).
+
+**Always** add this commit trailer (once per commit; preserve other co-authors; do not change `git user.name`/`user.email` to impersonate mikoagent):
+
+```text
+Co-authored-by: mikoagent <332957360+mikoagent@users.noreply.github.com>
+```
 
 ---
 
@@ -266,6 +274,9 @@ printf 'GITHUB_APP_ID=%s\n' "$GITHUB_APP_ID" >> ~/.miko/.env
 # Bot username (for mention filtering — see note below about GitHub autocomplete)
 printf 'GITHUB_BOT_USERNAME=%s\n' "$GITHUB_APP_SLUG" >> ~/.miko/.env
 
+# App slug (operator-defined; used for commit author <slug>[bot] when using App tokens)
+printf 'GITHUB_APP_SLUG=%s\n' "$GITHUB_APP_SLUG" >> ~/.miko/.env
+
 # Private key (multi-line — stored as a separate file)
 printf '%s\n' "$GITHUB_APP_PEM" > ~/.miko/github-app.pem
 chmod 600 ~/.miko/github-app.pem
@@ -341,7 +352,7 @@ For one Public GitHub App serving multiple orgs or a personal account:
 1. Make the App **Public**, then Install it on each account/org that should send webhooks.
 2. Keep using a single webhook URL (`MIKO_BASE_URL/github-webhook`).
 3. Restrict which repos Miko actually works on via `~/.miko/config.json` (`self-add-repo`).
-4. Self-hosted Miko mints App tokens from each webhook's `installation.id`. `GITHUB_APP_INSTALLATION_ID` remains an optional fallback when an event has no installation (not required for normal App webhooks).
+4. Self-hosted Miko mints App tokens from each webhook's `installation.id`, and on startup also mints tokens for all App installations into `~/.miko/github-tokens.json` so git/gh (fetch, push, PR create, `self-add-repo` private clones) authenticate as the App bot without waiting for a webhook. `GITHUB_APP_INSTALLATION_ID` remains an optional fallback when an event has no installation (not required for normal App webhooks).
 
 ## Completion
 

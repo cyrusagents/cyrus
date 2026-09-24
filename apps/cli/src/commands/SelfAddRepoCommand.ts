@@ -4,6 +4,10 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as readline from "node:readline";
 import {
+	ensureSelfHostedGitHubAuth,
+	resolveGitHubTokenForRepoUrl,
+} from "miko-config-updater";
+import {
 	DEFAULT_BASE_BRANCH,
 	DEFAULT_CONFIG_FILENAME,
 	type EdgeConfig,
@@ -71,6 +75,32 @@ interface WorkspaceCredentials {
  * Routing labels are used to route Linear issues to this repository.
  * If not specified, defaults to the repository name.
  */
+
+function looksLikeGitHubUrl(url: string): boolean {
+	return /github\.com/i.test(url);
+}
+
+/** Rewrite github.com SSH/scp URLs to HTTPS so the credential helper can auth. */
+export function toHttpsGitHubUrl(url: string): string | null {
+	const trimmed = url.trim().replace(/\.git$/i, "");
+	const scp = trimmed.match(/^[\w.-]+@github\.com:([^/]+)\/(.+)$/i);
+	if (scp) {
+		return `https://github.com/${scp[1]}/${scp[2]}.git`;
+	}
+	const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+		? trimmed
+		: `https://${trimmed}`;
+	try {
+		const parsed = new URL(withScheme);
+		if (parsed.hostname.toLowerCase() !== "github.com") return null;
+		const segments = parsed.pathname.split("/").filter(Boolean);
+		if (segments.length < 2) return null;
+		return `https://github.com/${segments[0]}/${segments[1]}.git`;
+	} catch {
+		return null;
+	}
+}
+
 export class SelfAddRepoCommand extends BaseCommand {
 	private rl: readline.Interface | null = null;
 
@@ -235,9 +265,14 @@ export class SelfAddRepoCommand extends BaseCommand {
 			} else {
 				console.log(`Cloning ${url}...`);
 				try {
-					execSync(`git clone ${url} ${repositoryPath}`, { stdio: "inherit" });
-				} catch {
-					this.logError("Failed to clone repository");
+					await this.cloneRepository(url, repositoryPath);
+				} catch (error) {
+					const detail = error instanceof Error ? error.message : String(error);
+					this.logError(
+						`Failed to clone repository: ${detail}. ` +
+							"Prefer a GitHub App installation token (GITHUB_APP_ID + github-app.pem) " +
+							"for private repos, or ensure local git/gh credentials can access the URL.",
+					);
 					process.exit(1);
 				}
 			}
@@ -284,5 +319,43 @@ export class SelfAddRepoCommand extends BaseCommand {
 		} finally {
 			this.cleanup();
 		}
+	}
+	/**
+	 * Clone a repository, preferring a GitHub App installation token when
+	 * available (private repos 404 with an unauthenticated plain clone).
+	 * Falls back to plain `git clone` using local credentials.
+	 */
+	private async cloneRepository(
+		url: string,
+		repositoryPath: string,
+	): Promise<void> {
+		// Best-effort: mint App tokens into the store and wire the credential
+		// helper so `git clone` / later fetch+push authenticate as the App.
+		try {
+			await ensureSelfHostedGitHubAuth(this.app.mikoHome, {
+				logger: {
+					info: (message) => console.log(message),
+					warn: (message) => console.warn(message),
+				},
+			});
+		} catch {
+			// Non-fatal — fall through to local credentials.
+		}
+
+		const token = resolveGitHubTokenForRepoUrl(this.app.mikoHome, url);
+		const cloneUrl =
+			token && looksLikeGitHubUrl(url) ? (toHttpsGitHubUrl(url) ?? url) : url;
+
+		if (token && cloneUrl.startsWith("https://")) {
+			// Credential helper supplies x-access-token; avoid embedding the
+			// token in the argv (shows up in process listings).
+			execSync(`git clone ${cloneUrl} ${repositoryPath}`, {
+				stdio: "inherit",
+				env: { ...process.env, MIKO_HOME: this.app.mikoHome },
+			});
+			return;
+		}
+
+		execSync(`git clone ${url} ${repositoryPath}`, { stdio: "inherit" });
 	}
 }

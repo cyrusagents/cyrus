@@ -104,4 +104,35 @@ describe("RunnerConfigBuilder GitHub token session env (CYHOST-913)", () => {
 		expect(env.NODE_EXTRA_CA_CERTS).toBe("/tmp/ca.pem");
 		expect(env.GIT_SSL_CAINFO).toBe("/tmp/ca.pem");
 	});
+
+	it("sets GIT_AUTHOR/COMMITTER from gitAuthor for the App bot path", () => {
+		const { config } = buildIssueConfig({
+			githubToken: "ghs_org_token",
+			gitAuthor: {
+				name: "whatever-slug[bot]",
+				email: "99+whatever-slug[bot]@users.noreply.github.com",
+			},
+		});
+
+		expect(config.additionalEnv).toEqual({
+			MIKO_GH_TOKEN: "ghs_org_token",
+			GIT_AUTHOR_NAME: "whatever-slug[bot]",
+			GIT_AUTHOR_EMAIL: "99+whatever-slug[bot]@users.noreply.github.com",
+			GIT_COMMITTER_NAME: "whatever-slug[bot]",
+			GIT_COMMITTER_EMAIL: "99+whatever-slug[bot]@users.noreply.github.com",
+		});
+	});
+
+	it("does not hard-code miko-agent in git author env", () => {
+		const { config } = buildIssueConfig({
+			githubToken: "ghs_x",
+			gitAuthor: {
+				name: "ops-bot[bot]",
+				email: "1+ops-bot[bot]@users.noreply.github.com",
+			},
+		});
+		const env = config.additionalEnv as Record<string, string>;
+		expect(env.GIT_AUTHOR_NAME).toBe("ops-bot[bot]");
+		expect(JSON.stringify(env)).not.toContain("miko-agent");
+	});
 });
