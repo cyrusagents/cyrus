@@ -7,6 +7,37 @@ This report covers local preparation. The proposed GitHub artifact workflow has
 not been dispatched, merged, or used to publish an artifact. No registry, npm
 distribution tag, git release tag, or GitHub release was created.
 
+## Installer isolation correction after review
+
+Review of `05101a7243fe3df1117469ec888d9aadbef46d79` found that the generated
+installer accepted existing prefixes and inherited operator npm/home state.
+The original preparation evidence below predates this correction.
+
+Four new regression cases failed against the previous installer and now pass:
+
+- An existing installation/sentinel remains untouched and npm is never invoked.
+- Dangling symlinks, both bare and with a trailing slash, remain unchanged and
+  npm is never invoked; their absent targets are not created.
+- A fresh prefix (including spaces in its path) succeeds. Both npm and CLI
+  version/help receive a clean child environment with the private test home,
+  cache and empty npm user/global config files. Host auth variables, npm auth,
+  and `NODE_OPTIONS` are absent; operator config/auth sentinels remain unchanged.
+  Prefix/home/cache are `0700`; the empty npm config files are `0600`.
+
+The installer uses an exclusive `mkdir` after its existing-path/symlink guard,
+so an intervening creation also fails before npm. CLI help verification moved
+into the same isolated environment as version verification. Workflow triggers,
+permissions, artifact upload route and all existing npm publishing guards are
+unchanged.
+
+Corrected focused suite: **48 passed**. Full infrastructure suite: **2,027 passed,
+2 skipped**. Lint passes with the same 12 warnings; actionlint passes. A newly
+generated bundle of the same 17 real candidate packages installed successfully
+into `/private/tmp/cypack1502-artifact-evidence/isolation-installed`, and both
+CLI checks passed at `0.2.73-cypack1502.0`. Logs use the `isolation-` prefix in
+the local evidence directory. This was an installer test, with no live provider
+or credential tests and no artifact workflow dispatch.
+
 ## Immutable inputs
 
 - Tooling tested: `9345137fb0ac9d3610bc76a9d28c76d08a4e6aaa` (subsequent changes add this report and the changelog entry only).

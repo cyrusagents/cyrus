@@ -149,14 +149,35 @@ set -euo pipefail
 cd "$(dirname "$0")"
 prefix="\${1:?Usage: bash install.sh /absolute/path/to/disposable-prefix}"
 [[ "$prefix" = /* ]] || { echo 'Use an absolute isolated prefix.' >&2; exit 1; }
+while [[ "$prefix" != / && "$prefix" = */ ]]; do prefix="\${prefix%/}"; done
+if [[ -e "$prefix" || -L "$prefix" ]]; then
+  echo 'Choose a new test prefix; refusing to overwrite an existing path.' >&2
+  exit 1
+fi
 if command -v sha256sum >/dev/null; then
   sha256sum --check SHA256SUMS
 else
   shasum -a 256 --check SHA256SUMS
 fi
-npm install --global --prefix "$prefix" --userconfig /dev/null --no-audit --no-fund ./*.tgz
-actual="$(CYRUS_SENTRY_DISABLED=1 "$prefix/bin/cyrus" --version)"
+umask 077
+# Atomic mkdir (without -p) also refuses a path created after the check above.
+mkdir "$prefix"
+mkdir "$prefix/test-home" "$prefix/cache" "$prefix/tmp" \
+  "$prefix/test-home/.config" "$prefix/test-home/.cache" "$prefix/test-home/.local"
+: > "$prefix/test-home/npm-user.npmrc"
+: > "$prefix/test-home/npm-global.npmrc"
+# Only child processes receive this disposable environment; the caller is unchanged.
+isolated_env=(env -i "PATH=$PATH" "HOME=$prefix/test-home" \
+  "TMPDIR=$prefix/tmp" "TMP=$prefix/tmp" "TEMP=$prefix/tmp" \
+  "XDG_CONFIG_HOME=$prefix/test-home/.config" "XDG_CACHE_HOME=$prefix/test-home/.cache" \
+  "XDG_DATA_HOME=$prefix/test-home/.local" "CYRUS_SENTRY_DISABLED=1" \
+  "NPM_CONFIG_USERCONFIG=$prefix/test-home/npm-user.npmrc" \
+  "NPM_CONFIG_GLOBALCONFIG=$prefix/test-home/npm-global.npmrc" \
+  "NPM_CONFIG_CACHE=$prefix/cache" "NPM_CONFIG_REGISTRY=https://registry.npmjs.org")
+"\${isolated_env[@]}" npm install --global --prefix "$prefix" --no-audit --no-fund ./*.tgz
+actual="$("\${isolated_env[@]}" "$prefix/bin/cyrus" --version)"
 test "$actual" = '${version}'
+"\${isolated_env[@]}" "$prefix/bin/cyrus" --help > /dev/null
 printf 'Verified Cyrus %s at %s/bin/cyrus\\n' "$actual" "$prefix"
 `,
 	);
@@ -168,7 +189,11 @@ Source: ${sourceSha}
 Workflow: ${workflowSha}
 
 Verify the outer SHA256SUMS against the workflow summary before extracting.
-Then run bash install.sh /absolute/path/to/disposable-prefix here.
+Then run bash install.sh /absolute/path/to/disposable-prefix here. The prefix
+must not exist (symlinks are refused too); its parent directory must exist.
+The installer creates private test-home/cache directories beneath that prefix,
+uses empty npm config files and a clean child environment for installation and
+CLI checks, and preserves the caller's installation, home, auth and configuration.
 All ${packages.length} coordinated packages are installed together. npm downloads
 external dependencies; no Cyrus prerelease needs to exist on the registry.
 Use the resulting prefix/bin/cyrus with a separate --cyrus-home for testing.

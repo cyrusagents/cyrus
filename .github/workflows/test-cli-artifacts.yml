@@ -122,8 +122,8 @@ jobs:
           tar -xzf "cyrus-${REQUESTED_VERSION}-test-bundle.tar.gz" -C "$RUNNER_TEMP/bundle-smoke"
           cd "$RUNNER_TEMP/bundle-smoke/cyrus-${REQUESTED_VERSION}-test-bundle"
           sha256sum --check SHA256SUMS
-          NPM_CONFIG_CACHE="$RUNNER_TEMP/test-npm-cache" bash install.sh "$RUNNER_TEMP/test-cli-prefix"
-          "$RUNNER_TEMP/test-cli-prefix/bin/cyrus" --help > /dev/null
+          # The installer checks version/help using its private test home.
+          bash install.sh "$RUNNER_TEMP/test-cli-prefix"
 
       # Never upload on a failed validation, test, package inspection, or install.
       - name: Upload complete verified test bundle

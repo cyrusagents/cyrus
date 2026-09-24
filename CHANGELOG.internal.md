@@ -5,7 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Changed
-- Added a manual, read-only CLI test-artifact workflow for reviewed immutable prerelease commits, with canonical validation, the complete 17-package bundle, SHA256 manifests, and an isolated installation check. Existing main-only npm publishing guards remain unchanged. ([CYPACK-1502](https://linear.app/ceedar/issue/CYPACK-1502), [#1502](https://github.com/cyrusagents/cyrus/pull/1502))
+- Added a manual, read-only CLI test-artifact workflow for reviewed immutable prerelease commits, with canonical validation, the complete 17-package bundle, SHA256 manifests, and an isolated installation check. Its installer refuses existing prefixes and symlinks and uses a private disposable home/cache with empty npm configuration. Existing main-only npm publishing guards remain unchanged. ([CYPACK-1502](https://linear.app/ceedar/issue/CYPACK-1502), [#1502](https://github.com/cyrusagents/cyrus/pull/1502))
 - Switched builds, type checking, and development watch commands to the native TypeScript compiler, reducing measured local build time by 74% and type-check time by 68%. Prompt-assembly tests now use mock Linear trackers reliably, preventing network-dependent CI timeouts. ([CYPACK-1520](https://linear.app/ceedar/issue/CYPACK-1520), [#1485](https://github.com/cyrusagents/cyrus/pull/1485))
 
 ### Fixed

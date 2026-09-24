@@ -68,7 +68,13 @@ bash install.sh /absolute/path/to/disposable-prefix
 
 The bundle contains all 17 package tarballs, `manifest.json` (source and workflow
 SHAs, package identities, sizes and SHA256 hashes), `SHA256SUMS`, `INSTALL.md`, and
-`install.sh`. External dependencies download from npm during installation; all
+`install.sh`. The installation prefix must not exist, including a dangling symlink;
+its parent directory must already exist. The installer refuses existing paths
+before invoking npm and creates the fresh prefix with mode `0700`. It keeps a
+private test home/cache beneath that prefix, uses empty private npm user/global
+config files, and gives npm and both CLI checks a clean child environment. The
+caller's home, credentials, npm configuration, cache, and installation are preserved.
+External dependencies download from the public npm registry during installation; all
 Cyrus packages come from the bundle. Use the installed CLI with a separate
 `--cyrus-home`; do not replace the running internal Cyrus installation or auth.
 
