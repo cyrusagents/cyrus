@@ -92,11 +92,29 @@ export type AskUserQuestionAnswers = Record<string, string>;
  * Result of presenting questions to the user.
  */
 export interface AskUserQuestionResult {
-	/** Whether the user provided answers (true) or the request was cancelled/denied (false) */
+	/** Whether the user provided answers (true) or not (false) */
 	answered: boolean;
 	/** The user's answers, if answered is true */
 	answers?: AskUserQuestionAnswers;
-	/** Message explaining why the request was denied, if answered is false */
+	/**
+	 * True when the question never reached a human — aborted, replaced by a
+	 * later question, the session ended, or the elicitation could not be posted.
+	 *
+	 * This is deliberately distinct from a human seeing the question and
+	 * declining. Both produce `answered: false`, but they mean opposite things:
+	 * a decline is a decision, whereas a cancellation is the *absence* of one.
+	 * Collapsing them lets an agent read "nobody answered" as tacit approval and
+	 * carry on, which is worse than never having asked — the thread then reads
+	 * as though a human signed off.
+	 */
+	cancelled?: boolean;
+	/**
+	 * Explains why no answer was obtained, when `answered` is false.
+	 *
+	 * This string is surfaced to the model, so for cancellations it must say
+	 * plainly that the question was not answered and must not be treated as
+	 * approval. See {@link cancelled}.
+	 */
 	message?: string;
 }
 
