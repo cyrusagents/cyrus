@@ -1,0 +1,188 @@
+{
+	"options": {
+		"repositories": [
+			{ "id": "demo-api", "name": "demo-api", "workspaceId": "demo-workspace" },
+			{ "id": "demo-web", "name": "demo-web", "workspaceId": "demo-workspace" },
+			{
+				"id": "demo-docs",
+				"name": "demo-docs",
+				"workspaceId": "demo-workspace"
+			},
+			{
+				"id": "demo-dashboard",
+				"name": "demo-dashboard",
+				"workspaceId": "demo-workspace"
+			}
+		],
+		"workspaces": [{ "id": "demo-workspace", "name": "Demo workspace" }]
+	},
+	"definitions": [
+		{
+			"id": "demo-auto-reviews",
+			"revision": 3,
+			"createdAt": 1756688400000,
+			"updatedAt": 1790048400000,
+			"archived": false,
+			"name": "Review overnight pull requests",
+			"instructions": "Check pull requests opened in the last day. Summarize which ones are ready for review, note failing checks, and leave existing branches unchanged.",
+			"repositoryId": "demo-api",
+			"timezone": "Asia/Shanghai",
+			"schedule": { "kind": "daily", "time": "09:00" },
+			"target": { "kind": "direct_repository" },
+			"enabled": true,
+			"nextRunAt": 1790211600000,
+			"scheduleState": "scheduled"
+		},
+		{
+			"id": "demo-auto-release",
+			"revision": 2,
+			"createdAt": 1757293200000,
+			"updatedAt": 1789952400000,
+			"archived": false,
+			"name": "Rehearse the release checklist",
+			"instructions": "Walk through the release checklist in an isolated worktree. Report anything that would block a release, and do not publish or tag.",
+			"repositoryId": "demo-api",
+			"timezone": "Asia/Shanghai",
+			"schedule": { "kind": "weekly", "time": "11:00", "days": [3] },
+			"target": { "kind": "direct_repository" },
+			"enabled": true,
+			"nextRunAt": 1790132400000,
+			"scheduleState": "scheduled"
+		},
+		{
+			"id": "demo-auto-docs",
+			"revision": 4,
+			"createdAt": 1758070800000,
+			"updatedAt": 1790082000000,
+			"archived": false,
+			"name": "Refresh getting started examples",
+			"instructions": "Compare the getting started guide with the current setup flow. Update examples that drifted, and open a pull request only when a step is wrong.",
+			"repositoryId": "demo-docs",
+			"timezone": "Asia/Shanghai",
+			"schedule": { "kind": "daily", "time": "18:00" },
+			"target": { "kind": "direct_repository" },
+			"enabled": true,
+			"nextRunAt": 1790157600000,
+			"scheduleState": "scheduled"
+		},
+		{
+			"id": "demo-auto-webhooks",
+			"revision": 5,
+			"createdAt": 1756688400000,
+			"updatedAt": 1790125200000,
+			"archived": false,
+			"name": "Check webhook failure logs",
+			"instructions": "Read the last weekday of webhook errors. Explain any repeated failure, and open a pull request when the handler can reject it safely.",
+			"repositoryId": "demo-api",
+			"timezone": "Asia/Shanghai",
+			"schedule": { "kind": "cron", "expression": "0 9 * * 1-5" },
+			"target": {
+				"kind": "linear_issue",
+				"workspaceId": "demo-workspace",
+				"teamId": "demo-team",
+				"projectId": "demo-project"
+			},
+			"enabled": true,
+			"nextRunAt": 1790211600000,
+			"scheduleState": "scheduled"
+		},
+		{
+			"id": "demo-auto-deps",
+			"revision": 2,
+			"createdAt": 1758502800000,
+			"updatedAt": 1789866000000,
+			"archived": false,
+			"name": "Audit dependency updates",
+			"instructions": "Review direct dependency updates for known breakages. Propose one small upgrade when tests can cover it, and skip major upgrades.",
+			"repositoryId": "demo-web",
+			"timezone": "Asia/Shanghai",
+			"schedule": { "kind": "weekly", "time": "08:30", "days": [1, 4] },
+			"target": { "kind": "direct_repository" },
+			"enabled": true,
+			"nextRunAt": 1790209800000,
+			"scheduleState": "scheduled"
+		},
+		{
+			"id": "demo-auto-usage",
+			"revision": 1,
+			"createdAt": 1759107600000,
+			"updatedAt": 1789606800000,
+			"archived": false,
+			"name": "Summarize usage reports",
+			"instructions": "Summarize the weekly usage export. Call out unusual spikes and leave the dashboard data unchanged.",
+			"repositoryId": "demo-dashboard",
+			"timezone": "Asia/Shanghai",
+			"schedule": { "kind": "weekly", "time": "09:00", "days": [1] },
+			"target": { "kind": "direct_repository" },
+			"enabled": true,
+			"nextRunAt": 1790557200000,
+			"scheduleState": "scheduled"
+		},
+		{
+			"id": "demo-auto-triage",
+			"revision": 6,
+			"createdAt": 1756688400000,
+			"updatedAt": 1790006400000,
+			"archived": false,
+			"name": "Triage stale review comments",
+			"instructions": "List review comments that have been waiting for more than five days. Draft a follow-up only when the requested change is still open.",
+			"repositoryId": "demo-web",
+			"timezone": "Asia/Shanghai",
+			"schedule": { "kind": "weekly", "time": "16:00", "days": [5] },
+			"target": { "kind": "direct_repository" },
+			"enabled": false,
+			"nextRunAt": null,
+			"scheduleState": "paused"
+		}
+	],
+	"runs": {
+		"demo-auto-reviews": [
+			{
+				"id": "demo-run-reviews-3",
+				"automationId": "demo-auto-reviews",
+				"key": "demo-auto-reviews:1790125200000",
+				"trigger": "scheduled",
+				"scheduledAt": 1790125200000,
+				"createdAt": 1790125200000,
+				"updatedAt": 1790126400000,
+				"startedAt": 1790125260000,
+				"status": "succeeded",
+				"issueId": "demo-issue-142",
+				"sessionId": "demo-session-0",
+				"prUrls": ["https://github.com/miko-demo/demo-api/pull/42"],
+				"message": "Ready for review: overnight pull requests were checked.\n\nVerified: 4 open pull requests · 1 needs a reviewer\nPull request: #42 — Fix duplicate webhook processing\n\nReview the changes before merging.",
+				"attempts": 1
+			},
+			{
+				"id": "demo-run-reviews-2",
+				"automationId": "demo-auto-reviews",
+				"key": "demo-auto-reviews:1790038800000",
+				"trigger": "scheduled",
+				"scheduledAt": 1790038800000,
+				"createdAt": 1790038800000,
+				"updatedAt": 1790039700000,
+				"startedAt": 1790038860000,
+				"status": "succeeded",
+				"sessionId": "demo-session-5",
+				"prUrls": [],
+				"message": "No repository change was needed. Open pull requests already had reviewers and passing checks.",
+				"attempts": 1
+			},
+			{
+				"id": "demo-run-reviews-1",
+				"automationId": "demo-auto-reviews",
+				"key": "demo-auto-reviews:1789952400000",
+				"trigger": "scheduled",
+				"scheduledAt": 1789952400000,
+				"createdAt": 1789952400000,
+				"updatedAt": 1789954200000,
+				"startedAt": 1789952460000,
+				"status": "succeeded",
+				"sessionId": "demo-session-3",
+				"prUrls": ["https://github.com/miko-demo/demo-api/pull/41"],
+				"message": "Ready for review: one documentation fix was opened.\n\nPull request: #41 — Clarify webhook retry limits",
+				"attempts": 1
+			}
+		]
+	}
+}

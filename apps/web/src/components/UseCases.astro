@@ -1,12 +1,25 @@
 ---
 import LinearDemo from "./LinearDemo.astro";
+import cases from "../data/use-cases.json";
+
+const exampleOrder = [
+	"bug-fixes",
+	"feature-work",
+	"pr-follow-ups",
+	"test-coverage",
+	"code-questions",
+	"refactoring",
+	"documentation",
+	"parallel-tasks",
+];
+const examples = exampleOrder.map((id) => cases.find((item) => item.id === id)!);
 ---
 
 <section id="use-cases">
   <div class="mx-auto grid w-full max-w-[var(--site-content-width)] gap-12 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-2 lg:gap-16">
-    <div class="flex flex-col gap-8 text-center lg:min-h-[730px] lg:py-10 lg:text-left">
+    <div class="flex flex-col gap-8 text-center lg:min-h-[730px] lg:justify-center lg:text-left">
       <h2 class="font-display text-3xl tracking-tight text-balance sm:text-4xl">
-        Give your agent a task
+        Workflows
       </h2>
       <div class="flex flex-col gap-2">
         <div class="flex justify-center gap-2 lg:justify-start">
@@ -250,6 +263,14 @@ import LinearDemo from "./LinearDemo.astro";
       </span>
     </p>
   </div>
+  <ul class="mx-auto mt-4 grid w-full max-w-[var(--site-content-width)] gap-x-12 gap-y-6 px-4 sm:grid-cols-2 sm:px-6">
+    {examples.map((item) => (
+      <li>
+        <h3 class="m-0 text-base font-medium">{item.title}</h3>
+        <p class="text-theme-text-muted mt-1 text-sm leading-relaxed">{item.description}</p>
+      </li>
+    ))}
+  </ul>
   <div class="mt-10 flex justify-center lg:hidden">
     <a
       class="relative isolate inline-flex shrink-0 items-center justify-center border-0 text-sm font-medium transition-[color,background-color,border-color,filter] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&amp;&gt;[data-slot=icon]]:-mx-0.5 [&amp;&gt;[data-slot=icon]]:shrink-0 gap-x-3 px-[18px] py-2.5 sm:text-sm [&amp;&gt;[data-slot=icon]]:size-5 [&amp;&gt;[data-slot=icon]]:sm:size-4 bg-[--btn-bg] text-[--btn-text] hover:bg-[--btn-hover] rounded-full [--btn-bg:color-mix(in_srgb,hsl(var(--primary))_3%,hsl(var(--card)))] [--btn-hover:color-mix(in_srgb,hsl(var(--primary))_7%,hsl(var(--card)))] [--btn-text:theme(colors.primary)]"

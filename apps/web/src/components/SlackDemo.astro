@@ -1,6 +1,7 @@
 ---
 import cases from "../data/use-cases.json";
 import Icon from "./LucideIcon.astro";
+import MikoBadge from "./MikoBadge.astro";
 import "../styles/slack-demo.css";
 const channels = [
 	{ name: "engineering", caseId: "bug-fixes" },
@@ -32,11 +33,11 @@ const channels = [
       {channels.map((channel, i) => {
         const task = cases.find(item => item.id === channel.caseId)!;
         return <section class="slack-channel-panel" data-slack-panel={channel.name} hidden={i !== 0} aria-label={`${channel.name} channel`}>
-          <header class="slack-channel-header"><h3><Icon name="hash" size={21} /> {channel.name} <Icon name="chevron-down" size={14} /></h3><div class="slack-members" aria-label="3 channel members"><span><img class="avatar-photo" src="/assets/avatars/nexmoe.jpeg" alt="" /></span><span><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span><small>3</small></div><Icon name="calendar-days" /></header>
+          <header class="slack-channel-header"><p><Icon name="hash" size={21} /> {channel.name} <Icon name="chevron-down" size={14} /></p><div class="slack-members" aria-label="3 channel members"><span><img class="avatar-photo" src="/assets/avatars/nexmoe.jpeg" alt="" /></span><span><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span><small>3</small></div><Icon name="calendar-days" /></header>
           <div class="slack-channel-tabs"><span class="slack-selected-tab"><Icon name="message-square" /> Messages</span><Icon name="plus" size={16} /></div>
           <div class="slack-messages" tabindex="0" aria-label={`${channel.name} messages`}>
             <div class="slack-date-divider"><span>Today <Icon name="chevron-down" size={14} /></span></div>
-            <article class="slack-message"><span class="slack-avatar slack-avatar-person"><img class="avatar-photo" src="/assets/avatars/nexmoe.jpeg" alt="" /></span><div><div class="slack-message-meta"><strong>Nexmoe</strong><time>10:24 AM</time></div><p><span class="slack-mention">@Miko</span> {task.request}</p><span class="slack-reaction" aria-label="Eyes, one reaction">👀 <span>1</span></span></div></article>
+            <article class="slack-message"><span class="slack-avatar slack-avatar-person"><img class="avatar-photo" src="/assets/avatars/nexmoe.jpeg" alt="" /></span><div><div class="slack-message-meta"><strong>Nexmoe</strong><time>10:24 AM</time></div><p><MikoBadge /> {task.request}</p><span class="slack-reaction" aria-label="Eyes, one reaction">👀 <span>1</span></span></div></article>
             <article class="slack-message"><span class="slack-avatar slack-avatar-bot"><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span><div><div class="slack-message-meta"><strong>Miko</strong><span class="slack-app-badge">APP</span><time>10:24 AM</time></div><p>{task.progress}</p></div></article>
             <article class="slack-message"><span class="slack-avatar slack-avatar-person"><img class="avatar-photo" src="/assets/avatars/nexmoe.jpeg" alt="" /></span><div><div class="slack-message-meta"><strong>Nexmoe</strong><time>10:25 AM</time></div><p>{task.followup}</p></div></article>
             <article class="slack-message"><span class="slack-avatar slack-avatar-bot"><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span><div><div class="slack-message-meta"><strong>Miko</strong><span class="slack-app-badge">APP</span><time>10:28 AM</time></div><p>{task.result}</p><div class="slack-result"><img src="/assets/integrations/github.webp" alt="GitHub" width="16" height="16"/><div><strong>{task.title}</strong><span>Ready for review <span aria-hidden="true">·</span> Checks passed</span></div><Icon name="check" /></div><span class="slack-reaction" aria-label="Raised hands, one reaction">🙌 <span>1</span></span></div></article>

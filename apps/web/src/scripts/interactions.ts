@@ -142,12 +142,22 @@ $("[data-mobile-menu]")?.addEventListener("click", () => {
 $$<HTMLButtonElement>("[data-copy-command]").forEach((button) => {
 	button.addEventListener("click", async () => {
 		const status = $(".quickstart-status");
+		const code = button.closest(".quickstart-command")?.querySelector("code");
+		const command = (
+			button.dataset.copyCommand ||
+			code?.innerText ||
+			""
+		).trim();
 		try {
-			await navigator.clipboard.writeText(button.dataset.copyCommand ?? "");
+			await navigator.clipboard.writeText(command);
+			for (const other of $$<HTMLButtonElement>("[data-copy-command]")) {
+				if (other !== button) other.textContent = "Copy";
+			}
 			button.textContent = "Copied";
-			if (status) status.textContent = "Command copied.";
+			if (status)
+				status.textContent = button.dataset.copyStatus || "Prompt copied.";
 		} catch {
-			if (status) status.textContent = "Select and copy the command above.";
+			if (status) status.textContent = "Select and copy the text above.";
 		}
 	});
 });

@@ -1,27 +1,40 @@
+---
+import MikoBadge from "./MikoBadge.astro";
+const setupPrompt = `Set up Miko for me. Do these in order.
+
+First, install the setup skills by running this in the terminal:
+npx skills add mikoagents/miko -g
+
+Then run /miko-setup in this chat. Guide me through the rest: check prerequisites, install Miko from source, connect my coding credentials, add my repositories, and help me launch it. I will sign in and approve access when you ask.`;
+---
+
 <section id="get-started">
   <div class="mx-auto w-full max-w-[var(--site-content-width)] px-4 pt-24 pb-16 sm:px-6 sm:pt-32 sm:pb-20">
     <div class="mx-auto flex max-w-xl flex-col gap-8">
       <div class="flex flex-col items-center gap-3 text-center">
         <h2 class="font-display text-3xl tracking-tight text-balance sm:text-4xl">Get Miko running.</h2>
-        <p class="text-theme-text-muted text-base leading-relaxed">Two commands. A guided setup. Your first task.</p>
+        <p class="text-theme-text-muted text-base leading-relaxed">One prompt for your agent. Then your first task, and the logs on the board.</p>
       </div>
       <ol class="quickstart-steps">
         <li>
           <span class="quickstart-number" aria-hidden="true">1</span>
-          <div><h3 class="text-base font-medium">Add the setup skills</h3><p class="text-theme-text-muted mt-2 text-sm leading-relaxed">Run this in your terminal.</p>
-            <div class="quickstart-command"><code>npx skills add mikoagents/miko -g</code><button type="button" data-copy-command="npx skills add mikoagents/miko -g" aria-label="Copy skills command">Copy</button></div>
+          <div>
+            <h3 class="text-base font-medium">Paste this to your agent</h3>
+            <p class="text-theme-text-muted mt-2 text-sm leading-relaxed">Copy it into Claude Code, Codex, Cursor, or your coding agent. It tells the agent what to do first, then what to do next.</p>
+            <div class="quickstart-command"><code>{setupPrompt}</code><button type="button" data-copy-command aria-label="Copy setup prompt">Copy</button></div>
           </div>
         </li>
         <li>
           <span class="quickstart-number" aria-hidden="true">2</span>
-          <div><h3 class="text-base font-medium">Start the guided setup</h3><p class="text-theme-text-muted mt-2 text-sm leading-relaxed">In Claude Code, Codex, Cursor, or your coding agent, run:</p>
-            <div class="quickstart-command"><code>/miko-setup</code><button type="button" data-copy-command="/miko-setup" aria-label="Copy setup command">Copy</button></div>
-            <p class="text-theme-text-muted text-sm leading-relaxed">Choose your integrations, connect your coding credentials, and add your repositories. The setup checks prerequisites, installs Miko from source, and helps you launch it.</p>
-          </div>
+          <div><h3 class="text-base font-medium">Give Miko its first task</h3><p class="text-theme-text-muted mt-2 text-sm leading-relaxed">Assign a Linear issue, or <MikoBadge /> in a configured GitHub PR, GitLab MR, or Slack conversation.</p><p class="text-theme-text-muted mt-2 text-sm leading-relaxed">Keep the worker and any tunnel running so new tasks can reach Miko.</p></div>
         </li>
         <li>
           <span class="quickstart-number" aria-hidden="true">3</span>
-          <div><h3 class="text-base font-medium">Give Miko its first task</h3><p class="text-theme-text-muted mt-2 text-sm leading-relaxed">Assign a Linear issue, or @Miko in a configured GitHub PR, GitLab MR, or Slack conversation. Follow progress in your tools or the local <code>/board</code>.</p><p class="text-theme-text-muted mt-2 text-sm leading-relaxed">Keep the worker and any tunnel running so new tasks can reach Miko.</p></div>
+          <div>
+            <h3 class="text-base font-medium">Read the logs on the board</h3>
+            <p class="text-theme-text-muted mt-2 text-sm leading-relaxed">Open this address on the machine running Miko. Select the task and follow its live log.</p>
+            <div class="quickstart-command"><code>http://127.0.0.1:3456/board</code><button type="button" data-copy-command="http://127.0.0.1:3456/board" data-copy-status="Board address copied." aria-label="Copy board address">Copy</button></div>
+          </div>
         </li>
       </ol>
       <p class="text-theme-text-muted text-xs leading-relaxed">Installing the skills adds the setup workflow. Running <code>/miko-setup</code> installs the runtime. You sign in and approve access to your accounts during setup.</p>
@@ -38,9 +51,9 @@
 .quickstart-steps { list-style:none; padding:0; margin:0; display:grid; gap:28px; }
 .quickstart-steps > li { display:grid; grid-template-columns:28px minmax(0,1fr); gap:16px; }
 .quickstart-number { display:grid; place-items:center; width:28px; height:28px; border:1px solid var(--color-theme-border); border-radius:50%; font-size:12px; }
-.quickstart-command { display:flex; align-items:center; gap:12px; margin:16px 0; padding:16px; background:var(--color-theme-card-03-hex); border:1px solid var(--color-theme-border); border-radius:12px; }
-.quickstart-command code { flex:1; min-width:0; overflow-wrap:anywhere; font-size:13px; }
+.quickstart-command { display:flex; align-items:flex-start; gap:12px; width:100%; margin:16px 0 0; padding:16px; background:var(--color-theme-card-03-hex); border:1px solid var(--color-theme-border); border-radius:12px; box-sizing:border-box; }
+.quickstart-command code { flex:1; min-width:0; overflow-wrap:anywhere; white-space:pre-wrap; font-size:13px; line-height:1.5; }
 .quickstart-command button { flex-shrink:0; font-size:12px; cursor:pointer; padding:4px; }
 .quickstart-status:empty { display:none; }
-@media(max-width:639px) { .quickstart-steps > li { gap:12px; } .quickstart-command { padding:12px; gap:8px; } .quickstart-command code { font-size:11px; } }
+@media(max-width:639px) { .quickstart-steps > li { gap:12px; } .quickstart-command { padding:12px; gap:8px; } .quickstart-command code { font-size:12px; } }
 </style>

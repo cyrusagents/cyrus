@@ -8,53 +8,13 @@
 	font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
 	color-scheme: light;
 }
-.linear-demo .linear-toolbar {
-	position: absolute;
-	top: 0;
-	left: 12px;
-	right: 12px;
-	display: flex;
-	justify-content: space-between;
-	z-index: 2;
-	pointer-events: none;
-}
-.linear-demo .linear-glass {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border: 1px solid #dedede;
-	background: #ffffffed;
-	box-shadow: 0 5px 18px #00000005;
-	backdrop-filter: blur(14px);
-	border-radius: 40px;
-}
-.linear-demo .linear-back {
-	width: 34px;
-	height: 34px;
-	color: #111;
-}
-.linear-demo .linear-actions {
-	height: 34px;
-	gap: 18px;
-	padding: 0 12px;
-	color: #111;
-}
-.linear-demo .linear-actions svg,
-.linear-demo .linear-tool svg {
-	width: 19px;
-	height: 19px;
-	fill: none;
-	stroke: #111;
-	stroke-width: 2;
-	stroke-linejoin: round;
-}
 .linear-demo .linear-issue {
 	height: 100%;
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	scrollbar-width: thin;
 	scrollbar-color: #d6d6d6 transparent;
-	padding: 46px 0 75px;
+	padding: 8px 0 28px;
 }
 .linear-demo .linear-issue[hidden] {
 	display: none;
@@ -66,7 +26,7 @@
 .linear-demo .linear-issue-body {
 	padding: 0 14px;
 }
-.linear-demo h3 {
+.linear-demo .linear-issue-title {
 	font-size: 19px;
 	font-weight: 650;
 	line-height: 1.3;
@@ -238,36 +198,6 @@
 .linear-demo .linear-last::after {
 	display: none;
 }
-.linear-demo .linear-composer {
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	right: 0;
-	display: flex;
-	gap: 6px;
-	padding: 15px 10px 12px;
-	background: linear-gradient(transparent, #fffffff2 45%);
-	pointer-events: none;
-}
-.linear-demo .linear-tool {
-	height: 36px;
-	width: 36px;
-	flex-shrink: 0;
-	font-size: 24px;
-}
-.linear-demo .linear-comment {
-	justify-content: flex-start;
-	gap: 8px;
-	flex: 1;
-	min-width: 0;
-	padding: 0 13px;
-	color: #aaa;
-	font-size: 13px;
-}
-.linear-demo .linear-comment > span {
-	color: #222;
-	font-size: 26px;
-}
 .linear-demo .linear-pull {
 	display: flex;
 }
@@ -303,7 +233,4 @@
 }
 .linear-demo .linear-history[open] summary::before {
 	background: #ddd;
-}
-.linear-demo .linear-agent {
-	color: #080808;
 }

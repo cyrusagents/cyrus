@@ -5,14 +5,10 @@ import cases from "../data/use-cases.json";
 ---
 
 <div class="linear-demo" aria-label="Interactive Linear issue examples">
-  <div class="linear-toolbar" aria-hidden="true">
-    <span class="linear-glass linear-back"><LinearIcon name="back" size={19} /></span>
-    <span class="linear-glass linear-actions"><LinearIcon name="edit" size={18} /><LinearIcon name="more" size={18} /></span>
-  </div>
   {cases.map((item, index) => (
     <article class="linear-issue" data-linear-case={item.id} hidden={item.id !== "bug-fixes"} tabindex="0" aria-label={item.title}>
       <div class="linear-issue-body">
-        <h3>{item.title}</h3>
+        <p class="linear-issue-title">{item.title}</p>
         <p class="linear-description">{item.request}</p>
         <h4>Acceptance criteria</h4>
         <p class="linear-description">{item.followup}</p>
@@ -34,5 +30,4 @@ import cases from "../data/use-cases.json";
       </section>
     </article>
   ))}
-  <div class="linear-composer" aria-hidden="true"><span class="linear-glass linear-tool"><LinearIcon name="pickaxe" size={22} /></span><span class="linear-glass linear-comment"><LinearIcon name="plus" size={20} /> Comment</span><span class="linear-glass linear-tool linear-agent"><LinearIcon name="agent" size={22} /></span></div>
 </div>

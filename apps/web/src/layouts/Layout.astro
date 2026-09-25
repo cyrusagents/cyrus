@@ -2,24 +2,83 @@
 import "../styles/global.css";
 import Footer from "../components/Footer.astro";
 import Header from "../components/Header.astro";
+import { absoluteUrl, site } from "../data/site";
+
+interface Props {
+  title?: string;
+  description?: string;
+  canonicalPath?: string;
+  robots?: string;
+  jsonLd?: unknown;
+}
+
+const {
+  title,
+  description = site.description,
+  canonicalPath,
+  robots = site.robots,
+  jsonLd,
+} = Astro.props;
+
+if (!Astro.site) {
+  throw new Error("Set site in astro.config.mjs before building the website.");
+}
+
+const pageTitle = title ? `${title} | ${site.name}` : site.title;
+const indexable = !robots.includes("noindex");
+const canonical = indexable
+  ? absoluteUrl(Astro.site, canonicalPath ?? Astro.url.pathname)
+  : undefined;
+const image = absoluteUrl(Astro.site, site.image);
+const jsonLdText = jsonLd
+  ? JSON.stringify(jsonLd).replace(/</g, "\\u003c")
+  : undefined;
 ---
 
 <!doctype html>
-<html lang="en" class="light">
+<html lang={site.lang} class="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="Connect Linear, GitHub, GitLab, and Slack to Claude Code, Codex, Cursor, and more. Miko runs coding tasks in isolated workspaces and returns progress and results."
-    />
-    <meta name="robots" content="noindex,nofollow" />
-    <title>Miko | Your background coding teammate</title>
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="application-name" content={site.name} />
+    <meta name="robots" content={robots} />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    {canonical && <link rel="canonical" href={canonical} />}
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+    <meta name="theme-color" content={site.themeColor} media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content={site.themeColorDark} media="(prefers-color-scheme: dark)" />
+    <meta property="og:locale" content={site.locale} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <meta property="og:image" content={image} />
+    <meta property="og:image:secure_url" content={image} />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content={String(site.imageWidth)} />
+    <meta property="og:image:height" content={String(site.imageHeight)} />
+    <meta property="og:image:alt" content={site.imageAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
+    <meta name="twitter:image:alt" content={site.imageAlt} />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link
+      rel="preload"
+      href="/assets/XVF_Variable-s.p.2_a5y-slrzff6.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    {jsonLdText && <script type="application/ld+json" set:html={jsonLdText} />}
     <link rel="stylesheet" href="/assets/reference.css" />
   </head>
   <body class="geistmono_157ca88a-module__Z2Vbha__variable xvf_14695435-module__Z7Vuyq__variable bg-background text-primary font-sans antialiased">

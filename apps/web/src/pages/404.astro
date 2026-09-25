@@ -1,0 +1,15 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout
+  title="Page not found"
+  description="This page is not part of the Miko site."
+  robots="noindex, follow"
+>
+  <section class="mx-auto flex min-h-[50vh] w-full max-w-[var(--site-content-width)] flex-col items-center justify-center gap-4 px-4 py-24 text-center sm:px-6">
+    <p class="text-theme-text-muted text-sm">404</p>
+    <h1 class="font-display text-3xl tracking-tight sm:text-4xl">Page not found</h1>
+    <a class="inline-flex items-center justify-center rounded-full bg-theme-accent hover:bg-theme-accent-hover text-theme-accent-contrast h-11 px-6 text-sm" href="/">Back home</a>
+  </section>
+</Layout>

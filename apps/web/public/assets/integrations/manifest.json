@@ -56,5 +56,12 @@
 		"download": "https://s3-new.macosicons.com/macosicons/parse/OpenCode_asORabqMmv_icns-a84f51e60d.icns",
 		"author": "iigiovanni",
 		"file": "assets/integrations/opencode.png"
+	},
+	{
+		"name": "grok",
+		"source": "https://macosicons.com/icon/grok-liquid-glass-7PM6rcO2Sj",
+		"download": "https://s3-new.macosicons.com/macosicons/parse/Grok__Liquid_Glass__7PM6rcO2Sj_icns-e5634f1f10.icns",
+		"author": "ohqay",
+		"file": "assets/integrations/grok.png"
 	}
 ]

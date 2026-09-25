@@ -11,16 +11,20 @@
           <span class="window-local">Demo workspace</span>
         </div>
         <div class="board-captures">
-          <img id="board-activity" data-board-panel="activity" src="/assets/board/demo-activity-rich.png" width="2560" height="1520" alt="Miko board with fictional demo data showing the task list, activity timeline, tool calls, and completed agent turns." loading="lazy" />
-          <img id="board-result" data-board-panel="result" src="/assets/board/demo-result-rich.png" width="2560" height="1520" alt="The fictional demo task with its completion result expanded, showing passed checks and a link to the updated pull request." loading="lazy" hidden />
+          <img id="board-activity" data-board-panel="activity" src="/assets/board/demo-activity-rich.png" width="2560" height="1520" alt="Miko board with fictional demo data. Tasks and logs shows the task list, activity timeline, tool calls, and completed agent turns." loading="lazy" />
+          <img id="board-result" data-board-panel="result" src="/assets/board/demo-result-rich.png" width="2560" height="1520" alt="The fictional demo task selected on Tasks and logs, with its completion result expanded, passed checks, and the updated pull request." loading="lazy" hidden />
+          <img id="board-automations" data-board-panel="automations" src="/assets/board/demo-automations.png" width="2560" height="1520" alt="Miko board Automations page with fictional daily, weekly, and cron schedules across demo repositories." loading="lazy" hidden />
+          <img id="board-automation-run" data-board-panel="automation-run" src="/assets/board/demo-automation-run.png" width="2560" height="1520" alt="Run history for a fictional automation, with a succeeded scheduled run, its review notes, and a pull request link." loading="lazy" hidden />
         </div>
       </div>
       <div class="board-view-controls" role="group" aria-label="Choose a board screenshot">
         <button type="button" data-board-view="activity" aria-pressed="true" aria-controls="board-activity">Task activity</button>
         <button type="button" data-board-view="result" aria-pressed="false" aria-controls="board-result">Completed work</button>
+        <button type="button" data-board-view="automations" aria-pressed="false" aria-controls="board-automations">Automations</button>
+        <button type="button" data-board-view="automation-run" aria-pressed="false" aria-controls="board-automation-run">Run history</button>
       </div>
     </div>
-    <p class="board-caption">Miko Board in action. All tasks and activity shown are demo data.</p>
+    <p class="board-caption">Miko Board in action. Tasks, logs, and scheduled automations shown are demo data.</p>
   </div>
 </section>
 <style>
@@ -34,7 +38,7 @@
   .window-local { justify-self:end; color:#a39aaa; font-size:10px; }
   .board-captures { aspect-ratio:1280/760; }
   .board-captures img { display:block; width:100%; height:auto; }
-  .board-view-controls { display:flex; justify-content:center; gap:5px; margin-top:24px; }
+  .board-view-controls { display:flex; justify-content:center; flex-wrap:wrap; gap:5px; margin-top:24px; }
   .board-view-controls button { padding:8px 16px; border-radius:30px; font:inherit; font-size:12px; color:#706578; cursor:pointer; transition:background-color .2s,color .2s; }
   .board-view-controls button[aria-pressed="true"] { background:#ffffffb8; color:#30273b; }
   .board-view-controls button:hover { background:#ffffff80; color:#30273b; }

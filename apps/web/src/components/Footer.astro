@@ -75,12 +75,12 @@ const columns: {
 <footer class="miko-footer">
   <div class="miko-footer-inner">
     <div class="miko-footer-brand">
-      <a class="miko-portrait" href="#hero" aria-label="Miko">
+      <a class="miko-portrait" href="/#hero" aria-label="Miko">
         <span class="site-logo" aria-hidden="true">
           <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
         </span>
       </a>
-      <a class="miko-footer-name" href="#hero">Miko</a>
+      <a class="miko-footer-name" href="/#hero">Miko</a>
       <p class="miko-footer-line">Your background coding teammate.</p>
       <p class="miko-footer-meta">Miko · Apache 2.0</p>
       <div class="miko-footer-tools">
@@ -99,13 +99,13 @@ const columns: {
             />
           </svg>
         </button>
-        <a class="miko-footer-repo" href={repo} target="_blank" rel="noopener noreferrer">mikoagents/miko</a>
+        <a class="miko-footer-repo" href={repo} target="_blank" rel="me noopener noreferrer">mikoagents/miko</a>
       </div>
     </div>
     <nav class="miko-footer-nav" aria-label="Footer">
       {columns.map((column) => (
         <div class="miko-footer-col">
-          <h2>{column.title}</h2>
+          <p>{column.title}</p>
           <ul>
             {column.links.map((link) => (
               <li>

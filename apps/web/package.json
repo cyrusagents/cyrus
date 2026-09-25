@@ -7,7 +7,8 @@
 		"dev": "astro dev --host 127.0.0.1",
 		"build": "astro build",
 		"preview": "astro preview --host 127.0.0.1",
-		"typecheck": "astro check"
+		"typecheck": "astro check",
+		"deploy": "pnpm build && alchemy deploy --stage production --yes"
 	},
 	"dependencies": {
 		"astro": "^7.3.3",
@@ -16,6 +17,9 @@
 	},
 	"devDependencies": {
 		"@astrojs/check": "^0.9.10",
+		"@effect/platform-node": "4.0.0-rc.115",
+		"alchemy": "2.0.0-beta.79",
+		"effect": "4.0.0-rc.115",
 		"typescript": "^5.9.3",
 		"vite": "^8.0.16"
 	}

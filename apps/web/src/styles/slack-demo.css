@@ -226,7 +226,7 @@
 	gap: 18px;
 	border-bottom: 1px solid #ecebec;
 }
-.slack-channel-header h3 {
+.slack-channel-header p {
 	display: flex;
 	align-items: center;
 	gap: 7px;
@@ -374,12 +374,6 @@
 	font-size: 13px;
 	line-height: 1.5;
 	overflow-wrap: anywhere;
-}
-.slack-mention {
-	color: #1264a3;
-	background: #e8f3fa;
-	padding: 1px 2px;
-	border-radius: 3px;
 }
 .slack-reaction {
 	display: inline-flex;

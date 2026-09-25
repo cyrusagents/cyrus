@@ -10,6 +10,9 @@ yarn.lock
 # Build output
 dist/
 
+# Alchemy local cache and state
+.alchemy/
+
 tempdocs
 
 # Environment variables

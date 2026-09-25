@@ -4,10 +4,7 @@ interface Props {
 	size?: number;
 }
 const paths = {
-	back: "M15 4 7 12l8 8",
-	edit: "M10 4H6a3 3 0 0 0-3 3v11a3 3 0 0 0 3 3h11a3 3 0 0 0 3-3v-5M11 13l1-4 8-8 3 3-8 8-4 1Z",
 	more: "M4 12h.01M12 12h.01M20 12h.01",
-	plus: "M12 4v16M4 12h16",
 	project: "m12 2 9 5v10l-9 5-9-5V7l9-5Zm0 10L3 7m9 5 9-5m-9 5v10M7.5 4.5l9 5",
 	calendar:
 		"M6 3h12a3 3 0 0 1 3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3ZM3 8h18",
@@ -15,11 +12,8 @@ const paths = {
 	delegate: "M4 3v6a5 5 0 0 0 5 5h11m-5-5 5 5-5 5",
 	reaction:
 		"M13 21a9 9 0 1 1 8-10M8 9h.01M15 9h.01M8 14a5 5 0 0 0 7 0m4 2v6m-3-3h6",
-	pickaxe: "m11 10 10 10-2 2L9 12M3 15C4 8 8 4 16 2l-6 5 5 5-5-2-7 5Z",
-	agent:
-		"M7 20H5a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v3M9 9l13 4-6 3-3 6-4-13Z",
 	external: "M7 17 17 7M7 7h10v10",
 };
 const { name, size = 16 } = Astro.props;
 ---
-<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width={name === 'more' ? 4 : 1.8} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;"><path d={paths[name]} />{name === "agent" && <path d="M9 9 22 13 16 16 13 22Z" fill="currentColor" stroke="none" />}</svg>
+<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width={name === 'more' ? 4 : 1.8} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;"><path d={paths[name]} /></svg>

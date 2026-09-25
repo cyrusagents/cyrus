@@ -7,10 +7,20 @@ import Integrations from "../components/Integrations.astro";
 import Pricing from "../components/Pricing.astro";
 import UseCases from "../components/UseCases.astro";
 import Video from "../components/Video.astro";
+import { homeJsonLd } from "../data/site";
 import Layout from "../layouts/Layout.astro";
+
+interface Props {
+  canonicalPath?: string;
+}
+
+const { canonicalPath } = Astro.props;
+if (!Astro.site) {
+  throw new Error("Set site in astro.config.mjs before building the website.");
+}
 ---
 
-<Layout>
+<Layout canonicalPath={canonicalPath} jsonLd={homeJsonLd(Astro.site)}>
   <Hero />
   <Integrations />
   <Features />

@@ -1,4 +1,5 @@
 ---
+import MikoBadge from "./MikoBadge.astro";
 const tasks = [
 	{ title: "Webhook fix", branch: "fix/webhooks", tone: "violet" },
 	{ title: "Dark mode", branch: "feat/dark-mode", tone: "teal" },
@@ -13,7 +14,7 @@ const tasks = [
         Put Miko to work on your code
       </h2>
       <p class="text-primary text-base leading-relaxed text-pretty sm:text-lg sm:leading-relaxed">
-        Hand off an issue or @mention Miko. Your coding agent investigates, implements, and checks the work in its own workspace, then brings the result back for review.
+        Hand off an issue, @mention Miko, or put the work on a schedule. Your coding agent investigates, implements, and checks it in its own workspace, then brings the result back for review.
       </p>
     </div>
     <div class="grid gap-5 sm:grid-cols-2">
@@ -29,7 +30,7 @@ const tasks = [
     <div class="miko-feature-diagram handoff-diagram">
       <div class="handoff-request">
         <span class="handoff-channel"><img src="/assets/integrations/slack.webp" alt="Slack" width="22" height="22" /> <span># engineering</span></span>
-        <p class="diagram-bubble"><span class="mention-miko">@Miko</span> Fix duplicate webhooks.</p>
+        <p class="diagram-bubble"><MikoBadge /> Fix duplicate webhooks.</p>
       </div>
       <div class="handoff-connector" aria-hidden="true"><span></span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="m4 6 4 4 4-4"/></svg></div>
       <div class="handoff-received"><span class="handoff-identity"><span class="miko-feature-avatar"><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span><strong>Miko</strong></span><span class="handoff-action">Picking up your task</span><span class="handoff-working"><span class="capsule-dot" aria-hidden="true"></span>Working</span></div>
@@ -98,6 +99,51 @@ const tasks = [
   </div></div>
 </figure>
       </article>
+      <article class="bg-card flex flex-col overflow-hidden rounded-3xl p-6 sm:p-8">
+        <h3 class="text-primary text-base leading-relaxed font-medium text-pretty">
+          Put work on a schedule
+        </h3>
+        <p class="text-primary text-base leading-relaxed text-pretty">
+          Choose when it runs: a single time, every day, weekly, or a cron schedule. At that time Miko does the task and brings the result back for review.
+        </p>
+        <figure class="mt-auto pt-8" aria-label="Every day at 09:00, Miko reviews pull requests and the work is ready for review. The same run happens again tomorrow at 09:00.">
+          <div class="feature-card-stage"><div class="feature-card-snippet">
+            <div class="miko-feature-diagram schedule-diagram">
+              <div class="schedule-fire">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="10" cy="10" r="7.25"/><path d="M10 6v4.2l2.4 1.5"/></svg>
+                <strong>09:00</strong>
+                <span>Every day</span>
+              </div>
+              <div class="schedule-link" aria-hidden="true"><span></span></div>
+              <div class="schedule-outcome">
+                <div class="schedule-task"><span class="miko-feature-avatar"><img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" /></span><strong>Miko</strong><span>Review pull requests</span></div>
+                <div class="schedule-ready"><i aria-hidden="true">✓</i> Ready for your review</div>
+              </div>
+              <p class="schedule-again">Again tomorrow at 09:00</p>
+            </div>
+          </div></div>
+        </figure>
+      </article>
+      <article class="bg-card flex flex-col overflow-hidden rounded-3xl p-6 sm:p-8">
+        <h3 class="text-primary text-base leading-relaxed font-medium text-pretty">
+          Read it on your board
+        </h3>
+        <p class="text-primary text-base leading-relaxed text-pretty">
+          Select the task on the local board. Its tool calls, checks, and final result stay there for you to read.
+        </p>
+        <figure class="mt-auto pt-8" aria-label="The local board for Fix duplicate webhooks shows a file read, a passing test, and a result ready for review">
+          <div class="feature-card-stage"><div class="feature-card-snippet">
+            <div class="miko-feature-diagram board-story">
+              <div class="board-story-task"><strong>Fix duplicate webhooks</strong><span>Turn completed</span></div>
+              <div class="board-story-log">
+                <span><b>Read</b> handler.ts</span>
+                <span><b>Test</b> 28 passed</span>
+                <span><b>Result</b> Ready for review</span>
+              </div>
+            </div>
+          </div></div>
+        </figure>
+      </article>
     </div>
   </div>
 </section>
@@ -136,7 +182,6 @@ const tasks = [
   .handoff-channel { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--color-theme-text-muted); margin:0 0 8px 8px; }
   .handoff-channel img { width:22px; height:22px; }
   .handoff-request .diagram-bubble { padding:14px 18px; }
-  .mention-miko { color:#885cf5; margin-right:3px; }
   .handoff-connector { display:flex; flex-direction:column; align-items:center; height:31px; color:var(--color-theme-text-muted); opacity:.55; }
   .handoff-connector span { height:18px; width:1px; background:currentColor; }
   .handoff-connector svg { width:16px; height:16px; margin-top:-7px; }
@@ -164,6 +209,27 @@ const tasks = [
   .task-running span { width:3px; height:3px; border-radius:50%; background:var(--branch-color); }
   .task-running span:nth-child(2) { opacity:.6; } .task-running span:last-child { opacity:.3; }
   .isolation-caption { font-size:11px; color:var(--color-theme-text-muted); text-align:center; margin-top:10px; }
+  .miko-feature-diagram.schedule-diagram { gap:0; max-width:400px; min-height:0; }
+  .schedule-fire { display:flex; align-items:center; justify-content:center; gap:8px; padding:11px 16px; border-radius:16px; background:color-mix(in srgb,var(--color-theme-text) 5%,var(--color-theme-bg)); }
+  .schedule-fire svg { width:16px; height:16px; flex:none; color:var(--color-theme-text-muted); }
+  .schedule-fire strong { font-size:20px; font-weight:500; letter-spacing:-.04em; line-height:1; font-variant-numeric:tabular-nums; }
+  .schedule-fire span { font-size:11px; color:var(--color-theme-text-muted); }
+  .schedule-link { display:flex; justify-content:center; height:22px; color:var(--color-theme-text-muted); opacity:.55; }
+  .schedule-link span { width:1px; height:22px; background:currentColor; }
+  .schedule-outcome { display:flex; flex-direction:column; gap:8px; padding:13px 14px; border-radius:18px; background:color-mix(in srgb,#885cf5 9%,var(--color-theme-bg)); }
+  .schedule-task { display:flex; align-items:center; gap:7px; min-width:0; font-size:12px; }
+  .schedule-task strong { font-weight:500; }
+  .schedule-task span:last-child { color:var(--color-theme-text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .schedule-ready { display:flex; align-items:center; gap:6px; font-size:12px; color:#57967b; }
+  .schedule-ready i { font-style:normal; }
+  .schedule-again { margin:10px 0 0; text-align:center; font-size:11px; color:var(--color-theme-text-muted); }
+  .miko-feature-diagram.board-story { gap:8px; max-width:400px; min-height:0; }
+  .board-story-task { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 14px; border-radius:14px; background:color-mix(in srgb,#885cf5 9%,var(--color-theme-bg)); font-size:12px; }
+  .board-story-task strong { font-weight:500; }
+  .board-story-task span { flex:none; font-size:10px; color:#57967b; }
+  .board-story-log { display:flex; flex-direction:column; gap:6px; }
+  .board-story-log span { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; background:color-mix(in srgb,var(--color-theme-text) 5%,var(--color-theme-bg)); font-size:12px; }
+  .board-story-log b { flex:none; min-width:42px; font-size:10px; font-weight:500; color:var(--color-theme-text-muted); }
   @media(max-width:479px) {
     .handoff-received { padding:12px; gap:7px; flex-wrap:wrap; }
     .handoff-action { font-size:10px; }
@@ -175,5 +241,11 @@ const tasks = [
     .task-title { min-width:70px; font-size:11px; }
     .task-branch { font-size:9px; }
     .task-running { display:none; }
+    .schedule-fire { padding:9px 12px; }
+    .schedule-fire strong { font-size:18px; }
+    .schedule-outcome { padding:11px 12px; }
+    .schedule-again { margin-top:8px; }
+    .board-story-task { padding:10px 12px; }
+    .board-story-log span { padding:6px 10px; }
   }
 </style>

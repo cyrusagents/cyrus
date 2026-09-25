@@ -1,35 +1,53 @@
 ---
+import MikoBadge from "./MikoBadge.astro";
+const pngIcons = ["gitlab", "zulip", "gemini", "opencode", "grok"];
 const integrations = [
+	{ name: "Slack", icon: "slack", role: "@Miko in a thread" },
 	{ name: "Linear", icon: "linear", role: "Assign to Miko" },
 	{ name: "GitHub", icon: "github", role: "@Miko in a PR" },
-	{ name: "Slack", icon: "slack", role: "@Miko in a thread" },
 	{ name: "GitLab", icon: "gitlab", role: "@Miko in an MR" },
 	{ name: "Zulip", icon: "zulip", role: "@Miko in a topic" },
-	{ name: "Claude Code", icon: "claude", role: "Run the coding work" },
-	{ name: "Codex", icon: "openai", role: "Run the coding work" },
-	{ name: "Cursor", icon: "cursor", role: "Run the coding work" },
-	{ name: "Gemini", icon: "gemini", role: "Run the coding work" },
-	{ name: "OpenCode", icon: "opencode", role: "Run the coding work" },
+];
+const agents = [
+	{ name: "Claude Code", icon: "claude" },
+	{ name: "Codex", icon: "openai" },
+	{ name: "Cursor", icon: "cursor" },
+	{ name: "Grok", icon: "grok" },
+	{ name: "Gemini", icon: "gemini" },
+	{ name: "OpenCode", icon: "opencode" },
 ];
 ---
 <section id="integrations">
   <div class="mx-auto w-full max-w-[var(--site-content-width)] px-4 py-20 sm:px-6 sm:py-28">
-    <div class="mx-auto max-w-3xl text-center">
-      <h2 class="font-display text-3xl tracking-tight text-balance sm:text-4xl">Your tools. Your coding agents.<br />Connected by Miko.</h2>
-      <p class="text-theme-text-muted mt-6 text-base leading-relaxed text-pretty sm:text-lg">Assign an issue to Miko in Linear. Or @Miko in Slack, a GitHub PR, or a GitLab MR. Your chosen coding agent works in an isolated workspace and brings progress and results back to the conversation.</p>
+    <div class="integration-group">
+      <div class="mx-auto max-w-3xl text-center">
+        <h2 class="font-display text-3xl tracking-tight text-balance sm:text-4xl">Integrations</h2>
+        <p class="text-theme-text-muted mt-6 text-base leading-relaxed text-pretty sm:text-lg">Assign an issue to Miko in Linear. Or <MikoBadge /> in Slack, a GitHub PR, or a GitLab MR. Your chosen coding agent works in an isolated workspace and brings progress and results back to the conversation.</p>
+      </div>
+      <div class="integration-logos">
+        {integrations.map(item => <div class="integration-item"><img src={`/assets/integrations/${item.icon}.${pngIcons.includes(item.icon) ? "png" : "webp"}`} alt="" width="104" height="104" loading="lazy" /><h3 class="text-theme-text m-0 text-sm font-medium">{item.name}</h3><span class="text-theme-text-muted text-xs">{item.role.startsWith("@Miko") ? <><MikoBadge />{item.role.slice(5)}</> : item.role}</span></div>)}
+      </div>
     </div>
-    <div class="integration-logos">
-      {integrations.map(item => <div class="integration-item"><img src={`/assets/integrations/${item.icon}.${["gitlab", "zulip", "gemini", "opencode"].includes(item.icon) ? "png" : "webp"}`} alt="" width="104" height="104" loading="lazy" /><span class="text-theme-text text-sm font-medium">{item.name}</span><span class="text-theme-text-muted text-xs">{item.role}</span></div>)}
+    <div class="integration-group" id="supported-agents">
+      <div class="mx-auto max-w-3xl text-center">
+        <h2 class="font-display text-3xl tracking-tight text-balance sm:text-4xl">Supported agents</h2>
+        <p class="text-theme-text-muted mt-6 text-base leading-relaxed text-pretty sm:text-lg">Claude Code, Codex, Cursor, and Grok run the coding work. Gemini and OpenCode are supported too.</p>
+      </div>
+      <div class="integration-logos integration-logos-six">
+        {agents.map(item => <div class="integration-item"><img src={`/assets/integrations/${item.icon}.${pngIcons.includes(item.icon) ? "png" : "webp"}`} alt="" width="104" height="104" loading="lazy" /><h3 class="text-theme-text m-0 text-sm font-medium">{item.name}</h3></div>)}
+      </div>
     </div>
     <ol class="integration-flow text-sm" aria-label="Miko workflow">
-      <li><span class="integration-step-number" aria-hidden="true">1</span><span>Assign an issue or @Miko</span></li>
+      <li><span class="integration-step-number" aria-hidden="true">1</span><span>Assign an issue or <MikoBadge /></span></li>
       <li><span class="integration-step-number" aria-hidden="true">2</span><span>Miko + your coding agent</span></li>
       <li><span class="integration-step-number" aria-hidden="true">3</span><span>Progress, answers &amp; pull requests</span></li>
     </ol>
   </div>
 </section>
 <style>
-  .integration-logos { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 28px 20px; margin: 52px auto 32px; max-width: 880px; }
+  .integration-group + .integration-group { margin-top: 72px; }
+  .integration-logos { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 28px 20px; margin: 40px auto 0; max-width: 880px; }
+  .integration-logos-six { grid-template-columns: repeat(6, minmax(0, 1fr)); max-width: 1040px; }
   .integration-item { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
   .integration-item img { display: block; width: 104px; height: 104px; object-fit: contain; margin-bottom: 10px; }
   /* macOS icon exports include transparent padding around the app tile. */

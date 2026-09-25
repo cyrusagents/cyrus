@@ -1,33 +1,21 @@
 ---
+import MikoBadge from "./MikoBadge.astro";
 import SlackDemo from "./SlackDemo.astro";
 ---
 
 <section id="hero">
   <div class="mx-auto flex w-full max-w-[var(--site-content-width)] flex-col items-center gap-12 px-4 pt-32 pb-20 text-center sm:gap-16 sm:px-6 sm:pt-[148px] sm:pb-28">
-    <div class="flex flex-col items-center">
-      <h1
-        class="font-display text-4xl leading-[1.05] tracking-tight text-balance sm:text-5xl lg:text-6xl"
-        style="perspective: 1200px;"
-      >
-        <span style="display: inline-block; position: relative; opacity: 1; transform: none;">
-          Meet
-        </span>{" "}
-        <span style="display: inline-block; position: relative; vertical-align: bottom; opacity: 1; transform: none;">
-          <span
-            aria-hidden="true"
-            class="ml-[-0.02em] mr-[0.08em] inline-block size-[0.92em] translate-y-[0.08em] overflow-hidden rounded-full align-baseline"
-          >
-            <img class="avatar-photo avatar-photo--miko" src="/assets/avatars/miko.jpg" alt="" />
-          </span>
-        </span>{" "}
-        <span style="display: inline-block; position: relative; opacity: 1; transform: none;">Miko</span>{" "}
-        <span style="display: inline-block; position: relative; opacity: 1; transform: none;">Agent</span>
-      </h1>
+    <div class="flex w-full min-w-0 flex-col items-center">
+      <div class="hero-heading">
+        <img class="hero-logo" src="/assets/avatars/miko.jpg" width="120" height="120" alt="Miko" />
+        <h1 class="font-display w-full min-w-0 max-w-4xl text-4xl leading-[1.05] tracking-tight text-balance sm:text-5xl lg:text-6xl">
+          Self-hosted AI coding agent for Slack, Linear and GitHub
+        </h1>
+      </div>
       <p
-        class="text-theme-text-muted mt-4 max-w-xl text-base leading-relaxed text-pretty sm:mt-5 sm:max-w-2xl sm:text-lg sm:leading-relaxed"
-        style="opacity: 1; filter: blur(0px); transform: none;"
+        class="text-theme-text-muted mt-4 w-full min-w-0 max-w-xl text-base leading-relaxed text-pretty sm:mt-5 sm:max-w-2xl sm:text-lg sm:leading-relaxed"
       >
-        Bring Claude Code, Codex, or Cursor to Linear, GitHub, GitLab, and Slack. Assign an issue to Miko or just @Miko. Get progress, answers, and pull requests back in your workflow.
+        Bring Claude Code, Codex, or Cursor to Linear, GitHub, GitLab, and Slack. Assign an issue to Miko or just <MikoBadge />. Get progress, answers, and pull requests back in your workflow.
       </p>
       <div
         class="mt-6 sm:mt-7"
@@ -46,7 +34,7 @@ import SlackDemo from "./SlackDemo.astro";
               class="inline-flex items-center justify-center rounded-full transition-colors bg-theme-card-03-hex text-theme-text transition-colors duration-200 ease-out hover:bg-theme-fg-10 h-9 gap-1.5 px-4 text-sm font-normal md:h-11 md:px-6 md:text-base"
               href="https://github.com/mikoagents/miko"
               target="_blank"
-              rel="noopener noreferrer"
+              rel="me noopener noreferrer"
             >
               View on GitHub
             </a>
