@@ -14,7 +14,8 @@ function fixture(patch = {}, remaining = 60000) {
 	const target = {
 		workspaceId: "workspace",
 		automationId: "automation",
-		customerId: "customer",
+		scopeRef: "internal-customer",
+		linearCustomerId: "external-customer",
 		revision: 1,
 	};
 	const authority = {
@@ -23,10 +24,12 @@ function fixture(patch = {}, remaining = 60000) {
 			id: "automation",
 			revision: 1,
 			role: "coordinator",
+			namespace: "internal-customer",
+			scopeRef: "internal-customer",
 			grants: [
 				{
 					id: "grant",
-					resource: { provider: "linear", customerId: "customer" },
+					resource: { provider: "linear", customerId: "external-customer" },
 					permissions: ["read"],
 				},
 			],
@@ -96,10 +99,36 @@ it("does nothing without explicit arm and rejects forged command fields", async 
 		}),
 	).rejects.toThrow();
 });
+it("denies non-read operations on the armed occurrence before normal tool dispatch", async () => {
+	const c = fixture();
+	await arm();
+	await expect(
+		c.call({
+			name: "delegate_investigation",
+			arguments: { instruction: "never", tracking: "direct" },
+		}),
+	).rejects.toThrow("read-only");
+	await expect(
+		c.call({ name: "reply", arguments: { text: "never" } }),
+	).rejects.toThrow("read-only");
+	expect(probe.status().phase).toBe("armed");
+});
 it.each([
 	{ workspaceId: "foreign" },
 	{ id: "foreign" },
 	{ revision: 2 },
+	{ scopeRef: "foreign" },
+	{ namespace: "foreign" },
+	{ scopeRef: "external-customer", namespace: "external-customer" },
+	{
+		grants: [
+			{
+				id: "grant",
+				resource: { provider: "linear", customerId: "internal-customer" },
+				permissions: ["read"],
+			},
+		],
+	},
 	{ role: "investigator" },
 	{
 		grants: [
@@ -211,7 +240,8 @@ it("preloader is explicit, private, fixed-origin, source-pinned and exposes only
 			sourceSha: REVIEWED_RUNTIME_SHA,
 			workspaceId: "workspace",
 			automationId: "automation",
-			customerId: "customer",
+			scopeRef: "internal-customer",
+			linearCustomerId: "external-customer",
 			revision: 1,
 		};
 		await writeFile(configPath, JSON.stringify(config), { mode: 0o600 });

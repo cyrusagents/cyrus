@@ -34,13 +34,15 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 			a.phase === "execute" &&
 			a.definition.workspaceId === target.workspaceId &&
 			a.definition.id === target.automationId &&
+			a.definition.scopeRef === target.scopeRef &&
+			a.definition.namespace === target.scopeRef &&
 			a.definition.revision === target.revision &&
 			a.occurrenceId === occurrenceId &&
 			a.definition.role === "coordinator" &&
 			!a.engineering &&
 			a.definition.grants.length === 1 &&
 			a.definition.grants[0].resource.provider === "linear" &&
-			a.definition.grants[0].resource.customerId === target.customerId &&
+			a.definition.grants[0].resource.customerId === target.linearCustomerId &&
 			a.definition.grants[0].permissions.includes("read")
 		);
 	};
@@ -242,6 +244,12 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 	}
 
 	async function wrapped(call, ...args) {
+		if (
+			occurrenceId &&
+			matches(this) &&
+			!["list_issues", "get_issue"].includes(call.name)
+		)
+			throw Error("F1 withdrawal occurrence is read-only");
 		const output = await original.call(this, call, ...args);
 		if (!occurrenceId || !matches(this)) return output;
 		// The successful read finishes first. Then hold the SAME production queue;

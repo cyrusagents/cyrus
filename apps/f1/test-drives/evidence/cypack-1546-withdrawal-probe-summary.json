@@ -12,18 +12,18 @@
 		"events": [
 			{
 				"type": "armed",
-				"at": "2026-09-30T09:59:04.058Z"
+				"at": "2026-09-30T10:09:30.869Z"
 			},
 			{
 				"type": "ready",
-				"at": "2026-09-30T09:59:04.526Z",
-				"attemptId": "22fd05e9-8957-45c7-9337-353e71b3e258",
+				"at": "2026-09-30T10:09:31.295Z",
+				"attemptId": "cb248e06-af86-4fda-b154-2e27ba7f4ead",
 				"fence": 1,
-				"remainingMs": 59535
+				"remainingMs": 59579
 			},
 			{
 				"type": "probe",
-				"at": "2026-09-30T09:59:04.539Z",
+				"at": "2026-09-30T10:09:31.316Z",
 				"label": "paused-list",
 				"method": "tools/list",
 				"httpObserved": true,
@@ -31,15 +31,15 @@
 				"httpStatus": 401,
 				"mcpCode": null,
 				"denied": true,
-				"requestAt": "2026-09-30T09:59:04.537Z",
-				"responseAt": "2026-09-30T09:59:04.539Z",
+				"requestAt": "2026-09-30T10:09:31.312Z",
+				"responseAt": "2026-09-30T10:09:31.315Z",
 				"unexpiredAtRequest": true,
 				"unexpiredAtResponse": true,
 				"outcome": "denied"
 			},
 			{
 				"type": "probe",
-				"at": "2026-09-30T09:59:04.542Z",
+				"at": "2026-09-30T10:09:31.321Z",
 				"label": "paused-read",
 				"method": "tools/call",
 				"httpObserved": true,
@@ -47,20 +47,20 @@
 				"httpStatus": 401,
 				"mcpCode": null,
 				"denied": true,
-				"requestAt": "2026-09-30T09:59:04.541Z",
-				"responseAt": "2026-09-30T09:59:04.542Z",
+				"requestAt": "2026-09-30T10:09:31.316Z",
+				"responseAt": "2026-09-30T10:09:31.321Z",
 				"unexpiredAtRequest": true,
 				"unexpiredAtResponse": true,
 				"outcome": "denied"
 			},
 			{
 				"type": "paused-proven",
-				"at": "2026-09-30T09:59:04.542Z",
-				"confirmedAt": "2026-09-30T09:59:04.536Z"
+				"at": "2026-09-30T10:09:31.321Z",
+				"confirmedAt": "2026-09-30T10:09:31.310Z"
 			},
 			{
 				"type": "probe",
-				"at": "2026-09-30T09:59:04.546Z",
+				"at": "2026-09-30T10:09:31.325Z",
 				"label": "resumed-old-credential",
 				"method": "tools/call",
 				"httpObserved": true,
@@ -68,27 +68,27 @@
 				"httpStatus": 401,
 				"mcpCode": null,
 				"denied": true,
-				"requestAt": "2026-09-30T09:59:04.543Z",
-				"responseAt": "2026-09-30T09:59:04.545Z",
+				"requestAt": "2026-09-30T10:09:31.322Z",
+				"responseAt": "2026-09-30T10:09:31.325Z",
 				"unexpiredAtRequest": true,
 				"unexpiredAtResponse": true,
 				"outcome": "denied"
 			},
 			{
 				"type": "released",
-				"at": "2026-09-30T09:59:04.546Z",
-				"confirmedAt": "2026-09-30T09:59:04.542Z"
+				"at": "2026-09-30T10:09:31.325Z",
+				"confirmedAt": "2026-09-30T10:09:31.322Z"
 			},
 			{
 				"type": "new-session",
-				"at": "2026-09-30T09:59:04.700Z",
+				"at": "2026-09-30T10:09:31.505Z",
 				"attemptChanged": true,
 				"fenceIncreased": true,
 				"sessionChanged": true
 			},
 			{
 				"type": "probe",
-				"at": "2026-09-30T09:59:04.705Z",
+				"at": "2026-09-30T10:09:31.509Z",
 				"label": "new-session-old-reference",
 				"method": "tools/call",
 				"httpObserved": true,
@@ -96,19 +96,19 @@
 				"httpStatus": 200,
 				"mcpCode": -32600,
 				"denied": true,
-				"requestAt": "2026-09-30T09:59:04.700Z",
-				"responseAt": "2026-09-30T09:59:04.705Z",
+				"requestAt": "2026-09-30T10:09:31.505Z",
+				"responseAt": "2026-09-30T10:09:31.509Z",
 				"unexpiredAtRequest": true,
 				"unexpiredAtResponse": true,
 				"outcome": "denied"
 			},
 			{
 				"type": "stale-reference-denied",
-				"at": "2026-09-30T09:59:04.705Z"
+				"at": "2026-09-30T10:09:31.509Z"
 			},
 			{
 				"type": "current-read-succeeded",
-				"at": "2026-09-30T09:59:04.778Z"
+				"at": "2026-09-30T10:09:31.665Z"
 			}
 		]
 	},

@@ -16,7 +16,10 @@ A real SDK reconnect transport reuses that existing session without initialize. 
 only possible requests are `tools/list` and fixed `get_issue({reference})`. The probe
 uses its own bounded cancellation signal so the normal client's aborted signal
 cannot substitute for a Hosted denial. Production guards and authority are unchanged.
-No model arguments select probe credentials, tool names, scope or references.
+No model arguments select probe credentials, tool names, scope or references. While
+armed, the exact target occurrence also denies any normal non-read MCP operation
+before dispatch, so a model cannot delegate/send/write during this read-only test.
+Other occurrences and uninstrumented runtime behavior remain unchanged.
 
 After successful pause/resume probes, the barrier releases with a test interruption:
 the original read's pending operation remains unchanged for normal admission/retry.
@@ -51,10 +54,14 @@ path and current DB-derived automation revision. Never include credentials:
   "workspaceId": "caed9b61-c184-4ae2-9c2c-f25174760764",
   "automationId": "31991de1-1c06-4195-8792-bf59f5a49427",
   "revision": 1,
-  "customerId": "8c3bc266-e6fc-4065-9be3-7cc57ae0c03a"
+  "scopeRef": "8c3bc266-e6fc-4065-9be3-7cc57ae0c03a",
+  "linearCustomerId": "59ec83ef-9a11-4971-b731-1b94bb382b5f"
 }
 ```
 
+scopeRef is the INTERNAL customer identity; BOTH authority.definition.scopeRef and namespace
+must match it. linearCustomerId is the EXTERNAL Linear Customer ID in the admitted
+grant resource; it must match separately. They are deliberately distinct.
 The revision above is illustrative, not authority. Read the current revision first.
 The package manifest must carry the exact `cyrusLocalTestArtifact.sourceSha` above.
 A mismatch, insecure config/directory, wrong origin or existing socket fails startup;
@@ -77,6 +84,29 @@ Docker socket/image and model setup. Use direct `--import`, never `NODE_OPTIONS`
 (which could propagate instrumentation to subprocesses). Startup prints only
 `private control ready; not armed`. Recheck normal capabilities and connections.
 No HTTP route is added. Controls use an owner-only0600 Unix socket under0700 parent.
+
+## Pause and revision semantics
+
+Read at Hosted `c29bd989859faf43beecb2e1fb436144cfbaf16c`: the customer UI calls
+`customerCommand({op:'pause',paused:...})`, which calls `customer_operator`.
+Migration `20260929010000_customer_agents.sql` pause branch updates only `paused`
+and customer `generation`, and revokes running runs. It does NOT increment customer
+policy revision, mutate the automation binding, or emit a new definition revision.
+`ensureCustomerConversation` also retains an existing binding when customer revision
+and source are unchanged. This is distinct from configuring an automation/policy or
+changing a mapping. Hosted owns confirmation with its actual SQL operator fixture.
+
+The test therefore pins the original occurrence AND definition/revision throughout.
+After normal Pause/Resume, fresh admission uses new run/execution/session authority
+while the original immutable definition/input and operation keys remain unchanged.
+No exception to runtime checkpoint scope is introduced. If the verifier observes a
+binding revision change (including a concurrent configuration change), STOP the
+same-occurrence recovery gate and cancel the probe. Do not loosen identity checks or
+call Resume saved work on the stale revision. CYPACK cancels nonterminal old-revision
+occurrences and returns409 to a stale retry; the second F1 scenario proves this path
+with one initial read, no new read/result and withdrawalGateComplete=false. That
+outcome is not a successful live withdrawal/recovery test. Coordinate the changed
+binding before another bounded test; the harness never creates one automatically.
 
 ## One bounded test
 
@@ -148,6 +178,7 @@ After `pnpm build`:
 ```sh
 pnpm --filter cyrus-f1 test:run withdrawal-probe.test.mjs
 node apps/f1/withdrawal-probe-drive.mjs
+node apps/f1/withdrawal-probe-drive.mjs --revision-change
 ```
 
 The narrow F1 uses actual registered instruction/wake routes, SQLite, runtime class,

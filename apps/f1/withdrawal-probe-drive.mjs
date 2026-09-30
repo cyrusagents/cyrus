@@ -41,14 +41,14 @@ const until = async (predicate) => {
 	}
 };
 
-export async function runWithdrawalDrive() {
+export async function runWithdrawalDrive({ reviseOnResume = false } = {}) {
 	const directory = await mkdtemp(join(tmpdir(), "cyrus-withdrawal-f1-"));
 	const definition = {
 		id: "alpha",
 		workspaceId: "workspace-fixture",
 		ownerId: "operator",
-		namespace: "alpha-private",
-		scopeRef: "alpha",
+		namespace: "internal-alpha",
+		scopeRef: "internal-alpha",
 		revision: 1,
 		state: "enabled",
 		role: "coordinator",
@@ -186,7 +186,8 @@ export async function runWithdrawalDrive() {
 		workspaceId: definition.workspaceId,
 		automationId: definition.id,
 		revision: 1,
-		customerId,
+		scopeRef: definition.scopeRef,
+		linearCustomerId: customerId,
 	};
 	const probe = installWithdrawalProbe(ScopedAutomationMcpClient, sdk, {
 		target,
@@ -357,6 +358,45 @@ export async function runWithdrawalDrive() {
 			).phase,
 			"awaiting-recovery",
 		);
+		if (reviseOnResume) {
+			assert.equal(
+				(
+					await post("definitions", {
+						contractVersion: 1,
+						definition: { ...definition, revision: 2 },
+					})
+				).statusCode,
+				200,
+			);
+			await queued;
+			await until(
+				() =>
+					ledger.status(definition.id).occurrences[0].status === "cancelled",
+			);
+			const deniedRetry = await post("retry", {
+				contractVersion: 1,
+				workspaceId: definition.workspaceId,
+				automationId: definition.id,
+				revision: 1,
+				occurrenceId,
+				expectedFence: 1,
+				commandId: randomUUID(),
+			});
+			assert.equal(deniedRetry.statusCode, 409);
+			assert.equal(reads, 1);
+			assert.equal(results.length, 0);
+			await probe.command({ op: "cancel" });
+			return {
+				passed: true,
+				withdrawalGateComplete: false,
+				bindingRevisionChange: true,
+				originalOccurrenceCancelled: true,
+				staleRetryStatus: 409,
+				providerReads: reads,
+				results: 0,
+				evidence: probe.status(),
+			};
+		}
 		await queued;
 		assert.equal(renewalRan, true);
 		await until(
@@ -435,7 +475,9 @@ if (
 	process.argv[1] &&
 	import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-	runWithdrawalDrive()
+	runWithdrawalDrive({
+		reviseOnResume: process.argv.includes("--revision-change"),
+	})
 		.then((r) => console.log(JSON.stringify(r, null, 2)))
 		.catch((e) => {
 			console.error(e);

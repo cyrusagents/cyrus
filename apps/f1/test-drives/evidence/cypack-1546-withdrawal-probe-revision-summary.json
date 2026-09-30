@@ -1,0 +1,90 @@
+{
+	"passed": true,
+	"withdrawalGateComplete": false,
+	"bindingRevisionChange": true,
+	"originalOccurrenceCancelled": true,
+	"staleRetryStatus": 409,
+	"providerReads": 1,
+	"results": 0,
+	"evidence": {
+		"version": 1,
+		"phase": "cancelled",
+		"occurrenceId": "b671b8d7cffc17f9cdc547f9468515facada307c3509294386c23bac3d35c1c5",
+		"expiresInMs": null,
+		"events": [
+			{
+				"type": "armed",
+				"at": "2026-09-30T10:09:32.961Z"
+			},
+			{
+				"type": "ready",
+				"at": "2026-09-30T10:09:33.386Z",
+				"attemptId": "4d624d12-9d7b-465c-bd4d-a8e32d041794",
+				"fence": 1,
+				"remainingMs": 59578
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T10:09:33.407Z",
+				"label": "paused-list",
+				"method": "tools/list",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 401,
+				"mcpCode": null,
+				"denied": true,
+				"requestAt": "2026-09-30T10:09:33.403Z",
+				"responseAt": "2026-09-30T10:09:33.407Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T10:09:33.436Z",
+				"label": "paused-read",
+				"method": "tools/call",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 401,
+				"mcpCode": null,
+				"denied": true,
+				"requestAt": "2026-09-30T10:09:33.407Z",
+				"responseAt": "2026-09-30T10:09:33.435Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "paused-proven",
+				"at": "2026-09-30T10:09:33.436Z",
+				"confirmedAt": "2026-09-30T10:09:33.402Z"
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T10:09:33.456Z",
+				"label": "resumed-old-credential",
+				"method": "tools/call",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 401,
+				"mcpCode": null,
+				"denied": true,
+				"requestAt": "2026-09-30T10:09:33.436Z",
+				"responseAt": "2026-09-30T10:09:33.456Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "released",
+				"at": "2026-09-30T10:09:33.456Z",
+				"confirmedAt": "2026-09-30T10:09:33.436Z"
+			},
+			{
+				"type": "cancelled",
+				"at": "2026-09-30T10:09:33.460Z"
+			}
+		]
+	}
+}

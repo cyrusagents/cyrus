@@ -41,8 +41,8 @@ function privateFile(path) {
 const config = privateFile(process.env.CYRUS_F1_WITHDRAWAL_CONFIG ?? "");
 if (
 	Object.keys(config).sort().join(",") !==
-		"automationId,customerId,directory,revision,runtimePackage,sourceSha,workspaceId" ||
-	!["workspaceId", "automationId", "customerId"].every(
+		"automationId,directory,linearCustomerId,revision,runtimePackage,scopeRef,sourceSha,workspaceId" ||
+	!["workspaceId", "automationId", "scopeRef", "linearCustomerId"].every(
 		(k) =>
 			typeof config[k] === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(config[k]),
 	) ||
@@ -86,7 +86,8 @@ const temporaryPath = join(config.directory, "evidence.next");
 const target = {
 	workspaceId: config.workspaceId,
 	automationId: config.automationId,
-	customerId: config.customerId,
+	scopeRef: config.scopeRef,
+	linearCustomerId: config.linearCustomerId,
 	revision: config.revision,
 };
 const probe = installWithdrawalProbe(

@@ -13,8 +13,9 @@ fence2; new-session old-reference probe reaches the server and receives HTTP200/
 InvalidRequest(-32600). A current list/read then succeeds; exactly two synthetic
 provider reads and one result, no provider write or ledger edit.
 
-Ten focused tests pass: explicit opt-in, fixed target/role/revision, forged commands,
-short expiry, barrier timeout, cancel, private filesystem/socket controls, wrong
+Fifteen focused tests pass: explicit opt-in, fixed target/role/revision, forged commands,
+distinct internal scope/namespace versus external Linear customer matching,
+armed-occurrence non-read denial, short expiry, barrier timeout, cancel, private filesystem/socket controls, wrong
 origin/source rejection and refusal to delete an existing socket. Evidence omits
 credentials/session IDs/references/provider bodies. See the committed JSON summary.
 
@@ -25,3 +26,12 @@ UI restoration or real model behavior. The verifier owns those actions. The harn
 uses existing runtime134a8a48 packages; it adds no runtime API or production import.
 
 Launch/control/cleanup and remaining limitations: `apps/f1/withdrawal-probe.md`.
+
+The corrected fixture deliberately uses different internal and external customer IDs.
+The first candidate a460 used the internal ID where an external Linear resource ID
+was expected; independent review found it before any live install. The correction
+checks scopeRef and namespace separately from linearCustomerId and rejects either
+mismatch/swapped identifiers. A separate `--revision-change` drive advances the
+registered definition revision after Pause/Resume: old occurrence cancels, retry409,
+no further read/result, and withdrawalGateComplete=false. Normal UI Pause source
+advances customer generation only; actual Hosted SQL confirmation is a shared gate.
