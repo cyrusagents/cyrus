@@ -240,9 +240,9 @@ export class AutomationRuntime {
 			throw new Error("Recovery runtime unavailable");
 		return this.ledger().recover(request);
 	}
-	status(automationId: string) {
+	status(automationId: string, includeLatency = false) {
 		const status = this.ledger().status(automationId);
-		if (!this.latency) return status;
+		if (!this.latency || !includeLatency) return status;
 		return {
 			...status,
 			occurrences: status.occurrences.map((occurrence) => ({

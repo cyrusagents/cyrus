@@ -1243,9 +1243,22 @@ export async function runAutomationDrive({
 				const status = await runtimeApp.inject({
 					method: "GET",
 					url: `/api/automations/v1/status/${d.id}`,
-					headers: { authorization: `Bearer ${supervisorKey}` },
+					headers: {
+						authorization: `Bearer ${supervisorKey}`,
+						"x-cyrus-latency-diagnostics": "1",
+					},
 				});
 				assert.equal(status.statusCode, 200);
+				const ordinary = await runtimeApp.inject({
+					method: "GET",
+					url: `/api/automations/v1/status/${d.id}`,
+					headers: { authorization: `Bearer ${supervisorKey}` },
+				});
+				assert.ok(
+					ordinary
+						.json()
+						.occurrences.every((o) => !("latencyDiagnostics" in o)),
+				);
 				const trace = status
 					.json()
 					.occurrences.find((o) => o.id === id).latencyDiagnostics;

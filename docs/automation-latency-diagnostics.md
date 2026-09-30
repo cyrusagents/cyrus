@@ -40,7 +40,11 @@ negotiation header, journal schema or checkpoint/ledger migration is introduced.
 
 The existing supervisor-authenticated
 `GET /api/automations/v1/status/:automationId` adds optional `latencyDiagnostics` to
-an occurrence already in that response. Do not export the entire status response:
+an occurrence already in that response ONLY when the authenticated request includes
+`X-Cyrus-Latency-Diagnostics: 1`. Ordinary status responses remain unchanged even
+when collection is enabled, preserving Hosted's bounded status reader. This header
+only selects collected metadata; it cannot enable collection or grant authority.
+Do not export the entire status response:
 it contains existing private occurrence input. Export only the diagnostic subobject
 using existing secure supervisor transport; never print authentication headers.
 Nothing is logged automatically. No diagnostic fields enter model/MCP context.

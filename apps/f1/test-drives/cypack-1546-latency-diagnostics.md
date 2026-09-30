@@ -18,7 +18,8 @@ node --input-type=module -e 'const {runAutomationDrive}=await import("./apps/f1/
 Assertions: authenticated status contains each enumerated stage, provider-header and
 body delays are measured separately inside the native turn, all delivery ACK spans
 end before result, both attempts complete once, no tools invoked, stage count bounded,
-no fixture credentials in diagnostic output, unauthenticated status denied401.
+no fixture credentials in diagnostic output, unauthenticated status denied401,
+ordinary status responses exclude diagnostics even when collection is enabled.
 
 Unit regressions separately cover concurrent trace isolation, failed-operation error
 redaction, rejected untyped labels, span/record bounds, duplicate dispatch, latest

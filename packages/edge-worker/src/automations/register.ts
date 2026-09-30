@@ -167,7 +167,10 @@ export function registerAutomationRoutes(
 			try {
 				return reply.header("Cache-Control", "no-store").send({
 					contractVersion: 1,
-					...runtime.status(request.params.automationId),
+					...runtime.status(
+						request.params.automationId,
+						request.headers["x-cyrus-latency-diagnostics"] === "1",
+					),
 				});
 			} catch {
 				return reply.code(409).send({ error: "Automation state unavailable" });
