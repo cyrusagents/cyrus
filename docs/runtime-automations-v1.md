@@ -727,3 +727,49 @@ an old running snapshot into a final exact duration. Full activities continue th
 Rollback: disable dispatch and preserve journals/checkpoints before reverting.
 Older strict readers cannot consume journals containing the new lifecycle fields;
 never clear or edit measurement/receipt history to make an old reader accept it.
+
+### Negotiated Slack channel history
+
+Runtime advertises `capabilities.slackChannelRead:true` and sends
+`X-Cyrus-Slack-Channel-Read:1` on authorize/renew. Hosted opts in with optional
+admission `slackChannelRead:true`; this flag must remain identical on renewal.
+Channel resource is exactly `{provider:"slack",channelId,scope:"channel"}`,
+distinct from the existing strict `{provider:"slack",channelId,threadTs}` variant.
+Runtime rejects channel admission without negotiation. Old strict runtimes reject
+this resource/flag instead of silently running source-free or using a fallback.
+No minimum published version is claimed.
+
+The read grant exposes only `read_messages({limit?,cursor?})` and
+`read_thread({reference})`. Limit is an integer1..100. Cursor and reference are
+server-issued opaque UUIDs; neither accepts Slack channel IDs, timestamps or any
+workspace/customer/account/connection/role/grant selectors. All argument objects
+are strict. Channel scope never exposes `reply`, even if an erroneous write
+permission appears in a grant. Existing thread reads/replies remain unchanged.
+
+Within the existing scoped result envelope, each history `items[].text` is JSON
+`{messages:[{reference:<UUID>,text:<bounded string>}]}` with at most100 entries;
+`nextCursor` is an opaque UUID or null. Item text remains at most100000 characters.
+Resource/connection/account/grant metadata must match the exact admitted channel
+binding and is stripped before the model receives the result. `read_thread`
+returns the existing bounded text envelope under that same channel binding;
+Hosted resolves its opaque reference to the permitted narrower thread.
+
+Runtime retains validated references/cursors only within the admitted MCP
+session. Negotiated same-session renewal preserves them; reconnect clears them
+and unknown references/cursors return safe history re-read guidance. The server
+checks reference/cursor expiry, current grant, exact owner/lease/revision, customer
+mapping, connected Slack account, external Slack Connect eligibility and channel
+membership on every request, including existing sessions. Local reference
+membership never substitutes for server authorization. Expired/revoked access
+fails closed; no transparent replay uses a new operation identity.
+
+If channel delegation is granted to a coordinator, arguments are
+`{instruction,tracking:"direct"}`. Hosted admits a separate investigator with the
+same channel or a narrower thread; runtime cannot choose another resource, attach
+an arbitrary ticket or widen the parent's authority. Investigator tools remain
+read-only. Existing Linear direct/assigned-ticket delegation stays supported.
+Model tool descriptions and native developer instructions state these actual capabilities.
+The broker removes Codex-supplied apply_patch/view_image/request_user_input from
+the provider-visible catalog; only supervisor-admitted dynamic tools remain. Unknown
+tools still fail closed. No native credential, filesystem or unrestricted connector
+fallback is available.

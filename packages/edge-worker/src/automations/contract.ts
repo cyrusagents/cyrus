@@ -18,6 +18,13 @@ const id = z
 const instant = z.iso.datetime();
 export const resourceSchema = z.union([
 	z
+		.object({
+			provider: z.literal("slack"),
+			channelId: id,
+			scope: z.literal("channel"),
+		})
+		.strict(),
+	z
 		.object({ provider: z.literal("slack"), channelId: id, threadTs: id })
 		.strict(),
 	z.object({ provider: z.literal("linear"), teamId: id, issueId: id }).strict(),
@@ -115,6 +122,7 @@ export const admissionSchema = z
 	.object({
 		authority: authoritySchema,
 		ownerInterruption: z.literal(true).optional(),
+		slackChannelRead: z.literal(true).optional(),
 		sessionExecutionTiming: z.literal(true).optional(),
 		engineering: engineeringEnvelopeSchema.optional(),
 		mcp: mcpCredentialSchema,
@@ -139,6 +147,12 @@ export function executionAuthority(
 }
 export type McpCredential = z.infer<typeof mcpCredentialSchema>;
 export const toolCallSchema = z.discriminatedUnion("name", [
+	z
+		.object({
+			name: z.literal("read_thread"),
+			arguments: z.object({ reference: z.string().uuid() }).strict(),
+		})
+		.strict(),
 	z
 		.object({
 			name: z.literal("list_issues"),
@@ -273,6 +287,31 @@ export function isCustomerReadSet(authority: AutomationAuthority): boolean {
 	return resource?.provider === "linear" && "customerId" in resource;
 }
 
+export function isSlackChannel(authority: AutomationAuthority): boolean {
+	const resource = authority.definition.grants[0]?.resource;
+	return (
+		resource?.provider === "slack" &&
+		"scope" in resource &&
+		resource.scope === "channel"
+	);
+}
+
+/** Reference lifetime is enforced by the server; client retention follows the admitted MCP session. */
+export const slackChannelHistorySchema = z
+	.object({
+		messages: z
+			.array(
+				z
+					.object({
+						reference: z.string().uuid(),
+						text: z.string().max(100_000),
+					})
+					.strict(),
+			)
+			.max(100),
+	})
+	.strict();
+
 export function permittedToolNames(authority: AutomationAuthority): string[] {
 	if (authority.definition.role === "engineering")
 		return authority.engineering && authority.definition.grants.length === 0
@@ -287,8 +326,11 @@ export function permittedToolNames(authority: AutomationAuthority): string[] {
 		names.push(
 			grant.resource.provider === "slack" ? "read_messages" : "get_issue",
 		);
+	if (isSlackChannel(authority) && grant.permissions.includes("read"))
+		names.push("read_thread");
 	if (
 		!isCustomerReadSet(authority) &&
+		!isSlackChannel(authority) &&
 		grant.permissions.includes("write") &&
 		authority.definition.role === "coordinator"
 	)
@@ -301,6 +343,34 @@ export function permittedToolNames(authority: AutomationAuthority): string[] {
 		names.push("delegate_investigation");
 	return names;
 }
+
+export function scopedToolDescription(
+	authority: AutomationAuthority,
+	name: string,
+): string {
+	switch (name) {
+		case "read_messages":
+			return isSlackChannel(authority)
+				? "Read bounded history from the admitted Slack channel. Use only its returned opaque cursor for pagination and thread references with read_thread. Re-read history after reconnect or reference expiry."
+				: "Read messages only in the bound Slack thread.";
+		case "read_thread":
+			return "Read a thread using an opaque reference returned by read_messages in this MCP session. Never provide channel IDs or timestamps.";
+		case "list_issues":
+			return "List the currently accessible issues and session-only references. Re-list after reconnect or reference expiry.";
+		case "get_issue":
+			return "Read the bound issue or use an opaque reference issued by list_issues in this connection. Never supply provider IDs.";
+		case "execute":
+			return "Run a command in the private isolated engineering workspace. Inspect diagnostics and exit status, repair ordinary test failures and rerun.";
+		case "publish_artifact":
+			return "Publish the current reviewed-path workspace snapshot to the fixed repository and branch. No deployment is authorized.";
+		case "delegate_investigation":
+			return isSlackChannel(authority)
+				? "Ask a direct child investigator to examine the server-admitted channel or narrower thread. No ticket or provider scope selection is available."
+				: "Ask a child investigator to examine the bound source. Tracking links the already-bound ticket or creates a direct child; it does not create or assign a provider ticket.";
+		default:
+			return "Operate only on the resource bound to this connection";
+	}
+}
 /** Model schemas select only opaque references within an authenticated read set. */
 export function scopedToolSchemas(authority: AutomationAuthority) {
 	const names = permittedToolNames(authority);
@@ -308,6 +378,21 @@ export function scopedToolSchemas(authority: AutomationAuthority) {
 	return toolCallSchema.options
 		.filter((schema) => names.includes(schema.shape.name.value))
 		.map((schema) => {
+			if (
+				schema.shape.name.value === "read_messages" &&
+				isSlackChannel(authority)
+			)
+				return z
+					.object({
+						name: z.literal("read_messages"),
+						arguments: z
+							.object({
+								limit: z.number().int().min(1).max(100).optional(),
+								cursor: z.string().uuid().optional(),
+							})
+							.strict(),
+					})
+					.strict();
 			if (schema.shape.name.value === "get_issue")
 				return z
 					.object({
@@ -321,7 +406,9 @@ export function scopedToolSchemas(authority: AutomationAuthority) {
 				const args = z
 					.object({
 						instruction: z.string().min(1).max(10_000),
-						tracking: z.enum(["direct", "assigned_ticket"]),
+						tracking: isSlackChannel(authority)
+							? z.literal("direct")
+							: z.enum(["direct", "assigned_ticket"]),
 					})
 					.strict();
 				return z

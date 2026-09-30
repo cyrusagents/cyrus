@@ -59,6 +59,7 @@ export class AutomationHttpGateway implements AutomationGateway {
 					...(endpoint === "authorize"
 						? {
 								"X-Cyrus-Customer-Read-Set": "1",
+								"X-Cyrus-Slack-Channel-Read": "1",
 								"X-Cyrus-Mcp-Session-Renewal": "1",
 								"X-Cyrus-Owner-Interruption": "1",
 							}

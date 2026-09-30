@@ -513,7 +513,11 @@ it("reports the selected Codex model without borrowing Claude aliases or claimin
 	}
 });
 
-it("aborts an active read-set model when existing-session authority is revoked without renewing it", async () => {
+it.each([
+	"linear",
+	"slack-channel",
+	"slack-unnegotiated",
+])("enforces negotiated read sets and revocation without rotating the session (%s)", async (source) => {
 	const db = await ledger();
 	const d = definition();
 	db.upsert(d);
@@ -565,16 +569,24 @@ it("aborts an active read-set model when existing-session authority is revoked w
 				if (endpoint === "authorize") {
 					admissions++;
 					return {
+						...(source === "slack-channel" && { slackChannelRead: true }),
 						authority: authority({
 							definition: {
 								...d,
 								grants: [
 									{
 										...authority().definition.grants[0]!,
-										resource: {
-											provider: "linear",
-											customerId: "00000000-0000-4000-8000-000000000001",
-										},
+										resource:
+											source === "linear"
+												? {
+														provider: "linear",
+														customerId: "00000000-0000-4000-8000-000000000001",
+													}
+												: {
+														provider: "slack",
+														channelId: "channel-a",
+														scope: "channel",
+													},
 										permissions: ["read"],
 									},
 								],
@@ -600,9 +612,13 @@ it("aborts an active read-set model when existing-session authority is revoked w
 	try {
 		expect(runtime.capabilities().capabilities.customerReadSet).toBe(true);
 		await runtime.wake();
-		expect(modelAborted).toBe(true);
+		expect(runtime.capabilities().capabilities.slackChannelRead).toBe(true);
+		expect(modelAborted).toBe(source !== "slack-unnegotiated");
+		expect(modelStarted).toBe(source !== "slack-unnegotiated");
 		expect(admissions).toBe(1);
-		expect(probes).toBeGreaterThanOrEqual(2);
+		expect(probes).toBeGreaterThanOrEqual(
+			source === "slack-unnegotiated" ? 0 : 2,
+		);
 		expect(results).toBe(0);
 		expect(db.status(d.id).occurrences[0]?.status).toBe("queued");
 	} finally {

@@ -164,6 +164,12 @@ export class CodexLoginBroker {
 				)
 			)
 				throw Error();
+			// Codex supplies these local built-ins even when shell/network tools are
+			// disabled. They are compatibility input, not scoped capabilities: the
+			// provider must see only the supervisor-admitted dynamic tool catalog.
+			body.tools = body.tools.filter((tool: { name: string }) =>
+				context.toolNames.includes(tool.name),
+			);
 			// No remotely resolved files/images or prior response IDs. Every request
 			// supplies its own admitted conversation; provider cache key is scope-bound.
 			const visit = (value: unknown, depth = 0): void => {

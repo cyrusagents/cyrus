@@ -10,6 +10,8 @@ import {
 	type AutomationAuthority,
 	type AutomationStep,
 	authorizeTool,
+	permittedToolNames,
+	scopedToolDescription,
 	scopedToolSchemas,
 	toolCallSchema,
 } from "./contract.js";
@@ -164,6 +166,7 @@ class ContainedCodexTurn implements AutomationModel {
 					cwd: "/work",
 					approvalPolicy: "never",
 					sandbox: "danger-full-access",
+					developerInstructions: `This is a contained automation. Available tools: ${JSON.stringify(permittedToolNames(authority))}. Use only these admitted tools for source access and permitted engineering work. If source access is unavailable, report that limitation. Never suggest credential, filesystem, native-tool or alternate connector access as a fallback. Resource authority is fixed by the connection; arguments can only narrow it.`,
 				};
 				if (state.native) {
 					const path = await runner.restore(state.native);
@@ -183,18 +186,10 @@ class ContainedCodexTurn implements AutomationModel {
 							dynamicTools: scopedToolSchemas(authority).map((schema) => ({
 								type: "function",
 								name: schema.shape.name.value,
-								description:
-									schema.shape.name.value === "execute"
-										? "Run a command in the private isolated engineering workspace. Inspect diagnostics and exit status, repair ordinary test failures and rerun."
-										: schema.shape.name.value === "publish_artifact"
-											? "Publish the current reviewed-path workspace snapshot to the fixed repository and branch. No deployment is authorized."
-											: schema.shape.name.value === "delegate_investigation"
-												? "Ask a child investigator to examine the bound source. Tracking links the already-bound ticket or creates a direct child; it does not create or assign a provider ticket."
-												: schema.shape.name.value === "list_issues"
-													? "List the currently accessible issues and session-only references. Re-list after reconnect or reference expiry."
-													: schema.shape.name.value === "get_issue"
-														? "Read the bound issue or use an opaque reference issued by list_issues in this connection. Never supply provider IDs."
-														: "Operate only on the resource bound to this connection",
+								description: scopedToolDescription(
+									authority,
+									schema.shape.name.value,
+								),
 								inputSchema: z.toJSONSchema(schema.shape.arguments),
 							})),
 						},

@@ -23,6 +23,7 @@ import {
 	executionAuthority,
 	identity,
 	isCustomerReadSet,
+	isSlackChannel,
 	type McpCredential,
 	modelStepSchema,
 	registrationSchema,
@@ -117,6 +118,7 @@ export class AutomationRuntime {
 				harnessStreaming: false,
 				scopedMcp: true,
 				customerReadSet: true,
+				slackChannelRead: true,
 				mcpSessionRenewal: true,
 				operatorRecovery: true,
 				ownerInterruption: true,
@@ -257,6 +259,8 @@ export class AutomationRuntime {
 		)
 			throw new Error("Execution timing requires session delivery");
 		const next = executionAuthority(admission);
+		if (isSlackChannel(next) && admission.slackChannelRead !== true)
+			throw new Error("Slack channel reads require negotiated admission");
 		const engineering = next.engineering;
 		if (next.definition.role === "engineering" || engineering) {
 			const scope = `engineering:${engineering?.assignmentId}`;
@@ -437,7 +441,7 @@ export class AutomationRuntime {
 			// time remaining; only authorize/rotate when renewal is needed. Neither
 			// this probe nor a local SQLite heartbeat extends Hosted authority.
 			const checkSession =
-				isCustomerReadSet(authority) &&
+				(isCustomerReadSet(authority) || isSlackChannel(authority)) &&
 				!receiptOnly &&
 				Math.min(
 					Date.parse(authority.leaseUntil),
@@ -471,6 +475,7 @@ export class AutomationRuntime {
 							if (
 								renewed.mcp.grantId !== admission.mcp.grantId ||
 								renewed.ownerInterruption !== admission.ownerInterruption ||
+								renewed.slackChannelRead !== admission.slackChannelRead ||
 								renewed.sessionExecutionTiming !==
 									admission.sessionExecutionTiming ||
 								digest(renewed.sessionDelivery ?? null) !==

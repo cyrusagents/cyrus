@@ -49,6 +49,7 @@ async function until(predicate, timeout = 10000) {
 export async function runAutomationDrive({
 	codexImage = process.env.CYRUS_F1_CODEX_IMAGE,
 	ownerInterruptionOnly = false,
+	slackChannelOnly = false,
 	ownerInterruptionFault = "model",
 } = {}) {
 	const target = codexImage
@@ -78,6 +79,10 @@ export async function runAutomationDrive({
 	const readSetReferences = new Map();
 	let readSetRotated = false;
 	let sessionRenewals = 0;
+	let slackThreadReference;
+	let slackThreadReads = 0;
+	let slackModelDelayed = false;
+	let slackModelFailure;
 	const measuredCompletions = new Map();
 	let diagnosticRecovered = false;
 	let readSetContentReads = 0;
@@ -241,11 +246,14 @@ export async function runAutomationDrive({
 			)
 				return denied(reply);
 			const provider = d.instruction.includes("slack") ? "slack" : "linear";
-			const resource = d.id.startsWith("read-set-")
-				? { provider: "linear", customerId: readSetCustomerId }
-				: provider === "linear"
-					? { provider, teamId: "team-a", issueId: `issue-${d.namespace}` }
-					: { provider, channelId: "channel-a", threadTs: "123.456" };
+			const resource =
+				d.id === "slack-channel"
+					? { provider: "slack", channelId: "channel-a", scope: "channel" }
+					: d.id.startsWith("read-set-")
+						? { provider: "linear", customerId: readSetCustomerId }
+						: provider === "linear"
+							? { provider, teamId: "team-a", issueId: `issue-${d.namespace}` }
+							: { provider, channelId: "channel-a", threadTs: "123.456" };
 			const resourceGrant = {
 				id: `grant-${b.occurrenceId}`,
 				connectionId: `connected-${provider}`,
@@ -267,6 +275,8 @@ export async function runAutomationDrive({
 				return denied(reply);
 			if (d.id.startsWith("read-set-"))
 				assert.equal(request.headers["x-cyrus-customer-read-set"], "1");
+			if (d.id === "slack-channel")
+				assert.equal(request.headers["x-cyrus-slack-channel-read"], "1");
 			const authority = {
 				contractVersion: 1,
 				definition: {
@@ -277,16 +287,23 @@ export async function runAutomationDrive({
 				attemptId: b.attemptId,
 				fence: b.fence,
 				leaseUntil: new Date(
-					Date.now() + (d.id === "read-set-rotate" ? 21000 : 90000),
+					Date.now() +
+						(d.id === "read-set-rotate" || d.id === "slack-channel"
+							? 21000
+							: 90000),
 				).toISOString(),
 				phase: results.has(b.occurrenceId) ? "reconcile" : "execute",
 				input: b.occurrence.input,
 			};
 			const grantId = resourceGrant.id,
 				token = `fixture-${randomUUID()}-${randomUUID()}`,
-				until = Date.now() + (d.id === "read-set-rotate" ? 20000 : 60000);
+				until =
+					Date.now() +
+					(d.id === "read-set-rotate" || d.id === "slack-channel"
+						? 20000
+						: 60000);
 			const retainSession =
-				d.id === "read-set-rotate" &&
+				(d.id === "read-set-rotate" || d.id === "slack-channel") &&
 				request.headers["x-cyrus-mcp-session-renewal"] === "1";
 			if (b.mcpSessionId) {
 				const session = sessions.get(b.mcpSessionId);
@@ -321,6 +338,7 @@ export async function runAutomationDrive({
 				assert.equal(request.headers["x-cyrus-session-execution-timing"], "1");
 			return {
 				authority,
+				...(d.id === "slack-channel" && { slackChannelRead: true }),
 				...(d.id === "owner-interruption" &&
 					request.headers["x-cyrus-owner-interruption"] === "1" && {
 						ownerInterruption: true,
@@ -361,19 +379,23 @@ export async function runAutomationDrive({
 			);
 			assert.equal(
 				sessionItems.length,
-				d.id.startsWith("read-set-")
+				d.id === "slack-channel"
 					? codexImage
-						? 11
-						: 10
-					: engineeringAssignments.has(d.id)
-						? 11
-						: d.id === "source-free"
-							? codexImage
-								? 5
-								: 4
-							: codexImage
-								? 7
-								: 6,
+						? 9
+						: 8
+					: d.id.startsWith("read-set-")
+						? codexImage
+							? 11
+							: 10
+						: engineeringAssignments.has(d.id)
+							? 11
+							: d.id === "source-free"
+								? codexImage
+									? 5
+									: 4
+								: codexImage
+									? 7
+									: 6,
 			);
 			assert.equal(sessionItems.at(-1).item.payload.status, "complete");
 			const measurement = sessionItems.at(-1).item.payload;
@@ -576,58 +598,89 @@ export async function runAutomationDrive({
 		const sourceFree = codexImage
 			? request.body.tools.length === 0
 			: request.body.system.includes("Available names: [].");
+		const slackChannel = text.includes("slack-channel");
+		if (slackChannel && codexImage) {
+			const names = request.body.tools.map((tool) => tool.name).sort();
+			const policy = text.includes("Never suggest credential, filesystem");
+			try {
+				assert.deepEqual(names, ["read_messages", "read_thread"]);
+				assert.ok(policy);
+			} catch (error) {
+				slackModelFailure = new Error(
+					`Native channel fixture mismatch: ${JSON.stringify({ names, policy })}`,
+				);
+				throw error;
+			}
+		}
+		if (slackChannel && outputs === 1 && !slackModelDelayed) {
+			slackModelDelayed = true;
+			await new Promise((resolve) => setTimeout(resolve, 25000));
+		}
 		const replied =
 			(text.includes("owner-interruption") &&
 				text.includes("Private result for interrupted-scope")) ||
 			sourceFree ||
 			(readSet
 				? readSetReads === 2
-				: outputs >= (engineering ? 3 : tracking ? 2 : 1));
+				: outputs >= (engineering ? 3 : tracking || slackChannel ? 2 : 1));
 		if (readSet === "read-set-normal") {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			if (replied) delayedModelComplete = true;
 		}
-		const name = readSet
-			? relist
-				? "list_issues"
-				: "get_issue"
-			: engineering
-				? outputs < 2
-					? "execute"
-					: "publish_artifact"
-				: tracking
-					? "delegate_investigation"
-					: (
-								codexImage
-									? request.body.tools.some((t) => t.name === "read_messages")
-									: request.body.system.includes(
-											'Available names: ["read_messages"]',
-										)
-							)
-						? "read_messages"
-						: "get_issue";
-		const toolArguments = readSet
-			? relist || replied
-				? {}
-				: { reference: readSetReferences.get(readSet)[readSetReads] }
-			: engineering
-				? outputs === 0
-					? { command: "printf retained > retained.txt; node --test" }
-					: outputs === 1
+		const name = slackChannel
+			? outputs === 0
+				? "read_messages"
+				: "read_thread"
+			: readSet
+				? relist
+					? "list_issues"
+					: "get_issue"
+				: engineering
+					? outputs < 2
+						? "execute"
+						: "publish_artifact"
+					: tracking
+						? "delegate_investigation"
+						: (
+									codexImage
+										? request.body.tools.some((t) => t.name === "read_messages")
+										: request.body.system.includes(
+												'Available names: ["read_messages"]',
+											)
+								)
+							? "read_messages"
+							: "get_issue";
+		const toolArguments = slackChannel
+			? outputs === 0
+				? { limit: 10 }
+				: { reference: slackThreadReference }
+			: readSet
+				? relist || replied
+					? {}
+					: { reference: readSetReferences.get(readSet)[readSetReads] }
+				: engineering
+					? outputs === 0
+						? { command: "printf retained > retained.txt; node --test" }
+						: outputs === 1
+							? {
+									command:
+										"printf 'exports.sum=(a,b)=>a+b;' > sum.cjs; node --test",
+								}
+							: {
+									title: "Repair addition",
+									summary: "Synthetic reproduction passes",
+								}
+					: tracking
 						? {
-								command:
-									"printf 'exports.sum=(a,b)=>a+b;' > sum.cjs; node --test",
+								instruction: "Investigate the bound source and return findings",
+								tracking,
 							}
-						: {
-								title: "Repair addition",
-								summary: "Synthetic reproduction passes",
-							}
-				: tracking
-					? {
-							instruction: "Investigate the bound source and return findings",
-							tracking,
-						}
-					: {};
+						: {};
+		if (slackChannel && outputs === 1)
+			assert.ok(
+				text.includes(slackThreadReference),
+				"model uses the reference in received history",
+			);
 		if (readSet && !relist && !replied)
 			assert.ok(
 				text.includes(toolArguments.reference),
@@ -845,6 +898,42 @@ export async function runAutomationDrive({
 							};
 						}
 						const g = grant.authority.definition.grants[0];
+						if (d.id === "slack-channel") {
+							let text;
+							if (name === "read_messages") {
+								slackThreadReference = randomUUID();
+								issuedReferences.set(slackThreadReference, "thread-a");
+								text = JSON.stringify({
+									messages: [
+										{
+											reference: slackThreadReference,
+											text: "Synthetic root in admitted channel",
+										},
+									],
+								});
+							} else {
+								assert.equal(name, "read_thread");
+								assert.ok(issuedReferences.has(args.reference));
+								slackThreadReads++;
+								text = "Synthetic replies in admitted thread";
+							}
+							return {
+								content: [],
+								structuredContent: {
+									items: [
+										{
+											grantId: g.id,
+											connectionId: g.connectionId,
+											accountId: g.accountId,
+											resource: g.resource,
+											text,
+										},
+									],
+									nextCursor: null,
+								},
+							};
+						}
+
 						if (d.id.startsWith("read-set-")) {
 							let text;
 							if (name === "list_issues") {
@@ -1086,6 +1175,58 @@ export async function runAutomationDrive({
 			const result = await response.json();
 			return { statusCode: response.status, json: () => result };
 		};
+
+		if (slackChannelOnly) {
+			const capabilityResponse = await realFetch(
+				`${runtimeOrigin}/api/automations/v1/capabilities`,
+				{ headers: { authorization: `Bearer ${supervisorKey}` } },
+			);
+			assert.equal(capabilityResponse.status, 200);
+			assert.equal(
+				(await capabilityResponse.json()).capabilities.slackChannelRead,
+				true,
+			);
+			const d = definition("slack-channel", "customer-slack-channel", "slack");
+			d.instruction =
+				"For the slack-channel fixture, read admitted history then the referenced thread.";
+			await call("definitions", { contractVersion: 1, definition: d });
+			await call("occurrences", {
+				contractVersion: 1,
+				revision: 1,
+				automationId: d.id,
+				eventId: "slack-channel",
+				input: "Read the admitted channel then its returned thread",
+			});
+			await until(() => {
+				if (slackModelFailure) throw slackModelFailure;
+				return ledger.status(d.id).occurrences[0]?.status === "completed";
+			}, 60000);
+			assert.equal(ledger.status(d.id).occurrences[0].attempts, 1);
+			assert.equal(slackThreadReads, 1);
+			assert.equal(counts.tools, 2);
+			assert.equal(counts.initialize, 1);
+			assert.ok(sessionRenewals > 0);
+			assert.equal(slackModelDelayed, true);
+			const summary = {
+				passed: true,
+				scenario: "slack-channel",
+				target,
+				containedImage: codexImage,
+				sessionRenewals,
+				slackThreadReads,
+				counts,
+				directory,
+				limitations: [
+					"Controlled Hosted/Slack/model transport; no live Slack or Hosted SQL proof",
+					"Actual registered runtime, SQLite/checkpoints, SDK MCP and optional native containment",
+				],
+			};
+			await writeFile(
+				join(directory, "summary.json"),
+				JSON.stringify(summary, null, 2),
+			);
+			return summary;
+		}
 		const driveInterruption = async () => {
 			const d = definition("owner-interruption", "interrupted-scope");
 			const beforeTools = counts.tools;

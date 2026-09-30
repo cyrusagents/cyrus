@@ -6,9 +6,11 @@ import {
 	type AutomationToolCall,
 	authorizeTool,
 	isCustomerReadSet,
+	isSlackChannel,
 	type McpCredential,
 	permittedToolNames,
 	scopedToolResult,
+	slackChannelHistorySchema,
 } from "./contract.js";
 import { AutomationDiagnosticError } from "./Diagnostics.js";
 import {
@@ -37,6 +39,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 	private names = new Set<string>();
 	private connectedCredential?: McpCredential;
 	private readonly references = new Set<string>();
+	private readonly cursors = new Set<string>();
 	private queue: Promise<unknown> = Promise.resolve();
 	private exclusive<T>(operation: () => Promise<T>): Promise<T> {
 		const next = this.queue.then(operation);
@@ -288,6 +291,22 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 				const client = await this.connect(credential);
 				if (!this.names.has(call.name))
 					throw new Error("MCP tool absent from scoped catalog");
+				if (
+					isSlackChannel(authority) &&
+					((call.name === "read_thread" &&
+						!this.references.has(call.arguments.reference)) ||
+						(call.name === "read_messages" &&
+							call.arguments.cursor !== undefined &&
+							!this.cursors.has(call.arguments.cursor)))
+				)
+					return {
+						items: [
+							{
+								text: "This reference or cursor was not issued by the current MCP session. Call read_messages without a cursor and use its newly returned references.",
+							},
+						],
+						nextCursor: null,
+					};
 				// Pure reads can safely return a re-list instruction after reconnect.
 				// Uncertain delegation is never rewritten or assigned another operation key.
 				if (
@@ -343,6 +362,19 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 						for (const issue of listed.parse(JSON.parse(item.text)).issues)
 							this.references.add(issue.reference);
 				}
+				if (isSlackChannel(authority) && call.name === "read_messages") {
+					const pages = output.items.map((item) =>
+						slackChannelHistorySchema.parse(JSON.parse(item.text)),
+					);
+					const cursor =
+						output.nextCursor === null
+							? null
+							: z.string().uuid().parse(output.nextCursor);
+					for (const page of pages)
+						for (const message of page.messages)
+							this.references.add(message.reference);
+					if (cursor) this.cursors.add(cursor);
+				}
 				return output;
 			} catch (error) {
 				// Uncertain operations remain checkpointed. Next admitted attempt reconnects
@@ -366,6 +398,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 	private closeFailed = false;
 	private async disconnect(): Promise<void> {
 		this.references.clear();
+		this.cursors.clear();
 		const transport = this.transport;
 		this.transport = undefined;
 		this.connectedCredential = undefined;

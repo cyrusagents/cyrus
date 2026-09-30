@@ -139,3 +139,48 @@ it("requires private owner-only login storage", async () => {
 	await chmod(join(home, "auth.json"), 0o644);
 	expect(await broker.readiness()).toMatch(/unavailable/);
 });
+
+it.each([
+	{ toolNames: [] },
+	{ toolNames: ["read_messages", "read_thread"] },
+	{ toolNames: ["execute", "publish_artifact"] },
+])("forwards only admitted tools %j and removes native fallback built-ins", async ({
+	toolNames,
+}) => {
+	const broker = await setup();
+	const auth = { ...context(), toolNames };
+	const request = {
+		...body(),
+		tools: [
+			...toolNames.map((name) => ({
+				type: "function",
+				name,
+				parameters: {
+					type: "object",
+					properties: {},
+					additionalProperties: false,
+				},
+			})),
+			...["apply_patch", "view_image", "request_user_input"].map((name) => ({
+				type: name === "apply_patch" ? "custom" : "function",
+				name,
+			})),
+		],
+	};
+	const fetcher = vi.fn(async (_url, init) => {
+		expect(JSON.parse(init.body).tools).toEqual(
+			request.tools.filter((tool) => toolNames.includes(tool.name)),
+		);
+		return new Response("data: fixture\n\n", {
+			headers: { "content-type": "text/event-stream" },
+		});
+	});
+	vi.stubGlobal("fetch", fetcher);
+	await broker.respond(
+		{ body: JSON.stringify(request) },
+		auth,
+		new AbortController().signal,
+	);
+	expect(fetcher).toHaveBeenCalledTimes(1);
+	expect(auth.authorize).toHaveBeenCalledTimes(3);
+});
