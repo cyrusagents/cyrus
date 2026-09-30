@@ -112,6 +112,7 @@ export class AutomationRuntime {
 				automations: true,
 				sessionExecutionTiming: !!this.options.sessions,
 				sessionActivities: !!this.options.sessions,
+				sessionDeliveryAuthority: !!this.options.sessions,
 				delegation: !!this.options.sessions,
 				scheduledTicks: true,
 				eventInputs: true,
@@ -254,10 +255,11 @@ export class AutomationRuntime {
 			);
 		const admission = parsed.data;
 		if (
-			admission.sessionExecutionTiming &&
+			(admission.sessionExecutionTiming ||
+				admission.sessionDeliveryAuthority === "current-admission-v1") &&
 			(!admission.sessionDelivery || !this.options.sessions)
 		)
-			throw new Error("Execution timing requires session delivery");
+			throw new Error("Negotiated session features require session delivery");
 		const next = executionAuthority(admission);
 		if (isSlackChannel(next) && admission.slackChannelRead !== true)
 			throw new Error("Slack channel reads require negotiated admission");
@@ -478,6 +480,8 @@ export class AutomationRuntime {
 								renewed.slackChannelRead !== admission.slackChannelRead ||
 								renewed.sessionExecutionTiming !==
 									admission.sessionExecutionTiming ||
+								renewed.sessionDeliveryAuthority !==
+									admission.sessionDeliveryAuthority ||
 								digest(renewed.sessionDelivery ?? null) !==
 									digest(admission.sessionDelivery ?? null) ||
 								checkpointKey(next) !== key ||
@@ -530,6 +534,9 @@ export class AutomationRuntime {
 					...(admission.sessionDelivery && {
 						sessionDelivery: admission.sessionDelivery,
 					}),
+					...(admission.sessionDeliveryAuthority !== undefined && {
+						sessionDeliveryAuthority: admission.sessionDeliveryAuthority,
+					}),
 					messages: [
 						{
 							role: "user",
@@ -542,8 +549,9 @@ export class AutomationRuntime {
 				await this.options.store.save(state);
 			}
 			if (
+				state.sessionDeliveryAuthority !== admission.sessionDeliveryAuthority ||
 				digest(state.sessionDelivery ?? null) !==
-				digest(admission.sessionDelivery ?? null)
+					digest(admission.sessionDelivery ?? null)
 			)
 				throw new Error("Session delivery changed across checkpoint recovery");
 			if (session && this.options.sessions) {
@@ -566,7 +574,22 @@ export class AutomationRuntime {
 					async (sessionId) => {
 						if (sessionId !== session.id)
 							throw new Error("Foreign session delivery denied");
-						await fresh();
+						if (
+							admission.sessionDeliveryAuthority === "current-admission-v1" &&
+							!authority.engineering &&
+							["coordinator", "investigator"].includes(
+								authority.definition.role,
+							)
+						) {
+							// Only the negotiated receiver checks current admission at this
+							// delivery boundary. An ACK never authorizes subsequent work.
+							controller.signal.throwIfAborted();
+							this.check(authority, receiptOnly);
+							if (Date.parse(credential.expiresAt) <= Date.now())
+								throw new Error("Session delivery admission expired");
+						} else {
+							await fresh();
+						}
 						return {
 							contractVersion: 1,
 							instanceId: this.instanceId,

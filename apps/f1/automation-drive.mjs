@@ -50,6 +50,7 @@ export async function runAutomationDrive({
 	codexImage = process.env.CYRUS_F1_CODEX_IMAGE,
 	ownerInterruptionOnly = false,
 	slackChannelOnly = false,
+	sessionDeliveryAuthority = false,
 	ownerInterruptionFault = "model",
 } = {}) {
 	const target = codexImage
@@ -344,6 +345,12 @@ export async function runAutomationDrive({
 						ownerInterruption: true,
 					}),
 				...(timing && { sessionExecutionTiming: true }),
+				...(sessionDeliveryAuthority &&
+					!engineering &&
+					request.headers["x-cyrus-session-delivery"] === "1" &&
+					request.headers["x-cyrus-session-delivery-authority"] === "1" && {
+						sessionDeliveryAuthority: "current-admission-v1",
+					}),
 				...(engineering && { engineering }),
 				...(request.headers["x-cyrus-session-delivery"] === "1" && {
 					sessionDelivery: {

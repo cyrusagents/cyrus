@@ -773,3 +773,34 @@ The broker removes Codex-supplied apply_patch/view_image/request_user_input from
 the provider-visible catalog; only supervisor-admitted dynamic tools remain. Unknown
 tools still fail closed. No native credential, filesystem or unrestricted connector
 fallback is available.
+
+### Negotiated current admission for customer session delivery
+
+Runtime sends `X-Cyrus-Session-Delivery-Authority: 1` alongside
+`X-Cyrus-Session-Delivery: 1` on authorize/renew. Hosted may return top-level
+`sessionDeliveryAuthority: "current-admission-v1"` for coordinator/investigator
+customer admissions. Engineering and absent/unknown modes retain the existing
+remote preflight. The bounded advertised string is pinned across renewal and
+persisted in the private checkpoint: changed values, including absence versus a
+newly advertised value on legacy checkpoint recovery, fail closed. Do not silently
+upgrade an existing occurrence's delivery mode. Unknown strings confer no capability.
+
+Only the sink's immediate remote `fresh()` is omitted. Runtime still checks abort,
+local lease and credential deadlines, workspace/readiness and admitted role. Hosted
+must authenticate and recheck the exact tuple/current admission on **every** initial,
+append and active replay before journal access, including expiry after lock waits.
+Delivery neither renews authority nor authorizes subsequent execution. Periodic
+renewal and model/provider/MCP/progress/result gates remain unchanged. Strict receipt
+validation, immutable replay, ordered journal delivery and final ACK-before-result
+remain mandatory. Completed receipt replay returns only an identical committed item
+under current registered owner/exact tuple; it cannot append or reopen execution.
+
+Hosted prerequisite `1e668cf912a5b80827ac326384077a3904bf37e1` adds the exact persisted
+admission deadline and advertises this mode after migration. The test-only follow-up
+`5a54b0db04a2f0c8ca511c545906cf4b63c8d73e` corrects fixture isolation and has green
+database CI. Source runtime/actual SQL-HTTP proof passes against that frozen head;
+installed/native evidence is recorded separately in the implementation handoff.
+Runtime receiver ACK `260cab4a` accepts Hosted proposals `1b34a52e`/`c90c6347`.
+Roll out the additive server gate before optional runtime consumption. Older hosts
+without the field retain the preflight; older runtimes must not open new checkpoints.
+No published minimum version or live latency acceptance is implied.

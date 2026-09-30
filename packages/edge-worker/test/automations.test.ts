@@ -819,11 +819,14 @@ it("bounds receipt retries independently and does not resurrect them on definiti
 	expect(db.claim(2, false)).toEqual([]);
 });
 
-it.each([
-	"root",
-	"direct",
-	"ticket",
-])("flushes immutable session receipts before completion and replays a lost result ACK without reopening tools/model: %s", async (kind) => {
+it.each(
+	["root", "direct", "ticket"].flatMap((kind) =>
+		[false, true].map((negotiated) => ({ kind, negotiated })),
+	),
+)("flushes immutable session receipts before completion and replays a lost result ACK without reopening tools/model: %j", async ({
+	kind,
+	negotiated,
+}) => {
 	let now = Date.now();
 	const db = await ledger(() => now);
 	const d = definition(
@@ -954,6 +957,9 @@ it.each([
 							grantId: "bound-grant",
 						},
 						sessionExecutionTiming: true,
+						...(negotiated && {
+							sessionDeliveryAuthority: "current-admission-v1",
+						}),
 						sessionDelivery: {
 							contractVersion: 1,
 							path: "/api/agent-sessions/v1/deliver",

@@ -43,6 +43,7 @@ export const checkpointSchema = z
 		status: z.enum(["running", "completed"]),
 		engineeringFiles: engineeringFilesSchema.optional(),
 		sessionDelivery: admissionSchema.shape.sessionDelivery,
+		sessionDeliveryAuthority: admissionSchema.shape.sessionDeliveryAuthority,
 		native: z
 			.object({
 				threadId: z.string().uuid(),

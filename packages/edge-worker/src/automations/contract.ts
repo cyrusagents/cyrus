@@ -124,6 +124,8 @@ export const admissionSchema = z
 		ownerInterruption: z.literal(true).optional(),
 		slackChannelRead: z.literal(true).optional(),
 		sessionExecutionTiming: z.literal(true).optional(),
+		// Unknown versions remain on the preflight path and are still pinned.
+		sessionDeliveryAuthority: z.string().min(1).max(100).optional(),
 		engineering: engineeringEnvelopeSchema.optional(),
 		mcp: mcpCredentialSchema,
 		sessionDelivery: z

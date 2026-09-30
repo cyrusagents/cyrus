@@ -269,6 +269,20 @@ it("rejects a changed stable MCP grant during renewal before engineering executi
 	expect(sandbox).not.toHaveBeenCalled();
 	expect(f.call).not.toHaveBeenCalled();
 });
+it("keeps the delivery preflight for engineering even with a customer-only mode", async () => {
+	let authorizations = 0;
+	const next = vi.fn(),
+		sandbox = vi.fn();
+	const f = await fixture({ next }, sandbox, (a) => {
+		a.sessionDeliveryAuthority = "current-admission-v1";
+		if (++authorizations === 3) throw Error("Delivery preflight denied");
+	});
+	await f.runtime.wake();
+	expect(authorizations).toBe(3);
+	expect(f.deliveries).toHaveLength(0);
+	expect(next).not.toHaveBeenCalled();
+	expect(sandbox).not.toHaveBeenCalled();
+});
 it.each([
 	"parent",
 	"customer-grant",
