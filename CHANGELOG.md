@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.2.73] - 2026-09-29
+## [0.2.73] - 2026-09-30
 
 ### Changed
 - Updated `@anthropic-ai/claude-agent-sdk` from `0.3.268` to [`0.3.281`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03281), bringing Claude sessions to parity with Claude Code 2.1.281. The accumulated update improves resumed and forked session accounting, queued-message history, MCP startup and resource handling, active-turn side questions, permission cancellation, and session-reset metadata, and adds verbatim prompt delivery. Updated `@anthropic-ai/sdk` from `^0.125.0` to [`^0.128.0`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v0.128.0), adding Claude Opus 5.5 support, inline tool definitions, beta MCP tool-list pinning, and tool-runner fixes. The refreshed 30-tool Claude allowance lists remove the retired `TaskOutput` tool. ([CYPACK-1539](https://linear.app/ceedar/issue/CYPACK-1539/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1505](https://github.com/cyrusagents/cyrus/pull/1505), [cyrus-hosted#1101](https://github.com/cyrusagents/cyrus-hosted/pull/1101))
@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 - Updated the MCP SDK dependency graph to resolve patched `ip-address` releases, closing two moderate SSRF and trust-boundary advisories while removing the now-redundant MCP SDK and `ip-address` overrides. ([CYPACK-1549](https://linear.app/ceedar/issue/CYPACK-1549/run-a-release), [#1510](https://github.com/cyrusagents/cyrus/pull/1510))
+- Updated Axios and Fastify to patched releases and refreshed Nodemon's compatible dependency graph, closing eighteen newly disclosed denial-of-service, proxy-bypass, prototype-pollution, and header-injection advisories before publication. ([CYPACK-1549](https://linear.app/ceedar/issue/CYPACK-1549/run-a-release))
 
 ### Packages
 

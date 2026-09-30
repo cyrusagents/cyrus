@@ -29,7 +29,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
-		"fastify": "^5.12.1",
+		"fastify": "^5.12.5",
 		"tsx": "^4.23.0",
 		"@typescript/native-preview": "7.0.0-dev.20260707.2",
 		"vitest": "^4.1.11"

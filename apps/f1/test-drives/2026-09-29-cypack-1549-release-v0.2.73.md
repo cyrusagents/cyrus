@@ -41,6 +41,13 @@ The complete payload since `v0.2.72` includes runtime-bearing changes: the Claud
 - [x] The MCP tools suite passed 33 tests and the config-updater suite passed 55 tests.
 - [ ] Direct MCP `initialize` cannot be exercised in current F1 CLI mode because `McpConfigService` intentionally omits a cyrus-tools context when the CLI tracker has no real Linear client; the endpoint correctly rejected the synthetic unknown context.
 
+### Final dependency security follow-up
+
+- [x] `axios@1.20.0`, `fastify@5.12.5`, `fast-uri@3.1.8` / `4.2.1`, and `brace-expansion@5.0.12` resolved through their owning direct dependencies without workspace overrides.
+- [x] `pnpm audit` again reported no known vulnerabilities after the release dry run exposed eighteen newly disclosed advisories.
+- [x] Existing edge-worker and CLI tests, the coordinated release validator, monorepo typecheck, and build passed against the final dependency graph.
+- [x] The dependency-only follow-up does not change the already exercised F1 workflow behavior; focused suites cover its HTTP/server and packaging surfaces.
+
 ## Session log
 
 Built the prepared release through the repository commit hook, which completed the monorepo build and typecheck, then created fresh F1 repositories:
@@ -112,6 +119,21 @@ CYRUS_PORT=3602 apps/f1/f1 status
 ```
 
 Result: audit was clean, 88 focused tests passed, the F1 server became ready, and the cyrus-tools MCP endpoint registered successfully. A direct `initialize` request with an invented context returned the expected `Unknown cyrus-tools MCP context` error because CLI mode deliberately has no real Linear client from which to build that context.
+
+The first `v0.2.73` stable dry run then discovered eighteen advisories published after the release PR was prepared. The final dependency follow-up advanced direct Axios and Fastify dependencies and refreshed Nodemon's compatible transitive graph. No workspace override was needed. The post-patch checks were:
+
+```bash
+pnpm install
+pnpm audit
+node scripts/release-packages.mjs validate 0.2.73
+pnpm build
+pnpm test:packages:run
+pnpm --filter cyrus-ai test:run
+pnpm lint
+pnpm typecheck
+```
+
+Result: the audit was clean; all 16 package suites and all 160 CLI tests passed; release validation, lint, typecheck, and build passed. Because these are patch-level HTTP/server dependency updates with no Cyrus behavior change, the existing F1 issue, chat, runner, activity, pagination, and shutdown scenarios remain the relevant end-to-end evidence.
 
 ## Limitations
 
