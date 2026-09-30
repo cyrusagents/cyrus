@@ -51,6 +51,7 @@ export class DurableCyrusSessionSink implements ICyrusSessionSink {
 			sessionId: string,
 		) => Promise<Omit<SessionDeliveryEnvelope, "item">>,
 		private readonly secrets: () => readonly string[],
+		private readonly backgroundSignal?: AbortSignal,
 	) {
 		this.id = journal.id;
 	}
@@ -117,7 +118,7 @@ export class DurableCyrusSessionSink implements ICyrusSessionSink {
 			{ kind: "activity", payload: redacted },
 			sourceKey,
 		);
-		await this.flush().catch(() => undefined); // Durable item remains; no acknowledgement is fabricated.
+		await this.deliverAccepted(); // Durable item remains; no acknowledgement is fabricated.
 		return {};
 	}
 	async updateCyrusSession(
@@ -131,7 +132,22 @@ export class DurableCyrusSessionSink implements ICyrusSessionSink {
 			{ kind: "lifecycle", payload: update },
 			sourceKey,
 		);
-		await this.flush().catch(() => undefined);
+		await this.deliverAccepted();
+	}
+	private async deliverAccepted(): Promise<void> {
+		if (!this.backgroundSignal) {
+			await this.flush().catch(() => undefined);
+			return;
+		}
+		// Append is already durable. One bounded ordered drain may overlap execution;
+		// final flush still requires every exact receipt ACK before /result.
+		if (!this.flushing)
+			void this.flush(
+				AbortSignal.any([this.backgroundSignal, AbortSignal.timeout(20_000)]),
+			).catch(() => undefined);
+	}
+	async settled(): Promise<void> {
+		await this.flushing?.catch(() => undefined);
 	}
 	private assertPrivateIdentity(value: unknown): void {
 		const serialized = canonicalSessionJson(value);
@@ -143,16 +159,22 @@ export class DurableCyrusSessionSink implements ICyrusSessionSink {
 		)
 			throw new Error("Session identity contains credential material");
 	}
-	flush(signal: AbortSignal = AbortSignal.timeout(20_000)): Promise<void> {
-		if (this.flushing) return this.flushing;
+	async flush(
+		signal: AbortSignal = AbortSignal.timeout(20_000),
+	): Promise<void> {
+		// Another caller may append after the current drain's last peek. Waiting
+		// only for that promise could falsely acknowledge a terminal flush.
+		// A previous background failure retains the same immutable item. This
+		// explicit flush makes its own current-authority delivery attempt.
+		while (this.flushing) await this.flushing.catch(() => undefined);
+		signal.throwIfAborted();
 		const work = this.drain(signal);
 		this.flushing = work;
-		void work
-			.finally(() => {
-				if (this.flushing === work) this.flushing = undefined;
-			})
-			.catch(() => undefined);
-		return work;
+		try {
+			await work;
+		} finally {
+			if (this.flushing === work) this.flushing = undefined;
+		}
 	}
 	private async drain(signal: AbortSignal): Promise<void> {
 		const failed = new Set<string>();

@@ -213,3 +213,29 @@ it("requires a bounded duration/completeness pair and preserves old lifecycle pa
 			}),
 		).toThrow();
 });
+
+it("counts provider/broker and tool waits but excludes blocking authority and between-step delivery", async () => {
+	const f = await fixture();
+	const timing = f.timing();
+	f.advance(520); // admission and durable session creation before native invocation
+	await timing.measure("model", async () => {
+		await timing.exclude(async () => {
+			f.advance(500);
+		}); // native broker authorization
+		await Promise.resolve();
+		f.advance(200); // actual provider response wait is measured
+	});
+	f.advance(800); // native tool reply is withheld by supervisor receipt delivery
+	await timing.measure("tool", async () => {
+		await Promise.resolve();
+		f.advance(30);
+	});
+	expect(timing.snapshot()).toEqual({
+		executionDurationMs: 230,
+		executionDurationComplete: true,
+	});
+	// Native task wall time would include 500+200+800+30=1530ms, not just230ms.
+	// A measured counter is not CPU time, native turn wall time, or submission latency.
+	f.advance(1000); // terminal receipt ACK is not execution
+	expect(timing.snapshot().executionDurationMs).toBe(230);
+});

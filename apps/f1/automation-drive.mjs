@@ -71,6 +71,16 @@ export async function runAutomationDrive({
 	const measuredCompletions = new Map();
 	let diagnosticRecovered = false;
 	let readSetContentReads = 0;
+	let delayedActivityEntered = false;
+	let delayedModelComplete = false;
+	let delayedActivityReleased = false;
+	let releaseDelayedActivity;
+	const delayedActivityGate = new Promise((resolve) => {
+		releaseDelayedActivity = () => {
+			delayedActivityReleased = true;
+			resolve();
+		};
+	});
 	let engineeringCalls = 0;
 	let lostEngineeringAck = false;
 	let lostDelegationAck = false;
@@ -385,6 +395,10 @@ export async function runAutomationDrive({
 					role: d.role,
 				},
 			);
+		if (d.id === "read-set-normal" && item.sequence === 2) {
+			delayedActivityEntered = true;
+			await delayedActivityGate;
+		}
 		const key = `${item.sessionId}:${item.sequence}`,
 			hash = sessionDeliveryDigest(item);
 		const previous = activityReceipts.get(key);
@@ -484,6 +498,10 @@ export async function runAutomationDrive({
 			(readSet
 				? readSetReads === 2
 				: outputs >= (engineering ? 3 : tracking ? 2 : 1));
+		if (readSet === "read-set-normal") {
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			if (replied) delayedModelComplete = true;
+		}
 		const name = readSet
 			? relist
 				? "list_issues"
@@ -758,6 +776,8 @@ export async function runAutomationDrive({
 									issuedReferences.has(args.reference),
 									"reference belongs to this exact session",
 								);
+								if (d.id === "read-set-normal")
+									await new Promise((resolve) => setTimeout(resolve, 200));
 								readSetContentReads++;
 								text = `Read-set issue body ${issuedReferences.get(args.reference)}`;
 							}
@@ -1490,6 +1510,16 @@ export async function runAutomationDrive({
 				eventId: `event-${id}`,
 				input: "Review currently accessible issues",
 			});
+			if (id === "read-set-normal") {
+				await until(() => delayedModelComplete, 15000);
+				assert.equal(delayedActivityEntered, true);
+				assert.equal(readSetContentReads, 2);
+				assert.equal(delayedActivityReleased, false);
+				// Allow the native final event to reach the runtime receipt barrier.
+				await new Promise((resolve) => setTimeout(resolve, 250));
+				assert.equal(results.has(ledger.status(id).occurrences[0].id), false);
+				releaseDelayedActivity();
+			}
 			await until(
 				() => ledger.status(id).occurrences[0]?.status === "completed",
 				90000,
@@ -1589,6 +1619,16 @@ export async function runAutomationDrive({
 				eventId: "reviewed-assignment",
 				input: "Reviewed engineering work",
 			});
+			if (id === "read-set-normal") {
+				await until(() => delayedModelComplete, 15000);
+				assert.equal(delayedActivityEntered, true);
+				assert.equal(readSetContentReads, 2);
+				assert.equal(delayedActivityReleased, false);
+				// Allow the native final event to reach the runtime receipt barrier.
+				await new Promise((resolve) => setTimeout(resolve, 250));
+				assert.equal(results.has(ledger.status(id).occurrences[0].id), false);
+				releaseDelayedActivity();
+			}
 			await until(
 				() => ledger.status(id).occurrences[0]?.status === "completed",
 				90000,
@@ -1648,6 +1688,13 @@ export async function runAutomationDrive({
 			target,
 			...(codexImage && { containedImage: codexImage }),
 			activityReceipts: activityReceipts.size,
+			delayedDelivery: {
+				modelAndTwoReadsBeforeActivityAck:
+					delayedModelComplete && delayedActivityEntered,
+				resultWaitedForAck: delayedActivityReleased,
+				modelDelayMs: 100,
+				toolDelayMs: 200,
+			},
 			executionTiming: [...measuredCompletions.values()],
 			readSets: {
 				contentReads: readSetContentReads,
@@ -1675,6 +1722,7 @@ export async function runAutomationDrive({
 						]
 					: []),
 				"instruction through registered HTTP routes",
+				"delayed intermediate activity ACK overlaps delayed model and two SDK tool calls; result remains blocked until exact ordered receipts ACK",
 				"authenticated idempotent operator recovery preserves original occurrence, denies widening/active/completed work, exhausts a revoked three-attempt cycle, then completes only after current authority admits a new explicit cycle",
 				"pre-checkpoint authority denial persists safe phase/status after three attempts and is visible only through authenticated runtime status",
 				"customer read-set list/two reads through one current SDK session; two 25-second model turns each outlast the 20-second lease while negotiated renewal preserves exact references",
@@ -1715,6 +1763,7 @@ export async function runAutomationDrive({
 		);
 		return summary;
 	} finally {
+		releaseDelayedActivity();
 		releaseEventModel();
 		await runtimeApp?.close();
 		ledger.close();

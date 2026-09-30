@@ -611,6 +611,30 @@ operator wait, initial admission, progress, activity delivery and result receipt
 waits are excluded. Blocking supervisor authorization/native identity delivery
 inside the native model invocation is also excluded. Each child measures its own
 work; parent duration never sums child durations or waiting for child results.
+This is elapsed time within the measured calls, not CPU time. The first model call
+also includes contained process initialization and local checkpoint work; it does
+not represent provider generation alone. Concurrent background
+work is not subtracted when it overlaps a measured call; only explicit blocking
+exclusions are subtracted. Native Codex task duration includes time waiting for
+supervisor tool replies and can be substantially longer. Its time-to-first-token
+also includes the login broker's bounded response buffering; it is not a pure
+provider latency measurement. Do not subtract either metric from this counter to
+infer a precise breakdown without stage timestamps.
+
+Session creation still requires a current-authority remote ACK before execution.
+Scoped runtime intermediate activity/lifecycle items are durably appended locally,
+then delivered in order by one bounded background drain. Model/tool execution does
+not wait for these intermediate ACKs. Every delivery rechecks current authority;
+terminal result publication still waits for all immutable receipt ACKs. Abort stops
+the drain before closing its journal; undelivered items remain for authorized
+recovery. Existing sink consumers without background delivery keep eager delivery.
+
+Before native turn/start, runtime admission, MCP initialization/current-authority
+checks, session creation ACK, progress, container startup and native initialization
+are sequential boundaries. There is no fixed 52-second startup sleep. A scheduled
+or admitted timestamp alone does not apportion these stages or any preceding queue
+wait; receipt timestamps and native events provide only boundary observations.
+
 The existing action/tool/response activity ontology and ephemeral semantics do not
 change. These fields are supervisor measurements, never model arguments/content.
 
@@ -625,11 +649,12 @@ at observed cancellation, rather than counting cleanup or later retry delay.
 A process crash cannot yield an exact unobserved tail. Recovery closes an abandoned
 interval at its **last durable sample**, preserves that duration, and permanently
 sets completeness false for this occurrence. It never extends to restart time.
-Pre-upgrade work without measurements is likewise incomplete. Complete=true permits
-an exact 'Worked for...' presentation for a terminal measurement (with ordinary
-display rounding); false must
-be labeled as observed/at least or omitted. An absent pair means unavailable, not
-zero. Hosted must not fill either case using createdAt/updatedAt or receipt age.
+Pre-upgrade work without measurements is likewise incomplete. Complete=true means
+complete coverage of these measured intervals, not native turn wall duration or
+submission-to-reply latency. Label the terminal value **Observed execution** and
+explain that it includes model/tool waits but excludes queue, blocking authorization
+and delivery waits. False must be labeled as observed/at least or omitted. An absent
+pair means unavailable, not zero. Hosted must not fill either case using createdAt/updatedAt or receipt age.
 
 An active lifecycle snapshot is emitted at admitted attempt start; completion and
 interruption carry cumulative snapshots. The terminal snapshot is journaled before

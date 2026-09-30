@@ -1509,3 +1509,123 @@ it.each([
 		spy.mockRestore();
 	}
 });
+
+it("does not block model/tool execution on intermediate activity ACKs but flushes before result", async () => {
+	const db = await ledger();
+	const d = definition();
+	db.upsert(d);
+	const occurrence = db.enqueue(d.id, 1, "delayed-activity", "Read the issue");
+	const { sessionDeliveryDigest } = await import(
+		"../src/sinks/session-delivery.js"
+	);
+	let release!: () => void, entered!: () => void;
+	const blocked = new Promise<void>((r) => {
+		release = r;
+	});
+	const deliveryStarted = new Promise<void>((r) => {
+		entered = r;
+	});
+	let modelCalls = 0,
+		tools = 0,
+		results = 0;
+	const sequences: number[] = [];
+	const runtime = new AutomationRuntime({
+		workspaceId: () => d.workspaceId,
+		ledger: db,
+		store: new AutomationCheckpointStore(await directory()),
+		readiness: () => ({ ...d.target, reason: null }),
+		sessions: {
+			directory: await directory(),
+			secrets: () => [],
+			transport: {
+				async deliver({ item }) {
+					if (item.sequence === 2) {
+						entered();
+						await blocked;
+					}
+					sequences.push(item.sequence);
+					return {
+						contractVersion: 1,
+						sessionId: item.sessionId,
+						sequence: item.sequence,
+						digest: sessionDeliveryDigest(item),
+					};
+				},
+			},
+		},
+		tools: () => ({
+			call: async () => {
+				tools++;
+				return { items: [], nextCursor: null };
+			},
+			close: async () => {},
+			renew: async (fn) => fn(),
+		}),
+		model: {
+			async next() {
+				modelCalls++;
+				return modelCalls === 1
+					? { type: "tool", call: { name: "get_issue", arguments: {} } }
+					: { type: "result", text: "Finished" };
+			},
+		},
+		gateway: {
+			async call(endpoint, body) {
+				if (endpoint === "authorize")
+					return {
+						authority: authority({
+							occurrenceId: occurrence.id,
+							attemptId: String(body.attemptId),
+							fence: Number(body.fence),
+							input: occurrence.input,
+						}),
+						mcp: {
+							token: "fixture-credential-not-a-live-secret",
+							audience: "/mcp",
+							expiresAt: new Date(Date.now() + 60000).toISOString(),
+							grantId: "bound-grant",
+						},
+						sessionExecutionTiming: true,
+						sessionDelivery: {
+							contractVersion: 1,
+							path: "/api/agent-sessions/v1/deliver",
+							session: {
+								id: "delayed-session",
+								scopeRef: d.scopeRef,
+								role: d.role,
+							},
+						},
+					};
+				if (endpoint === "progress") return {};
+				results++;
+				expect(sequences).toEqual([1, 2, 3, 4, 5, 6]);
+				return {
+					contractVersion: 1,
+					acknowledged: true,
+					occurrenceId: body.occurrenceId,
+					idempotencyKey: body.idempotencyKey,
+				};
+			},
+		},
+	});
+	const work = runtime.wake();
+	try {
+		await Promise.race([
+			deliveryStarted,
+			work.then(() => {
+				throw Error(JSON.stringify(db.status(d.id)));
+			}),
+		]);
+		await expect.poll(() => modelCalls, { timeout: 3000 }).toBe(2);
+		expect(tools).toBe(1);
+		expect(results).toBe(0);
+		release();
+		await work;
+		expect(results).toBe(1);
+		expect(db.status(d.id).occurrences[0]?.status).toBe("completed");
+	} finally {
+		release();
+		await work;
+		await runtime.stop();
+	}
+});

@@ -2,6 +2,7 @@ import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CodexEventMapper, CodexRunner } from "cyrus-codex-runner";
+import { AgentSessionStatus } from "cyrus-core";
 import Fastify from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionManager } from "../src/AgentSessionManager.js";
@@ -453,4 +454,143 @@ it.each([
 			.createCyrusSession({ ...descriptor, parentSessionId: "foreign-parent" }),
 	).rejects.toThrow("identity cannot change");
 	expect(f.state.receipts.size).toBe(3);
+});
+
+it("settles aborted background delivery before journal close and retains ordered receipts for current-authority recovery", async () => {
+	const f = await fixture();
+	const journal = f.journal();
+	const controller = new AbortController();
+	let entered!: () => void;
+	const delivering = new Promise<void>((resolve) => {
+		entered = resolve;
+	});
+	const calls: number[] = [];
+	const sink = new DurableCyrusSessionSink(
+		journal,
+		{
+			deliver: async ({ item }, signal) => {
+				calls.push(item.sequence);
+				if (item.sequence > 1) {
+					entered();
+					await new Promise<void>((_resolve, reject) => {
+						signal.addEventListener("abort", () => reject(signal.reason), {
+							once: true,
+						});
+					});
+				}
+				return {
+					contractVersion: 1,
+					sessionId: item.sessionId,
+					sequence: item.sequence,
+					digest: sessionDeliveryDigest(item),
+				};
+			},
+		},
+		async () => authority,
+		() => [],
+		controller.signal,
+	);
+	await sink.createCyrusSession(parent);
+	await sink.postActivity(parent.id, {
+		type: "action",
+		action: "get_issue",
+		parameter: "bound issue",
+	});
+	await delivering;
+	await sink.postActivity(parent.id, {
+		type: "response",
+		body: "Scoped findings",
+	});
+	controller.abort();
+	await sink.settled();
+	expect(calls).toEqual([1, 2]);
+	expect(journal.peek()?.sequence).toBe(2);
+	// Reopen the same durable scope as recovery would; no old credentials persist.
+	const reopened = f.journal();
+	const recovered: number[] = [];
+	let revoked = true;
+	const recovery = new DurableCyrusSessionSink(
+		reopened,
+		{
+			deliver: async ({ item }) => {
+				recovered.push(item.sequence);
+				return {
+					contractVersion: 1,
+					sessionId: item.sessionId,
+					sequence: item.sequence,
+					digest: sessionDeliveryDigest(item),
+				};
+			},
+		},
+		async () => {
+			if (revoked) throw new Error("Current authority denied");
+			return { ...authority, attemptId: "attempt-2", fence: 2 };
+		},
+		() => [],
+	);
+	await expect(recovery.flush()).rejects.toThrow("durable items retained");
+	expect(recovered).toEqual([]);
+	expect(reopened.peek()?.sequence).toBe(2);
+	revoked = false;
+	await recovery.flush();
+	expect(recovered).toEqual([2, 3]);
+	expect(reopened.peek()).toBeUndefined();
+});
+
+it("terminal flush retries a failed in-flight background ACK using the same immutable receipt", async () => {
+	const f = await fixture();
+	const journal = f.journal();
+	let release!: () => void;
+	let entered!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const started = new Promise<void>((resolve) => {
+		entered = resolve;
+	});
+	const sent: SessionDeliveryEnvelope["item"][] = [];
+	let lost = false;
+	let authorized = 0;
+	const sink = new DurableCyrusSessionSink(
+		journal,
+		{
+			deliver: async ({ item }) => {
+				sent.push(item);
+				if (item.sequence === 2 && !lost) {
+					lost = true;
+					entered();
+					await gate;
+					throw new Error("Receiver committed; ACK lost");
+				}
+				return {
+					contractVersion: 1,
+					sessionId: item.sessionId,
+					sequence: item.sequence,
+					digest: sessionDeliveryDigest(item),
+				};
+			},
+		},
+		async () => {
+			authorized++;
+			return authority;
+		},
+		() => [],
+		new AbortController().signal,
+	);
+	await sink.createCyrusSession(parent);
+	await sink.postActivity(parent.id, {
+		type: "response",
+		body: "Scoped findings",
+	});
+	await started;
+	await sink.updateCyrusSession(parent.id, {
+		status: AgentSessionStatus.Complete,
+	});
+	const flushed = sink.flush();
+	release();
+	await flushed;
+	expect(sent.map((item) => item.sequence)).toEqual([1, 2, 2, 3]);
+	expect(sent[1]).toEqual(sent[2]);
+	expect(authorized).toBe(4);
+	expect(journal.peek()).toBeUndefined();
 });

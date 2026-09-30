@@ -557,6 +557,7 @@ export class AutomationRuntime {
 						};
 					},
 					() => [...this.options.sessions!.secrets(), credential.token],
+					controller.signal,
 				);
 				await sink.createCyrusSession(session);
 				await sink.flush(controller.signal);
@@ -690,6 +691,9 @@ export class AutomationRuntime {
 					{ status: AgentSessionStatus.Error, ...timing.snapshot() },
 					`interrupted:${initial.attemptId}`,
 				);
+				// Terminal interruption is a delivery boundary too. Revocation may
+				// deny the flush; its immutable receipt remains for recovery.
+				await sink.flush(controller.signal).catch(() => undefined);
 			}
 			if (authorityFailure)
 				throw new AutomationDiagnosticError(authorityFailure);
@@ -709,6 +713,7 @@ export class AutomationRuntime {
 					}
 				}
 			} finally {
+				await sink?.settled();
 				journal?.close();
 				this.active.delete(key);
 			}
