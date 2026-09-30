@@ -6,11 +6,72 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Codex sessions can use `gpt-6.1-sol` with ChatGPT accounts now that the bundled CLI and SDK have been updated to 0.159.2. ([#1512](https://github.com/cyrusagents/cyrus/issues/1512), [#1514](https://github.com/cyrusagents/cyrus/pull/1514))
+
+## [0.2.73] - 2026-09-30
+
+### Changed
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.268` to [`0.3.281`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03281), bringing Claude sessions to parity with Claude Code 2.1.281. The accumulated update improves resumed and forked session accounting, queued-message history, MCP startup and resource handling, active-turn side questions, permission cancellation, and session-reset metadata, and adds verbatim prompt delivery. Updated `@anthropic-ai/sdk` from `^0.125.0` to [`^0.128.0`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v0.128.0), adding Claude Opus 5.5 support, inline tool definitions, beta MCP tool-list pinning, and tool-runner fixes. The refreshed 30-tool Claude allowance lists remove the retired `TaskOutput` tool. ([CYPACK-1539](https://linear.app/ceedar/issue/CYPACK-1539/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1505](https://github.com/cyrusagents/cyrus/pull/1505), [cyrus-hosted#1101](https://github.com/cyrusagents/cyrus-hosted/pull/1101))
+
+### Fixed
 - Slack and Zulip sessions no longer lose the Linear MCP server after a quiet day. Cyrus only refreshed its Linear access token when handling Linear events, so once the token was 24 hours old every chat session started with an expired token and Linear tools failed with 401. Cyrus now refreshes an expired token before each chat session starts. ([#1501](https://github.com/cyrusagents/cyrus/pull/1501))
 - Linear webhooks from all twelve published outbound IP addresses are now accepted, preventing missed events as Linear rolls out new source addresses. ([CYPACK-1518](https://linear.app/ceedar/issue/CYPACK-1518), [#1481](https://github.com/cyrusagents/cyrus/pull/1481))
 
 ### Security
-- Updated affected dependencies to address newly reported vulnerabilities in `axios`, `fast-uri`, `ip-address`, and `brace-expansion`. ([#1514](https://github.com/cyrusagents/cyrus/pull/1514))
+- Updated the MCP SDK dependency graph to resolve patched `ip-address` releases, closing two moderate SSRF and trust-boundary advisories while removing the now-redundant MCP SDK and `ip-address` overrides. ([CYPACK-1549](https://linear.app/ceedar/issue/CYPACK-1549/run-a-release), [#1510](https://github.com/cyrusagents/cyrus/pull/1510))
+- Updated Axios and Fastify to patched releases and refreshed Nodemon's compatible dependency graph, closing eighteen newly disclosed denial-of-service, proxy-bypass, prototype-pollution, and header-injection advisories before publication. ([CYPACK-1549](https://linear.app/ceedar/issue/CYPACK-1549/run-a-release), [#1513](https://github.com/cyrusagents/cyrus/pull/1513))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.73
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.73
+
+#### cyrus-core
+- cyrus-core@0.2.73
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.73
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.73
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.73
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.73
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.73
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.73
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.73
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.73
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.73
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.73
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.73
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.73
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.73
+
+#### cyrus-ai
+- cyrus-ai@0.2.73 ([CYPACK-1549](https://linear.app/ceedar/issue/CYPACK-1549/run-a-release), [#1510](https://github.com/cyrusagents/cyrus/pull/1510))
 
 ## [0.2.72] - 2026-09-15
 

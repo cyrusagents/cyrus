@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-github-event-transport",
-	"version": "0.2.72",
+	"version": "0.2.73",
 	"description": "GitHub event transport for receiving and verifying forwarded GitHub webhooks",
 	"repository": {
 		"type": "git",
@@ -22,7 +22,7 @@
 	},
 	"dependencies": {
 		"cyrus-core": "workspace:*",
-		"fastify": "^5.12.1"
+		"fastify": "^5.12.5"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
