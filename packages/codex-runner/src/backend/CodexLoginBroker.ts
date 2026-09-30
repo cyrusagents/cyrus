@@ -120,7 +120,10 @@ export class CodexLoginBroker {
 	): Promise<ContainedModelResponse> {
 		try {
 			signal.throwIfAborted();
-			await context.authorize();
+			// Validate the bounded request synchronously before the single pre-send
+			// authority check below. No credentials, provider access or response
+			// release occurs here; a second remote check around this pure validation
+			// only adds another round trip to every model request.
 			if (Buffer.byteLength(request.body) > 2000000) throw Error();
 			const body = JSON.parse(request.body);
 			const allowed = new Set([

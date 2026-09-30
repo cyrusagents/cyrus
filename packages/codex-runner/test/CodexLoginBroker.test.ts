@@ -79,7 +79,7 @@ it("brokers only the admitted model at the fixed origin and keeps existing ChatG
 		"data: fixture-event\n\n",
 	);
 	expect(JSON.stringify(response)).not.toContain("fixture-private-token");
-	expect(auth.authorize).toHaveBeenCalledTimes(3);
+	expect(auth.authorize).toHaveBeenCalledTimes(2);
 	expect(fetcher).toHaveBeenCalledTimes(1);
 });
 it.each([
@@ -182,5 +182,65 @@ it.each([
 		new AbortController().signal,
 	);
 	expect(fetcher).toHaveBeenCalledTimes(1);
-	expect(auth.authorize).toHaveBeenCalledTimes(3);
+	expect(auth.authorize).toHaveBeenCalledTimes(2);
+});
+
+it("withholds provider access until authorization and withholds output revoked during the response", async () => {
+	const broker = await setup();
+	const auth = context();
+	let admit!: () => void;
+	const admission = new Promise<void>((resolve) => {
+		admit = resolve;
+	});
+	let responding!: () => void;
+	const entered = new Promise<void>((resolve) => {
+		responding = resolve;
+	});
+	let finish!: () => void;
+	const stream = new ReadableStream<Uint8Array>({
+		start(controller) {
+			controller.enqueue(
+				new TextEncoder().encode("data: private response\n\n"),
+			);
+			finish = () => controller.close();
+		},
+	});
+	auth.authorize.mockImplementationOnce(() => admission);
+	const fetcher = vi.fn(async () => {
+		responding();
+		return new Response(stream);
+	});
+	vi.stubGlobal("fetch", fetcher);
+	const result = broker.respond(
+		{ body: JSON.stringify(body()) },
+		auth,
+		new AbortController().signal,
+	);
+	const denied = expect(result).rejects.toThrow("denied or interrupted");
+	await Promise.resolve();
+	expect(fetcher).not.toHaveBeenCalled();
+	admit();
+	await entered;
+	auth.authorize.mockRejectedValue(
+		new Error("Revoked during provider response"),
+	);
+	finish();
+	await denied;
+	expect(fetcher).toHaveBeenCalledTimes(1);
+	expect(auth.authorize).toHaveBeenCalledTimes(2);
+});
+
+it("does not send after cancellation during pre-send authorization", async () => {
+	const broker = await setup();
+	const auth = context();
+	const controller = new AbortController();
+	auth.authorize.mockImplementation(async () => {
+		controller.abort();
+	});
+	const fetcher = vi.fn();
+	vi.stubGlobal("fetch", fetcher);
+	await expect(
+		broker.respond({ body: JSON.stringify(body()) }, auth, controller.signal),
+	).rejects.toThrow("denied or interrupted");
+	expect(fetcher).not.toHaveBeenCalled();
 });
