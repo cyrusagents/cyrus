@@ -1,5 +1,9 @@
 # Opt-in live withdrawal probe (CYPACK-1546)
 
+The default `pause` mode retains the accepted Pause behavior. Explicit
+`mode:"source-withdrawal"` uses the separate revision/occurrence flow below. Do not
+use the historical6227 Pause-only archive for source removal.
+
 This is test instrumentation for the existing registered supervisor, not a runtime
 API. No production package imports these files. The preloader accepts only the
 feature preview origin and the unpublished runtime source
@@ -108,7 +112,7 @@ with one initial read, no new read/result and withdrawalGateComplete=false. That
 outcome is not a successful live withdrawal/recovery test. Coordinate the changed
 binding before another bounded test; the harness never creates one automatically.
 
-## One bounded test
+## One bounded Pause test (default mode)
 
 Use `node /ABSOLUTE/HARNESS/withdrawal-probe-control.mjs PRIVATE_DIR OP [VALUE]`.
 
@@ -188,3 +192,78 @@ asserts three actual401s plus new-session HTTP200/MCP-32600, and completes a fre
 read/result. It performs exactly two synthetic provider reads and no writes. This
 is not live Hosted SQL/browser/model or container acceptance. Production containment
 and the existing immutable image are unchanged; historical native F1 remains intact.
+
+## Source-withdrawal mode — verifier only
+
+Use the same exact installed134a runtime, private files/socket, origin pin and direct
+`--import` launch described above. Add `"mode":"source-withdrawal"` to config.
+Internal scopeRef and external linearCustomerId remain separate fixed identities.
+Record starting binding revision R from current authority; never use the sample1
+as authority. This mode cannot use `probe-paused`/`probe-resumed` and never restores
+an old occurrence. Do not repeat the accepted live Pause test.
+
+Hosted migration43 removal advances policy/generation and emits a newer source-free
+root definition. This MUST cancel nonterminal old-revision work. Picker reconnect
+restores only the mapping; a new operator instruction can then upgrade the binding
+and admit new work. Old inputs/checkpoints/operation keys remain with the cancelled
+occurrence. No automatic retry/rebinding or test-directed ledger changes are used.
+The harness observes tools only: cancellation, retry denial, binding ACK and UI/result
+persistence require independent normal authenticated status evidence.
+
+1. Preflight the alias target/head/migration43, only disposable Alpha mapped to the
+   intended external customer/account, no unrelated active work, Beta/connection
+   baseline and original schedule. Schedule stays off. Prepare the exact Remove
+   confirmation and existing-customer picker; credentials never enter control files.
+2. Admit one bounded read-only instruction normally; `arm OLD_OCCURRENCE` before its
+   first read completes. Wait `phase=ready`. Source mode requires40s remaining old
+   lease/token window. Hold still max45s or1s before expiry. Late boundaries are
+   inconclusive; no automatic repeat.
+3. Confirm supported **Connected records → Remove** for the exact mapping. Immediately
+   run `probe-removed ACTUAL_REMOVE_ACK_ISO`. Require removed-list AND removed-read
+   actualHTTP401, requestCount1, both unexpired booleans true. The barrier releases
+   immediately in `removed-proven` so definition delivery/runtime stop can proceed.
+   Credentials/reference remain private in memory; renewal cannot revive that run.
+4. Verify delivered newer revision and OLD_OCCURRENCE cancelled. If verifier's gate
+   invokes the supported exact old-revision retry, it must return409. Never use
+   Resume saved work as recovery or manually edit SQLite. A failure to cancel is a
+   failed gate, even if later reads succeed.
+5. Reconnect the same external record via normal picker to the SAME existing Alpha
+   customer (not Create new), preserving account/connection. Immediately run
+   `probe-reconnected ACTUAL_CONNECT_ACK_ISO` before the ORIGINAL token/lease expiry.
+   Require actualHTTP401 with unexpired evidence. Expiry, local failure or a late
+   picker response is inconclusive, not proof of continued revocation. Do not extend
+   leases or repeat Remove to fit the test. Restore mapping as authorized and report
+   the missing proof. Successful phase `reconnected-proven` drops the old token from
+   the probe, retaining only private stale reference and identity metadata.
+6. Submit ONE NEW read-only instruction normally. Obtain its exact current binding
+   revision N>R and NEW_OCCURRENCE!=OLD_OCCURRENCE from authenticated status. Before
+   its first list finishes, run:
+   `node withdrawal-probe-control.mjs PRIVATE_DIR arm-current NEW_OCCURRENCE N`.
+   This command only selects what the harness observes; it cannot register/admit
+   work or choose scope/account/resources. Same/older revision, old occurrence,
+   undeclared fields and changing workspace/customer through control are rejected.
+   Missing this boundary is inconclusive; never replay old work to manufacture proof.
+7. Under the separately admitted new session, a fixed old-reference read must reach
+   Hosted and deny (HTTP200/MCP-32600 or401). Then normal fresh list/get must succeed.
+   Harness additionally requires identical resource/account/connection/permissions,
+   internal scope and external customer; rotating grant ID may differ. It does not
+   compare whole definitions across these deliberately different revisions and
+   inputs. No runtime/checkpoint comparison is changed. Attempt/session must differ;
+   fences are occurrence-local, so the new occurrence may correctly start at1.
+8. Require `phase=complete` AND normal new result/timeline persistence after reload,
+   old occurrence STILL cancelled, Beta/connection unchanged, schedule still off.
+   Cleanup/cancel/remove preload using the shared procedure. Copy only sanitized
+   evidence. `complete` alone does not attest SQL cancellation or UI restoration.
+
+The overall10min instrumentation lifetime still applies; extending it is not an
+implicit permission to rerun instructions. Fresh model work may outlast the original
+credential; the continued-old-credential denial is proved at step5 before expiry,
+whereas the old-reference test uses the new session's current credential at step7.
+These are distinct timestamps/claims. No provider-call count is inferred from401.
+
+Reproduce the new controlled path with:
+`node apps/f1/withdrawal-probe-drive.mjs --source-withdrawal`.
+It delivers revisions1→2→3 through the real registered API, observes cancellation
+and authenticated stale retry409, then a DIFFERENT revision3 occurrence completes
+at attempt/fence1. It uses actual runtime/SQLite/SDK with synthetic mapping authority,
+model and providers; Hosted SQL/UI/live Linear remain independent verifier coverage.

@@ -10,7 +10,7 @@ afterEach(() => {
 	probe?.dispose();
 	vi.useRealTimers();
 });
-function fixture(patch = {}, remaining = 60000) {
+function fixture(patch = {}, remaining = 60000, mode = "pause") {
 	const target = {
 		workspaceId: "workspace",
 		automationId: "automation",
@@ -69,7 +69,11 @@ function fixture(patch = {}, remaining = 60000) {
 			}));
 		}
 	}
-	probe = installWithdrawalProbe(FakeClient, { Client: class {} }, { target });
+	probe = installWithdrawalProbe(
+		FakeClient,
+		{ Client: class {} },
+		{ target, mode },
+	);
 	return new FakeClient();
 }
 const arm = () => probe.command({ op: "arm", occurrenceId: "occurrence" });
@@ -274,6 +278,15 @@ it("preloader is explicit, private, fixed-origin, source-pinned and exposes only
 		expect(run().status).not.toBe(0);
 		expect(await readFile(existing, "utf8")).toBe("do-not-delete");
 		await rm(existing);
+		await writeFile(
+			configPath,
+			JSON.stringify({ ...config, mode: "arbitrary" }),
+		);
+		expect(run().status).not.toBe(0);
+		await writeFile(
+			configPath,
+			JSON.stringify({ ...config, mode: "source-withdrawal" }),
+		);
 		child = spawn(
 			process.execPath,
 			["--import", entry, "--eval", "setTimeout(()=>{},60000)"],
@@ -306,6 +319,7 @@ it("preloader is explicit, private, fixed-origin, source-pinned and exposes only
 				socket.on("end", () => resolveResponse(JSON.parse(data)));
 			});
 		expect((await send({ op: "status" })).phase).toBe("idle");
+		expect((await send({ op: "status" })).mode).toBe("source-withdrawal");
 		expect(
 			await send({
 				op: "arm",
@@ -331,3 +345,56 @@ it("preloader is explicit, private, fixed-origin, source-pinned and exposes only
 		await rm(root, { recursive: true, force: true });
 	}
 }, 15000);
+
+it("source withdrawal rejects Pause/rebind controls and expired retained authority", async () => {
+	vi.useFakeTimers();
+	const c = fixture({}, 60000, "source-withdrawal");
+	await arm();
+	const pending = read(c).catch((error) => error.message);
+	await flush();
+	expect(probe.status().phase).toBe("ready");
+	await expect(
+		probe.command({
+			op: "probe-paused",
+			confirmedAt: new Date().toISOString(),
+		}),
+	).rejects.toThrow();
+	await expect(
+		probe.command({ op: "arm-current", occurrenceId: "other", revision: 2 }),
+	).rejects.toThrow();
+	vi.setSystemTime(Date.now() + 61000);
+	expect(
+		(
+			await probe.command({
+				op: "probe-removed",
+				confirmedAt: new Date().toISOString(),
+			})
+		).phase,
+	).toBe("inconclusive");
+	expect(
+		probe
+			.status()
+			.events.filter((e) => e.type === "probe")
+			.every((e) => !e.httpObserved && !e.denied),
+	).toBe(true);
+	expect(probe.status().expiresInMs).toBe(null);
+	await pending;
+});
+it("Pause mode cannot be switched to source withdrawal through commands", async () => {
+	fixture();
+	await arm();
+	await expect(
+		probe.command({
+			op: "arm-current",
+			occurrenceId: "different",
+			revision: 2,
+		}),
+	).rejects.toThrow();
+	await expect(
+		probe.command({
+			op: "probe-removed",
+			confirmedAt: new Date().toISOString(),
+		}),
+	).rejects.toThrow();
+	expect(probe.status().mode).toBe("pause");
+});

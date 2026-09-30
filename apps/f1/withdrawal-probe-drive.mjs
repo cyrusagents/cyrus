@@ -41,7 +41,10 @@ const until = async (predicate) => {
 	}
 };
 
-export async function runWithdrawalDrive({ reviseOnResume = false } = {}) {
+export async function runWithdrawalDrive({
+	reviseOnResume = false,
+	sourceWithdrawal = false,
+} = {}) {
 	const directory = await mkdtemp(join(tmpdir(), "cyrus-withdrawal-f1-"));
 	const definition = {
 		id: "alpha",
@@ -192,6 +195,7 @@ export async function runWithdrawalDrive({ reviseOnResume = false } = {}) {
 	const probe = installWithdrawalProbe(ScopedAutomationMcpClient, sdk, {
 		target,
 		origin: "https://withdrawal.fixture",
+		mode: sourceWithdrawal ? "source-withdrawal" : "pause",
 	});
 	const modelSteps = new Map();
 	let admittedAttempt;
@@ -339,6 +343,168 @@ export async function runWithdrawalDrive({ reviseOnResume = false } = {}) {
 				token: "forged",
 			}),
 		);
+		if (sourceWithdrawal) {
+			paused = true;
+			for (const value of tokens.values()) value.revoked = true;
+			// Production registered definition delivery fences old work on Remove.
+			definition.revision = 2;
+			definition.state = "enabled"; // source-free binding; gateway denies removed mapping
+			assert.equal(
+				(await post("definitions", { contractVersion: 1, definition }))
+					.statusCode,
+				200,
+			);
+			await assert.rejects(
+				probe.command({
+					op: "probe-paused",
+					confirmedAt: new Date().toISOString(),
+				}),
+			);
+			assert.equal(
+				(
+					await probe.command({
+						op: "probe-removed",
+						confirmedAt: new Date().toISOString(),
+					})
+				).phase,
+				"removed-proven",
+			);
+			await queued;
+			await until(
+				() =>
+					ledger
+						.status(definition.id)
+						.occurrences.find((o) => o.id === occurrenceId).status ===
+					"cancelled",
+			);
+			const retry = await post("retry", {
+				contractVersion: 1,
+				workspaceId: definition.workspaceId,
+				automationId: definition.id,
+				revision: 1,
+				occurrenceId,
+				expectedFence: 1,
+				commandId: randomUUID(),
+			});
+			assert.equal(retry.statusCode, 409);
+			assert.equal(reads, 1);
+			assert.equal(results.length, 0);
+			// Picker restores mapping, then normal instruction upgrades the binding.
+			paused = false;
+			assert.equal(
+				(
+					await probe.command({
+						op: "probe-reconnected",
+						confirmedAt: new Date().toISOString(),
+					})
+				).phase,
+				"reconnected-proven",
+			);
+			for (const bad of [
+				{ occurrenceId, revision: 3 },
+				{ occurrenceId: "new-occurrence", revision: 1 },
+				{ occurrenceId: "new-occurrence", revision: 3, scopeRef: "foreign" },
+			])
+				await assert.rejects(probe.command({ op: "arm-current", ...bad }));
+			definition.revision = 3;
+			definition.state = "enabled";
+			assert.equal(
+				(await post("definitions", { contractVersion: 1, definition }))
+					.statusCode,
+				200,
+			);
+			const newOccurrenceId = instructionKey(
+				definition,
+				"new-read-after-reconnect",
+			);
+			assert.equal(
+				(
+					await probe.command({
+						op: "arm-current",
+						occurrenceId: newOccurrenceId,
+						revision: 3,
+					})
+				).phase,
+				"awaiting-new-occurrence",
+			);
+			assert.equal(
+				(
+					await post("occurrences", {
+						contractVersion: 1,
+						automationId: definition.id,
+						revision: 3,
+						eventId: "new-read-after-reconnect",
+						input: "New authorized read",
+					})
+				).statusCode,
+				200,
+			);
+			await until(
+				() =>
+					ledger
+						.status(definition.id)
+						.occurrences.find((o) => o.id === newOccurrenceId)?.status ===
+					"completed",
+			);
+			assert.equal(probe.status().phase, "complete");
+			const occurrences = ledger.status(definition.id).occurrences;
+			const original = occurrences.find((o) => o.id === occurrenceId),
+				current = occurrences.find((o) => o.id === newOccurrenceId);
+			assert.equal(original.status, "cancelled");
+			assert.equal(original.attempts, 1);
+			assert.equal(current.attempts, 1);
+			assert.equal(current.revision, 3);
+			const staleAfterReconnect = await post("retry", {
+				contractVersion: 1,
+				workspaceId: definition.workspaceId,
+				automationId: definition.id,
+				revision: 1,
+				occurrenceId,
+				expectedFence: 1,
+				commandId: randomUUID(),
+			});
+			assert.equal(staleAfterReconnect.statusCode, 409);
+			assert.equal(reads, 2);
+			assert.equal(results.length, 1);
+			const evidence = probe.status();
+			assert.deepEqual(
+				evidence.events
+					.filter((e) => e.type === "probe")
+					.map((e) => [e.label, e.httpStatus, e.mcpCode, e.denied]),
+				[
+					["removed-list", 401, null, true],
+					["removed-read", 401, null, true],
+					["reconnected-old-credential", 401, null, true],
+					["new-session-old-reference", 200, -32600, true],
+				],
+			);
+			for (const secret of [
+				...tokens.keys(),
+				...sessions.keys(),
+				...allReferences,
+				"Disposable fixture content",
+			])
+				assert.ok(!JSON.stringify(evidence).includes(secret));
+			return {
+				passed: true,
+				sourceWithdrawal: true,
+				originalRevision: 1,
+				removedRevision: 2,
+				currentRevision: 3,
+				originalOccurrenceCancelled: true,
+				originalAttempts: original.attempts,
+				staleRetryStatus: retry.statusCode,
+				staleRetryAfterReconnectStatus: staleAfterReconnect.statusCode,
+				newOccurrence: newOccurrenceId !== occurrenceId,
+				currentAttempts: current.attempts,
+				providerReads: reads,
+				results: results.length,
+				evidence,
+				limitations: [
+					"Actual installed/source runtime, SQLite and SDK. Controlled mapping/Hosted/model/provider, not live SQL or UI proof.",
+				],
+			};
+		}
 		const pausedAt = new Date().toISOString();
 		paused = true;
 		for (const value of tokens.values()) value.revoked = true;
@@ -477,6 +643,7 @@ if (
 ) {
 	runWithdrawalDrive({
 		reviseOnResume: process.argv.includes("--revision-change"),
+		sourceWithdrawal: process.argv.includes("--source-withdrawal"),
 	})
 		.then((r) => console.log(JSON.stringify(r, null, 2)))
 		.catch((e) => {

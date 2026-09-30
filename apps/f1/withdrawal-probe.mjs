@@ -5,6 +5,10 @@ export const PREVIEW_ORIGIN = "https://cyrus-preview-cyhost-1321.vercel.app";
 
 export function installWithdrawalProbe(ScopedClient, sdk, options) {
 	const { target, report = () => {}, origin = PREVIEW_ORIGIN } = options;
+	const mode = options.mode ?? "pause";
+	if (!["pause", "source-withdrawal"].includes(mode))
+		throw Error("Invalid probe mode");
+	let currentTarget;
 	const original = ScopedClient.prototype.call;
 	let phase = "idle",
 		occurrenceId,
@@ -17,6 +21,8 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 	const events = [];
 	const status = () => ({
 		version: 1,
+		mode,
+		currentTarget: currentTarget ?? null,
 		phase,
 		occurrenceId: occurrenceId ?? null,
 		expiresInMs: old ? Math.max(0, old.expiresAt - Date.now()) : null,
@@ -27,7 +33,10 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 		if (events.length > 32) events.shift();
 		report(status());
 	};
-	const matches = (owner) => {
+	const matches = (
+		owner,
+		expected = { revision: target.revision, occurrenceId },
+	) => {
 		const a = owner.authority();
 		return (
 			owner.url.href === `${origin}/mcp` &&
@@ -36,8 +45,8 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 			a.definition.id === target.automationId &&
 			a.definition.scopeRef === target.scopeRef &&
 			a.definition.namespace === target.scopeRef &&
-			a.definition.revision === target.revision &&
-			a.occurrenceId === occurrenceId &&
+			a.definition.revision === expected.revision &&
+			a.occurrenceId === expected.occurrenceId &&
 			a.definition.role === "coordinator" &&
 			!a.engineering &&
 			a.definition.grants.length === 1 &&
@@ -74,6 +83,9 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 				occurrenceId: a.occurrenceId,
 				input: a.input,
 			}),
+			resourceIdentity: JSON.stringify(
+				a.definition.grants.map(({ id: _id, ...grant }) => grant),
+			),
 			attemptId: a.attemptId,
 			fence: a.fence,
 		};
@@ -246,12 +258,16 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 	async function wrapped(call, ...args) {
 		if (
 			occurrenceId &&
-			matches(this) &&
+			(matches(this) || (currentTarget && matches(this, currentTarget))) &&
 			!["list_issues", "get_issue"].includes(call.name)
 		)
 			throw Error("F1 withdrawal occurrence is read-only");
 		const output = await original.call(this, call, ...args);
-		if (!occurrenceId || !matches(this)) return output;
+		if (
+			!occurrenceId ||
+			!(matches(this) || (currentTarget && matches(this, currentTarget)))
+		)
+			return output;
 		// The successful read finishes first. Then hold the SAME production queue;
 		// renew/close/other normal tool work cannot overlap the retained probe session.
 		await this.exclusive(async () => {
@@ -262,7 +278,10 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 				this.names.has("get_issue")
 			) {
 				old = { ...capture(this), reference: call.arguments.reference };
-				if (old.expiresAt - Date.now() < 20000)
+				if (
+					old.expiresAt - Date.now() <
+					(mode === "source-withdrawal" ? 40000 : 20000)
+				)
 					return inconclusive("insufficient-lease-window");
 				held = this;
 				phase = "ready";
@@ -279,27 +298,37 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 					remainingMs: old.expiresAt - Date.now(),
 				});
 				await wait;
-				if (phase === "awaiting-recovery")
+				if (phase === "awaiting-recovery" || mode === "source-withdrawal")
 					throw Error(
-						"F1 withdrawal barrier released; normal recovery required",
+						mode === "source-withdrawal"
+							? "F1 source withdrawal barrier released; old occurrence must cancel"
+							: "F1 withdrawal barrier released; normal recovery required",
 					);
 			} else if (
-				phase === "awaiting-recovery" &&
+				(phase === "awaiting-recovery" ||
+					(phase === "awaiting-new-occurrence" &&
+						currentTarget &&
+						matches(this, currentTarget))) &&
 				old &&
 				call.name === "list_issues"
 			) {
 				const current = capture(this);
-				if (current.identity !== old.identity)
+				if (
+					mode === "pause"
+						? current.identity !== old.identity
+						: current.resourceIdentity !== old.resourceIdentity
+				)
 					return inconclusive("recovery-scope-changed");
 				if (
 					current.attemptId === old.attemptId ||
-					current.fence <= old.fence ||
+					(mode === "pause" && current.fence <= old.fence) ||
 					current.sessionId === old.sessionId
 				)
 					return; // no resurrection or invented replacement admission
 				event("new-session", {
 					attemptChanged: true,
-					fenceIncreased: true,
+					fenceIncreased: mode === "pause",
+					newOccurrence: mode === "source-withdrawal",
 					sessionChanged: true,
 				});
 				if (
@@ -315,6 +344,7 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 				event("stale-reference-denied");
 			} else if (
 				phase === "awaiting-current-read" &&
+				(mode === "pause" || (currentTarget && matches(this, currentTarget))) &&
 				call.name === "get_issue" &&
 				this.references.has(call.arguments.reference) &&
 				call.arguments.reference !== old?.reference
@@ -357,6 +387,75 @@ export function installWithdrawalProbe(ScopedClient, sdk, options) {
 			return status();
 		}
 		if (
+			command.op === "arm-current" &&
+			mode === "source-withdrawal" &&
+			keys === "occurrenceId,op,revision" &&
+			phase === "reconnected-proven" &&
+			typeof command.occurrenceId === "string" &&
+			/^[a-zA-Z0-9_-]{1,200}$/.test(command.occurrenceId) &&
+			command.occurrenceId !== occurrenceId &&
+			Number.isSafeInteger(command.revision) &&
+			command.revision > target.revision
+		) {
+			currentTarget = {
+				occurrenceId: command.occurrenceId,
+				revision: command.revision,
+			};
+			phase = "awaiting-new-occurrence";
+			event("current-occurrence-armed", currentTarget);
+			return status();
+		}
+		if (
+			mode === "source-withdrawal" &&
+			keys === "confirmedAt,op" &&
+			old &&
+			Number.isFinite(Date.parse(command.confirmedAt)) &&
+			Date.parse(command.confirmedAt) <= Date.now() &&
+			Date.parse(command.confirmedAt) >=
+				Date.parse(events.find((e) => e.type === "ready").at)
+		) {
+			if (command.op === "probe-removed" && phase === "ready" && held) {
+				const list = await probe(old, "tools/list", undefined, "removed-list");
+				const read = await probe(
+					old,
+					"tools/call",
+					old.reference,
+					"removed-read",
+				);
+				if (!list || !read) {
+					inconclusive("source-removal-denial-not-proven");
+					return status();
+				}
+				phase = "removed-proven";
+				event("removed-proven", { confirmedAt: command.confirmedAt });
+				unblock(); // old revision must cancel normally, never resume/rebind
+				return status();
+			}
+			if (
+				command.op === "probe-reconnected" &&
+				phase === "removed-proven" &&
+				Date.parse(command.confirmedAt) >=
+					Date.parse(events.find((e) => e.type === "removed-proven").at)
+			) {
+				if (
+					!(await probe(
+						old,
+						"tools/call",
+						old.reference,
+						"reconnected-old-credential",
+					))
+				) {
+					inconclusive("source-reconnect-denial-not-proven");
+					return status();
+				}
+				old.credential = undefined; // no further old-token use; retain only reference/fencing metadata
+				phase = "reconnected-proven";
+				event("reconnected-proven", { confirmedAt: command.confirmedAt });
+				return status();
+			}
+		}
+		if (
+			mode !== "pause" ||
 			keys !== "confirmedAt,op" ||
 			!held ||
 			!old ||

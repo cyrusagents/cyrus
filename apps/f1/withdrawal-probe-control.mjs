@@ -2,7 +2,7 @@ import { lstatSync } from "node:fs";
 import { connect } from "node:net";
 import { isAbsolute, join } from "node:path";
 
-const [directory, op, value] = process.argv.slice(2);
+const [directory, op, value, revision, ...extra] = process.argv.slice(2);
 if (!directory || !isAbsolute(directory))
 	throw Error("Absolute private control directory required");
 const dir = lstatSync(directory),
@@ -19,14 +19,39 @@ if (
 )
 	throw Error("Unsafe probe control");
 const command =
-	op === "arm"
-		? { op, occurrenceId: value }
-		: op === "probe-paused" || op === "probe-resumed"
-			? { op, confirmedAt: value }
-			: { op };
+	op === "arm-current"
+		? { op, occurrenceId: value, revision: Number(revision) }
+		: op === "arm"
+			? { op, occurrenceId: value }
+			: [
+						"probe-paused",
+						"probe-resumed",
+						"probe-removed",
+						"probe-reconnected",
+					].includes(op)
+				? { op, confirmedAt: value }
+				: { op };
 if (
-	!["status", "cancel", "arm", "probe-paused", "probe-resumed"].includes(op) ||
-	["arm", "probe-paused", "probe-resumed"].includes(op) !== !!value
+	extra.length ||
+	(op !== "arm-current" && revision !== undefined) ||
+	![
+		"status",
+		"cancel",
+		"arm",
+		"arm-current",
+		"probe-paused",
+		"probe-resumed",
+		"probe-removed",
+		"probe-reconnected",
+	].includes(op) ||
+	[
+		"arm",
+		"arm-current",
+		"probe-paused",
+		"probe-resumed",
+		"probe-removed",
+		"probe-reconnected",
+	].includes(op) !== !!value
 )
 	throw Error("Invalid command");
 await new Promise((resolve, reject) => {
