@@ -51,6 +51,7 @@ export async function runAutomationDrive({
 	ownerInterruptionOnly = false,
 	slackChannelOnly = false,
 	sessionDeliveryAuthority = false,
+	latencyOnly = false,
 	ownerInterruptionFault = "model",
 } = {}) {
 	const target = codexImage
@@ -1023,6 +1024,7 @@ export async function runAutomationDrive({
 	globalThis.fetch = async (url, options) => {
 		const value = String(url);
 		if (value.startsWith("https://automation.fixture/")) {
+			if (latencyOnly) await new Promise((resolve) => setTimeout(resolve, 40));
 			const response = await realFetch(
 				value.replace("https://automation.fixture", origin),
 				options,
@@ -1056,8 +1058,33 @@ export async function runAutomationDrive({
 		if (
 			value === "https://api.anthropic.com/v1/messages" ||
 			value === "https://chatgpt.com/backend-api/codex/responses"
-		)
-			return realFetch(`${origin}/model`, options);
+		) {
+			if (!latencyOnly) return realFetch(`${origin}/model`, options);
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			const response = await realFetch(`${origin}/model`, options);
+			const reader = response.body.getReader();
+			const stream = new ReadableStream({
+				async start(controller) {
+					try {
+						await new Promise((resolve) => setTimeout(resolve, 120));
+						for (;;) {
+							const part = await reader.read();
+							if (part.done) break;
+							controller.enqueue(part.value);
+						}
+						controller.close();
+					} catch (error) {
+						controller.error(error);
+					} finally {
+						reader.releaseLock();
+					}
+				},
+			});
+			return new Response(stream, {
+				status: response.status,
+				headers: response.headers,
+			});
+		}
 		if (value.startsWith(`${origin}/`)) return realFetch(url, options);
 		throw new Error("F1 external network denied");
 	};
@@ -1065,6 +1092,9 @@ export async function runAutomationDrive({
 	if (codexImage) {
 		const { ContainedCodexAutomationModel } = await import(
 			"../../packages/edge-worker/dist/automations/ContainedCodexModel.js"
+		);
+		const { beginLatency } = await import(
+			"../../packages/edge-worker/dist/automations/Latency.js"
 		);
 		const { CodexLoginBroker } = await import(
 			"../../packages/codex-runner/dist/index.js"
@@ -1096,6 +1126,7 @@ export async function runAutomationDrive({
 						scopeKey: context.state.scopeKey,
 						toolNames: permittedToolNames(context.authority()),
 						authorize: context.authorize,
+						latency: beginLatency,
 					},
 					context.signal,
 				),
@@ -1106,6 +1137,7 @@ export async function runAutomationDrive({
 	const ledger = new AutomationLedger(join(directory, "ledger"), "workspace-a");
 	function makeRuntime() {
 		runtime = new AutomationRuntime({
+			latencyDiagnostics: latencyOnly,
 			workspaceId: () => "workspace-a",
 			ledger,
 			gateway: new AutomationHttpGateway(
@@ -1183,6 +1215,139 @@ export async function runAutomationDrive({
 			return { statusCode: response.status, json: () => result };
 		};
 
+		if (latencyOnly) {
+			assert.ok(codexImage, "Latency drive requires actual native container");
+			const d = definition("source-free", "customer-source-free");
+			assert.equal(
+				(await call("definitions", { contractVersion: 1, definition: d }))
+					.statusCode,
+				200,
+			);
+			const traces = [];
+			for (const eventId of ["cold", "warm"]) {
+				const response = await call("occurrences", {
+					contractVersion: 1,
+					automationId: d.id,
+					revision: 1,
+					eventId,
+					input: "Hi",
+				});
+				assert.equal(response.statusCode, 200);
+				const id = response.json().occurrenceId;
+				await until(
+					() =>
+						ledger.status(d.id).occurrences.find((o) => o.id === id)?.status ===
+						"completed",
+					30000,
+				);
+				const status = await runtimeApp.inject({
+					method: "GET",
+					url: `/api/automations/v1/status/${d.id}`,
+					headers: { authorization: `Bearer ${supervisorKey}` },
+				});
+				assert.equal(status.statusCode, 200);
+				const trace = status
+					.json()
+					.occurrences.find((o) => o.id === id).latencyDiagnostics;
+				assert.equal(trace.attempt, 1);
+				assert.equal(trace.finished, true);
+				assert.equal(trace.droppedSpans, 0);
+				for (const stage of [
+					"dispatch.received",
+					"dispatch.enqueue",
+					"queue.wait",
+					"ledger.claim",
+					"authorize.admit",
+					"authorize.renew",
+					"session.delivery",
+					"container.initialize",
+					"native.thread",
+					"native.turnStart",
+					"native.started",
+					"native.activity",
+					"native.completed",
+					"model.request",
+					"provider.headers",
+					"provider.body",
+					"result",
+					"cleanup",
+				]) {
+					assert.ok(
+						trace.spans.some((s) => s.stage === stage),
+						`Missing diagnostic stage ${stage}`,
+					);
+				}
+				assert.ok(
+					trace.spans.find((s) => s.stage === "authorize.admit").durationMs >=
+						35,
+				);
+				assert.ok(
+					trace.spans.find((s) => s.stage === "provider.headers").durationMs >=
+						75,
+				);
+				assert.ok(
+					trace.spans.find((s) => s.stage === "provider.body").durationMs >=
+						100,
+				);
+				const start = trace.spans.find(
+					(s) => s.stage === "native.started",
+				).startMs;
+				const end = trace.spans.find(
+					(s) => s.stage === "native.completed",
+				).startMs;
+				const provider = trace.spans.find(
+					(s) => s.stage === "provider.headers",
+				);
+				assert.ok(
+					provider.startMs >= start &&
+						provider.startMs + provider.durationMs <= end,
+				);
+				const result = trace.spans.find((s) => s.stage === "result");
+				assert.ok(
+					trace.spans
+						.filter((s) => s.stage === "session.delivery")
+						.every((s) => s.startMs + s.durationMs <= result.startMs),
+				);
+				assert.ok(trace.spans.length <= 128);
+				assert.ok(!JSON.stringify(trace).includes(modelKey));
+				assert.ok(!JSON.stringify(trace).includes(supervisorKey));
+				assert.ok(
+					trace.spans.every((s) =>
+						Object.keys(s).every((k) =>
+							["stage", "startMs", "durationMs", "failed"].includes(k),
+						),
+					),
+				);
+				traces.push(trace);
+			}
+			assert.equal(
+				(
+					await runtimeApp.inject({
+						method: "GET",
+						url: `/api/automations/v1/status/${d.id}`,
+					})
+				).statusCode,
+				401,
+			);
+			assert.equal(counts.tools, 0);
+			assert.equal(counts.models, 2);
+			assert.equal(counts.resultCommits, 2);
+			const summary = {
+				passed: true,
+				traces,
+				counts,
+				limits: [
+					"Controlled Hosted and model/provider transports; actual native container, runtime, SQLite and status route",
+					"No historical44s attribution or live runtime/customer access",
+					"40ms Hosted,80ms provider headers,120ms provider body injection",
+				],
+			};
+			await writeFile(
+				join(directory, "latency-summary.json"),
+				JSON.stringify(summary, null, 2),
+			);
+			return summary;
+		}
 		if (slackChannelOnly) {
 			const capabilityResponse = await realFetch(
 				`${runtimeOrigin}/api/automations/v1/capabilities`,

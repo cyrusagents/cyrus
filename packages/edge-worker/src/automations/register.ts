@@ -15,6 +15,7 @@ import {
 	registrationSchema,
 } from "./contract.js";
 import { type AutomationGateway, AutomationHttpGateway } from "./Gateway.js";
+import { beginLatency } from "./Latency.js";
 import { AutomationLedger } from "./Ledger.js";
 import {
 	ConfiguredAutomationMessagesModel,
@@ -103,6 +104,7 @@ export function registerAutomationRoutes(
 		async (request, reply) => {
 			if (!authenticated(request.headers.authorization))
 				return reply.code(401).send({ error: "Unauthorized" });
+			const receivedAt = performance.now();
 			try {
 				const body = z
 					.object({
@@ -121,6 +123,7 @@ export function registerAutomationRoutes(
 					body.eventId,
 					body.input,
 					body.trigger,
+					receivedAt,
 				);
 				void runtime.wake().catch(() => {});
 				return {
@@ -284,6 +287,7 @@ export function registerConfiguredAutomations(
 					scopeKey: checkpointKey(context.authority()),
 					toolNames: permittedToolNames(context.authority()),
 					authorize: context.authorize,
+					latency: beginLatency,
 				},
 				context.signal,
 			);
@@ -332,6 +336,8 @@ export function registerConfiguredAutomations(
 		}
 	});
 	const runtime = new AutomationRuntime({
+		latencyDiagnostics:
+			process.env.CYRUS_AUTOMATION_LATENCY_DIAGNOSTICS === "1",
 		engineering: {
 			available: () => configuration().harness === "codex" && engineeringReady,
 			sandbox: () =>

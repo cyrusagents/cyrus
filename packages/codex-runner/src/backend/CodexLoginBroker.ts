@@ -115,9 +115,34 @@ export class CodexLoginBroker {
 			scopeKey: string;
 			toolNames: readonly string[];
 			authorize: () => Promise<void>;
+			latency?: (
+				stage:
+					| "provider.headers"
+					| "provider.body"
+					| "credential.read"
+					| "credential.refresh",
+			) => (failed?: boolean) => void;
 		},
 		signal: AbortSignal,
 	): Promise<ContainedModelResponse> {
+		const measured = async <T>(
+			stage:
+				| "provider.headers"
+				| "provider.body"
+				| "credential.read"
+				| "credential.refresh",
+			work: () => Promise<T>,
+		): Promise<T> => {
+			const end = context.latency?.(stage);
+			try {
+				const value = await work();
+				end?.();
+				return value;
+			} catch (error) {
+				end?.(true);
+				throw error;
+			}
+		};
 		try {
 			signal.throwIfAborted();
 			// Validate the bounded request synchronously before the single pre-send
@@ -203,25 +228,27 @@ export class CodexLoginBroker {
 			const send = async () => {
 				await context.authorize();
 				signal.throwIfAborted();
-				const login = await this.login();
-				return fetch("https://chatgpt.com/backend-api/codex/responses", {
-					method: "POST",
-					redirect: "error",
-					signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${login.accessToken}`,
-						"ChatGPT-Account-ID": login.accountId,
-						originator: "codex_cli_rs",
-					},
-					body: JSON.stringify(body),
-				});
+				const login = await measured("credential.read", () => this.login());
+				return measured("provider.headers", () =>
+					fetch("https://chatgpt.com/backend-api/codex/responses", {
+						method: "POST",
+						redirect: "error",
+						signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${login.accessToken}`,
+							"ChatGPT-Account-ID": login.accountId,
+							originator: "codex_cli_rs",
+						},
+						body: JSON.stringify(body),
+					}),
+				);
 			};
 			let response = await send();
 			if (response.status === 401) {
 				await response.body?.cancel();
 				await context.authorize();
-				await this.refresh();
+				await measured("credential.refresh", () => this.refresh());
 				signal.throwIfAborted();
 				response = await send();
 			}
@@ -232,18 +259,20 @@ export class CodexLoginBroker {
 			const reader = response.body.getReader();
 			const chunks: Uint8Array[] = [];
 			let size = 0;
-			try {
-				for (;;) {
-					const next = await reader.read();
-					if (next.done) break;
-					size += next.value.byteLength;
-					if (size > 4000000) throw Error();
-					chunks.push(next.value);
+			await measured("provider.body", async () => {
+				try {
+					for (;;) {
+						const next = await reader.read();
+						if (next.done) break;
+						size += next.value.byteLength;
+						if (size > 4000000) throw Error();
+						chunks.push(next.value);
+					}
+				} finally {
+					await reader.cancel().catch(() => {});
+					reader.releaseLock();
 				}
-			} finally {
-				await reader.cancel().catch(() => {});
-				reader.releaseLock();
-			}
+			});
 			await context.authorize();
 			signal.throwIfAborted();
 			return {

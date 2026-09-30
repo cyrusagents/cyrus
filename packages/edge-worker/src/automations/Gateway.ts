@@ -1,5 +1,6 @@
 import { readBoundedJson } from "../customer-runtime/Gateway.js";
 import { AutomationDiagnosticError } from "./Diagnostics.js";
+import { measureLatency } from "./Latency.js";
 
 export type AutomationEndpoint =
 	| "authorize"
@@ -37,6 +38,20 @@ export class AutomationHttpGateway implements AutomationGateway {
 		this.origin = url.origin;
 	}
 	async call(
+		endpoint: AutomationEndpoint,
+		body: Record<string, unknown>,
+		signal: AbortSignal,
+	): Promise<unknown> {
+		return measureLatency(
+			endpoint === "authorize"
+				? body.phase === "admit"
+					? "authorize.admit"
+					: "authorize.renew"
+				: endpoint,
+			() => this.request(endpoint, body, signal),
+		);
+	}
+	private async request(
 		endpoint: AutomationEndpoint,
 		body: Record<string, unknown>,
 		signal: AbortSignal,

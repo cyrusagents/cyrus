@@ -39,6 +39,7 @@ import {
 	publicationFiles,
 } from "./Engineering.js";
 import type { AutomationGateway } from "./Gateway.js";
+import { AutomationLatency, beginLatency, measureLatency } from "./Latency.js";
 import type { AutomationLedger, AutomationOccurrence } from "./Ledger.js";
 import type { AutomationModel } from "./Model.js";
 import type { AutomationRecoveryRequest } from "./Recovery.js";
@@ -71,6 +72,8 @@ export interface AutomationRuntimeOptions {
 		transport: SessionDeliveryTransport;
 		secrets: () => readonly string[];
 	};
+	/** Opt-in, bounded metadata on authenticated status; never persisted or logged. */
+	latencyDiagnostics?: boolean;
 	pollMilliseconds?: number;
 	renewMilliseconds?: number;
 	engineering?: { available: () => boolean; sandbox: () => EngineeringSandbox };
@@ -83,7 +86,10 @@ export class AutomationRuntime {
 	private readonly drains = new Set<Promise<void>>();
 	private poll?: ReturnType<typeof setInterval>;
 	private stopped = false;
-	constructor(private readonly options: AutomationRuntimeOptions) {}
+	private readonly latency?: AutomationLatency;
+	constructor(private readonly options: AutomationRuntimeOptions) {
+		if (options.latencyDiagnostics) this.latency = new AutomationLatency();
+	}
 	capabilities() {
 		const configured = this.options.readiness();
 		return {
@@ -160,26 +166,45 @@ export class AutomationRuntime {
 		return draining;
 	}
 	private async drain(): Promise<void> {
+		const claimStart = performance.now();
 		const claims = this.ledger().claim(
 			AUTOMATION_LIMITS.workspaceConcurrency,
 			this.capabilities().available,
 		);
+		const claimEnd = performance.now();
 		await Promise.allSettled(
-			claims.map(async ({ definition, occurrence }) => {
-				let phase: "admission" | "execute" = "admission";
-				try {
-					const authority = await this.admit(
-						definition,
-						occurrence,
-						"admit",
-						AbortSignal.timeout(20_000),
-					);
-					phase = "execute";
-					await this.execute(authority, occurrence, definition);
-					this.ledger().finish(occurrence, true);
-				} catch (error) {
-					this.ledger().finish(occurrence, false, safeDiagnostic(error, phase));
-				}
+			claims.map(({ definition, occurrence }) => {
+				const trace = this.latency?.claimed(
+					occurrence.id,
+					occurrence.attempts,
+					claimStart,
+					claimEnd,
+				);
+				const work = async () => {
+					const end = beginLatency("attempt");
+					let phase: "admission" | "execute" = "admission";
+					try {
+						const authority = await this.admit(
+							definition,
+							occurrence,
+							"admit",
+							AbortSignal.timeout(20_000),
+						);
+						phase = "execute";
+						await this.execute(authority, occurrence, definition);
+						this.ledger().finish(occurrence, true);
+					} catch (error) {
+						this.ledger().finish(
+							occurrence,
+							false,
+							safeDiagnostic(error, phase),
+						);
+					} finally {
+						end();
+						trace?.finish();
+					}
+				};
+				return trace ? trace.run(work) : work();
 			}),
 		);
 	}
@@ -196,14 +221,19 @@ export class AutomationRuntime {
 		eventId: string,
 		input: string,
 		trigger: "instruction" | "event" = "instruction",
+		receivedAt = performance.now(),
 	) {
-		return this.ledger().enqueue(
+		const start = performance.now();
+		const occurrence = this.ledger().enqueue(
 			automationId,
 			revision,
 			eventId,
 			input,
 			trigger,
 		);
+		if (occurrence.status === "queued")
+			this.latency?.enqueued(occurrence.id, start, receivedAt);
+		return occurrence;
 	}
 	recover(request: AutomationRecoveryRequest) {
 		if (!this.canDrain() || request.workspaceId !== this.options.workspaceId())
@@ -211,7 +241,15 @@ export class AutomationRuntime {
 		return this.ledger().recover(request);
 	}
 	status(automationId: string) {
-		return this.ledger().status(automationId);
+		const status = this.ledger().status(automationId);
+		if (!this.latency) return status;
+		return {
+			...status,
+			occurrences: status.occurrences.map((occurrence) => ({
+				...occurrence,
+				latencyDiagnostics: this.latency!.snapshot(occurrence.id),
+			})),
+		};
 	}
 	private async admit(
 		definition: AutomationRegistration,
@@ -511,7 +549,9 @@ export class AutomationRuntime {
 		}, this.options.renewMilliseconds ?? AUTOMATION_LIMITS.renewMilliseconds);
 		try {
 			await fresh();
-			let state = await this.options.store.load(key);
+			let state = await measureLatency("checkpoint.load", () =>
+				this.options.store.load(key),
+			);
 			// A terminal or unknown checkpoint must never release its result owner.
 			interruptible =
 				admission.ownerInterruption === true &&
@@ -599,7 +639,9 @@ export class AutomationRuntime {
 					() => [...this.options.sessions!.secrets(), credential.token],
 					controller.signal,
 				);
-				await sink.createCyrusSession(session);
+				await measureLatency("session.create", () =>
+					sink!.createCyrusSession(session),
+				);
 				await sink.flush(controller.signal);
 				if (
 					admission.sessionExecutionTiming &&
@@ -671,11 +713,13 @@ export class AutomationRuntime {
 							})
 						: this.options.model;
 					const step = modelStepSchema.parse(
-						await (timing
-							? timing.measure("model", () =>
-									model!.next(state!.messages, authority, controller.signal),
-								)
-							: model.next(state.messages, authority, controller.signal)),
+						await measureLatency("model.next", () =>
+							timing
+								? timing.measure("model", () =>
+										model!.next(state!.messages, authority, controller.signal),
+									)
+								: model!.next(state!.messages, authority, controller.signal),
+						),
 					);
 					if (step.type === "result") interruptible = false;
 					await fresh();
@@ -744,6 +788,7 @@ export class AutomationRuntime {
 		} finally {
 			controller.abort();
 			clearTimeout(leaseTimer);
+			const endCleanup = beginLatency("cleanup");
 			clearInterval(poll);
 			let quiescent = false;
 			try {
@@ -766,6 +811,7 @@ export class AutomationRuntime {
 				this.active.delete(key);
 				if (quiescent && interrupted && interruptible)
 					await this.interruptOwner(initial);
+				endCleanup(!quiescent);
 			}
 		}
 	}
@@ -842,7 +888,7 @@ export class AutomationRuntime {
 					`${pending.key}:complete`,
 				);
 				// An unacknowledged activity must never be stranded by hosted completion.
-				await sink.flush(signal);
+				await measureLatency("session.finalFlush", () => sink.flush(signal));
 			}
 			await fresh();
 			const ack = z

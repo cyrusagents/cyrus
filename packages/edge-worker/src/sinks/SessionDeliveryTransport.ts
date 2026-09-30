@@ -1,3 +1,4 @@
+import { measureLatency } from "../automations/Latency.js";
 import { readBoundedJson } from "../customer-runtime/Gateway.js";
 import {
 	parseSessionDeliveryEnvelope,
@@ -38,6 +39,14 @@ export class HttpSessionDeliveryTransport implements SessionDeliveryTransport {
 			throw new Error("Session delivery requires a paired workspace");
 	}
 	async deliver(
+		input: SessionDeliveryEnvelope,
+		signal: AbortSignal,
+	): Promise<SessionDeliveryAck> {
+		return measureLatency("session.delivery", () =>
+			this.request(input, signal),
+		);
+	}
+	private async request(
 		input: SessionDeliveryEnvelope,
 		signal: AbortSignal,
 	): Promise<SessionDeliveryAck> {

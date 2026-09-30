@@ -15,6 +15,7 @@ import {
 	scopedToolSchemas,
 	toolCallSchema,
 } from "./contract.js";
+import { markLatency, measureLatency } from "./Latency.js";
 import type { AutomationModel, AutomationModelContext } from "./Model.js";
 
 /** One native process per admitted occurrence. No shared app-server pool or user config. */
@@ -95,71 +96,78 @@ class ContainedCodexTurn implements AutomationModel {
 			} else if (!this.runner) {
 				const runner = new ContainedCodexProcess(this.config);
 				this.runner = runner;
-				await runner.start({
-					signal,
-					exit: () => {
-						if (!this.closed) this.fail();
-					},
-					model: async (request) => {
-						await this.context.authorize();
-						if (this.threadId) await this.capture();
-						return this.broker(request, this.context);
-					},
-					request: async (method, raw) => {
-						if (method !== "item/tool/call")
-							throw new Error("Native permission request denied");
-						const request = z
-							.object({
-								threadId: z.string(),
-								callId: z.string(),
-								tool: z.string(),
-								arguments: z.unknown(),
-							})
-							.passthrough()
-							.parse(raw);
-						if (
-							request.threadId !== this.threadId ||
-							this.toolReply ||
-							!this.waiting
-						)
-							throw new Error("Foreign or concurrent native call");
-						const call = toolCallSchema.parse({
-							name: request.tool,
-							arguments: request.arguments,
-						});
-						authorizeTool(this.context.authority(), call);
-						await this.context.authorize();
-						await this.capture({ call, sequence: state.sequence });
-						const response = new Promise<unknown>((resolve) => {
-							this.toolReply = resolve;
-						});
-						const waiting = this.waiting!;
-						this.waiting = undefined;
-						waiting.resolve({ type: "tool", call });
-						return response;
-					},
-					notification: (method, raw) => {
-						const value = raw as {
-							threadId?: string;
-							item?: { type?: string; text?: string };
-							turn?: { status?: string };
-						};
-						if (value.threadId && value.threadId !== this.threadId) return;
-						if (
-							method === "item/completed" &&
-							value.item?.type === "agentMessage" &&
-							typeof value.item.text === "string"
-						)
-							this.finalText = value.item.text;
-						if (method === "turn/completed") {
-							if (value.turn?.status !== "completed" || !this.finalText) {
-								this.fail();
-								return;
+				await measureLatency("container.initialize", () =>
+					runner.start({
+						signal,
+						exit: () => {
+							if (!this.closed) this.fail();
+						},
+						model: async (request) => {
+							markLatency("model.request");
+							await this.context.authorize();
+							if (this.threadId) await this.capture();
+							return this.broker(request, this.context);
+						},
+						request: async (method, raw) => {
+							if (method !== "item/tool/call")
+								throw new Error("Native permission request denied");
+							const request = z
+								.object({
+									threadId: z.string(),
+									callId: z.string(),
+									tool: z.string(),
+									arguments: z.unknown(),
+								})
+								.passthrough()
+								.parse(raw);
+							if (
+								request.threadId !== this.threadId ||
+								this.toolReply ||
+								!this.waiting
+							)
+								throw new Error("Foreign or concurrent native call");
+							const call = toolCallSchema.parse({
+								name: request.tool,
+								arguments: request.arguments,
+							});
+							authorizeTool(this.context.authority(), call);
+							await this.context.authorize();
+							await this.capture({ call, sequence: state.sequence });
+							const response = new Promise<unknown>((resolve) => {
+								this.toolReply = resolve;
+							});
+							const waiting = this.waiting!;
+							this.waiting = undefined;
+							waiting.resolve({ type: "tool", call });
+							return response;
+						},
+						notification: (method, raw) => {
+							const value = raw as {
+								threadId?: string;
+								item?: { type?: string; text?: string };
+								turn?: { status?: string };
+							};
+							if (value.threadId && value.threadId !== this.threadId) return;
+							if (method === "turn/started") markLatency("native.started");
+							if (method === "turn/completed") markLatency("native.completed");
+							if (method === "item/started" || method === "item/completed")
+								markLatency("native.activity");
+							if (
+								method === "item/completed" &&
+								value.item?.type === "agentMessage" &&
+								typeof value.item.text === "string"
+							)
+								this.finalText = value.item.text;
+							if (method === "turn/completed") {
+								if (value.turn?.status !== "completed" || !this.finalText) {
+									this.fail();
+									return;
+								}
+								this.completing = this.complete().catch(() => this.fail());
 							}
-							this.completing = this.complete().catch(() => this.fail());
-						}
-					},
-				});
+						},
+					}),
+				);
 				const target = {
 					model: authority.definition.target.model,
 					modelProvider: "cyrus_contained",
@@ -171,15 +179,16 @@ class ContainedCodexTurn implements AutomationModel {
 				if (state.native) {
 					const path = await runner.restore(state.native);
 					this.threadId = state.native.threadId;
-					await runner.request("thread/resume", {
-						...target,
-						threadId: this.threadId,
-						path,
-					});
+					await measureLatency("native.thread", () =>
+						runner.request("thread/resume", {
+							...target,
+							threadId: this.threadId,
+							path,
+						}),
+					);
 				} else {
-					const thread = await runner.request<{ thread: { id: string } }>(
-						"thread/start",
-						{
+					const thread = await measureLatency("native.thread", () =>
+						runner.request<{ thread: { id: string } }>("thread/start", {
 							...target,
 							ephemeral: false,
 							historyMode: "legacy",
@@ -192,7 +201,7 @@ class ContainedCodexTurn implements AutomationModel {
 								),
 								inputSchema: z.toJSONSchema(schema.shape.arguments),
 							})),
-						},
+						}),
 					);
 					this.threadId = thread.thread.id;
 				}
@@ -202,10 +211,12 @@ class ContainedCodexTurn implements AutomationModel {
 				const input = state.native
 					? `Continue the interrupted scoped task. Durable conversation and operation results:\n${JSON.stringify(messages)}`
 					: messages[0]!.content;
-				await runner.request("turn/start", {
-					threadId: this.threadId,
-					input: [{ type: "text", text: input }],
-				});
+				await measureLatency("native.turnStart", () =>
+					runner.request("turn/start", {
+						threadId: this.threadId,
+						input: [{ type: "text", text: input }],
+					}),
+				);
 			}
 		} catch {
 			this.fail();
