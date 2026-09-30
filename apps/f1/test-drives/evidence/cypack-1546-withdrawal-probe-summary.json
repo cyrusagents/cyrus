@@ -1,0 +1,118 @@
+{
+	"passed": true,
+	"registeredInstruction": true,
+	"attempts": 2,
+	"providerReads": 2,
+	"results": 1,
+	"evidence": {
+		"version": 1,
+		"phase": "complete",
+		"occurrenceId": "b671b8d7cffc17f9cdc547f9468515facada307c3509294386c23bac3d35c1c5",
+		"expiresInMs": null,
+		"events": [
+			{
+				"type": "armed",
+				"at": "2026-09-30T09:59:04.058Z"
+			},
+			{
+				"type": "ready",
+				"at": "2026-09-30T09:59:04.526Z",
+				"attemptId": "22fd05e9-8957-45c7-9337-353e71b3e258",
+				"fence": 1,
+				"remainingMs": 59535
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T09:59:04.539Z",
+				"label": "paused-list",
+				"method": "tools/list",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 401,
+				"mcpCode": null,
+				"denied": true,
+				"requestAt": "2026-09-30T09:59:04.537Z",
+				"responseAt": "2026-09-30T09:59:04.539Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T09:59:04.542Z",
+				"label": "paused-read",
+				"method": "tools/call",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 401,
+				"mcpCode": null,
+				"denied": true,
+				"requestAt": "2026-09-30T09:59:04.541Z",
+				"responseAt": "2026-09-30T09:59:04.542Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "paused-proven",
+				"at": "2026-09-30T09:59:04.542Z",
+				"confirmedAt": "2026-09-30T09:59:04.536Z"
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T09:59:04.546Z",
+				"label": "resumed-old-credential",
+				"method": "tools/call",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 401,
+				"mcpCode": null,
+				"denied": true,
+				"requestAt": "2026-09-30T09:59:04.543Z",
+				"responseAt": "2026-09-30T09:59:04.545Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "released",
+				"at": "2026-09-30T09:59:04.546Z",
+				"confirmedAt": "2026-09-30T09:59:04.542Z"
+			},
+			{
+				"type": "new-session",
+				"at": "2026-09-30T09:59:04.700Z",
+				"attemptChanged": true,
+				"fenceIncreased": true,
+				"sessionChanged": true
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T09:59:04.705Z",
+				"label": "new-session-old-reference",
+				"method": "tools/call",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 200,
+				"mcpCode": -32600,
+				"denied": true,
+				"requestAt": "2026-09-30T09:59:04.700Z",
+				"responseAt": "2026-09-30T09:59:04.705Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "stale-reference-denied",
+				"at": "2026-09-30T09:59:04.705Z"
+			},
+			{
+				"type": "current-read-succeeded",
+				"at": "2026-09-30T09:59:04.778Z"
+			}
+		]
+	},
+	"limitations": [
+		"Actual registered runtime/SQLite/SDK; controlled Hosted/model/provider. No live preview or provider mutation; Docker/model containment unchanged and not exercised by this narrow probe drive."
+	]
+}
