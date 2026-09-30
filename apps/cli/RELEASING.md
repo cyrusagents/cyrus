@@ -8,6 +8,93 @@ dependency order before publishing `cyrus-ai`.
 The publish boundary uses npm trusted publishing with GitHub Actions OIDC. It
 does not read or store a long-lived npm publish token.
 
+## Genuine npm test channels from a reviewed candidate
+
+Use `release-cli.yml` on **main** with `release_mode=test`, an immutable full
+40-character `candidate_sha`, a committed coordinated prerelease version, and
+`dist_tag=test` or a dedicated `test-*` channel. Stable mode remains the default;
+it rejects candidate overrides and permits only `latest`, `next`, or `beta`.
+Test mode cannot target those stable channels and creates no git release tag or
+GitHub release. The feature itself does not need to merge into main.
+
+The test route has three separate jobs:
+
+1. **Build** (`contents: read`, no OIDC): checks the exact candidate, runs the
+   canonical validator, frozen strict-peer install, audit, lint, build, package
+   and CLI tests, typecheck, then adds `cyrusTestRelease` metadata to all package
+   manifests and packs all 17 coordinated workspaces. All internal dependencies
+   must be the exact prerelease version. An isolated local installation is a
+   preflight only. Hashes and immutable source/workflow provenance accompany the
+   packages in a same-run Actions artifact.
+2. **Publish** (`contents: read`, `id-token: write`): checks out only reviewed
+   main-commit scripts, downloads the exact build-job artifact ID, rechecks every
+   package identity, SHA256, source SHA, channel, dependency version and permitted
+   publish configuration. It never checks out, installs, builds or executes the
+   candidate. `npm publish <tarball> --ignore-scripts --tag test-*` uses npm 11.18.0
+   and the existing OIDC identity. Recovery retains the exact registry integrity
+   and full gzip-normalized archive comparison. Every package's non-target tags
+   (including latest/next/beta) are recorded before writes and compared afterward,
+   even on failure. It never repairs tags automatically.
+3. **Install** (`contents: read`, no OIDC): installs **from the npm channel** into
+   a fresh private home/cache/prefix, verifies CLI version/help and the installed
+   17-package graph's exact versions and source metadata, and runs cloudflared's
+   version command without opening a tunnel. Node/npm pairs are 22.17.1/10.9.2,
+   24.18.0/11.18.0 and 24.18.0/12.1.0. Registry/tag and installation proof files
+   are uploaded independently. Publication alone is not a successful endpoint.
+
+Review candidate build scripts before dispatch. They run only in the
+unprivileged job; the publisher executes only reviewed infrastructure. The
+candidate's canonical validator/package list must match main. npm's automatic
+OIDC provenance identifies the **main workflow commit**; candidate provenance is
+explicitly recorded in every package's `cyrusTestRelease` metadata and verified
+against the dispatch SHA. Do not describe the automatic attestation as proving
+that the candidate itself was main.
+
+After review/approval and merge of infrastructure PR #1502, dispatch the prepared
+candidate (first use `dry_run=true` for the supported-route checks):
+
+```bash
+gh workflow run release-cli.yml --repo cyrusagents/cyrus --ref main \
+  -f release_mode=test \
+  -f candidate_sha=bd45d03ae855d4148257cfeb93d026f88d886626 \
+  -f version=0.2.73-cypack1502.0 -f dist_tag=test-cypack1502 -f dry_run=true
+# Once reviewed route and dry-run pass, use the same inputs with dry_run=false.
+```
+
+The live test release is separately authorized for CYPACK-1502. The remaining
+infrastructure permission is maintainer approval and normal merge of PR #1502;
+this does not authorize merging feature #1472. No token or trust-setting change
+is requested: repository and workflow filename remain the existing trusted
+identity. Anonymous trust-settings reads require authentication (HTTP 401);
+public provenance for cyrus-ai@0.2.72 confirms that identity was used previously.
+Only a successful live OIDC publish proves current write authorization.
+
+After successful publication and clean-install jobs, the consumer command is:
+
+```bash
+npm install -g cyrus-ai@test-cypack1502
+# Immutable pin:
+npm install -g cyrus-ai@0.2.73-cypack1502.0
+```
+
+npm 12 defaults to blocking dependency lifecycle scripts. A CLI version check
+alone therefore does not prove cloudflared was installed. For npm 12, explicitly
+allow the cloudflared install script in the test installation:
+
+```bash
+npm rebuild -g --allow-scripts=cloudflared cloudflared
+```
+
+The verification job records whether its binary existed before approval and
+requires it to run afterward. npm 10/11 use their normal lifecycle behavior.
+Use Node 22 or 24 and a separate test installation/`--cyrus-home`, preserving the
+running internal Cyrus auth/config. No live provider, default-pin/shared-fallback,
+hosted UI or human-review acceptance is implied by npm installation.
+
+References: [npm trusted publishers](https://docs.npmjs.com/trusted-publishers/),
+[npm trust](https://docs.npmjs.com/cli/v11/commands/npm-trust/),
+[npm install lifecycle policy](https://docs.npmjs.com/cli/install/).
+
 ## One-time npm configuration
 
 Configure the trusted publisher on every package listed by
@@ -22,7 +109,7 @@ Configure the trusted publisher on every package listed by
 | Environment          | Leave blank       |
 | Allowed actions      | `npm publish`     |
 
-Each npm package permits one trusted publisher. The workflow filename and
+The workflow filename and
 repository identity are part of npm's trust policy, so renaming either requires
 updating every package's configuration before the next release.
 
@@ -39,6 +126,15 @@ node scripts/release-packages.mjs list | while IFS=$'\t' read -r _ package; do
 done
 ```
 
+## Scope of release validation
+
+Editing release tooling, CI, installers, build metadata, or this guide is not a
+release. Apply the [canonical F1 applicability policy](../../skills/f1-test-drive/SKILL.md#applicability-required-before-setup)
+to the actual changed behavior. Use targeted script/unit/integration tests,
+package inspection, and isolated install/CLI smoke checks as appropriate. When
+no F1-covered behavior changes, a brief PR validation note is enough; do not
+run an unrelated F1 fixture or create an F1 report.
+
 ## Prepare a release
 
 Release preparation remains a reviewed pull request. Start from current
@@ -48,17 +144,21 @@ Release preparation remains a reviewed pull request. Start from current
 2. Set the same exact version in every package printed by
    `node scripts/release-packages.mjs list`.
 3. Run `pnpm install` and commit `pnpm-lock.yaml` if it changes.
-4. Run the F1 release test-drive protocol and commit its evidence under
-   `apps/f1/test-drives/` with a filename ending in
-   `-release-v<version>.md`.
+4. Assess the **entire released payload since the previous release**, including
+   changes merged before this version-bump PR. For F1-covered runtime or harness
+   behavior changes, run the F1 release test-drive protocol with scenarios that
+   assert those changes and commit evidence under `apps/f1/test-drives/` with a
+   filename ending in `-release-v<version>.md`. For payloads with no relevant
+   workflow behavior change, use non-F1 release verification below instead.
 5. Add every `package@version` entry to the release section in `CHANGELOG.md`.
 6. Run `node scripts/release-packages.mjs validate <version>`.
 7. Run `pnpm test:packages:run`, `pnpm typecheck`, and `pnpm build`.
 8. Commit, push, open the release PR, and merge it to `main`.
 
 The validator rejects version drift, missing packages, incorrect dependency
-order, stale repository metadata, incomplete changelogs, and missing F1 release
-evidence.
+order, stale repository metadata, incomplete changelogs, and missing release
+verification. Relevant F1 evidence remains required for runtime-bearing releases;
+a version-only PR is not evidence of a nonfunctional payload.
 
 Before a release workflow can publish, every package listed by
 `node scripts/release-packages.mjs list` must already exist on npm. npm trusted
@@ -80,6 +180,56 @@ The release workflow preflights package existence before installing
 dependencies or publishing anything. If a package is missing, it stops with
 the bootstrap and trusted-publisher instructions instead of partially
 publishing the dependency graph.
+
+## Non-F1 release verification
+
+Use this only when review of the full payload finds no changed F1-covered
+behavior. File categories alone do not establish applicability: dependency,
+build, packaging, or prompt changes can alter installed runtime behavior.
+A blocked F1 scenario is not a nonapplicable scenario.
+
+1. Commit the prepared release payload, including versions and changelogs.
+2. Fetch release tags and inspect the full diff from the previous release tag
+   on the first-parent history to `HEAD`. Run all relevant targeted checks,
+   including installer/build/release tests and install smoke checks where
+   affected. The normal release workflow's audit, tests, types, build, tarball
+   inspection, and install smoke gates still run.
+3. Run `node scripts/release-evidence.mjs <version>` from the repository root.
+   It prints `previousRelease`, `previousReleaseCommit`, and `payloadSha256`.
+   This command binds evidence to the committed payload; it does **not** decide
+   whether that payload is functional. If no previous release tag is available,
+   restore the history before assessing applicability.
+4. Create `docs/release-verification/v<version>.json` using those exact fields
+   plus the fields below (replace the illustrative values with actual results):
+
+   ```json
+   {
+     "version": "0.2.73",
+     "previousRelease": "v0.2.72",
+     "previousReleaseCommit": "<commit from command>",
+     "payloadSha256": "<hash from command>",
+     "f1Applicability": "not-applicable",
+     "rationale": "Describe the complete payload and why it changes no F1-covered workflow behavior.",
+     "checks": [
+       {
+         "command": "<actual targeted validation command>",
+         "status": "passed",
+         "result": "<observed result and scope or limitations>"
+       }
+     ]
+   }
+   ```
+
+5. Have the release reviewer verify the behavior assessment and results against
+   the full diff. Commit the evidence and run the release validator. It requires
+   the previous release and payload hash to match, a nonempty rationale, and
+   successful checks. Any subsequent payload change requires reassessment and
+   fresh checks/hash. Only this evidence file is excluded from the hash.
+
+This is release verification, not an F1 drive; no file belongs in
+`apps/f1/test-drives/` for this case. Historical F1 evidence remains valid and
+must not be deleted or relabeled. A functional release keeps the relevant F1
+report route; no filename-based exemption or automatic skip is provided.
 
 ## Dispatch a release
 

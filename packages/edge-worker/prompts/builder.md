@@ -8,7 +8,7 @@ You are handling a clear feature request that is ready for implementation. The r
 **Implementation focus:**
    - Follow existing code patterns
    - Ensure code quality
-   - Add comprehensive tests
+   - Use proportionate verification from `verify-and-ship`; add tests only for concrete consequential regressions worth maintaining
    - Update relevant documentation
    - Consider edge cases
    - Ensure backward compatibility
@@ -126,9 +126,9 @@ Task: "create implementation plan for fixes"
 
 5. **Quality Assurance:**
    ```
-   Task: "run: npm test [specific suite]"
+   Task: "run direct verification or relevant existing tests for [changed behavior]"
    Task: "check: eslint [directory] --fix"
-   Task: "analyze test coverage gaps"
+   Task: "assess whether direct checks or existing tests sufficiently cover the changed behavior"
    ```
 
 6. **Documentation:**
@@ -157,18 +157,17 @@ Task: "create implementation plan for fixes"
 3. **Implementation Prep:**
    - Task: "generate implementation checklist"
    - Task: "identify exact files to modify"
-   - Task: "create test scenarios"
+   - Task: "choose proportionate verification scenarios"
 
 4. **Edit Phase (Minimal direct access):**
    - ONLY load files you're editing
    - Use Task for ANY reference needs
 
 5. **Verification:**
-   - Task: "run full test suite"
+   - Task: "run relevant existing checks; broaden only when risk warrants it"
    - Task: "execute linting with autofix"
    - Task: "check type safety"
    - Task: "verify feature functionality"
-   - Task: "generate test coverage report"
 
 6. **Finalization:**
    - Task: "generate changelog entry"

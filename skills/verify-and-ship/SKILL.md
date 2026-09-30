@@ -1,6 +1,6 @@
 ---
 name: verify-and-ship
-description: Run all quality checks (tests, lint, typecheck), fix failures, update the changelog, commit, push, and create/update the pull request or merge request.
+description: Choose proportionate validation, fix failures, update the changelog, commit, push, and create/update the pull request or merge request.
 ---
 
 # Verify and Ship
@@ -13,11 +13,38 @@ Use the issue tracker `get_issue` tool to fetch the current issue details. Extra
 
 ## 2. Quality Checks
 
-Run all applicable quality checks:
-- **Tests** — Run the full test suite. If tests fail, fix the issues and re-run. Retry up to 3 times. If you cannot resolve failures after 3 attempts, proceed and note the failures in your summary.
-- **Linting** — Run linting tools and fix any issues found.
-- **Type checking** — Run TypeScript type checking (if applicable) and fix any errors.
-- **Code review** — Review your changes for quality, consistency, and best practices. Remove any debug code, console.logs, or commented-out sections.
+Choose validation by changed behavior, risk, and existing coverage. Verification
+is required; new automated tests and a full-suite run are not required for every
+change. Follow repository-specific checks and CI gates where applicable.
+
+- **Direct verification** — For routine release scripts, packaging/build metadata,
+  CI, documentation, and instruction edits, prefer syntax checks, a safe dry run,
+  artifact inspection, an isolated install smoke check, or a consistency review
+  when those are sufficient. Record the command/result or review performed in
+  the PR; no new test file or validation report is needed merely to show work.
+- **Automated tests** — Run relevant existing tests. Add or retain a regression
+  test only when it catches a concrete consequential failure and its protection
+  justifies its maintenance. Examples include publishing the wrong artifact,
+  unintentionally moving stable tags, or accepting invalid release evidence.
+  Explain the failure each new test catches. Do not add brittle assertions on
+  documentation wording or source text, tests that mirror implementation, or
+  elaborate scaffolding for low-risk edits. A script filename alone neither
+  requires tests nor exempts consequential behavior from protection.
+- **Scope** — Broaden testing when shared behavior, failures, or unresolved risk
+  warrants it; do not automatically run the full suite or generate coverage
+  reports. Once sufficient checks pass, stop repeating them unless changes or
+  new evidence justify another run. Investigate relevant failures rather than
+  retrying unchanged commands. Report any unresolved failures honestly.
+- **Lint, types, build** — Run checks relevant to the changed files and required
+  repository gates. Fix introduced failures.
+- **Review** — Check correctness, scope, and maintainability, including whether
+  proposed tests provide useful protection.
+
+Where the repository uses F1, apply its canonical
+`skills/f1-test-drive/SKILL.md` applicability policy before invoking a drive or
+requesting evidence. Nonapplicable changes need proportionate checks and a brief
+PR note, without an F1 run or report. Do not infer an F1 requirement from this
+skill. Preserve existing safeguards for consequential failures.
 
 ## 3. Changelog Update
 

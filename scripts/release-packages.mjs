@@ -2,6 +2,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { validateReleaseEvidence } from "./release-evidence.mjs";
+
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export const repositoryUrl = "git+https://github.com/cyrusagents/cyrus.git";
@@ -175,15 +177,7 @@ export function validateRelease(version) {
 		);
 	}
 
-	const releaseDriveSuffix = `-release-v${version}.md`;
-	const hasReleaseDrive = readdirSync(
-		join(repositoryRoot, "apps/f1/test-drives"),
-	).some((file) => file.endsWith(releaseDriveSuffix));
-	if (!hasReleaseDrive) {
-		throw new Error(
-			`apps/f1/test-drives is missing an F1 release test drive ending in ${releaseDriveSuffix}.`,
-		);
-	}
+	validateReleaseEvidence(version, repositoryRoot);
 
 	return { section };
 }

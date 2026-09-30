@@ -231,6 +231,62 @@ describe("ChatSessionHandler chat session permissions", () => {
 			"test-user-skills",
 		]);
 	});
+
+	it("refreshes the Linear token before building the runner config", async () => {
+		const event: TestEvent = {
+			eventId: "test-event",
+			threadKey: "test-thread",
+		};
+		const repository = {
+			id: "repo-a",
+			name: "Repo A",
+			repositoryPath: "/repo/chat-one",
+			allowedTools: [],
+		} as unknown as RepositoryConfig;
+		const calls: string[] = [];
+
+		const runnerConfigBuilder = createMockRunnerConfigBuilder();
+		const buildChatConfig =
+			runnerConfigBuilder.buildChatConfig.bind(runnerConfigBuilder);
+		runnerConfigBuilder.buildChatConfig = (input: any) => {
+			calls.push(`build:${input.linearWorkspaceId}`);
+			return buildChatConfig(input);
+		};
+		const ensureLinearTokenFresh = vi.fn(async (workspaceId: string) => {
+			calls.push(`refresh:${workspaceId}`);
+		});
+
+		const handler = new ChatSessionHandler(new TestChatAdapter("thread-key"), {
+			cyrusHome: TEST_CYRUS_CHAT,
+			chatRepositoryProvider: createStaticProvider(
+				["/repo/chat-one"],
+				repository,
+				"workspace-1",
+			),
+			runnerConfigBuilder,
+			createRunner: vi.fn(
+				() =>
+					({
+						supportsStreamingInput: false,
+						start: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
+						stop: vi.fn(),
+						isRunning: vi.fn().mockReturnValue(false),
+						isStreaming: vi.fn().mockReturnValue(false),
+						addStreamMessage: vi.fn(),
+						getMessages: vi.fn().mockReturnValue([]),
+					}) as any,
+			),
+			ensureLinearTokenFresh,
+			onWebhookStart: vi.fn(),
+			onWebhookEnd: vi.fn(),
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+		});
+
+		await handler.handleEvent(event as any);
+
+		expect(calls).toEqual(["refresh:workspace-1", "build:workspace-1"]);
+	});
 });
 
 describe("ChatSessionHandler session-initiation gate", () => {

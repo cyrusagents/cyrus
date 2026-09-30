@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { gunzipSync } from "node:zlib";
 import { releasePackages } from "./release-packages.mjs";
+import { verify as verifyTestRelease } from "./test-release.mjs";
 
 const exec = promisify(execFile);
 const registry = "https://registry.npmjs.org";
@@ -15,6 +16,68 @@ const artifactsPath = process.env.RELEASE_ARTIFACTS;
 // One deadline for the entire graph, including registry subprocess time.
 const verificationTimeout = 600_000;
 const pollInterval = 10_000;
+const testMode = process.env.RELEASE_MODE === "test";
+let protectedTags;
+let finalGatePassed = false;
+async function tagsSnapshot() {
+	const deadline = performance.now() + verificationTimeout;
+	return Object.fromEntries(
+		await Promise.all(
+			releasePackages.map(async ({ name }) => {
+				const { stdout } = await command(
+					"npm",
+					[
+						"view",
+						name,
+						"dist-tags",
+						"--json",
+						`--registry=${registry}`,
+						"--fetch-retries=0",
+					],
+					deadline,
+				);
+				const tags = JSON.parse(stdout);
+				if (!tags || typeof tags.latest !== "string")
+					throw new Error(`Missing latest tag for ${name}`);
+				delete tags[tag];
+				return [
+					name,
+					Object.fromEntries(
+						Object.entries(tags).sort(([a], [b]) => a.localeCompare(b)),
+					),
+				];
+			}),
+		),
+	);
+}
+async function checkProtectedTags() {
+	if (!protectedTags) return;
+	const after = await tagsSnapshot();
+	const unchanged = JSON.stringify(protectedTags) === JSON.stringify(after);
+	writeFileSync(
+		join(artifactsPath, "registry-proof.json"),
+		JSON.stringify(
+			{
+				version,
+				channel: tag,
+				sourceSha: process.env.CANDIDATE_SHA,
+				workflowSha: process.env.GITHUB_SHA,
+				dryRun,
+				finalGatePassed,
+				protectedTagsBefore: protectedTags,
+				protectedTagsAfter: after,
+				unchanged,
+			},
+			null,
+			2,
+		),
+	);
+	if (!unchanged)
+		throw new Error(
+			"Protected npm tags changed; inspect registry before any further release.",
+		);
+	console.log("All 17 latest and other non-test-channel tags are unchanged.");
+}
 
 class Mismatch extends Error {}
 
@@ -171,6 +234,18 @@ async function run() {
 	if (process.env.GITHUB_REF !== "refs/heads/main") {
 		throw new Error("Cyrus releases must run from main.");
 	}
+	if (testMode) {
+		if (
+			process.env.GITHUB_WORKFLOW_REF !==
+				"cyrusagents/cyrus/.github/workflows/release-cli.yml@refs/heads/main" ||
+			process.env.GITHUB_EVENT_NAME !== "workflow_dispatch"
+		)
+			throw new Error(
+				"Test publication requires the reviewed main release-cli.yml identity.",
+			);
+		verifyTestRelease(artifactsPath);
+		protectedTags = await tagsSnapshot();
+	}
 	const artifacts = releasePackages.map(({ name }) => {
 		const path = join(artifactsPath, `${name}-${version}.tgz`);
 		return {
@@ -212,6 +287,7 @@ async function run() {
 				[
 					"publish",
 					artifact.path,
+					...(testMode ? ["--ignore-scripts"] : []),
 					"--access",
 					"public",
 					"--tag",
@@ -240,9 +316,12 @@ async function run() {
 	);
 	if (dryRun === "true") return;
 	await pollAll(artifacts, "Final registry gate", verifyArtifact);
+	finalGatePassed = true;
 }
 
-run().catch((error) => {
-	console.error(error.message);
-	process.exitCode = 1;
-});
+run()
+	.finally(checkProtectedTags)
+	.catch((error) => {
+		console.error(error.message);
+		process.exitCode = 1;
+	});

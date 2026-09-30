@@ -102,9 +102,13 @@ Before merging any completed sub-issue, you MUST:
 
 **VERIFICATION TECHNIQUES:**
 
+Use proportionate validation per `verify-and-ship`. Direct syntax, dry-run,
+install smoke, or documentation checks may suffice; do not require new tests or
+a full suite for every sub-issue. Preserve checks for consequential failures.
+
 Choose verification approach based on the type of work completed:
 
-**Automated Verification** (preferred when available):
+**Automated Verification** (when relevant to the changed behavior):
 - Run test suites: `npm test`, `pnpm test`, `pytest`, etc.
 - Execute build processes: `npm run build`, `pnpm build`, etc.
 - Run linters: `npm run lint`, `eslint .`, etc.

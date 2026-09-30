@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-mcp-tools",
-	"version": "0.2.72",
+	"version": "0.2.73",
 	"description": "Runner-neutral MCP tool servers for Cyrus",
 	"repository": {
 		"type": "git",
@@ -22,7 +22,7 @@
 	},
 	"dependencies": {
 		"@linear/sdk": "^64.0.0",
-		"@modelcontextprotocol/sdk": "^1.30.0",
+		"@modelcontextprotocol/sdk": "^1.31.0",
 		"fs-extra": "^11.3.2",
 		"openai": "^6.9.1",
 		"zod": "^4.3.5"

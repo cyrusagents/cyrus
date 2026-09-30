@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-config-updater",
-	"version": "0.2.72",
+	"version": "0.2.73",
 	"description": "Configuration update handlers for Cyrus agent",
 	"repository": {
 		"type": "git",
@@ -28,9 +28,9 @@
 		"test:run": "vitest run --passWithNoTests"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.30.0",
+		"@modelcontextprotocol/sdk": "^1.31.0",
 		"cyrus-core": "workspace:*",
-		"fastify": "^5.12.1",
+		"fastify": "^5.12.5",
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {

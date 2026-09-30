@@ -9,6 +9,8 @@ import { basename, join } from "node:path";
 
 const root = process.env.FAKE_RELEASE_ROOT;
 const config = JSON.parse(readFileSync(join(root, "config.json"), "utf8"));
+const version = config.version ?? "1.2.3";
+const tag = config.tag ?? "latest";
 const tool = basename(process.argv[1]);
 const args = process.argv.slice(2);
 const clock = Number(readFileSync(join(root, "clock"), "utf8"));
@@ -31,7 +33,7 @@ function fail(code) {
 if (tool === "npm") {
 	const name =
 		args[0] === "publish"
-			? basename(args[1]).replace("-1.2.3.tgz", "")
+			? basename(args[1]).replace(`-${version}.tgz`, "")
 			: args[1].split("@")[0];
 	const index = config.names.indexOf(name);
 	const present = join(root, `published-${name}`);
@@ -43,6 +45,20 @@ if (tool === "npm") {
 		process.exit(0);
 	}
 	if (args[0] !== "view") throw new Error(`Unexpected npm command ${args}`);
+	if (args[2] === "dist-tags") {
+		event({ name });
+		const anyPublished = config.names.some((n) =>
+			existsSync(join(root, `published-${n}`)),
+		);
+		process.stdout.write(
+			JSON.stringify({
+				latest: config.latestDrift && anyPublished ? "9.9.9" : "1.2.2",
+				next: "1.2.1",
+				[tag]: version,
+			}),
+		);
+		process.exit(0);
+	}
 	const view = count(`view-${name}`);
 	const published = existsSync(present);
 	event({ name, published });
@@ -66,10 +82,10 @@ if (tool === "npm") {
 	process.stdout.write(
 		JSON.stringify({
 			name,
-			version: "1.2.3",
-			"dist-tags": { latest: wrongTag ? "1.2.2" : "1.2.3" },
+			version,
+			"dist-tags": { [tag]: wrongTag ? "1.2.2" : version },
 			dist: {
-				tarball: `https://registry.npmjs.org/${name}/-/${name}-1.2.3.tgz`,
+				tarball: `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`,
 				integrity:
 					config.wrongIntegrity === index
 						? "sha512-wrong"

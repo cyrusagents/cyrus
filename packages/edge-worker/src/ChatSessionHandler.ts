@@ -110,6 +110,12 @@ export interface ChatSessionHandlerDeps {
 	getPlatformMcpConfigOverrides?: () => readonly string[] | undefined;
 	/** Live read of whether Claude should ignore ambient MCP configuration. */
 	getStrictMcpConfig?: () => boolean | undefined;
+	/**
+	 * Refresh the workspace's Linear access token if it has expired. Called
+	 * before each runner config is built, because the Linear MCP server
+	 * receives the token as a fixed header and cannot refresh it itself.
+	 */
+	ensureLinearTokenFresh?: (linearWorkspaceId: string) => Promise<void>;
 	/** Resolve managed skill plugins and scoped skill names for a chat session. */
 	resolveSkillsConfig?: (input: {
 		repository?: RepositoryConfig;
@@ -776,6 +782,10 @@ export class ChatSessionHandler<TEvent> {
 		const skillsConfig = this.deps.resolveSkillsConfig
 			? await this.deps.resolveSkillsConfig({ repository, repositoryPaths })
 			: {};
+		const linearWorkspaceId = provider.getDefaultLinearWorkspaceId();
+		if (linearWorkspaceId && this.deps.ensureLinearTokenFresh) {
+			await this.deps.ensureLinearTokenFresh(linearWorkspaceId);
+		}
 
 		return this.deps.runnerConfigBuilder.buildChatConfig({
 			workspacePath,
@@ -786,7 +796,7 @@ export class ChatSessionHandler<TEvent> {
 			runnerType,
 			cyrusHome: this.deps.cyrusHome,
 			platformName: this.adapter.platformName,
-			linearWorkspaceId: provider.getDefaultLinearWorkspaceId(),
+			linearWorkspaceId,
 			repository,
 			repositoryPaths,
 			platformMcpConfigOverrides: this.deps.getPlatformMcpConfigOverrides?.(),
