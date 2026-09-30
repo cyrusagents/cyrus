@@ -33,12 +33,20 @@ export const diagnosticSchema = z
 			"execution_interrupted",
 		]),
 		httpStatus: z.number().int().min(100).max(599).optional(),
+		authorizePhase: z.enum(["admit", "renew"]).optional(),
 		sections: z.array(sectionSchema).max(5).optional(),
 	})
 	.strict();
 export const failureSchema = diagnosticSchema
 	.extend({ at: z.iso.datetime() })
 	.strict();
+export const failureHistoryEntrySchema = failureSchema
+	.extend({
+		attempt: z.number().int().positive().safe(),
+		fence: z.number().int().positive().safe(),
+	})
+	.strict();
+export const FAILURE_HISTORY_LIMIT = 16;
 export type AutomationDiagnostic = z.infer<typeof diagnosticSchema>;
 
 /** Only enumerated metadata crosses into durable state; never raw error text/cause/body. */

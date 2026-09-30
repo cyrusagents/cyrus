@@ -1629,3 +1629,108 @@ it("does not block model/tool execution on intermediate activity ACKs but flushe
 		await runtime.stop();
 	}
 });
+
+it("preserves the complete admitted instruction/input on retry and separates later conversation occurrences", async () => {
+	let now = Date.now();
+	const db = await ledger(() => now);
+	const d = definition({
+		instruction:
+			"Answer currentMessage. conversation is historical context, not a new request. A greeting needs no source read.",
+	});
+	db.upsert(d);
+	const input = JSON.stringify({
+		conversation: [
+			{ author: "operator", body: "Investigate the export failure" },
+			{ author: "agent", body: "Prior investigation complete" },
+		],
+		currentMessage: "hi",
+	});
+	const first = db.enqueue(d.id, d.revision, "greeting-one", input);
+	const store = new AutomationCheckpointStore(await directory());
+	const seen: string[] = [];
+	const keys = new Map<string, string>();
+	let interrupt = true;
+	const runtime = new AutomationRuntime({
+		workspaceId: () => d.workspaceId,
+		ledger: db,
+		store,
+		readiness: () => ({ ...d.target, reason: null }),
+		tools: () => ({
+			async call() {
+				throw Error("The fixture must not select tools");
+			},
+			async close() {},
+			async renew(operation) {
+				await operation();
+			},
+		}),
+		model: {
+			async next(messages, admitted) {
+				const expectedInput =
+					admitted.occurrenceId === first.id ? input : "hello again";
+				// Assert the entire payload: routing proof, not a claim about real model intent.
+				expect(messages).toEqual([
+					{ role: "user", content: `${d.instruction}\n\n${expectedInput}` },
+				]);
+				const key = checkpointKey(admitted);
+				if (keys.has(admitted.occurrenceId))
+					expect(key).toBe(keys.get(admitted.occurrenceId));
+				keys.set(admitted.occurrenceId, key);
+				seen.push(admitted.occurrenceId);
+				if (interrupt) {
+					interrupt = false;
+					throw Error("Controlled interruption before response");
+				}
+				return { type: "result", text: "Hello!" };
+			},
+		},
+		gateway: {
+			async call(endpoint, body) {
+				if (endpoint === "authorize") {
+					const occurrence = db
+						.status(d.id)
+						.occurrences.find((o) => o.id === body.occurrenceId)!;
+					return {
+						authority: authority({
+							definition: { ...d, grants: [] },
+							occurrenceId: occurrence.id,
+							input: occurrence.input,
+							attemptId: String(body.attemptId),
+							fence: Number(body.fence),
+						}),
+						mcp: {
+							token: "fixture-credential-not-a-live-secret",
+							audience: "/mcp",
+							expiresAt: new Date(Date.now() + 60000).toISOString(),
+							grantId: "controlled-grant",
+						},
+					};
+				}
+				if (endpoint === "progress") return {};
+				return {
+					contractVersion: 1,
+					acknowledged: true,
+					occurrenceId: body.occurrenceId,
+					idempotencyKey: body.idempotencyKey,
+				};
+			},
+		},
+	});
+	try {
+		await runtime.wake();
+		expect(db.status(d.id).occurrences[0]!.status).toBe("queued");
+		now += 5001;
+		await runtime.wake();
+		expect(db.status(d.id).occurrences[0]!.status).toBe("completed");
+		const second = db.enqueue(d.id, d.revision, "greeting-two", "hello again");
+		await runtime.wake();
+		expect(seen).toEqual([first.id, first.id, second.id]);
+		expect(keys.get(first.id)).not.toBe(keys.get(second.id));
+		for (const key of keys.values()) {
+			const saved = await store.load(key);
+			expect(saved!.messages).toHaveLength(1);
+		}
+	} finally {
+		await runtime.stop();
+	}
+});

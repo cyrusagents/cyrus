@@ -37,6 +37,11 @@ export class AutomationHttpGateway implements AutomationGateway {
 		body: Record<string, unknown>,
 		signal: AbortSignal,
 	): Promise<unknown> {
+		const authorizePhase =
+			endpoint === "authorize" &&
+			(body.phase === "admit" || body.phase === "renew")
+				? ({ authorizePhase: body.phase } as const)
+				: {};
 		const { apiKey, workspaceId } = this.credentials();
 		if (!apiKey || !workspaceId) throw new Error("Runtime is not paired");
 		const response = await fetch(
@@ -73,19 +78,26 @@ export class AutomationHttpGateway implements AutomationGateway {
 		).catch(() => {
 			throw new AutomationDiagnosticError({
 				phase: endpoint,
+				...authorizePhase,
 				code: "transport_failed",
 			});
 		});
 		if (!response.ok) {
 			await response.body?.cancel();
 			throw new AutomationDiagnosticError(
-				{ phase: endpoint, code: "http_denied", httpStatus: response.status },
+				{
+					phase: endpoint,
+					...authorizePhase,
+					code: "http_denied",
+					httpStatus: response.status,
+				},
 				`Automation authority denied request (${response.status})`,
 			);
 		}
 		return readBoundedJson(response, 2_000_000).catch(() => {
 			throw new AutomationDiagnosticError({
 				phase: endpoint,
+				...authorizePhase,
 				code: "response_invalid",
 			});
 		});

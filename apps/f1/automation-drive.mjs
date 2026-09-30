@@ -1412,12 +1412,25 @@ export async function runAutomationDrive({
 				{ ...blocked.lastFailure, at: undefined },
 				{
 					phase: "authorize",
+					authorizePhase: "admit",
 					code: "http_denied",
 					httpStatus: 403,
 					at: undefined,
 				},
 			);
 			assert.ok(Number.isFinite(Date.parse(blocked.lastFailure.at)));
+			assert.deepEqual(
+				blocked.failureHistory.map(({ attempt, fence, authorizePhase }) => ({
+					attempt,
+					fence,
+					authorizePhase,
+				})),
+				[1, 2, 3].map((attempt) => ({
+					attempt,
+					fence: attempt,
+					authorizePhase: "admit",
+				})),
+			);
 			assert.equal(
 				JSON.stringify(blocked.lastFailure).includes("private"),
 				false,
@@ -1470,6 +1483,11 @@ export async function runAutomationDrive({
 			const deniedAgain = ledger.status(d.id).occurrences[0];
 			assert.equal(deniedAgain.attempts, 6);
 			assert.equal(deniedAgain.fence, 6);
+			assert.equal(deniedAgain.failureHistory.length, 6);
+			assert.deepEqual(
+				deniedAgain.failureHistory[0],
+				blocked.failureHistory[0],
+			);
 			assert.equal(counts.models, before.models);
 			assert.equal(counts.initialize, before.initialize);
 			assert.deepEqual((await call("retry", command)).json(), accepted.json());
@@ -1487,6 +1505,7 @@ export async function runAutomationDrive({
 			for (const key of ["id", "input", "scheduledAt", "order", "revision"])
 				assert.equal(completed[key], blocked[key]);
 			assert.equal(completed.lastFailure, undefined);
+			assert.deepEqual(completed.failureHistory, deniedAgain.failureHistory);
 			assert.equal(
 				(
 					await call("retry", {
@@ -1724,7 +1743,7 @@ export async function runAutomationDrive({
 				"instruction through registered HTTP routes",
 				"delayed intermediate activity ACK overlaps delayed model and two SDK tool calls; result remains blocked until exact ordered receipts ACK",
 				"authenticated idempotent operator recovery preserves original occurrence, denies widening/active/completed work, exhausts a revoked three-attempt cycle, then completes only after current authority admits a new explicit cycle",
-				"pre-checkpoint authority denial persists safe phase/status after three attempts and is visible only through authenticated runtime status",
+				"pre-checkpoint authority denial persists safe admission phase/status and per-attempt failure history through explicit retry and success; visible only through authenticated runtime status",
 				"customer read-set list/two reads through one current SDK session; two 25-second model turns each outlast the 20-second lease while negotiated renewal preserves exact references",
 				"source-free contained model reply with zero grants, no MCP initialization and durable normalized response/result",
 				"model-facing direct/ticket delegation through SDK MCP, stable payload identity across lost ACK/new attempt/repeated native calls, exactly one child per request",

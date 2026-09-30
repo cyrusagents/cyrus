@@ -19,6 +19,8 @@ import {
 import {
 	type AutomationDiagnostic,
 	diagnosticSchema,
+	FAILURE_HISTORY_LIMIT,
+	failureHistoryEntrySchema,
 	failureSchema,
 } from "./Diagnostics.js";
 import {
@@ -43,6 +45,10 @@ const occurrenceSchema = z
 		scheduledAt: z.string(),
 		order: z.number().int(),
 		lastFailure: failureSchema.optional(),
+		failureHistory: z
+			.array(failureHistoryEntrySchema)
+			.max(FAILURE_HISTORY_LIMIT)
+			.optional(),
 		retryCycle: z
 			.object({
 				number: z.number().int().positive(),
@@ -542,6 +548,14 @@ export class AutomationLedger {
 					),
 					at: new Date(now).toISOString(),
 				};
+				const history = o.failureHistory ?? [];
+				history.push({ ...o.lastFailure, attempt: o.attempts, fence: o.fence });
+				// Keep the first recorded failure plus the latest bounded tail.
+				// Never infer an older failure/attempt from legacy lastFailure.
+				o.failureHistory =
+					history.length > FAILURE_HISTORY_LIMIT
+						? [history[0]!, ...history.slice(-(FAILURE_HISTORY_LIMIT - 1))]
+						: history;
 				const delay = retryDelayMilliseconds(this.cycleAttempts(o));
 				o.status = delay === null ? "blocked" : "queued";
 				o.availableAt = now + (delay ?? 0);

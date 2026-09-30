@@ -495,7 +495,7 @@ do not point an older runtime at it or delete it to bypass pending receipts.
 ## Safe occurrence failure diagnostics
 
 The authenticated existing `GET /api/automations/v1/status/:automationId` returns
-optional `occurrences[].lastFailure = {phase,code,httpStatus?,sections?,at}`.
+optional `occurrences[].lastFailure = {phase,code,httpStatus?,authorizePhase?,sections?,at}`.
 This is persisted in the same private SQLite transaction as retry/block status,
 before a checkpoint or session need exist. Attempt/fence are the occurrence's
 existing fields. Phases: `admission`, `authorize`, `execute`, `mcp`, `progress`,
@@ -510,10 +510,22 @@ Unknown execution failures receive a generic code. Polling revocation retains th
 authority diagnostic even if aborting the model produces a generic abort exception.
 
 The current failed attempt's diagnostic survives restart and exhausted retries.
-A fenced stale owner cannot replace it; successful completion clears it. Existing
-records without diagnostics remain readable, but discarded historical reasons
-cannot be reconstructed. Hosted owns authenticated tenant/customer-scoped status
-projection and UI copy; no new callback route or automatic replay is introduced.
+A fenced stale owner cannot replace it; successful completion clears it.
+`authorizePhase` is the fixed request phase (`admit` or `renew`), never a server
+response body or arbitrary request text. It distinguishes initial admission/recovery
+from an active owner's renewal denial.
+
+`occurrences[].failureHistory` optionally retains at most 16 strict entries, each
+containing the same safe failure fields plus numeric `attempt` and `fence`.
+The first recorded failure is retained alongside the latest 15 entries so a later
+owner-conflict 409 cannot erase the original interruption. History survives restart,
+explicit recovery and success; it is diagnostic context, not a current-error flag or
+permission to retry. A successful occurrence still clears `lastFailure`.
+Older records without history remain readable. No older failure or attempt is
+inferred from legacy `lastFailure`; the first recorded entry may therefore be a
+later attempt. Discarded historical reasons cannot be reconstructed. Hosted owns
+authenticated tenant/customer-scoped status projection and UI copy; no new callback
+route or automatic replay is introduced.
 Missing checkpoint does not prove admission denial: the initial read-set MCP
 initialize/list authorization runs before first checkpoint creation. Correlate
 both authorize and initial MCP traces when diagnosing historical runs.

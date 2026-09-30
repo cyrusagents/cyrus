@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -215,6 +216,143 @@ it("records HTTP status only, never authority response bodies or network errors"
 		).rejects.toMatchObject({
 			diagnostic: { phase: "authorize", code: "transport_failed" },
 		});
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+it("preserves the first recorded failure and bounded retry history across denial, restart and recovery", async () => {
+	const root = await mkdtemp(join(tmpdir(), "automation-first-failure-"));
+	let now = Date.now();
+	let db = new AutomationLedger(root, "workspace", () => now);
+	const definition = {
+		id: "binding",
+		workspaceId: "workspace",
+		ownerId: "operator",
+		namespace: "scope",
+		scopeRef: "scope",
+		revision: 1,
+		state: "enabled" as const,
+		role: "coordinator" as const,
+		instruction: "Private input",
+		schedule: null,
+		target: { harness: "codex", model: "gpt-5.5" },
+	};
+	try {
+		db.upsert(definition);
+		const id = db.enqueue("binding", 1, "event", "Private greeting").id;
+		for (let n = 1; n <= 18; n++) {
+			if (n > 1 && (n - 1) % 3 === 0)
+				db.recover({
+					contractVersion: 1,
+					workspaceId: "workspace",
+					automationId: "binding",
+					revision: 1,
+					occurrenceId: id,
+					commandId: randomUUID(),
+					expectedFence: n - 1,
+				});
+			const claim = db.claim(1)[0]!.occurrence;
+			db.finish(
+				claim,
+				false,
+				n === 1
+					? safeDiagnostic(Error("Private body Bearer secret"), "execute")
+					: { phase: "authorize", code: "http_denied", httpStatus: 409 },
+			);
+			// A stale writer may not alter either the latest failure or its history.
+			if (n === 1)
+				db.finish(claim, false, {
+					phase: "mcp",
+					code: "http_denied",
+					httpStatus: 403,
+				});
+			now += 11000;
+		}
+		const blocked = db.status("binding").occurrences[0]!;
+		expect(blocked.status).toBe("blocked");
+		expect(blocked.lastFailure).toMatchObject({
+			code: "http_denied",
+			httpStatus: 409,
+		});
+		expect(blocked.failureHistory).toHaveLength(16);
+		expect(blocked.failureHistory![0]).toMatchObject({
+			attempt: 1,
+			fence: 1,
+			phase: "execute",
+			code: "execution_interrupted",
+		});
+		expect(
+			blocked.failureHistory!.slice(1).map((failure) => failure.attempt),
+		).toEqual(Array.from({ length: 15 }, (_, i) => i + 4));
+		expect(JSON.stringify(blocked.failureHistory)).not.toMatch(
+			/Private|Bearer|secret/,
+		);
+		db.close();
+		db = new AutomationLedger(root, "workspace", () => now);
+		expect(db.status("binding").occurrences[0]!.failureHistory).toEqual(
+			blocked.failureHistory,
+		);
+		db.recover({
+			contractVersion: 1,
+			workspaceId: "workspace",
+			automationId: "binding",
+			revision: 1,
+			occurrenceId: id,
+			commandId: randomUUID(),
+			expectedFence: 18,
+		});
+		db.finish(db.claim(1)[0]!.occurrence, true);
+		const completed = db.status("binding").occurrences[0]!;
+		expect(completed.lastFailure).toBeUndefined();
+		expect(completed.failureHistory).toEqual(blocked.failureHistory);
+	} finally {
+		db.close();
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it("distinguishes initial admission from renewal failures using fixed request metadata only", async () => {
+	const gateway = new AutomationHttpGateway("https://fixture.invalid", () => ({
+		apiKey: "private",
+		workspaceId: "workspace",
+	}));
+	try {
+		vi.stubGlobal(
+			"fetch",
+			async () => new Response("private server reason", { status: 409 }),
+		);
+		for (const phase of ["admit", "renew"] as const)
+			await expect(
+				gateway.call("authorize", { phase }, new AbortController().signal),
+			).rejects.toMatchObject({
+				diagnostic: {
+					phase: "authorize",
+					code: "http_denied",
+					httpStatus: 409,
+					authorizePhase: phase,
+				},
+			});
+		await expect(
+			gateway.call(
+				"authorize",
+				{ phase: "private input" },
+				new AbortController().signal,
+			),
+		).rejects.toMatchObject({
+			diagnostic: { phase: "authorize", code: "http_denied", httpStatus: 409 },
+		});
+		try {
+			await gateway.call(
+				"authorize",
+				{ phase: "private input" },
+				new AbortController().signal,
+			);
+		} catch (error) {
+			expect(
+				JSON.stringify((error as AutomationDiagnosticError).diagnostic),
+			).not.toContain("private");
+		}
 	} finally {
 		vi.unstubAllGlobals();
 	}
