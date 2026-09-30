@@ -175,6 +175,52 @@ instead of status. Ack is exactly `{contractVersion:1,acknowledged:true,occurren
 idempotencyKey}`. Hosted stores the immutable receipt and may admit phase reconcile
 after result commit/ACK loss; no model reopening or renewed provider rights.
 
+### Negotiated owner interruption
+
+Runtime advertises `ownerInterruption:true` and sends
+`X-Cyrus-Owner-Interruption:1` on authorize. Hosted opts in with the optional
+top-level admission field `ownerInterruption:true`; otherwise omit it. The flag
+must remain unchanged across renewal. Older strict runtimes must never receive it.
+No model-facing field or scope authority is added.
+
+After failed **nonterminal** execution, runtime first aborts and quiesces model
+callbacks/native process, MCP operations, engineering container, authorization
+renewal and activity delivery. Native cleanup proves its uniquely named container
+is absent with a successful Docker listing, including when `--rm` removed it
+already. Daemon/removal uncertainty, pending callbacks or any cleanup failure
+prevent release. Settled activity delivery may leave durable unacknowledged items;
+their immutable replay remains required, and no more delivery may be in flight.
+
+Only then, with affirmative negotiation, POST `/api/automations/v1/interrupt`:
+
+```text
+{contractVersion:1,instanceId,automationId,revision,occurrenceId,attemptId,fence}
+```
+
+It uses the existing supervisor transport and the exact admitted owner tuple.
+Hosted atomically checks current registration and exact admission owner, revokes
+only that run/grant/MCP session and ends that lease. Strict immutable ACK:
+
+```text
+{contractVersion:1,occurrenceId,attemptId,fence,acknowledged:true}
+```
+
+An exact replay returns its saved receipt without affecting a replacement owner.
+Foreign/stale identity and completed/result-committed execution cannot be released
+or reopened. Runtime does not interrupt terminal checkpoints or result-ACK recovery.
+A transport failure retries the identical tuple once (each request bounded to
+15 seconds). Denial, malformed/foreign ACK or exhausted transport failure stops
+release attempts and preserves the original execution diagnostic and ordinary
+lease recovery; it never resets budgets or invents an ACK.
+
+The existing bounded queued retry still rechecks current Hosted authority and
+preserves input, checkpoint, pending tool payload and write operation keys. Pause,
+revision change and revocation can deny it. Crashes/unacknowledged releases may
+still require explicit operator recovery after lease expiry; no new scheduler,
+automatic blocked-work reset or guessed Hosted lease deadline is introduced.
+Hosted owns SQL/current-owner/revocation enforcement; connected SQL/HTTP tests
+remain necessary in addition to runtime controlled fixtures.
+
 ## Real MCP, fixed authority parameters
 
 Only `https://<same configured hosted origin>/mcp`, never `/api/mcp`. Real MCP SDK

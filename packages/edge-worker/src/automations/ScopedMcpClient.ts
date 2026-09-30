@@ -102,6 +102,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 		this.url = new URL("/mcp", url);
 	}
 	private async connect(credential: McpCredential): Promise<Client> {
+		if (this.closeFailed) throw new Error("Scoped MCP cleanup unconfirmed");
 		if (
 			this.client &&
 			(this.connectedCredential?.token !== credential.token ||
@@ -199,7 +200,12 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 			this.connectedCredential = credential;
 			return client;
 		} catch (error) {
-			await client.close().catch(() => {});
+			const cleanup = await Promise.allSettled([
+				client.close(),
+				transport.close(),
+			]);
+			if (cleanup.some((result) => result.status === "rejected"))
+				this.closeFailed = true;
 			if (error instanceof AutomationDiagnosticError) throw error;
 			throw new AutomationDiagnosticError(
 				{ phase: "mcp", code: "mcp_initialization" },
@@ -352,8 +358,12 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 		});
 	}
 	async close(): Promise<void> {
-		return this.exclusive(() => this.disconnect());
+		return this.exclusive(async () => {
+			await this.disconnect();
+			if (this.closeFailed) throw new Error("Scoped MCP cleanup unconfirmed");
+		});
 	}
+	private closeFailed = false;
 	private async disconnect(): Promise<void> {
 		this.references.clear();
 		const transport = this.transport;
@@ -362,7 +372,13 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 		const client = this.client;
 		this.client = undefined;
 		// Local close only. Completion/revocation may already prohibit protocol DELETE.
-		await client?.close().catch(() => {});
-		await transport?.close().catch(() => {});
+		const results = await Promise.allSettled([
+			client?.close(),
+			transport?.close(),
+		]);
+		if (results.some((result) => result.status === "rejected")) {
+			this.closeFailed = true;
+			throw new Error("Scoped MCP cleanup unconfirmed");
+		}
 	}
 }

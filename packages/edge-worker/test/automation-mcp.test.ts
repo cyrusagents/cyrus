@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import Fastify from "fastify";
@@ -300,12 +301,33 @@ it.each([
 			),
 		).rejects.toThrow("interrupted");
 		expect(calls).toBe(before);
+		// Even failed initialization must retain an uncertain cleanup failure;
+		// releasing an owner after swallowing this error would be unsafe.
+		const originalClose = Client.prototype.close;
+		const close = vi
+			.spyOn(Client.prototype, "close")
+			.mockImplementation(async function () {
+				await originalClose.call(this);
+				throw new Error("Injected cleanup uncertainty");
+			});
+		try {
+			await expect(
+				client.call(
+					{ name: "get_issue", arguments: {} },
+					"cleanup-fault",
+					controller.signal,
+				),
+			).rejects.toThrow();
+		} finally {
+			close.mockRestore();
+		}
+		await expect(client.close()).rejects.toThrow("cleanup unconfirmed");
 	} finally {
 		initializeRelease.release();
 		writeRelease.release();
 		readRelease.release();
 		controller.abort();
-		await client.close();
+		await client.close().catch(() => {});
 		for (const session of sessions.values()) await session.server.close();
 		await app.close();
 		vi.unstubAllGlobals();

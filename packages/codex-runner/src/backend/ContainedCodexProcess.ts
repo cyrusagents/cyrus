@@ -71,7 +71,9 @@ export class ContainedCodexProcess {
 	private client?: AppServerClient;
 	private stopped = false;
 	private started = false;
+	private initialized = false;
 	private closing?: Promise<void>;
+	private readonly requests = new Set<Promise<unknown>>();
 	constructor(private readonly config: ContainedCodexConfig) {
 		if (
 			!/^sha256:[a-f0-9]{64}$/.test(config.image) ||
@@ -134,6 +136,7 @@ export class ContainedCodexProcess {
 		);
 		if (info.length !== 1 || Object.keys(info[0]?.Config?.Volumes ?? {}).length)
 			throw new Error("Contained image may not declare volumes");
+		if (this.stopped) throw new Error("Contained process is closing");
 		const args = [
 			"--host",
 			this.config.dockerHost,
@@ -175,25 +178,32 @@ export class ContainedCodexProcess {
 		this.client = client;
 		let modelRequests = 0;
 		client.setNotificationHandler(options.notification);
-		client.setServerRequestHandler(async (method, params) => {
-			options.signal.throwIfAborted();
-			if (method !== "cyrus/model") return options.request(method, params);
-			if (
-				++modelRequests > 24 ||
-				!params ||
-				typeof params !== "object" ||
-				Object.keys(params).join() !== "body" ||
-				typeof (params as ContainedModelRequest).body !== "string" ||
-				Buffer.byteLength((params as ContainedModelRequest).body) > 2000000
-			)
-				throw new Error("Contained model request rejected");
-			return options.model(params as ContainedModelRequest, options.signal);
+		client.setServerRequestHandler((method, params) => {
+			if (this.stopped) throw new Error("Contained process is closing");
+			const work = (async () => {
+				options.signal.throwIfAborted();
+				if (method !== "cyrus/model") return options.request(method, params);
+				if (
+					++modelRequests > 24 ||
+					!params ||
+					typeof params !== "object" ||
+					Object.keys(params).join() !== "body" ||
+					typeof (params as ContainedModelRequest).body !== "string" ||
+					Buffer.byteLength((params as ContainedModelRequest).body) > 2000000
+				)
+					throw new Error("Contained model request rejected");
+				return options.model(params as ContainedModelRequest, options.signal);
+			})();
+			this.requests.add(work);
+			const settled = () => this.requests.delete(work);
+			void work.then(settled, settled);
+			return work;
 		});
 		client.on("error", () => {
-			void this.close();
+			void this.close().catch(() => {});
 		});
 		const abort = () => {
-			void this.close();
+			void this.close().catch(() => {});
 		};
 		options.signal.addEventListener("abort", abort, { once: true });
 		client.on("exit", () => {
@@ -215,6 +225,7 @@ export class ContainedCodexProcess {
 				!initialized.userAgent.includes("/0.153.3 ")
 			)
 				throw new Error("Unsupported contained Codex protocol");
+			this.initialized = true;
 		} catch {
 			await this.close();
 			throw new Error("Contained Codex initialization failed");
@@ -308,9 +319,47 @@ export class ContainedCodexProcess {
 		if (this.closing) return this.closing;
 		this.stopped = true;
 		this.closing = (async () => {
-			await this.client?.close();
-			if (this.started)
-				await this.command(["rm", "--force", this.name]).catch(() => {});
+			const clientClosed = await Promise.allSettled([this.client?.close()]);
+			const containerClosed = await Promise.allSettled([
+				(async () => {
+					if (this.started) {
+						// --rm may already have removed it. A successful empty listing,
+						// not a swallowed removal/daemon failure, proves absence.
+						await this.command(["rm", "--force", this.name]).catch(() => {});
+						const remaining = await this.command([
+							"ps",
+							"--all",
+							"--quiet",
+							"--no-trunc",
+							"--filter",
+							`name=^/${this.name}$`,
+						]);
+						if (remaining.trim())
+							throw new Error("Contained container cleanup unconfirmed");
+					}
+				})(),
+			]);
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			try {
+				await Promise.race([
+					Promise.allSettled([...this.requests]),
+					new Promise<never>((_, reject) => {
+						timer = setTimeout(
+							() => reject(new Error("Contained request cleanup unconfirmed")),
+							15000,
+						);
+					}),
+				]);
+			} finally {
+				clearTimeout(timer);
+			}
+			if (
+				(this.started && !this.initialized) ||
+				[...clientClosed, ...containerClosed].some(
+					(result) => result.status === "rejected",
+				)
+			)
+				throw new Error("Contained process cleanup unconfirmed");
 		})();
 		return this.closing;
 	}

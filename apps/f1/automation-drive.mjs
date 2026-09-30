@@ -48,6 +48,8 @@ async function until(predicate, timeout = 10000) {
 }
 export async function runAutomationDrive({
 	codexImage = process.env.CYRUS_F1_CODEX_IMAGE,
+	ownerInterruptionOnly = false,
+	ownerInterruptionFault = "model",
 } = {}) {
 	const target = codexImage
 		? { harness: "codex", model: "gpt-5.5" }
@@ -60,6 +62,14 @@ export async function runAutomationDrive({
 		results = new Map(),
 		operationReceipts = new Map();
 	const activityReceipts = new Map();
+	const interruptionReceipts = new Map();
+	let interruptionRequests = 0;
+	let injectedModelInterruption = false;
+	let injectedToolInterruption = false;
+	let interruptedCheckpoint;
+	let interruptedNativeId, interruptedPendingKey;
+	const interruptedOperationKeys = [];
+	let lostInterruptionAck = false;
 	const delegatedChildren = new Map();
 	const engineeringAssignments = new Map();
 	const engineeringPublications = new Map();
@@ -153,6 +163,64 @@ export async function runAutomationDrive({
 		if (owner && owner.id !== b.instanceId && owner.until > Date.now())
 			return denied(reply);
 		owner = { id: b.instanceId, until: Date.now() + 90000 };
+		if (request.params.operation === "interrupt") {
+			assert.deepEqual(
+				Object.keys(b).sort(),
+				[
+					"contractVersion",
+					"instanceId",
+					"automationId",
+					"revision",
+					"occurrenceId",
+					"attemptId",
+					"fence",
+				].sort(),
+			);
+			const key = digest(b);
+			interruptionRequests++;
+			if (interruptionReceipts.has(key)) return interruptionReceipts.get(key);
+			const occurrence = ledger
+				.status(d.id)
+				.occurrences.find((o) => o.id === b.occurrenceId);
+			const checkpoint = await new AutomationCheckpointStore(checkpoints).load(
+				occurrence.checkpointScope,
+			);
+			interruptedCheckpoint = {
+				status: checkpoint.status,
+				sequence: checkpoint.sequence,
+				pending: !!checkpoint.pending,
+				native: !!checkpoint.native,
+			};
+			interruptedNativeId = checkpoint.native?.threadId;
+			interruptedPendingKey = checkpoint.pending?.key;
+			assert.equal(checkpoint.status, "running");
+			assert.equal(
+				checkpoint.sequence,
+				ownerInterruptionFault === "tool" ? 0 : 1,
+			);
+			assert.equal(!!checkpoint.pending, ownerInterruptionFault === "tool");
+			if (results.has(b.occurrenceId)) return denied(reply, 409);
+			const admitted = [...grants.values()].find(
+				(g) => !g.revoked && g.authority.occurrenceId === b.occurrenceId,
+			);
+			if (
+				!admitted ||
+				admitted.authority.attemptId !== b.attemptId ||
+				admitted.authority.fence !== b.fence ||
+				admitted.instanceId !== b.instanceId
+			)
+				return denied(reply, 409);
+			admitted.revoked = true;
+			const receipt = {
+				contractVersion: 1,
+				occurrenceId: b.occurrenceId,
+				attemptId: b.attemptId,
+				fence: b.fence,
+				acknowledged: true,
+			};
+			interruptionReceipts.set(key, receipt);
+			return receipt;
+		}
 		if (request.params.operation === "authorize") {
 			if (d.id === "diagnostic-denial" && !diagnosticRecovered)
 				return reply
@@ -253,6 +321,10 @@ export async function runAutomationDrive({
 				assert.equal(request.headers["x-cyrus-session-execution-timing"], "1");
 			return {
 				authority,
+				...(d.id === "owner-interruption" &&
+					request.headers["x-cyrus-owner-interruption"] === "1" && {
+						ownerInterruption: true,
+					}),
 				...(timing && { sessionExecutionTiming: true }),
 				...(engineering && { engineering }),
 				...(request.headers["x-cyrus-session-delivery"] === "1" && {
@@ -429,7 +501,7 @@ export async function runAutomationDrive({
 			digest: hash,
 		};
 	});
-	app.post("/model", async (request) => {
+	app.post("/model", async (request, reply) => {
 		counts.models++;
 		assert.equal(
 			codexImage ? request.headers.authorization : request.headers["x-api-key"],
@@ -457,6 +529,17 @@ export async function runAutomationDrive({
 			? request.body.input.filter((m) => m.type === "function_call_output")
 					.length
 			: request.body.messages.filter((m) => m.role === "assistant").length;
+		if (
+			ownerInterruptionFault === "model" &&
+			text.includes("owner-interruption") &&
+			outputs > 0 &&
+			!injectedModelInterruption
+		) {
+			injectedModelInterruption = true;
+			return reply
+				.code(503)
+				.send({ error: "Controlled model interruption after completed read" });
+		}
 		const engineering = text.includes("Reviewed technical brief:");
 		const readSet = text.includes("read-set-rotate")
 			? "read-set-rotate"
@@ -494,6 +577,8 @@ export async function runAutomationDrive({
 			? request.body.tools.length === 0
 			: request.body.system.includes("Available names: [].");
 		const replied =
+			(text.includes("owner-interruption") &&
+				text.includes("Private result for interrupted-scope")) ||
 			sourceFree ||
 			(readSet
 				? readSetReads === 2
@@ -661,6 +746,8 @@ export async function runAutomationDrive({
 					async (args, extra) => {
 						authorizeTool(grant.authority, { name, arguments: args });
 						const key = extra._meta?.idempotencyKey;
+						if (d.id === "owner-interruption")
+							interruptedOperationKeys.push(key);
 						assert.match(key, /^[a-f0-9]{64}$/);
 						const payload = digest({ name, args });
 						if (operationReceipts.has(key))
@@ -839,11 +926,37 @@ export async function runAutomationDrive({
 	const realFetch = globalThis.fetch;
 	globalThis.fetch = async (url, options) => {
 		const value = String(url);
-		if (value.startsWith("https://automation.fixture/"))
-			return realFetch(
+		if (value.startsWith("https://automation.fixture/")) {
+			const response = await realFetch(
 				value.replace("https://automation.fixture", origin),
 				options,
 			);
+			if (
+				ownerInterruptionFault === "tool" &&
+				value.endsWith("/mcp") &&
+				response.ok &&
+				!injectedToolInterruption
+			) {
+				const body = options?.body && JSON.parse(options.body);
+				const token = new Headers(options?.headers)
+					.get("authorization")
+					?.slice(7);
+				if (
+					body?.method === "tools/call" &&
+					grants.get(token)?.authority.definition.id === "owner-interruption"
+				) {
+					injectedToolInterruption = true;
+					await response.body?.cancel();
+					throw new TypeError("Controlled lost tool ACK");
+				}
+			}
+			if (value.endsWith("/interrupt") && response.ok && !lostInterruptionAck) {
+				lostInterruptionAck = true;
+				await response.body?.cancel();
+				throw new TypeError("Controlled lost interruption ACK");
+			}
+			return response;
+		}
 		if (
 			value === "https://api.anthropic.com/v1/messages" ||
 			value === "https://chatgpt.com/backend-api/codex/responses"
@@ -973,6 +1086,85 @@ export async function runAutomationDrive({
 			const result = await response.json();
 			return { statusCode: response.status, json: () => result };
 		};
+		const driveInterruption = async () => {
+			const d = definition("owner-interruption", "interrupted-scope");
+			const beforeTools = counts.tools;
+			await call("definitions", { contractVersion: 1, definition: d });
+			await call("occurrences", {
+				contractVersion: 1,
+				revision: 1,
+				automationId: d.id,
+				eventId: "interrupt-event",
+				input: "owner-interruption",
+			});
+			await until(
+				() => ledger.status(d.id).occurrences[0]?.status === "completed",
+				45000,
+			);
+			const completed = ledger.status(d.id).occurrences[0];
+			assert.equal(completed.attempts, 2);
+			assert.equal(completed.fence, 2);
+			assert.equal(interruptionRequests, 2);
+			assert.equal(interruptionReceipts.size, 1);
+			assert.equal(lostInterruptionAck, true);
+			assert.equal(
+				ownerInterruptionFault === "model"
+					? injectedModelInterruption
+					: injectedToolInterruption,
+				true,
+			);
+			assert.equal(
+				interruptedOperationKeys.length,
+				ownerInterruptionFault === "tool" ? 2 : 1,
+			);
+			assert.equal(new Set(interruptedOperationKeys).size, 1);
+			const saved = await new AutomationCheckpointStore(checkpoints).load(
+				completed.checkpointScope,
+			);
+			assert.equal(
+				saved.native?.threadId,
+				interruptedNativeId,
+				"native identity remains the same after recovery",
+			);
+			if (ownerInterruptionFault === "tool")
+				assert.equal(interruptedPendingKey, interruptedOperationKeys[0]);
+			assert.equal(
+				counts.tools - beforeTools,
+				1,
+				"completed read is not replayed after interruption",
+			);
+			assert.equal(completed.failureHistory.length, 1);
+		};
+
+		if (ownerInterruptionOnly) {
+			await driveInterruption();
+			const summary = {
+				passed: true,
+				scenario: "owner-interruption",
+				target,
+				containedImage: codexImage,
+				interruptionRequests,
+				interruptionReceipts: interruptionReceipts.size,
+				lostInterruptionAck,
+				injectedModelInterruption,
+				injectedToolInterruption,
+				interruptedCheckpoint,
+				operationTransmissions: interruptedOperationKeys.length,
+				counts,
+				directory,
+				limitations: [
+					"Controlled Hosted/provider/model HTTP transports; no live SQL/provider proof",
+					"One production registered runtime with private ledger/checkpoint and actual SDK MCP",
+					"No original live failure diagnosis or live retry",
+				],
+			};
+			await writeFile(
+				join(directory, "summary.json"),
+				JSON.stringify(summary, null, 2),
+			);
+			return summary;
+		}
+
 		assert.equal(
 			(await realFetch(`${runtimeOrigin}/api/automations/v1/capabilities`))
 				.status,
@@ -1663,6 +1855,8 @@ export async function runAutomationDrive({
 			assert.deepEqual(receipt.item.payload, d.session);
 		}
 
+		await driveInterruption();
+
 		await runtime.stop();
 		assert.equal(
 			(
@@ -1707,6 +1901,12 @@ export async function runAutomationDrive({
 			target,
 			...(codexImage && { containedImage: codexImage }),
 			activityReceipts: activityReceipts.size,
+			ownerInterruption: {
+				requests: interruptionRequests,
+				receipts: interruptionReceipts.size,
+				lostAckRecovered: lostInterruptionAck,
+				injectedModelInterruption,
+			},
 			delayedDelivery: {
 				modelAndTwoReadsBeforeActivityAck:
 					delayedModelComplete && delayedActivityEntered,
@@ -1741,6 +1941,7 @@ export async function runAutomationDrive({
 						]
 					: []),
 				"instruction through registered HTTP routes",
+				"negotiated owner interruption after model failure and completed read; exact tuple lost ACK replay, one release receipt, original occurrence completes on attempt2 without waiting for lease expiry or repeating read",
 				"delayed intermediate activity ACK overlaps delayed model and two SDK tool calls; result remains blocked until exact ordered receipts ACK",
 				"authenticated idempotent operator recovery preserves original occurrence, denies widening/active/completed work, exhausts a revoked three-attempt cycle, then completes only after current authority admits a new explicit cycle",
 				"pre-checkpoint authority denial persists safe admission phase/status and per-attempt failure history through explicit retry and success; visible only through authenticated runtime status",

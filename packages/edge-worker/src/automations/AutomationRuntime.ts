@@ -119,6 +119,7 @@ export class AutomationRuntime {
 				customerReadSet: true,
 				mcpSessionRenewal: true,
 				operatorRecovery: true,
+				ownerInterruption: true,
 				currentAuthorityResume: true,
 				resultReconciliation: true,
 				nativeTools: false,
@@ -378,6 +379,8 @@ export class AutomationRuntime {
 		let authority = initial;
 		let credential = admission.mcp;
 		let receiptOnly = !!occurrence.receipt;
+		let interruptible = false;
+		let interrupted = false;
 		let journal: SessionActivityJournal | undefined;
 		let timing: SessionExecutionTiming | undefined;
 		let sink: DurableCyrusSessionSink | undefined;
@@ -463,9 +466,11 @@ export class AutomationRuntime {
 								mcpSessionId,
 							);
 							const next = executionAuthority(renewed);
+							controller.signal.throwIfAborted();
 							this.check(next, receiptOnly);
 							if (
 								renewed.mcp.grantId !== admission.mcp.grantId ||
+								renewed.ownerInterruption !== admission.ownerInterruption ||
 								renewed.sessionExecutionTiming !==
 									admission.sessionExecutionTiming ||
 								digest(renewed.sessionDelivery ?? null) !==
@@ -498,6 +503,13 @@ export class AutomationRuntime {
 		try {
 			await fresh();
 			let state = await this.options.store.load(key);
+			// A terminal or unknown checkpoint must never release its result owner.
+			interruptible =
+				admission.ownerInterruption === true &&
+				!receiptOnly &&
+				authority.phase === "execute" &&
+				state?.pending?.step.type !== "result" &&
+				state?.status !== "completed";
 			const historicalWork = !!state;
 			if (!state) {
 				if (receiptOnly || authority.phase === "reconcile")
@@ -637,6 +649,7 @@ export class AutomationRuntime {
 								)
 							: model.next(state.messages, authority, controller.signal)),
 					);
+					if (step.type === "result") interruptible = false;
 					await fresh();
 					if (step.type === "tool") authorizeTool(authority, step.call);
 					// One approved write payload has one operation identity throughout an
@@ -684,7 +697,9 @@ export class AutomationRuntime {
 				);
 				if (state.status === "completed") return;
 			}
+			throw new Error("Automation stopped");
 		} catch (error) {
+			interrupted = true;
 			if (timing && sink && session && !receiptOnly) {
 				await sink.updateCyrusSession(
 					session.id,
@@ -702,6 +717,7 @@ export class AutomationRuntime {
 			controller.abort();
 			clearTimeout(leaseTimer);
 			clearInterval(poll);
+			let quiescent = false;
 			try {
 				try {
 					await model?.close?.();
@@ -712,10 +728,53 @@ export class AutomationRuntime {
 						await sandbox?.stop();
 					}
 				}
+				await sink?.settled();
+				await renewing?.catch(() => undefined);
+				quiescent = true;
 			} finally {
 				await sink?.settled();
+				await renewing?.catch(() => undefined);
 				journal?.close();
 				this.active.delete(key);
+				if (quiescent && interrupted && interruptible)
+					await this.interruptOwner(initial);
+			}
+		}
+	}
+	/** Best effort, exact admitted tuple only. Never changes local retry authority. */
+	private async interruptOwner(authority: AutomationAuthority): Promise<void> {
+		const request = {
+			contractVersion: 1,
+			...identity(authority),
+			instanceId: this.instanceId,
+		};
+		for (let attempt = 0; attempt < 2; attempt++) {
+			try {
+				const ack = z
+					.object({
+						contractVersion: z.literal(1),
+						occurrenceId: z.literal(authority.occurrenceId),
+						attemptId: z.literal(authority.attemptId),
+						fence: z.literal(authority.fence),
+						acknowledged: z.literal(true),
+					})
+					.strict();
+				ack.parse(
+					await this.options.gateway.call(
+						"interrupt",
+						request,
+						AbortSignal.timeout(15_000),
+					),
+				);
+				return;
+			} catch (error) {
+				// Only a transport failure can be an uncertain ACK. Retry the same
+				// tuple once; denials/malformed ACKs retain normal lease recovery.
+				if (
+					!(error instanceof AutomationDiagnosticError) ||
+					error.diagnostic.code !== "transport_failed"
+				)
+					return;
 			}
 		}
 	}

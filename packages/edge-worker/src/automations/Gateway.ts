@@ -1,7 +1,11 @@
 import { readBoundedJson } from "../customer-runtime/Gateway.js";
 import { AutomationDiagnosticError } from "./Diagnostics.js";
 
-export type AutomationEndpoint = "authorize" | "progress" | "result";
+export type AutomationEndpoint =
+	| "authorize"
+	| "progress"
+	| "result"
+	| "interrupt";
 export interface AutomationGateway {
 	call(
 		endpoint: AutomationEndpoint,
@@ -56,6 +60,7 @@ export class AutomationHttpGateway implements AutomationGateway {
 						? {
 								"X-Cyrus-Customer-Read-Set": "1",
 								"X-Cyrus-Mcp-Session-Renewal": "1",
+								"X-Cyrus-Owner-Interruption": "1",
 							}
 						: {}),
 					Authorization: `Bearer ${apiKey}`,

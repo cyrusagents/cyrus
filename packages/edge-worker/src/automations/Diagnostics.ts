@@ -7,6 +7,7 @@ const phaseSchema = z.enum([
 	"mcp",
 	"progress",
 	"result",
+	"interrupt",
 ]);
 const sectionSchema = z.enum([
 	"authority",

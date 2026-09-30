@@ -43,6 +43,7 @@ class ContainedCodexTurn implements AutomationModel {
 	private finalText = "";
 	private closed = false;
 	private failed?: Error;
+	private completing?: Promise<void>;
 	constructor(
 		private readonly config: ContainedCodexConfig,
 		private readonly broker: (
@@ -153,7 +154,7 @@ class ContainedCodexTurn implements AutomationModel {
 								this.fail();
 								return;
 							}
-							void this.complete().catch(() => this.fail());
+							this.completing = this.complete().catch(() => this.fail());
 						}
 					},
 				});
@@ -235,6 +236,10 @@ class ContainedCodexTurn implements AutomationModel {
 		this.fail();
 		this.toolReply?.({ success: false, contentItems: [] });
 		this.toolReply = undefined;
-		await this.runner?.close();
+		try {
+			await this.runner?.close();
+		} finally {
+			await this.completing;
+		}
 	}
 }
