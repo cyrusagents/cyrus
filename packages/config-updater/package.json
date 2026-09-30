@@ -28,7 +28,7 @@
 		"test:run": "vitest run --passWithNoTests"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.30.0",
+		"@modelcontextprotocol/sdk": "^1.31.0",
 		"cyrus-core": "workspace:*",
 		"fastify": "^5.12.1",
 		"zod": "^4.3.6"

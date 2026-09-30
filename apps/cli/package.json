@@ -51,7 +51,7 @@
 		"cyrus-slack-event-transport": "workspace:*",
 		"dotenv": "^16.5.0",
 		"express": "^5.2.1",
-		"fastify": "^5.12.1",
+		"fastify": "^5.12.5",
 		"file-type": "^21.0.0",
 		"fs-extra": "^11.3.0",
 		"node-fetch": "^2.7.0",

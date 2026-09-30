@@ -47,11 +47,10 @@
 			"sqlite3"
 		],
 		"overrides": {
-			"ip-address": ">=10.3.1",
+			"ip-address": ">=10.7.1",
 			"@opentelemetry/core": ">=2.8.0",
 			"uuid": ">=11.1.1",
 			"body-parser": ">=2.3.0",
-			"brace-expansion": ">=5.0.9",
 			"js-yaml": ">=5.2.2",
 			"shell-quote": ">=1.9.0",
 			"simple-git": ">=3.36.0",
