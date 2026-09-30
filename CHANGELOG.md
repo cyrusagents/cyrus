@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 - Updated the MCP SDK dependency graph to resolve patched `ip-address` releases, closing two moderate SSRF and trust-boundary advisories while removing the now-redundant MCP SDK and `ip-address` overrides. ([CYPACK-1549](https://linear.app/ceedar/issue/CYPACK-1549/run-a-release), [#1510](https://github.com/cyrusagents/cyrus/pull/1510))
-- Updated Axios and Fastify to patched releases and refreshed Nodemon's compatible dependency graph, closing eighteen newly disclosed denial-of-service, proxy-bypass, prototype-pollution, and header-injection advisories before publication. ([CYPACK-1549](https://linear.app/ceedar/issue/CYPACK-1549/run-a-release))
+- Updated Axios and Fastify to patched releases and refreshed Nodemon's compatible dependency graph, closing eighteen newly disclosed denial-of-service, proxy-bypass, prototype-pollution, and header-injection advisories before publication. ([CYPACK-1549](https://linear.app/ceedar/issue/CYPACK-1549/run-a-release), [#1513](https://github.com/cyrusagents/cyrus/pull/1513))
 
 ### Packages
 

@@ -4,6 +4,7 @@
 **Goal**: Validate the v0.2.73 payload's Claude SDK initialization, chat-session path, issue/session lifecycle, and activity rendering before publication.
 **Initial prepared commit**: `7d5da416c59878e823e0cb9b69a9ff12486c89cc`
 **Security follow-up commit**: `de89a343da33feec221366d2a23283c80b0eeeb1`
+**Final security follow-up commit**: `618ed97ecfd7c684a4896cf85f2761146f7199a6`
 **Test repositories**: `/private/tmp/cypack-1549-release-v0.2.73-mDKNhs/repo` and `/private/tmp/cypack-1549-release-v0.2.73-mDKNhs/repo-codex`
 **F1 ports**: `3600` (Claude) and `3601` (Codex)
 
