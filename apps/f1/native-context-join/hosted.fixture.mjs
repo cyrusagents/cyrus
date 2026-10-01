@@ -1,6 +1,7 @@
 // Copied fixture setup from Hosted24a4b7e0; production handlers/migrations stay frozen.
 import { expect, test } from "bun:test";
 import assert from "node:assert/strict";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -34,9 +35,26 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		interruptions: 0,
 		mcpPreflights: 0,
 		mcpAuthorizations: 0,
+		mcpPhases: {},
 		tools: {},
 		denials: 0,
 	};
+	// Fixed phase names and aggregate numeric measurements only. The SDK opens
+	// its optional GET concurrently, so global before/after counters misattribute
+	// that request's authority work to tools/list. Keep request-local accounting.
+	const mcpMeasurement = new AsyncLocalStorage();
+	async function measuredAuthority(kind, operation) {
+		const measurement = mcpMeasurement.getStore();
+		const start = performance.now();
+		try {
+			return await operation();
+		} finally {
+			if (measurement) {
+				measurement[kind]++;
+				measurement[`${kind}Ms`] += performance.now() - start;
+			}
+		}
+	}
 	const combined = process.env.CYRUS_NATIVE_JOIN_COMBINED === "1";
 	const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
 	async function nativeResult(value, key) {
@@ -348,11 +366,15 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 	const mcp = createCustomerMcpHandler({
 		preflight: async (token, session) => {
 			evidence.mcpPreflights++;
-			return databaseAuthority(token, session);
+			return measuredAuthority("preflight", () =>
+				databaseAuthority(token, session),
+			);
 		},
 		authorize: async (token, session, tool) => {
 			evidence.mcpAuthorizations++;
-			return databaseAuthority(token, session, tool);
+			return measuredAuthority("authorize", () =>
+				databaseAuthority(token, session, tool),
+			);
 		},
 		open: async (token, protocol) => {
 			const [{ n }] =
@@ -611,9 +633,53 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			const path = new URL(req.url).pathname;
 			try {
 				if (path === "/mcp") {
-					const response = await mcp(req);
-					if (!response.ok) evidence.denials++;
-					return response;
+					const method =
+						req.method === "POST"
+							? (
+									await req
+										.clone()
+										.json()
+										.catch(() => ({}))
+								).method
+							: req.method;
+					const phase = [
+						"initialize",
+						"notifications/initialized",
+						"tools/list",
+						"tools/call",
+						"GET",
+						"DELETE",
+					].includes(method)
+						? method
+						: "other";
+					const measurement = {
+						requests: 1,
+						denied: 0,
+						durationMs: 0,
+						preflight: 0,
+						preflightMs: 0,
+						authorize: 0,
+						authorizeMs: 0,
+					};
+					const start = performance.now();
+					try {
+						return await mcpMeasurement.run(measurement, async () => {
+							const response = await mcp(req);
+							if (!response.ok) {
+								evidence.denials++;
+								measurement.denied++;
+							}
+							return response;
+						});
+					} finally {
+						measurement.durationMs = performance.now() - start;
+						evidence.mcpPhases[phase] ??= Object.fromEntries(
+							Object.keys(measurement).map((key) => [key, 0]),
+						);
+						const aggregate = evidence.mcpPhases[phase];
+						for (const key of Object.keys(measurement))
+							aggregate[key] += measurement[key];
+					}
 				}
 				if (path === "/api/agent-sessions/v1/deliver") return sessions(req);
 				if (path.startsWith("/api/automations/v1/")) {
