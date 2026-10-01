@@ -1,0 +1,238 @@
+{
+	"passed": true,
+	"lostWriteAckScenario": true,
+	"combinedSources": true,
+	"combinedRenewals": 3,
+	"combinedSessions": 1,
+	"nativeInputEvidence": [
+		{
+			"sequence": 0,
+			"issue": false,
+			"slack": false,
+			"denial": false
+		},
+		{
+			"sequence": 1,
+			"issue": false,
+			"slack": false,
+			"denial": false
+		},
+		{
+			"sequence": 2,
+			"issue": false,
+			"slack": true,
+			"denial": false
+		},
+		{
+			"sequence": 3,
+			"issue": true,
+			"slack": true,
+			"denial": false
+		},
+		{
+			"sequence": 4,
+			"issue": true,
+			"slack": true,
+			"denial": false
+		},
+		{
+			"sequence": 5,
+			"issue": true,
+			"slack": true,
+			"denial": true
+		},
+		{
+			"sequence": 6,
+			"issue": true,
+			"slack": true,
+			"denial": true
+		},
+		{
+			"sequence": 7,
+			"issue": true,
+			"slack": true,
+			"denial": true
+		}
+	],
+	"runtimeSha": "4733183c20d259e2b7f383c9e447d8bf565276f3",
+	"hosted": {
+		"hostedSha": "e0785a1d07989757dbc2306984ba523a89d26532",
+		"runtimeSha": "4733183c20d259e2b7f383c9e447d8bf565276f3",
+		"admissions": 45,
+		"renewals": 31,
+		"reconciliations": 10,
+		"deliveries": 111,
+		"results": 13,
+		"interruptions": 1,
+		"tools": {
+			"read_context": 12,
+			"remember_context": 4,
+			"track_work": 2,
+			"list_issues": 2,
+			"read_messages": 1,
+			"get_issue": 2,
+			"read_thread": 1
+		},
+		"denials": 13,
+		"combinedAdmissions": 12,
+		"linearReads": 12,
+		"slackReads": 2,
+		"combinedReconciliations": 5,
+		"passed": true,
+		"memoryEffects": 1,
+		"workStatus": "verified",
+		"linkedMessages": 2,
+		"sessions": 11,
+		"activities": 61,
+		"committedActions": 3,
+		"lostResult": true
+	},
+	"models": 24,
+	"modelCounts": {
+		"memory-write": 2,
+		"memory-recall": 1,
+		"work-create": 2,
+		"work-verify": 2,
+		"source-write": 2,
+		"source-read": 1,
+		"source-removed": 1,
+		"combined-read": 8,
+		"combined-terminal": 1,
+		"combined-survivor": 3,
+		"terminal-reconcile": 1
+	},
+	"toolCounts": {
+		"read_context": 12,
+		"remember_context": 4,
+		"track_work": 2,
+		"list_issues": 2,
+		"read_messages": 1,
+		"get_issue": 2,
+		"read_thread": 1
+	},
+	"toolNamesByStage": {
+		"memory-write": ["read_context", "remember_context", "track_work"],
+		"memory-recall": ["read_context", "remember_context", "track_work"],
+		"work-create": ["read_context", "remember_context", "track_work"],
+		"work-verify": ["read_context", "remember_context", "track_work"],
+		"source-write": [
+			"read_context",
+			"read_messages",
+			"read_thread",
+			"remember_context",
+			"track_work"
+		],
+		"source-read": [
+			"read_context",
+			"read_messages",
+			"read_thread",
+			"remember_context",
+			"track_work"
+		],
+		"source-removed": ["read_context", "remember_context", "track_work"],
+		"combined-read": [
+			"get_issue",
+			"list_issues",
+			"read_context",
+			"read_messages",
+			"read_thread",
+			"remember_context",
+			"track_work"
+		],
+		"combined-terminal": [
+			"get_issue",
+			"list_issues",
+			"read_context",
+			"read_messages",
+			"read_thread",
+			"remember_context",
+			"track_work"
+		],
+		"combined-survivor": [
+			"get_issue",
+			"list_issues",
+			"read_context",
+			"remember_context",
+			"track_work"
+		],
+		"terminal-reconcile": ["read_context", "remember_context", "track_work"]
+	},
+	"statuses": [
+		{
+			"stage": "memory-write",
+			"status": "completed",
+			"attempts": 2,
+			"fence": 2
+		},
+		{
+			"stage": "memory-recall",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		},
+		{
+			"stage": "work-create",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		},
+		{
+			"stage": "work-verify",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		},
+		{
+			"stage": "source-write",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		},
+		{
+			"stage": "source-read",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		},
+		{
+			"stage": "source-removed",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		},
+		{
+			"stage": "combined-read",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		},
+		{
+			"stage": "combined-terminal",
+			"status": "completed",
+			"attempts": 2,
+			"fence": 2
+		},
+		{
+			"stage": "combined-survivor",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		},
+		{
+			"stage": "terminal-reconcile",
+			"status": "completed",
+			"attempts": 2,
+			"fence": 2
+		}
+	],
+	"lostWrite": true,
+	"refreshedNative": true,
+	"oldSourceSessionDenied": true,
+	"terminalModelOpens": 1,
+	"resultSendCount": 13,
+	"limits": [
+		"Actual installed runtime/native Docker + published Hosted handlers/MCP/SQL; model and provider verification are synthetic",
+		"Synthetic outbox admissions and source withdrawal; no production dispatcher or live provider membership proof",
+		"No live customer/runtime/UI/provider acceptance"
+	]
+}
