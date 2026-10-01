@@ -393,7 +393,12 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 		]) {
 			toolRejection = { code };
 			const rejected = await client.call(
-				remember,
+				code === "proof_required"
+					? {
+							name: "track_work",
+							arguments: { reference: randomUUID(), status: "verified" },
+						}
+					: remember,
 				`rejected-${code}`,
 				controller.signal,
 			);

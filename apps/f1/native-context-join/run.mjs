@@ -61,6 +61,8 @@ try {
 				combinedSources: process.env.CYRUS_NATIVE_JOIN_COMBINED === "1",
 				requireLifecycleAuthority:
 					process.env.CYRUS_NATIVE_JOIN_LIFECYCLE_AUTHORITY === "1",
+				workRejectionScenario:
+					process.env.CYRUS_NATIVE_JOIN_WORK_REJECTION === "1",
 				toolRejectionScenario:
 					process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1",
 				lostWriteAckScenario:

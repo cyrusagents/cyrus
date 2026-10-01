@@ -57,12 +57,13 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 	}
 	const combined = process.env.CYRUS_NATIVE_JOIN_COMBINED === "1";
 	const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
+	const workRejection = process.env.CYRUS_NATIVE_JOIN_WORK_REJECTION === "1";
 	const requireLifecycleAuthority =
 		process.env.CYRUS_NATIVE_JOIN_LIFECYCLE_AUTHORITY === "1";
 	const lifecycleDenials = [];
 	let pauseBoundary;
 	async function nativeResult(value, key) {
-		if (!toolRejection) return value;
+		if (!toolRejection && !workRejection) return value;
 		const { checkNativeResult } = await import("./native-tool-rejection");
 		return checkNativeResult(value, key);
 	}
@@ -646,6 +647,24 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 					assert.equal(effects.n, 1, "one corrected memory effect");
 				}
 			}
+			let workRejectionReceipts = 0;
+			if (workRejection) {
+				const [rejected] =
+					await sql`select count(*)::int n from customer_native_rejections r join customer_native_grants g on g.id=r.grant_id where g.binding_id=${main.id}::uuid and r.tool='track_work' and r.code='proof_required'`;
+				workRejectionReceipts = rejected.n;
+				const [operations] =
+					await sql`select count(*)::int n from customer_native_operations o join customer_native_grants g on g.id=o.grant_id where g.binding_id=${main.id}::uuid and o.tool='track_work'`;
+				assert.equal(
+					operations.n,
+					4,
+					"only create, two corrected waiting updates, and proof-backed verify commit",
+				);
+				assert.equal(
+					workRejectionReceipts,
+					2,
+					"one immutable receipt per rejected work update despite ACK loss",
+				);
+			}
 			const [facts] =
 				await sql`select count(*)::int n from customer_facts where customer_id=${main.customer} and body='JOIN_REMEMBERED_DETAIL'`;
 			assert.equal(facts.n, 1);
@@ -667,6 +686,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				passed: true,
 				memoryEffects: facts.n,
 				rejectionReceipts,
+				workRejectionReceipts,
 				workStatus: thread.status,
 				linkedMessages: linked.n,
 				sessions: sessions.n,

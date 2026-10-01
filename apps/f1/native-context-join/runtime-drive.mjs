@@ -60,6 +60,12 @@ const control = async (body) => {
 };
 const loseWriteAck = process.env.CYRUS_NATIVE_JOIN_LOSE_WRITE_ACK !== "0";
 const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
+const workRejection = process.env.CYRUS_NATIVE_JOIN_WORK_REJECTION === "1";
+const workRejectionKeys = new Set();
+const workCorrectionKeys = new Set();
+const workRejectionReceipts = new Map();
+const workRejectionResponses = [];
+let lostWorkRejectionAck = false;
 const requireLifecycleAuthority =
 	process.env.CYRUS_NATIVE_JOIN_LIFECYCLE_AUTHORITY === "1";
 let lifecycleAdmissions = 0,
@@ -202,7 +208,41 @@ async function modelResponse(body) {
 			name: "track_work",
 			arguments: { objective: "Investigate synthetic joined export" },
 		};
-	else if (stage === "work-verify" && sequence === 0)
+	else if (stage === "work-rejection" || stage === "work-rejection-ack") {
+		assert.equal(current.metadata.outcomes.length, 0);
+		if (sequence === 0)
+			call = {
+				name: "track_work",
+				arguments: {
+					reference: current.metadata.work[0].reference,
+					objective: "Unproved terminal objective must not be saved",
+					status: "verified",
+				},
+			};
+		if (sequence === 1) {
+			assert.deepEqual(modelContext.state.nativeContextReceipts, [
+				{ name: "track_work", status: "denied" },
+			]);
+			assert.ok(text.includes("denied"), "native model receives the rejection");
+			if (stage === "work-rejection") {
+				const output = JSON.parse(modelContext.state.messages.at(-1).content);
+				assert.equal(JSON.parse(output.items[0].text).code, "proof_required");
+				assert.ok(text.includes("otherwise retain a nonterminal status"));
+			}
+			call = {
+				name: "track_work",
+				arguments: {
+					reference: current.metadata.work[0].reference,
+					status: "waiting",
+				},
+			};
+		}
+		if (sequence === 2)
+			assert.deepEqual(modelContext.state.nativeContextReceipts, [
+				{ name: "track_work", status: "denied" },
+				{ name: "track_work", status: "applied" },
+			]);
+	} else if (stage === "work-verify" && sequence === 0)
 		call = {
 			name: "track_work",
 			arguments: {
@@ -390,6 +430,68 @@ globalThis.fetch = async (url, init) => {
 				throw Error("Controlled lost rejection ACK");
 			}
 		}
+	}
+	if (
+		workRejection &&
+		stage.startsWith("work-rejection") &&
+		response.ok &&
+		request.pathname === "/mcp" &&
+		body?.method === "tools/call" &&
+		body.params.name === "track_work" &&
+		body.params.arguments.status === "verified"
+	) {
+		const data = await response.clone().json();
+		const receipt = data.result?.structuredContent;
+		const diagnostic = {
+			stage,
+			jsonRpcCode: data.error?.code ?? null,
+			isError: data.result?.isError === true,
+			rejectionCode: receipt?.code ?? null,
+		};
+		workRejectionResponses.push(diagnostic);
+		// Bounded protocol categories only; never credentials, arguments or error text.
+		console.error(JSON.stringify({ workRejectionResponse: diagnostic }));
+		if (receipt?.kind === "tool_rejection") {
+			assert.equal(data.result.isError, true);
+			assert.equal(receipt.code, "proof_required");
+			assert.equal(receipt.effect, "none");
+			assert.equal(receipt.operationKey, body.params._meta.idempotencyKey);
+			const key = receipt.operationKey;
+			workRejectionKeys.add(key);
+			if (workRejectionReceipts.has(key))
+				assert.deepEqual(receipt, workRejectionReceipts.get(key));
+			else workRejectionReceipts.set(key, receipt);
+			const facts = await control({ op: "facts" });
+			assert.deepEqual(
+				facts.work,
+				[
+					{
+						objective: "Investigate synthetic joined export",
+						status: stage === "work-rejection" ? "active" : "waiting",
+					},
+				],
+				"rejected terminal update makes no partial objective/status change",
+			);
+			if (stage === "work-rejection-ack" && !lostWorkRejectionAck) {
+				lostWorkRejectionAck = true;
+				await response.body?.cancel();
+				throw Error("Controlled lost work rejection ACK");
+			}
+		}
+	}
+	if (
+		workRejection &&
+		stage.startsWith("work-rejection") &&
+		response.ok &&
+		request.pathname === "/mcp" &&
+		body?.method === "tools/call" &&
+		body.params.name === "track_work" &&
+		body.params.arguments.status === "waiting"
+	) {
+		const data = await response.clone().json();
+		assert.equal(data.result?.structuredContent?.status, "applied");
+		assert.ok(!workRejectionKeys.has(body.params._meta.idempotencyKey));
+		workCorrectionKeys.add(body.params._meta.idempotencyKey);
 	}
 	if (stage.startsWith("combined-") && response.ok) {
 		if (request.pathname.endsWith("/authorize")) {
@@ -679,6 +781,25 @@ try {
 		1,
 	);
 	await complete("work-create");
+	if (workRejection) {
+		for (const label of ["work-rejection", "work-rejection-ack"]) {
+			await complete(label);
+			assert.equal(
+				statuses.at(-1).attempts,
+				label === "work-rejection" ? 1 : 2,
+			);
+			assert.deepEqual((await control({ op: "facts" })).work, [
+				{
+					objective: "Investigate synthetic joined export",
+					status: "waiting",
+				},
+			]);
+		}
+		assert.equal(lostWorkRejectionAck, true);
+		assert.equal(workRejectionKeys.size, 2);
+		assert.equal(workCorrectionKeys.size, 2);
+		assert.equal(workRejectionResponses.length, 3);
+	}
 	await control({ op: "proof" });
 	await complete("work-verify");
 
@@ -771,6 +892,11 @@ try {
 		requireLifecycleAuthority,
 		lifecycleAdmissions,
 		lifecycleCheckpoints,
+		workRejectionScenario: workRejection,
+		lostWorkRejectionAck,
+		workRejectionOperationCount: workRejectionKeys.size,
+		workCorrectionOperationCount: workCorrectionKeys.size,
+		workRejectionResponses,
 		toolRejectionScenario: toolRejection,
 		correctedRejection,
 		lostRejectionAck,
