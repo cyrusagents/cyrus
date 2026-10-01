@@ -21,6 +21,7 @@ import { beginLatency, measureLatency } from "./Latency.js";
 import {
 	isNativeContextTool,
 	nativeContextPageSchema,
+	nativeContextRejection,
 	nativeContextResult,
 } from "./NativeContext.js";
 
@@ -368,7 +369,13 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 					undefined,
 					{ signal, timeout: 20_000 },
 				);
-				if (result.isError || !result.structuredContent)
+				if (result.isError)
+					return nativeContextRejection(
+						call.name,
+						idempotencyKey,
+						result.structuredContent,
+					);
+				if (!result.structuredContent)
 					throw new Error("Scoped MCP tool denied");
 				if (call.name === "publish_artifact")
 					return engineeringPublicationResult(

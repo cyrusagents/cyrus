@@ -16,6 +16,7 @@ import {
 import {
 	type NativeContext,
 	nativeContextCalls,
+	nativeContextRejection,
 	nativeContextResult,
 } from "../src/automations/NativeContext.js";
 import { ScopedAutomationMcpClient } from "../src/automations/ScopedMcpClient.js";
@@ -174,6 +175,7 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 		{ payload: string; status: string; receiptId: string }
 	>();
 	let commits = 0;
+	let toolRejection: Record<string, unknown> | undefined;
 	const workItems: { objective: string; status: string }[] = [];
 	let workCommits = 0;
 	const sessions = new Map<
@@ -252,6 +254,21 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 						}
 						const key = String(extra._meta?.idempotencyKey),
 							payload = digest({ name, args });
+						if (toolRejection)
+							return {
+								isError: true,
+								content: [
+									{ type: "text" as const, text: "PRIVATE_PROVIDER_ERROR" },
+								],
+								structuredContent: {
+									contractVersion: 1,
+									kind: "tool_rejection",
+									code: "invalid_reference",
+									effect: "none",
+									operationKey: key,
+									...toolRejection,
+								},
+							};
 						const old = receipts.get(key);
 						if (old && old.payload !== payload)
 							throw Error("Conflicting immutable write");
@@ -369,6 +386,56 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 		expect(await read(randomUUID())).toMatchObject({
 			items: [{ text: expect.stringContaining("not issued") }],
 		});
+		for (const code of [
+			"invalid_reference",
+			"invalid_arguments",
+			"proof_required",
+		]) {
+			toolRejection = { code };
+			const rejected = await client.call(
+				remember,
+				`rejected-${code}`,
+				controller.signal,
+			);
+			expect(rejected).toMatchObject({
+				items: [{ text: expect.any(String) }],
+				nextCursor: null,
+			});
+			expect(
+				JSON.parse((rejected as { items: { text: string }[] }).items[0]!.text),
+			).toMatchObject({ status: "denied", code });
+			expect(JSON.stringify(rejected)).not.toContain("PRIVATE_PROVIDER_ERROR");
+			expect(JSON.stringify(rejected)).not.toContain(`rejected-${code}`);
+			expect(commits).toBe(0);
+		}
+		toolRejection = {};
+		loseAck = true;
+		await expect(
+			client.call(remember, "lost-rejection-ack", controller.signal),
+		).rejects.toThrow("interrupted");
+		expect(commits).toBe(0);
+		expect(
+			await client.call(remember, "lost-rejection-ack", controller.signal),
+		).toMatchObject({
+			items: [{ text: expect.stringContaining('"status":"denied"') }],
+		});
+		for (const malformed of [
+			{ operationKey: "another-operation" },
+			{ kind: "other" },
+			{ contractVersion: 2 },
+			{ effect: "unknown" },
+			{ code: "authority_revoked" },
+			{ code: "network_error" },
+			{ code: "x".repeat(1025) },
+			{ injected: "untrusted extra field" },
+		]) {
+			toolRejection = malformed;
+			await expect(
+				client.call(remember, "malformed", controller.signal),
+			).rejects.toThrow("interrupted");
+			expect(commits).toBe(0);
+		}
+		toolRejection = undefined;
 		loseAck = true;
 		await expect(
 			client.call(remember, "immutable-write", controller.signal),
@@ -622,4 +689,22 @@ it("legacy approval envelopes and receipt shapes do not expose an executable too
 	expect(nativeContextResult(context, "read_context", current)).toEqual(
 		nativeContextResult(context, "read_context", page),
 	);
+});
+
+it.each([
+	"publish_artifact",
+	"reply",
+	"add_comment",
+	"delegate_investigation",
+	"read_context",
+])("no-effect native rejection cannot resolve an uncertain %s operation", (name) => {
+	expect(() =>
+		nativeContextRejection(name, "key", {
+			contractVersion: 1,
+			kind: "tool_rejection",
+			code: "invalid_reference",
+			effect: "none",
+			operationKey: "key",
+		}),
+	).toThrow("Unsupported tool rejection");
 });

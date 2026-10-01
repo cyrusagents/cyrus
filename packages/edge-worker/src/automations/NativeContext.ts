@@ -57,7 +57,13 @@ export const nativeContextCalls = [
 				.object({
 					kind: contextKindSchema,
 					body: z.string().min(1).max(4000),
-					evidence_reference: z.string().uuid().optional(),
+					evidence_reference: z
+						.string()
+						.uuid()
+						.optional()
+						.describe(
+							"Optional current read_context.inputEvidence reference for the operator instruction. Omit for source observations. Never use issue/thread/work references or provider IDs.",
+						),
 				})
 				.strict(),
 		})
@@ -204,3 +210,50 @@ export const nativeContextReceiptHintSchema = z
 		status: z.enum(["applied", "pending", "denied"]),
 	})
 	.strict();
+
+/** Only a positive, operation-bound no-effect receipt can resolve a rejected write. */
+export function nativeContextRejection(
+	name: string,
+	key: string,
+	raw: unknown,
+) {
+	if (name !== "remember_context" && name !== "track_work")
+		throw new Error("Unsupported tool rejection");
+	if (raw === undefined || Buffer.byteLength(JSON.stringify(raw)) > 1024)
+		throw new Error("Invalid tool rejection");
+	const rejection = z
+		.object({
+			contractVersion: z.literal(1),
+			kind: z.literal("tool_rejection"),
+			code: z.enum([
+				"invalid_reference",
+				"invalid_arguments",
+				"proof_required",
+			]),
+			effect: z.literal("none"),
+			operationKey: z.string().min(1).max(256),
+		})
+		.strict()
+		.parse(raw);
+	if (rejection.operationKey !== key) throw new Error("Foreign tool rejection");
+	const guidance = {
+		invalid_reference:
+			"No change was made. Read current context and use the reference type required by this tool. For source memory omit evidence_reference; issue/thread references are not input evidence. Correct the arguments before trying again.",
+		invalid_arguments:
+			"No change was made. Correct the arguments to match the declared tool schema before trying again.",
+		proof_required:
+			"No change was made. A terminal work status needs a current matching outcome reference; otherwise retain a nonterminal status.",
+	};
+	return {
+		items: [
+			{
+				text: JSON.stringify({
+					status: "denied",
+					code: rejection.code,
+					message: guidance[rejection.code],
+				}),
+			},
+		],
+		nextCursor: null,
+	};
+}

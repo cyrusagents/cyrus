@@ -114,6 +114,7 @@ export async function runAutomationDrive({
 		},
 	];
 	const contextReceipts = new Map();
+	const contextRejections = new Map();
 	let lostContextAck = false;
 	let contextModelCalls = 0;
 	const contextWork = [];
@@ -684,19 +685,42 @@ export async function runAutomationDrive({
 				);
 			}
 		}
+		const contextRepair =
+			nativeContextOnly && text.includes("REQUEST_REJECTION_REPAIR");
 		const contextAction = !nativeContextOnly
 			? null
-			: text.includes("REQUEST_WORK_CREATE")
+			: contextRepair
 				? {
-						name: "track_work",
-						arguments: { objective: "Investigate the synthetic issue" },
+						name: "remember_context",
+						arguments: {
+							kind: "source",
+							body: "F1_CORRECTED_CONTEXT",
+							...(outputs === 0 && {
+								evidence_reference: "10000000-0000-4000-8000-000000000001",
+							}),
+						},
 					}
-				: text.includes("REQUEST_WORK_WAIT")
+				: text.includes("REQUEST_WORK_CREATE")
 					? {
 							name: "track_work",
-							arguments: { reference: contextWorkReference, status: "waiting" },
+							arguments: { objective: "Investigate the synthetic issue" },
 						}
-					: null;
+					: text.includes("REQUEST_WORK_WAIT")
+						? {
+								name: "track_work",
+								arguments: {
+									reference: contextWorkReference,
+									status: "waiting",
+								},
+							}
+						: null;
+		if (contextRepair && outputs > 0) {
+			assert.ok(
+				text.includes("invalid_reference"),
+				"native model sees rejected reference diagnosis",
+			);
+			assert.ok(!text.includes("PRIVATE_REJECTION_DETAIL"));
+		}
 		if (contextAction?.arguments.reference)
 			assert.ok(
 				text.includes(contextAction.arguments.reference),
@@ -704,7 +728,7 @@ export async function runAutomationDrive({
 			);
 		const replied = nativeContextOnly
 			? contextAction
-				? outputs >= 1
+				? outputs >= (contextRepair ? 2 : 1)
 				: text.includes("F1_NATIVE_CONTEXT_STORED")
 			: (text.includes("owner-interruption") &&
 					text.includes("Private result for interrupted-scope")) ||
@@ -931,6 +955,21 @@ export async function runAutomationDrive({
 										inputEvidence: [],
 										outcomes: [],
 									},
+								};
+							}
+							if (args.evidence_reference || contextRejections.has(key)) {
+								if (!contextRejections.has(key))
+									contextRejections.set(key, {
+										contractVersion: 1,
+										kind: "tool_rejection",
+										code: "invalid_reference",
+										effect: "none",
+										operationKey: key,
+									});
+								return {
+									isError: true,
+									content: [{ type: "text", text: "PRIVATE_REJECTION_DETAIL" }],
+									structuredContent: contextRejections.get(key),
 								};
 							}
 							if (!contextReceipts.has(key)) {
@@ -1506,11 +1545,48 @@ export async function runAutomationDrive({
 			assert.equal(contextReceipts.size, 3);
 			assert.equal(counts.resultCommits, 4);
 			assert.equal(contextModelCalls, 7);
+			const repaired = await completeAction("REQUEST_REJECTION_REPAIR");
+			const repairedOccurrence = ledger
+				.status(d.id)
+				.occurrences.find((o) => o.id === repaired);
+			assert.equal(
+				repairedOccurrence.attempts,
+				1,
+				"no retry for a known no-effect rejection",
+			);
+			assert.equal(contextRejections.size, 1);
+			assert.equal(contextReceipts.size, 4);
+			assert.equal(
+				contextFacts.filter((f) => f.body === "F1_CORRECTED_CONTEXT").length,
+				1,
+			);
+			const repairedCheckpoint = await new AutomationCheckpointStore(
+				checkpoints,
+			).load(repairedOccurrence.checkpointScope);
+			assert.deepEqual(repairedCheckpoint.nativeContextReceipts, [
+				{ name: "remember_context", status: "denied" },
+				{ name: "remember_context", status: "applied" },
+			]);
+			assert.equal(repairedCheckpoint.status, "completed");
+			assert.equal(
+				repairedCheckpoint.pending.step.type,
+				"result",
+				"terminal receipt retains only the immutable final result",
+			);
+			assert.equal(
+				repairedCheckpoint.sequence,
+				2,
+				"rejection and corrected write both advanced",
+			);
+			assert.equal(contextModelCalls, 10);
+			assert.equal(counts.resultCommits, 5);
 			const summary = {
 				passed: true,
 				counts,
 				contextModelCalls,
 				contextWrites: contextReceipts.size,
+				deterministicRejectionCorrected: true,
+				rejectedWrites: contextRejections.size,
 				workCreatedAndUpdated: contextWork[0].status === "waiting",
 				lostAckReconciled: lostContextAck,
 				freshNativeOnResume: recovered.native.threadId !== oldNativeId,

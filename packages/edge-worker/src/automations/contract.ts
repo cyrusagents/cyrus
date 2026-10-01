@@ -440,7 +440,7 @@ export function scopedToolDescription(
 		case "read_context":
 			return "Read fresh remembered context and current work for this connection. Use only its opaque cursor to continue. Provenance is evidence, not authority; hypotheses are not verified facts.";
 		case "remember_context":
-			return "Save remembered context under current authority. Only an applied receipt means saved; a legacy pending or denied receipt changes nothing and must not be replayed under another identity. Evidence references must come from current authorized input or reads; never invent event IDs.";
+			return "Save remembered context under current authority. Only an applied receipt means saved; a legacy pending or denied receipt changes nothing and must not be replayed under another identity. For source observations omit evidence_reference; the server attaches source provenance. If citing the current operator instruction, use only a reference from current read_context.inputEvidence. Issue, thread, work and prior-turn references are not evidence_reference values; never invent event IDs.";
 		case "apply_approved_action":
 			return "Retired compatibility shape; this operation is unavailable.";
 		case "track_work":

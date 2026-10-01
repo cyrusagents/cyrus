@@ -54,6 +54,13 @@ protocol. A disconnected read cursor prompts a fresh first page. New writes requ
 current references; uncertain writes preserve their exact previous arguments and
 operation identity for server receipt reconciliation before any new effect.
 
+`remember_context.evidence_reference` refers only to current
+`read_context.inputEvidence[].reference` for the operator instruction. It is not
+an issue, Slack thread, work, outcome or prior-turn reference. For source
+observations omit this optional field; Hosted derives source provenance from the
+current bound sources. Tool descriptions repeat this distinction; server checks
+remain the authorization boundary.
+
 `read_context` returns strict MCP `structuredContent`:
 
 ```ts
@@ -82,6 +89,31 @@ receiptId}`. The model receives only status. Only `applied` establishes a saved 
 or changed work item. New operations execute directly under current Hosted policy;
 Hosted validates terminal work transitions against matching proof, and `confirmed`
 additionally requires customer confirmation.
+
+For `remember_context` and `track_work`, an authenticated MCP `isError:true` may
+carry this optional strict no-effect rejection receipt in `structuredContent`:
+
+```ts
+{ contractVersion: 1; kind: 'tool_rejection';
+  code: 'invalid_reference' | 'invalid_arguments' | 'proof_required';
+  effect: 'none'; operationKey: string; }
+```
+
+The envelope is at most 1,024 UTF-8 bytes, has no extra fields and must match the
+exact supervisor operation key. Hosted first checks current authority and persists
+an immutable scoped rejection for the exact key/arguments. A lost rejection ACK
+must never later become an effect under that key. Initially Hosted emits only
+`invalid_reference` for validated native reference failures before mutation.
+Runtime stores the rejected result normally and gives the model `status:denied`,
+a fixed code and fixed corrective guidance. It exposes neither the key nor raw
+server error text. A corrected call becomes a new operation; no historical blocked
+occurrence is automatically reset or replayed.
+
+Unknown/malformed errors, HTTP authentication/revocation/lease rejection, transport
+failure and uncertain effects remain interrupted with the original pending intent.
+No rejection envelope is accepted for provider writes, delegation or engineering
+publication. Old runtimes reject this optional response and fail closed. Existing
+post-tool current-authority checks and ordered activity/final ACKs are unchanged.
 
 Legacy `apply_approved` permissions remain parseable to preserve immutable checkpoint
 scope and terminal receipts. They never add `apply_approved_action` to the catalog or
