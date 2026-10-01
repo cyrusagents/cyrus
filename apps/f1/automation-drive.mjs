@@ -680,6 +680,15 @@ export async function runAutomationDrive({
 			assert.equal(envelope["slack.send"], undefined);
 			assert.ok(!request.body.tools?.some((tool) => tool.name === "reply"));
 		}
+		if (text.includes("Scheduled automation tick")) {
+			assert.ok(text.includes("schedule.tick"));
+			assert.ok(text.includes("internal_trigger"));
+			assert.ok(
+				text.includes(
+					"Never flatten source, schedule or completion signals into operator messages",
+				),
+			);
+		}
 		if (holdEventModel && text.includes("event-live-slack")) {
 			eventModelStarted = true;
 			await eventModelGate;

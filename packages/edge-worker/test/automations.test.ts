@@ -31,6 +31,7 @@ import {
 	ConfiguredAutomationMessagesModel,
 	modelReadiness,
 } from "../src/automations/Model.js";
+import { automationInputPrompt } from "../src/automations/Prompt.js";
 import { registerConfiguredAutomations } from "../src/automations/register.js";
 import { latestTick } from "../src/automations/scheduling.js";
 
@@ -1845,4 +1846,26 @@ it("preserves the complete admitted instruction/input on retry and separates lat
 	} finally {
 		await runtime.stop();
 	}
+});
+
+it("labels only an admitted tick as a schedule signal without rewriting authority or matching text", () => {
+	const a = authority({ input: "Scheduled automation tick" });
+	const before = structuredClone(a);
+	expect(
+		automationInputPrompt(a, {
+			trigger: "tick",
+			scheduledAt: "2026-10-01T15:00:00.000Z",
+		}),
+	).toBe(
+		`Automation instructions:\n${a.definition.instruction}\n\nAdmitted occurrence input:\n{"signal":{"version":1,"type":"schedule.tick","provenance":{"occurrenceId":"${a.occurrenceId}","scheduledAt":"2026-10-01T15:00:00.000Z"},"content":{"trust":"internal_trigger","text":"Scheduled automation tick"}}}`,
+	);
+	expect(
+		automationInputPrompt(a, {
+			trigger: "event",
+			scheduledAt: "2026-10-01T15:00:00.000Z",
+		}),
+	).toBe(
+		`Automation instructions:\n${a.definition.instruction}\n\nAdmitted occurrence input:\nScheduled automation tick`,
+	);
+	expect(a).toEqual(before);
 });
