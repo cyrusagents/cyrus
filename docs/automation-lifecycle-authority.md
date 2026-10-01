@@ -1,6 +1,11 @@
 # Current action authority for customer lifecycle callbacks
 
-Runtime proposal9d81addf and compatibility refinement186b0a20, 2026-10-01.
+Runtime proposal9d81addf and compatibility refinement186b0a20, accepted by Hosted
+in d337006d on 2026-10-01. Hosted implemented the required callback admission-deadline
+and current-grant checks at `4f9b7b26e51edde54969d6862bf83a48ddaa10ed`.
+The [installed joined gate](../apps/f1/test-drives/cypack-1546-lifecycle-authority.md)
+passes against that exact head; live installation and responsiveness acceptance
+remain coordinator-owned.
 The optional contract removes separate remote preflights only where the receiving
 handler already checks current authority at the action itself. It never supplies
 an authorization decision for another operation.

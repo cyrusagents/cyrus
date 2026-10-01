@@ -60,6 +60,10 @@ const control = async (body) => {
 };
 const loseWriteAck = process.env.CYRUS_NATIVE_JOIN_LOSE_WRITE_ACK !== "0";
 const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
+const requireLifecycleAuthority =
+	process.env.CYRUS_NATIVE_JOIN_LIFECYCLE_AUTHORITY === "1";
+let lifecycleAdmissions = 0,
+	lifecycleCheckpoints = 0;
 let correctedRejection = false,
 	lostRejectionAck = false;
 const rejectionKeys = new Set();
@@ -340,6 +344,30 @@ globalThis.fetch = async (url, init) => {
 	if (request.pathname.endsWith("/result")) resultSendCount++;
 	const response = await nativeFetch(new URL(request.pathname, local), init);
 	if (
+		requireLifecycleAuthority &&
+		request.pathname.endsWith("/authorize") &&
+		response.ok
+	) {
+		const admission = await response.clone().json();
+		try {
+			assert.equal(
+				new Headers(init.headers).get("x-cyrus-lifecycle-authority"),
+				"1",
+			);
+			assert.equal(admission.lifecycleAuthority, "current-action-v1");
+			assert.equal(admission.sessionDeliveryAuthority, "current-admission-v1");
+			assert.ok(admission.sessionDelivery);
+		} catch (error) {
+			// Gateway intentionally sanitizes transport exceptions. Preserve the
+			// fixture assertion's category, never the admission or credentials.
+			console.error(
+				JSON.stringify({ fixtureFailure: "lifecycle_negotiation_mismatch" }),
+			);
+			throw error;
+		}
+		lifecycleAdmissions++;
+	}
+	if (
 		toolRejection &&
 		stage === "source-write" &&
 		response.ok &&
@@ -483,6 +511,14 @@ const ledger = new AutomationLedger(
 	fixture.workspaceId,
 );
 const store = new AutomationCheckpointStore(join(directory, "checkpoints"));
+const saveCheckpoint = store.save.bind(store);
+store.save = async (state) => {
+	if (requireLifecycleAuthority) {
+		assert.equal(state.lifecycleAuthority, "current-action-v1");
+		lifecycleCheckpoints++;
+	}
+	return saveCheckpoint(state);
+};
 const credentials = () => ({
 	apiKey: fixture.supervisor,
 	workspaceId: fixture.workspaceId,
@@ -544,7 +580,12 @@ const request = async (path, body) => {
 	return r.json();
 };
 const statuses = [];
-async function complete(label, which = "main", prepared) {
+async function complete(
+	label,
+	which = "main",
+	prepared,
+	expectedBlocked = false,
+) {
 	stage = label;
 	console.error(JSON.stringify({ stage, started: true }));
 	const event =
@@ -572,6 +613,11 @@ async function complete(label, which = "main", prepared) {
 			.status(event.definition.id)
 			.occurrences.find((o) => o.id === event.occurrenceId);
 		if (o?.status === "completed") {
+			assert.equal(
+				expectedBlocked,
+				false,
+				"revoked lifecycle action must not complete",
+			);
 			statuses.push({
 				stage,
 				status: o.status,
@@ -581,6 +627,15 @@ async function complete(label, which = "main", prepared) {
 			return event;
 		}
 		if (o?.status === "blocked") {
+			if (expectedBlocked) {
+				statuses.push({
+					stage,
+					status: o.status,
+					attempts: o.attempts,
+					fence: o.fence,
+				});
+				return event;
+			}
 			console.error(
 				JSON.stringify({
 					stage,
@@ -680,13 +735,42 @@ try {
 		1,
 		"terminal ACK recovery opens no additional model",
 	);
+	const terminalModelOpens = models - modelsBefore;
+	if (requireLifecycleAuthority) {
+		for (const operation of ["progress", "result"]) {
+			const before = models;
+			await control({
+				op: "arm-lifecycle-pause",
+				fixture: `denied-${operation}`,
+				operation,
+			});
+			await complete(
+				`denied-${operation}`,
+				`denied-${operation}`,
+				undefined,
+				true,
+			);
+			assert.equal(models - before, operation === "progress" ? 0 : 1);
+		}
+	}
 	const hosted = await control({ op: "evidence" });
 	assert.ok(hosted.reconciliations > 0);
 	if (loseWriteAck) assert.ok(hosted.interruptions > 0);
 	assert.equal(hosted.lostResult, true);
 	if (toolRejection) assert.equal(correctedRejection, true);
+	if (requireLifecycleAuthority) {
+		assert.ok(lifecycleAdmissions > 0);
+		assert.ok(lifecycleCheckpoints > 0);
+		assert.deepEqual(
+			hosted.lifecycleDenials.map((d) => d.operation),
+			["progress", "result"],
+		);
+	}
 	const summary = {
 		passed: true,
+		requireLifecycleAuthority,
+		lifecycleAdmissions,
+		lifecycleCheckpoints,
 		toolRejectionScenario: toolRejection,
 		correctedRejection,
 		lostRejectionAck,
@@ -707,7 +791,7 @@ try {
 		lostWrite,
 		refreshedNative: firstNativeId !== recoveredNativeId,
 		oldSourceSessionDenied: !denied.ok,
-		terminalModelOpens: models - modelsBefore,
+		terminalModelOpens,
 		resultSendCount,
 		limits: [
 			"Actual installed runtime/native Docker + published Hosted handlers/MCP/SQL; model and provider verification are synthetic",

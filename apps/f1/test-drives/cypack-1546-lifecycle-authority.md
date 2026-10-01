@@ -55,6 +55,55 @@ engineering failing-test repair/publication and immutable receipt recovery. Its
 Hosted/provider/model transports remain controlled; see native-summary.json.
 
 The actual Hosted0cc Workflow transport-retry join independently passes87/933
-(documented in the direct-successor report). Hosted lifecycle opt-in proof remains
-pending explicit server negotiation; the0cc retry gate uses legacy preflight.
-The existing preview remains coordinator-owned.
+(documented in the direct-successor report). That0cc retry gate uses legacy
+preflight; it does not establish lifecycle negotiation.
+
+## Installed join against Hosted current-action authority
+
+Hosted `4f9b7b26e51edde54969d6862bf83a48ddaa10ed` and the unchanged installed03ce
+artifact pass the actual SQL/HTTP/MCP/native join in119.29s. The fixture opts in
+only while using the production `customer_automation_current_callback` SQL wrapper
+with the registration digest passed by the actual HTTP handler. It asserts the
+exact header/response/session prerequisites on22admissions and the persisted mode
+on149checkpoint saves. Old0cc fails this explicitly required negotiation gate.
+
+Eleven occurrences complete, with27controlled model requests and132activity
+deliveries. Fourteen result transmissions include two deliberate lost ACK retries
+and one denied result; they are not14committed results. Combined Linear/Slack
+references survive a47s delayed model response and same-session renewal. Source
+withdrawal, ordinary memory/work, immutable write/rejection receipts, and terminal
+receipt reconciliation after policy/source changes retain their original assertions.
+
+Two additional disposable source-free customers are paused through the actual
+operator SQL function after their progress/result HTTP request reaches the fixture
+and before the actual callback handler executes. Both return409 and become blocked
+after their normal3-attempt budgets; SQL confirms no completed admission and no
+customer reply. Progress denial opens no model; result denial opens one and never
+reopens it during recovery. No ledger, clock, callback result or checkpoint is
+rewritten to obtain these outcomes.
+
+Frozen Hosted boundary checks separately pass97tests/1103assertions
+(21optional installed scenarios skipped) and engineering12tests/164assertions
+(1optional installed scenario skipped). They cover exact negotiation, absent/unknown
+headers, engineering exclusion, registration/scope/grant/pause/revision/lease denials,
+expiry while blocked on a customer lock, and exact terminal receipt-only replay.
+Runtime engineering/legacy/old-checkpoint guards retain the unchanged03ce evidence
+above; the fixture adds no new production executable behavior.
+
+Replay with the approved image and explicit owned Docker socket:
+
+```sh
+CYRUS_NATIVE_JOIN_LIFECYCLE_AUTHORITY=1 \
+CYRUS_NATIVE_JOIN_COMBINED=1 CYRUS_NATIVE_JOIN_TOOL_REJECTION=1 \
+CYRUS_F1_CODEX_IMAGE=sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f \
+node apps/f1/native-context-join/run.mjs HOSTED_CHECKOUT \
+  4f9b7b26e51edde54969d6862bf83a48ddaa10ed INSTALLED_PREFIX \
+  03ce05d2e3475880a3db886418055256f9d306e6 NEW_EVIDENCE_DIRECTORY
+```
+
+Evidence: issue attachment `lifecycle-join-4f9b-03ce/`, including joined summary,
+logs, copied helper sources and SHA256 manifest. Provider verification/model and
+source-event admission remain controlled; actual published handlers, migrated SQL,
+installed Runtime, native Docker and SDK transport execute. This is functional
+authority/recovery proof, not live latency or cloud outage acceptance. The existing
+preview remains coordinator-owned and was not changed by this gate.

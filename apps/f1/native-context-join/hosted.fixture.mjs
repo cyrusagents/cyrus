@@ -57,6 +57,10 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 	}
 	const combined = process.env.CYRUS_NATIVE_JOIN_COMBINED === "1";
 	const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
+	const requireLifecycleAuthority =
+		process.env.CYRUS_NATIVE_JOIN_LIFECYCLE_AUTHORITY === "1";
+	const lifecycleDenials = [];
+	let pauseBoundary;
 	async function nativeResult(value, key) {
 		if (!toolRejection) return value;
 		const { checkNativeResult } = await import("./native-tool-rejection");
@@ -198,6 +202,20 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				main.w,
 			)
 		: undefined;
+	const lifecycleFixtures = new Map();
+	if (requireLifecycleAuthority)
+		for (const operation of ["progress", "result"])
+			lifecycleFixtures.set(
+				`denied-${operation}`,
+				await fixture(
+					"conversation",
+					false,
+					"Reply briefly.",
+					false,
+					60,
+					main.w,
+				),
+			);
 	if (both) {
 		both.slack = crypto.randomUUID();
 		both.channel = "C123";
@@ -223,7 +241,12 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			issue: both.issue,
 		});
 	}
-	for (const f of [main, source, ...(both ? [both] : [])]) {
+	for (const f of [
+		main,
+		source,
+		...(both ? [both] : []),
+		...lifecycleFixtures.values(),
+	]) {
 		await sql`insert into team_members values(${f.w},${f.user},'admin')`;
 		await sql`delete from customer_automation_outbox where binding_id=${f.id}`;
 		await sql`update customer_events set processed_at=now() where id=${f.event}`;
@@ -233,6 +256,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		["main", main],
 		["source", source],
 		...(both ? [["both", both]] : []),
+		...lifecycleFixtures,
 	]);
 	const authenticate = async (req) =>
 		req.headers.get("authorization") === `Bearer ${supervisor}` &&
@@ -240,6 +264,9 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			? { teamId: main.w }
 			: { error: "Denied", status: 401 };
 	const callback = createAutomationCallback({
+		...(requireLifecycleAuthority && {
+			lifecycleAuthority: "current-action-v1",
+		}),
 		authenticate,
 		event: async (w, b, o) => {
 			const [row] =
@@ -315,7 +342,9 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				evidence.results++;
 			}
 			return (
-				await sql`select customer_automation_callback(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_request}::jsonb,${p.p_operation}) v`
+				await (requireLifecycleAuthority
+					? sql`select customer_automation_current_callback(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_credential_hash},${p.p_request}::jsonb,${p.p_operation}) v`
+					: sql`select customer_automation_callback(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_request}::jsonb,${p.p_operation}) v`)
 			)[0].v;
 		},
 	});
@@ -525,6 +554,12 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		const f = fixtures.get(body.fixture ?? "main");
 		assert.ok(f);
 		if (body.op === "event") return event(f, body.input);
+		if (body.op === "arm-lifecycle-pause") {
+			assert.ok(requireLifecycleAuthority);
+			assert.equal(lifecycleFixtures.get(`denied-${body.operation}`), f);
+			pauseBoundary = { operation: body.operation, fixture: f };
+			return {};
+		}
 		if (body.op === "proof") {
 			const [thread] =
 				await sql`select * from customer_threads where customer_id=${f.customer}`;
@@ -568,6 +603,22 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			return { definition: f.request.definition };
 		}
 		if (body.op === "evidence") {
+			for (const f of lifecycleFixtures.values()) {
+				const [admission] =
+					await sql`select completed_at from customer_automation_admissions where binding_id=${f.id}`;
+				assert.equal(
+					admission.completed_at,
+					null,
+					"paused callback cannot commit completion",
+				);
+				const [messages] =
+					await sql`select count(*)::int n from customer_messages where customer_id=${f.customer} and author='coordinator'`;
+				assert.equal(
+					messages.n,
+					0,
+					"paused callback cannot publish a customer reply",
+				);
+			}
 			assert.ok(
 				evidence.mcpPreflights > 0,
 				"Hosted POST preflight must be exercised",
@@ -612,6 +663,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				await sql`select count(*)::int n from customer_actions where customer_id=${main.customer} and status='succeeded'`;
 			return {
 				...evidence,
+				lifecycleDenials,
 				passed: true,
 				memoryEffects: facts.n,
 				rejectionReceipts,
@@ -684,7 +736,24 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				if (path === "/api/agent-sessions/v1/deliver") return sessions(req);
 				if (path.startsWith("/api/automations/v1/")) {
 					const operation = path.split("/").at(-1);
+					let pausedHere = false;
+					if (pauseBoundary?.operation === operation) {
+						const input = await req.clone().json();
+						const f = pauseBoundary.fixture;
+						assert.equal(input.automationId, f.id);
+						await sql`select customer_operator(${f.w}::uuid,${f.user}::uuid,${f.customer}::uuid,'pause','{"paused":true}')`;
+						pausedHere = true;
+						pauseBoundary = undefined;
+					}
 					const response = await callback(req, operation);
+					if (pausedHere) {
+						assert.equal(
+							response.status,
+							409,
+							"current receiver must deny paused action",
+						);
+						lifecycleDenials.push({ operation, status: response.status });
+					}
 					if (!response.ok) evidence.denials++;
 					if (
 						operation === "result" &&
