@@ -1,0 +1,16 @@
+{
+	"driverSha": "5bf0d0c0347e4ae1cb5403a91528804414701558",
+	"runtimeSha": "04e941be8b5176e7f54fa1174179b8be78f78fc3",
+	"hostedSha": "3b5b437f782d96ef7aab9338d3de688874bd1b5f",
+	"runtimeBundleSha256": "8aff9c3517597239a1a07c891261ad9935b9a4fb9240f4037b019ab546aa8b3c",
+	"image": "sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f",
+	"files": {
+		"run.mjs": "8e8e10f4b6ad03c5455a2b9c74ba68f77871d83c3a474f1dc28cc93aabb16eaf",
+		"runtime-drive.mjs": "f4b002210ed3c52bca83715a54a2455bd190ec1ec4abae4208b060974146f0c3",
+		"hosted.fixture.mjs": "53feae5c0afaefa605f268d8852d340a213a127ee64de9e8fcebdf98b268283f",
+		"README.md": "b0f54555310ae0cf55dd6010f8676ed7e95ecac99f2eb736ea9092af81142a4c"
+	},
+	"productionSourceChanged": false,
+	"preflightEnabled": true,
+	"fullRecoveryGate": true
+}
