@@ -944,7 +944,7 @@ identities remain outside model text and unchanged. Hosted also owns visible
 signal/activity projection; runtime does not fabricate operator activities.
 
 For a ledger-admitted `trigger:tick`, runtime adds a model-only `signal` envelope
-with version1/type `schedule.tick`, occurrence ID and scheduledAt provenance and
+with version1/kind `schedule.tick`, occurrence ID and scheduledAt provenance and
 `internal_trigger` content. Stored/admitted input and identity remain unchanged;
 text saying "Scheduled automation tick" cannot select this presentation. Runtime
 adds no customer/provider authority metadata. Other signals keep the exact Hosted

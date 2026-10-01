@@ -1857,7 +1857,7 @@ it("labels only an admitted tick as a schedule signal without rewriting authorit
 			scheduledAt: "2026-10-01T15:00:00.000Z",
 		}),
 	).toBe(
-		`Automation instructions:\n${a.definition.instruction}\n\nAdmitted occurrence input:\n{"signal":{"version":1,"type":"schedule.tick","provenance":{"occurrenceId":"${a.occurrenceId}","scheduledAt":"2026-10-01T15:00:00.000Z"},"content":{"trust":"internal_trigger","text":"Scheduled automation tick"}}}`,
+		`Automation instructions:\n${a.definition.instruction}\n\nAdmitted occurrence input:\n{"signal":{"version":1,"kind":"schedule.tick","provenance":{"occurrenceId":"${a.occurrenceId}","scheduledAt":"2026-10-01T15:00:00.000Z","source":"internal","selectedTrigger":"schedule.tick"},"intent":"scheduled_check","content":{"trust":"internal_trigger","data":{"text":"Scheduled automation tick"}}}}`,
 	);
 	expect(
 		automationInputPrompt(a, {

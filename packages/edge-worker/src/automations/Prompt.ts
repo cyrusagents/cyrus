@@ -15,12 +15,18 @@ export function automationInputPrompt(
 			? JSON.stringify({
 					signal: {
 						version: 1,
-						type: "schedule.tick",
+						kind: "schedule.tick",
 						provenance: {
 							occurrenceId: authority.occurrenceId,
 							scheduledAt: occurrence.scheduledAt,
+							source: "internal",
+							selectedTrigger: "schedule.tick",
 						},
-						content: { trust: "internal_trigger", text: authority.input },
+						intent: "scheduled_check",
+						content: {
+							trust: "internal_trigger",
+							data: { text: authority.input },
+						},
 					},
 				})
 			: authority.input;
