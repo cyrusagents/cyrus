@@ -207,6 +207,16 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				main.w,
 			)
 		: undefined;
+	const slackRevoked = slackMessages
+		? await fixture(
+				"slack",
+				false,
+				"Read only; sending needs current permission.",
+				true,
+				60,
+				main.w,
+			)
+		: undefined;
 	const lifecycleFixtures = new Map();
 	if (requireLifecycleAuthority)
 		for (const operation of ["progress", "result"])
@@ -250,6 +260,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		main,
 		source,
 		...(both ? [both] : []),
+		...(slackRevoked ? [slackRevoked] : []),
 		...lifecycleFixtures.values(),
 	]) {
 		await sql`insert into team_members values(${f.w},${f.user},'admin')`;
@@ -261,6 +272,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		["main", main],
 		["source", source],
 		...(both ? [["both", both]] : []),
+		...(slackRevoked ? [["slack-revoke", slackRevoked]] : []),
 		...lifecycleFixtures,
 	]);
 	const authenticate = async (req) =>
@@ -671,7 +683,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		assert.ok(f);
 		if (body.op === "event") return event(f, body.input);
 		if (body.op === "slack-permission") {
-			assert.ok(slackMessages && f === both);
+			assert.ok(slackMessages && (f === both || f === slackRevoked));
 			await sql`update customer_agents set policy=policy||${{ "slack.send": body.allow ? "automatic" : "disabled" }}::jsonb where id=${f.customer}`;
 			return {};
 		}
@@ -972,9 +984,12 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				origin: `http://127.0.0.1:${server.port}`,
 				supervisor,
 				workspaceId: main.w,
-				definitions: [main, source, ...(both ? [both] : [])].map(
-					(f) => f.request.definition,
-				),
+				definitions: [
+					main,
+					source,
+					...(both ? [both] : []),
+					...(slackRevoked ? [slackRevoked] : []),
+				].map((f) => f.request.definition),
 				combined,
 				slackMessages,
 			}),
