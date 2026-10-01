@@ -8,7 +8,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CodexLoginBroker } from "cyrus-codex-runner";
+import { CodexLoginBroker, ContainedCodexProcess } from "cyrus-codex-runner";
 import Fastify from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationRuntime } from "../src/automations/AutomationRuntime.js";
@@ -1133,19 +1133,30 @@ it.skipIf(!process.env.CYRUS_TEST_CODEX_IMAGE)(
 				minimumPublishedVersion: null,
 			});
 			const readiness = vi.spyOn(CodexLoginBroker.prototype, "readiness");
+			const start = vi.spyOn(ContainedCodexProcess.prototype, "start");
 			try {
-				const authorize = vi.fn(async () => {});
+				const authorize = vi.fn(async () => {
+					throw new Error("revoked");
+				});
+				const signal = new AbortController().signal;
 				const registered = runtime.options.model;
 				expect(registered.nextAuthorization).toBe("in-flight-v1");
 				const turn = await registered.open!({
+					state: {},
+					signal,
 					authorize,
 				} as unknown as AutomationModelContext);
 				expect(turn.nextAuthorization).toBe("in-flight-v1");
 				expect(readiness).not.toHaveBeenCalled();
 				expect(authorize).not.toHaveBeenCalled();
+				await expect(turn.next([], authority(), signal)).rejects.toThrow();
+				expect(authorize).toHaveBeenCalledTimes(1);
+				expect(start).not.toHaveBeenCalled();
+				expect(readiness).not.toHaveBeenCalled();
 				await turn.close?.();
 			} finally {
 				readiness.mockRestore();
+				start.mockRestore();
 			}
 		} finally {
 			await app.close();
