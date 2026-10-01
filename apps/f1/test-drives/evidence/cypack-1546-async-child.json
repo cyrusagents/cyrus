@@ -1,0 +1,60 @@
+{
+	"runtimeHead": "d66ed0a86d0d925fe88469a142da93f640aee416",
+	"hostedHead": "5429c3cad4aeff975f5c1c668fc0d48754b9c66c",
+	"passed": true,
+	"tests": 86,
+	"assertions": 951,
+	"durationSeconds": 40.49,
+	"image": "sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f",
+	"scenarios": {
+		"read-set-direct-child": {
+			"runtime": {
+				"passed": true,
+				"queuedNextTurn": false,
+				"childContextIsolated": true,
+				"completed": 2,
+				"pausedReceiptRecovered": false,
+				"modelSteps": 8,
+				"resultTransmissions": 3,
+				"automaticLostAckRecovery": true,
+				"registeredEntryPoint": true,
+				"unauthorizedRoutesDenied": 4,
+				"duplicateInstructionDeduplicated": true,
+				"elapsedMs": 14983
+			},
+			"native": {
+				"opens": 2,
+				"requests": 8,
+				"childRequests": 3,
+				"closes": 2,
+				"noPrivateParentInChildInput": true,
+				"delegationDescriptionRequests": 5
+			}
+		},
+		"read-set-ticket-child": {
+			"runtime": {
+				"passed": true,
+				"queuedNextTurn": false,
+				"childContextIsolated": true,
+				"completed": 2,
+				"pausedReceiptRecovered": false,
+				"modelSteps": 8,
+				"resultTransmissions": 3,
+				"automaticLostAckRecovery": true,
+				"registeredEntryPoint": true,
+				"unauthorizedRoutesDenied": 4,
+				"duplicateInstructionDeduplicated": true,
+				"elapsedMs": 14974
+			},
+			"native": {
+				"opens": 2,
+				"requests": 8,
+				"childRequests": 3,
+				"closes": 2,
+				"noPrivateParentInChildInput": true,
+				"delegationDescriptionRequests": 5
+			}
+		}
+	},
+	"limitations": "Controlled provider/model and prepared outbox; actual installed runtime, native Codex/container, SDK, HTTP, SQL. No production parent successor or live behavioral compliance claim. Hosted continuation correction pending."
+}

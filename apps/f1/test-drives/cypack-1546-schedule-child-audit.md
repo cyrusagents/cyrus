@@ -81,3 +81,28 @@ node apps/f1/native-context-join/run-hosted-native.mjs HOSTED_CHECKOUT \
 Original and adapted exact Hosted sources and SHA256s are retained under
 `attachments/native-schedule-children-5429-7543` in CYPACK-1546. Frozen source
 seams fail if the counterpart changes; no Hosted worktree files are edited.
+
+## Installed async-guidance candidate
+
+Executable `d66ed0a86d0d925fe88469a142da93f640aee416` changes only the runtime
+read_context/delegate_investigation descriptions. A fresh isolated install verifies
+17 packages and 17 resolved copies, CLI version/help and sourceSha provenance.
+Bundle SHA256: `046ebac187a90ec985967b548af421522051687dcc3941ce877ade46c17b8d49`.
+
+Exact installed candidate/frozen Hosted5429 native direct + ticket child modes:
+**86 tests,951 assertions PASS in40.49s**. Each completes two occurrences with
+8 model requests,2 native opens/closes,3 child requests,3 result transmissions,
+ordered receipts and automatic lost-ACK recovery. Each observes the complete new
+delegation description on5 actual native provider requests; child context remains
+isolated. [Bounded evidence](evidence/cypack-1546-async-child.json).
+Focused automation suites:66 pass/1 opt-in skip. The3 context-recovery regressions
+pass with Hosted's exact admitted event.continuation shape and whole-prompt
+assertions; original instructions, work reference and child findings survive
+fresh context preparation without a prior native transcript.
+
+Reproduce the command above with this runtime SHA/prefix and
+`CYRUS_NATIVE_JOIN_MODES=read-set-direct-child,read-set-ticket-child`.
+No live runtime was upgraded. This guidance is not a containment rule, does not
+forbid legitimate context reads, and cannot prove real-model compliance. Hosted's
+original-input/work-origin correction and its production callback/admission join
+remain required before repeating coordinator-owned live child acceptance.

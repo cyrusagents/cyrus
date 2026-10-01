@@ -132,7 +132,7 @@ test = replaceOnce(
           expect(native.requests).toBe(result.modelSteps);
           expect(native.opens).toBe(expectedResults);
           expect(native.closes).toBe(native.opens);
-          if(childMode) expect(native.childRequests).toBeGreaterThan(0);
+          if(childMode) { expect(native.childRequests).toBeGreaterThan(0); expect(native.delegationDescriptionRequests).toBeGreaterThan(0); }
           await writeFile(join(process.env.CYRUS_NATIVE_JOIN_EVIDENCE, mode+".json"),JSON.stringify({runtime:result,native},null,2));`,
 );
 await writeFile(testPath, test);
