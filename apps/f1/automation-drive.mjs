@@ -53,10 +53,16 @@ export async function runAutomationDrive({
 	sessionDeliveryAuthority = false,
 	latencyOnly = false,
 	latencyReadSet = false,
+	latencyMcpMilliseconds = 150,
 	latencyRetention = false,
 	nativeContextOnly = false,
 	ownerInterruptionFault = "model",
 } = {}) {
+	assert.ok(
+		Number.isInteger(latencyMcpMilliseconds) &&
+			latencyMcpMilliseconds >= 150 &&
+			latencyMcpMilliseconds <= 2000,
+	);
 	const target = codexImage
 		? { harness: "codex", model: "gpt-5.5" }
 		: { harness: "claude", model: "claude-fixture" };
@@ -1228,7 +1234,9 @@ export async function runAutomationDrive({
 				await new Promise((resolve) =>
 					setTimeout(
 						resolve,
-						latencyReadSet && value.endsWith("/mcp") ? 150 : 40,
+						latencyReadSet && value.endsWith("/mcp")
+							? latencyMcpMilliseconds
+							: 40,
 					),
 				);
 			const response = await realFetch(
@@ -1626,7 +1634,7 @@ export async function runAutomationDrive({
 					() =>
 						ledger.status(d.id).occurrences.find((o) => o.id === id)?.status ===
 						"completed",
-					30000,
+					60000,
 				);
 				const status = await runtimeApp.inject({
 					method: "GET",
@@ -1869,13 +1877,14 @@ export async function runAutomationDrive({
 			const summary = {
 				passed: true,
 				latencyReadSet,
+				latencyMcpMilliseconds,
 				retentionRecovered: latencyRetention,
 				traces,
 				counts,
 				limits: [
 					"Controlled Hosted and model/provider transports; actual native container, runtime, SQLite and status route",
 					"No historical44s attribution or live runtime/customer access",
-					"40ms Hosted,80ms provider headers,120ms provider body injection; read-set profile adds150ms per MCP HTTP request",
+					`40ms Hosted,80ms provider headers,120ms provider body injection; read-set profile adds${latencyMcpMilliseconds}ms per MCP HTTP request`,
 				],
 			};
 			await writeFile(

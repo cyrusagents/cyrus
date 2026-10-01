@@ -19,6 +19,14 @@ of the same per-request SQL checks, preserving pre-body admission, post-provider
 current checks and per-call revocation. No runtime barrier was removed on the basis
 of these observations.
 
+The [installed native catalog phase profile](../apps/f1/test-drives/cypack-1546-catalog-phases.md)
+measures nine current-authority catalog calls per no-tool greeting, including four
+before native start. Increasing controlled MCP HTTP delay150→1500ms increases
+warm startup1.351→9.484s without increasing catalog count. Initial discovery is
+not duplicated and overlapping periodic checks share an in-flight request. This
+isolates transport amplification, not the actual live callsite distribution; no
+production barrier was removed or live speed improvement claimed.
+
 These diagnostics measure supervisor stages. They are independent of the durable
 session execution counter and do not change its exclusions or user-facing meaning.
 They do not authorize work, refresh a lease, replay a command or change receipts.

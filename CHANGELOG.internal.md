@@ -5,6 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Added
+- Added an installed native catalog phase profile with bounded code-location attribution and delayed MCP transport; it distinguishes repeated authority barriers from SDK discovery without changing production authorization. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
 - Added an isolated native test of production engineering/customer dispatch and result callbacks against disposable SQL; it preserves a source-free parent admission failure as an explicit acceptance blocker. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
 - Added optional private, bounded retention of finished automation latency traces across runtime restarts, without persisting inputs or credentials or changing execution authority. Includes controlled native cold/warm timing and authenticated restart retrieval coverage, plus explicit Hosted MCP preflight in the installed native SQL join. The joined native fixture also exercises queued Linear/Slack events and direct/ticket child sessions with durable activity receipts. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
 
