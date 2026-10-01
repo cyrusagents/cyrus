@@ -101,3 +101,35 @@ for the production dispatcher plus parent successor described here.
 This controlled join would still exclude real Workflow infrastructure, signed
 provider ingress, live provider assignment and rendered UI reload. Label those
 separately; the coordinator owns live acceptance and any installation.
+
+## Prepared runtime driver (joined validation pending)
+
+`apps/f1/native-context-join/parent-successor-drive.mjs` reuses the engineering
+drive and `nativeOracle` against an exact installed package source SHA. Syntax
+and lint checks pass; it is **not yet executable proof of this gate** without the
+Hosted counterpart fixture. Do not substitute its expected flags for SQL assertions.
+
+Private fixture fields are the existing `origin`, `supervisor`, `definition`,
+`image`, `dockerPath`, `dockerHost`, plus `parentDefinition`, `runtimeSha` and a
+synthetic uppercase `findingsMarker`. Its only fixture control request is
+authenticated `POST /fixture/dispatch` with `{origin: <runtime loopback URL>}`.
+The fixture must validate that origin is exactly a local HTTP root, without
+credentials/query/fragment, and bind it for that disposable registration only.
+This is not an endpoint to add to the production runtime or Hosted service.
+
+The reply has `done`, `parentEventCount`, `productionDispatcher`,
+`occurrenceAckLost`, `duplicateDispatchDeduplicated`, `foreignCustomerDenied`,
+`withdrawnSponsorDenied`, `pausedCustomerDenied`, and `publications`.
+Each assertion flag must be derived from the real SQL/transport checks above.
+`done` is true only after those checks and all intended events are dispatched.
+The driver independently observes terminal registered status, exact model counts,
+failed/passing command exits, parent input evidence and no repeated parent model
+execution. It loses one engineering result ACK, requiring normal receipt recovery.
+It never calls definition/occurrence submission directly.
+
+Both runtime and engineering execution use the existing reviewed image. Invocation
+is `node parent-successor-drive.mjs PRIVATE_FIXTURE_DIRECTORY INSTALLED_AUTOMATIONS_DIRECTORY`
+with the existing `CYRUS_F1_CODEX_IMAGE` and authorized Docker environment. The
+Hosted test harness owns launch, isolated SQL setup, production dispatcher wiring,
+final database assertions and cleanup. Coordination request `eb165177` supplies
+this interface; actual owner acknowledgment and a passing joined run remain open.
