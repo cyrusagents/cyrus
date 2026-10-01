@@ -52,6 +52,7 @@ export async function runAutomationDrive({
 	slackChannelOnly = false,
 	sessionDeliveryAuthority = false,
 	latencyOnly = false,
+	latencyReadSet = false,
 	ownerInterruptionFault = "model",
 } = {}) {
 	const target = codexImage
@@ -251,7 +252,8 @@ export async function runAutomationDrive({
 			const resource =
 				d.id === "slack-channel"
 					? { provider: "slack", channelId: "channel-a", scope: "channel" }
-					: d.id.startsWith("read-set-")
+					: d.id.startsWith("read-set-") ||
+							(latencyReadSet && d.id === "source-free")
 						? { provider: "linear", customerId: readSetCustomerId }
 						: provider === "linear"
 							? { provider, teamId: "team-a", issueId: `issue-${d.namespace}` }
@@ -283,7 +285,10 @@ export async function runAutomationDrive({
 				contractVersion: 1,
 				definition: {
 					...d,
-					grants: engineering || d.id === "source-free" ? [] : [resourceGrant],
+					grants:
+						engineering || (d.id === "source-free" && !latencyReadSet)
+							? []
+							: [resourceGrant],
 				},
 				occurrenceId: b.occurrenceId,
 				attemptId: b.attemptId,
@@ -603,9 +608,16 @@ export async function runAutomationDrive({
 				text.includes("# pass 1"),
 				"native model receives passing repair diagnostics",
 			);
-		const sourceFree = codexImage
-			? request.body.tools.length === 0
-			: request.body.system.includes("Available names: [].");
+		const sourceFree =
+			(latencyOnly && latencyReadSet) ||
+			(codexImage
+				? request.body.tools.length === 0
+				: request.body.system.includes("Available names: []."));
+		if (latencyOnly && latencyReadSet)
+			assert.deepEqual(request.body.tools.map((tool) => tool.name).sort(), [
+				"get_issue",
+				"list_issues",
+			]);
 		const slackChannel = text.includes("slack-channel");
 		if (slackChannel && codexImage) {
 			const names = request.body.tools.map((tool) => tool.name).sort();
@@ -1039,7 +1051,13 @@ export async function runAutomationDrive({
 	globalThis.fetch = async (url, options) => {
 		const value = String(url);
 		if (value.startsWith("https://automation.fixture/")) {
-			if (latencyOnly) await new Promise((resolve) => setTimeout(resolve, 40));
+			if (latencyOnly)
+				await new Promise((resolve) =>
+					setTimeout(
+						resolve,
+						latencyReadSet && value.endsWith("/mcp") ? 150 : 40,
+					),
+				);
 			const response = await realFetch(
 				value.replace("https://automation.fixture", origin),
 				options,
@@ -1285,6 +1303,9 @@ export async function runAutomationDrive({
 					"dispatch.enqueue",
 					"queue.wait",
 					"ledger.claim",
+					"ledger.bindCheckpoint",
+					"authority.check",
+					"native.snapshot",
 					"authorize.admit",
 					"authorize.renew",
 					"session.delivery",
@@ -1365,6 +1386,58 @@ export async function runAutomationDrive({
 						callback.durationMs > callback.hosted.cyrus_total.durationMs,
 					);
 				}
+				if (latencyReadSet) {
+					const checkpoint = trace.spans.find(
+						(s) => s.stage === "checkpoint.load",
+					);
+					const initialCatalogs = trace.spans.filter(
+						(s) => s.stage === "mcp.catalog" && s.startMs < checkpoint.startMs,
+					);
+					assert.equal(
+						initialCatalogs.length,
+						1,
+						"Initial authority check admits exactly one fresh catalog",
+					);
+					assert.ok(
+						initialCatalogs[0].durationMs >= 140,
+						"Actual SDK HTTP catalog delay is measured",
+					);
+					assert.equal(
+						trace.spans.filter((s) => s.stage === "mcp.initialize").length,
+						1,
+					);
+					const request = trace.spans.find((s) => s.stage === "model.request");
+					const credential = trace.spans.find(
+						(s) => s.stage === "credential.read",
+					);
+					const beforeCredentials = trace.spans.filter(
+						(s) =>
+							s.startMs >= request.startMs && s.startMs < credential.startMs,
+					);
+					assert.equal(
+						beforeCredentials.filter((s) => s.stage === "authority.check")
+							.length,
+						2,
+						"Both current authority barriers around capture remain",
+					);
+					assert.equal(
+						beforeCredentials.filter((s) => s.stage === "mcp.catalog").length,
+						2,
+					);
+					assert.equal(
+						beforeCredentials.filter((s) => s.stage === "native.snapshot")
+							.length,
+						1,
+					);
+					assert.ok(
+						beforeCredentials.every(
+							(s) => s.startMs + s.durationMs <= credential.startMs,
+						),
+					);
+					assert.ok(
+						trace.spans.filter((s) => s.stage === "mcp.queue").length > 0,
+					);
+				}
 				traces.push(trace);
 			}
 			assert.equal(
@@ -1381,12 +1454,13 @@ export async function runAutomationDrive({
 			assert.equal(counts.resultCommits, 2);
 			const summary = {
 				passed: true,
+				latencyReadSet,
 				traces,
 				counts,
 				limits: [
 					"Controlled Hosted and model/provider transports; actual native container, runtime, SQLite and status route",
 					"No historical44s attribution or live runtime/customer access",
-					"40ms Hosted,80ms provider headers,120ms provider body injection",
+					"40ms Hosted,80ms provider headers,120ms provider body injection; read-set profile adds150ms per MCP HTTP request",
 				],
 			};
 			await writeFile(

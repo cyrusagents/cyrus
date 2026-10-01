@@ -138,3 +138,64 @@ no residual calculation, interpolation, authority cache or historical reconstruc
 Authenticated failed callbacks may retain fixed failure flags; bad diagnostics
 cannot acknowledge an invalid receipt. Existing64x128 trace bounds, opt-in status
 retrieval and process-only retention remain unchanged.
+
+## LIVE-LATENCY-1001: current-authority waits
+
+The passive installed90ff trace records37.304s total. Its MCP/native code is
+identical to e978 before this change. No live turn was launched for this review.
+
+| Recorded boundary | Observed interval | Exact90ff path and attribution limit |
+| --- | ---: | --- |
+| admit response → checkpoint load | 8.880s | Local admission validation/SQLite binding, then awaited `fresh()`. Read-set/channel `fresh()` initializes MCP, sends `notifications/initialized`, reads the catalog, then unnecessarily reads it again. Other scopes renew through authorize. The trace has no renew here, which supports the MCP path; it cannot apportion individual HTTP, local validation or lock waits. |
+| model.next → container.initialize | 2.194s | Native adapter awaits current authorization before starting its container. |
+| model.request → credential.read | 4.555s | Native callback awaits authorization, captures and persists its native rollout, then broker awaits authorization before reading login credentials. No provider request precedes credential.read. |
+| provider headers/body | 0.948s / 0.563s | Actual transport spans; excludes the preceding authorization/snapshot gates and subsequent response-release authorization. |
+| native.completed → model.next end | 2.075s | Completion authorization and rollout persistence before returning the model result. |
+
+These are code-grounded candidate components, not retrospective per-component
+measurements. Periodic renewal can overlap/join these gates. The older44s intervals
+remain unattributed; neither provider compute nor container startup is established
+as their cause.
+
+A real SDK regression reproduced the unnecessary second initial `tools/list`.
+A new connection now admits one fresh catalog in the same serialized operation.
+Every established-session revalidation still makes a new authenticated request.
+No cached authority, TTL shortcut, altered renewal/expiry, reference migration,
+write replay or changed operation identity is introduced. Snapshot authorization,
+provider-access authorization and response-release authorization remain separate:
+a durable snapshot can take time, during which authority may be withdrawn.
+
+Additional fixed diagnostic spans (same64 traces/128 spans bounds):
+
+- `ledger.bindCheckpoint`: synchronous SQLite checkpoint-scope binding, including
+  any lock wait; failures set only the existing boolean flag.
+- `authority.check`: one actual current-authority refresh, including queueing and
+  MCP or gateway work. Concurrent callers join that refresh; no fabricated duplicate
+  duration is recorded for joiners.
+- `mcp.queue`: wait for the per-attempt SDK operation queue (including renew/close).
+- `mcp.initialize`: SDK connect/initialize and initialized notification. Optional
+  SDK GET rejection can run concurrently; this is not a pure server-handler metric.
+- `mcp.catalog`: actual `tools/list` request, response parsing and catalog validation.
+- `native.snapshot`: native thread/read, contained rollout capture and durable local
+  checkpoint save. No paths, rollout bytes or tool arguments are retained.
+
+These remain runtime transport/local spans, with no Hosted timing request header on
+MCP and no model context exposure. They do not affect session execution accounting.
+At the cap, missing detail stays missing. Nested spans must not be summed with their
+parents.
+
+Controlled reproduction uses the existing native F1 driver with
+`{latencyOnly:true, latencyReadSet:true, sessionDeliveryAuthority:true}`. It admits a
+Linear customer read-set but the deterministic model greets without calling tools.
+This distinguishes **zero tool calls** from **zero source grants**. Injected delays:
+150ms per MCP HTTP request,40ms per other Hosted request,80ms provider headers,
+120ms provider body. Both cold/warm occurrences use fresh contained native sessions;
+“warm” means the same running supervisor/image, not a reused agent/container/session.
+The first two runs against installed e978 made20 catalog requests total; the fixed
+source run made18. Warm admit-to-checkpoint fell629ms→481ms, consistent with removing
+one150ms request. Initial cold measurements724ms→489ms also include host/container
+variance; total/pre-native differences are not attributed wholly to this change.
+The fixed native model→credentials gap measured two153–158ms catalog gates and a
+38–48ms snapshot, directly exposing the serialized work. Final ordered ACKs, zero
+tool calls and exactly two result commits passed. Installed exact-head evidence is
+packaged separately; these synthetic timings are not live responsiveness acceptance.

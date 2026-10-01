@@ -226,9 +226,11 @@ class ContainedCodexTurn implements AutomationModel {
 	private async capture(
 		tool?: NonNullable<AutomationModelContext["state"]["native"]>["tool"],
 	): Promise<void> {
-		const snapshot = await this.runner!.snapshot(this.threadId!);
-		this.context.state.native = { ...snapshot, ...(tool && { tool }) };
-		await this.context.save();
+		await measureLatency("native.snapshot", async () => {
+			const snapshot = await this.runner!.snapshot(this.threadId!);
+			this.context.state.native = { ...snapshot, ...(tool && { tool }) };
+			await this.context.save();
+		});
 	}
 	private async complete(): Promise<void> {
 		await this.context.authorize();

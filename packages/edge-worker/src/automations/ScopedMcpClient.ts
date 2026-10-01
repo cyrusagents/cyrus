@@ -17,6 +17,7 @@ import {
 	engineeringPublicationResult,
 	publicationMetadata,
 } from "./Engineering.js";
+import { beginLatency, measureLatency } from "./Latency.js";
 
 export interface ScopedAutomationTools {
 	call(
@@ -42,7 +43,11 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 	private readonly cursors = new Set<string>();
 	private queue: Promise<unknown> = Promise.resolve();
 	private exclusive<T>(operation: () => Promise<T>): Promise<T> {
-		const next = this.queue.then(operation);
+		const queued = beginLatency("mcp.queue");
+		const next = this.queue.then(() => {
+			queued();
+			return operation();
+		});
 		this.queue = next.catch(() => {});
 		return next;
 	}
@@ -104,7 +109,10 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 			throw new Error("Invalid scoped MCP origin");
 		this.url = new URL("/mcp", url);
 	}
-	private async connect(credential: McpCredential): Promise<Client> {
+	private async connect(
+		credential: McpCredential,
+		refreshCatalog = false,
+	): Promise<Client> {
 		if (this.closeFailed) throw new Error("Scoped MCP cleanup unconfirmed");
 		if (
 			this.client &&
@@ -112,7 +120,10 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 				this.connectedCredential?.grantId !== credential.grantId)
 		)
 			await this.disconnect();
-		if (this.client) return this.client;
+		if (this.client) {
+			if (refreshCatalog) await this.readCatalog(this.client);
+			return this.client;
+		}
 		const client = new Client({
 			name: "cyrus-contained-automation",
 			version: "1",
@@ -192,12 +203,10 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 			},
 		});
 		try {
-			await client.connect(transport, { signal: this.signal, timeout: 20_000 });
-			const list = await client.listTools(undefined, {
-				signal: this.signal,
-				timeout: 20_000,
-			});
-			this.admitCatalog(list);
+			await measureLatency("mcp.initialize", () =>
+				client.connect(transport, { signal: this.signal, timeout: 20_000 }),
+			);
+			await this.readCatalog(client);
 			this.client = client;
 			this.transport = transport;
 			this.connectedCredential = credential;
@@ -215,6 +224,17 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 				"Scoped MCP initialization denied",
 			);
 		}
+	}
+
+	private async readCatalog(client: Client): Promise<void> {
+		await measureLatency("mcp.catalog", async () => {
+			this.admitCatalog(
+				await client.listTools(undefined, {
+					signal: this.signal,
+					timeout: 20_000,
+				}),
+			);
+		});
 	}
 
 	private admitCatalog(list: {
@@ -239,13 +259,10 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 	revalidate(): Promise<void> {
 		return this.exclusive(async () => {
 			try {
-				const client = await this.connect({ ...this.credential() });
-				this.admitCatalog(
-					await client.listTools(undefined, {
-						signal: this.signal,
-						timeout: 20_000,
-					}),
-				);
+				// A new connection already checks a fresh catalog in this same
+				// serialized operation. Existing sessions must fetch it again:
+				// this is never a cached authority check or a lease extension.
+				await this.connect({ ...this.credential() }, true);
 			} catch (error) {
 				await this.disconnect();
 				throw new AutomationDiagnosticError(

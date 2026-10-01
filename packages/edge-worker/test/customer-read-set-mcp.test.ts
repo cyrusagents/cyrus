@@ -8,6 +8,7 @@ import type {
 	AutomationAuthority,
 	McpCredential,
 } from "../src/automations/contract.js";
+import { LatencyTrace } from "../src/automations/Latency.js";
 import { ScopedAutomationMcpClient } from "../src/automations/ScopedMcpClient.js";
 
 it.each([
@@ -57,6 +58,7 @@ it.each([
 		foreignResult = false,
 		hideList = false,
 		providerReads = 0;
+	let catalogRequests = 0;
 	const sessions = new Map<
 		string,
 		{
@@ -130,6 +132,10 @@ it.each([
 			);
 			await server.connect(transport);
 		}
+		if ((request.body as { method?: string })?.method === "tools/list") {
+			catalogRequests++;
+			await new Promise((resolve) => setTimeout(resolve, 30));
+		}
 		reply.hijack();
 		await session.transport.handleRequest(request.raw, reply.raw, request.body);
 	});
@@ -169,6 +175,19 @@ it.each([
 			call("get_issue", { issueId: randomUUID() }),
 		).rejects.toThrow();
 		expect(sessions.size).toBe(0);
+		const trace = new LatencyTrace();
+		await trace.run(() => client.revalidate());
+		expect(catalogRequests).toBe(1); // Initialization already admits a fresh catalog.
+		await trace.run(() => client.revalidate());
+		expect(catalogRequests).toBe(2); // Established sessions still check Hosted every time.
+		const catalogs = trace
+			.snapshot()
+			.spans.filter((s) => s.stage === "mcp.catalog");
+		expect(catalogs).toHaveLength(2);
+		expect(catalogs.every((s) => s.durationMs! >= 25)).toBe(true);
+		expect(
+			trace.snapshot().spans.filter((s) => s.stage === "mcp.initialize"),
+		).toHaveLength(1);
 		const first = await list();
 		expect(first.map((i) => i.identifier)).toEqual(["FIX-1", "FIX-2"]);
 		await client.revalidate();

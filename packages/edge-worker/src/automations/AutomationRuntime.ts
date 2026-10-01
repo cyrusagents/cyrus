@@ -416,7 +416,14 @@ export class AutomationRuntime {
 		const key = checkpointKey(initial);
 		if (occurrence.receipt && occurrence.receipt.scopeKey !== key)
 			throw new Error("Receipt checkpoint identity changed");
-		this.ledger().bindCheckpoint(occurrence, key);
+		const binding = beginLatency("ledger.bindCheckpoint");
+		try {
+			this.ledger().bindCheckpoint(occurrence, key);
+			binding();
+		} catch (error) {
+			binding(true);
+			throw error;
+		}
 		if (this.active.has(key)) throw new Error("Occurrence already active");
 		const controller = new AbortController();
 		this.active.set(key, controller);
@@ -532,7 +539,7 @@ export class AutomationRuntime {
 							credential = renewed.mcp;
 							deadline();
 						});
-			renewing = refresh()
+			renewing = measureLatency("authority.check", refresh)
 				.catch((error) => {
 					authorityFailure = safeDiagnostic(error, "execute");
 					controller.abort();
