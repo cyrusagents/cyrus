@@ -1,3 +1,4 @@
+import type { SupervisorTiming } from "../automations/HostedTiming.js";
 import { measureLatency } from "../automations/Latency.js";
 import { readBoundedJson } from "../customer-runtime/Gateway.js";
 import {
@@ -42,13 +43,14 @@ export class HttpSessionDeliveryTransport implements SessionDeliveryTransport {
 		input: SessionDeliveryEnvelope,
 		signal: AbortSignal,
 	): Promise<SessionDeliveryAck> {
-		return measureLatency("session.delivery", () =>
-			this.request(input, signal),
+		return measureLatency("session.delivery", (timing) =>
+			this.request(input, signal, timing),
 		);
 	}
 	private async request(
 		input: SessionDeliveryEnvelope,
 		signal: AbortSignal,
+		timing?: SupervisorTiming,
 	): Promise<SessionDeliveryAck> {
 		const envelope = parseSessionDeliveryEnvelope(input);
 		const { workspaceId, apiKey } = this.credentials();
@@ -61,11 +63,13 @@ export class HttpSessionDeliveryTransport implements SessionDeliveryTransport {
 				signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
 				headers: {
 					"Content-Type": "application/json",
+					...timing?.headers,
 					Authorization: `Bearer ${apiKey}`,
 					"X-Cyrus-Team-Id": workspaceId,
 				},
 				body: JSON.stringify(envelope),
 			});
+			timing?.read(response);
 			if (!response.ok) {
 				await response.body?.cancel();
 				throw new Error("Session delivery rejected");

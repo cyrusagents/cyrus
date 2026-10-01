@@ -1,4 +1,13 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import {
+	type HostedTiming,
+	readHostedTiming,
+	type SupervisorTiming,
+} from "./HostedTiming.js";
+
+type FinishLatency = ((failed?: boolean, until?: number) => void) & {
+	readHosted?: (response: Response) => void;
+};
 
 /** Diagnostic data only. No authority, payload, error text, identifier or wall clock. */
 const stages = [
@@ -32,6 +41,14 @@ const stages = [
 ] as const;
 export type LatencyStage = (typeof stages)[number];
 const permitted = new Set<string>(stages);
+const supervisorStages = new Set<LatencyStage>([
+	"authorize.admit",
+	"authorize.renew",
+	"progress",
+	"result",
+	"interrupt",
+	"session.delivery",
+]);
 const context = new AsyncLocalStorage<LatencyTrace>();
 const MAX_SPANS = 128;
 const MAX_TRACES = 64;
@@ -42,16 +59,14 @@ interface Span {
 	startMs: number;
 	durationMs?: number;
 	failed?: true;
+	hosted?: HostedTiming;
 }
 export class LatencyTrace {
 	private readonly spans: Span[] = [];
 	private dropped = 0;
 	private ended?: number;
 	constructor(private readonly start: number = performance.now()) {}
-	begin(
-		stage: LatencyStage,
-		at = performance.now(),
-	): (failed?: boolean, until?: number) => void {
+	begin(stage: LatencyStage, at = performance.now()): FinishLatency {
 		// Enforce the same allowlist at runtime even for an untyped callback caller.
 		if (!permitted.has(stage)) return () => {};
 		if (this.ended !== undefined || this.spans.length >= MAX_SPANS) {
@@ -60,11 +75,20 @@ export class LatencyTrace {
 		}
 		const span: Span = { stage, startMs: milliseconds(at - this.start) };
 		this.spans.push(span);
-		return (failed = false, until = performance.now()) => {
+		const finish: FinishLatency = (
+			failed = false,
+			until = performance.now(),
+		) => {
 			if (span.durationMs !== undefined) return;
 			span.durationMs = milliseconds(until - at);
 			if (failed) span.failed = true;
 		};
+		if (supervisorStages.has(stage))
+			finish.readHosted = (response) => {
+				const timing = readHostedTiming(response);
+				if (timing) span.hosted = timing;
+			};
+		return finish;
 	}
 	mark(stage: LatencyStage): void {
 		this.begin(stage)();
@@ -82,20 +106,30 @@ export class LatencyTrace {
 			elapsedMs: milliseconds((this.ended ?? performance.now()) - this.start),
 			finished: this.ended !== undefined,
 			droppedSpans: this.dropped,
-			spans: this.spans.map((s) => ({ ...s })),
+			spans: this.spans.map((s) => ({
+				...s,
+				...(s.hosted && { hosted: structuredClone(s.hosted) }),
+			})),
 		};
 	}
 }
-export function beginLatency(stage: LatencyStage): (failed?: boolean) => void {
+export function beginLatency(stage: LatencyStage): FinishLatency {
 	return context.getStore()?.begin(stage) ?? (() => {});
 }
 export async function measureLatency<T>(
 	stage: LatencyStage,
-	work: () => Promise<T>,
+	work: (timing?: SupervisorTiming) => Promise<T>,
 ): Promise<T> {
 	const end = beginLatency(stage);
 	try {
-		const value = await work();
+		const value = await work(
+			end.readHosted
+				? {
+						headers: { "X-Cyrus-Latency-Diagnostics": "1" },
+						read: end.readHosted,
+					}
+				: undefined,
+		);
 		end();
 		return value;
 	} catch (error) {

@@ -1,5 +1,6 @@
 import { readBoundedJson } from "../customer-runtime/Gateway.js";
 import { AutomationDiagnosticError } from "./Diagnostics.js";
+import type { SupervisorTiming } from "./HostedTiming.js";
 import { measureLatency } from "./Latency.js";
 
 export type AutomationEndpoint =
@@ -48,13 +49,14 @@ export class AutomationHttpGateway implements AutomationGateway {
 					? "authorize.admit"
 					: "authorize.renew"
 				: endpoint,
-			() => this.request(endpoint, body, signal),
+			(timing) => this.request(endpoint, body, signal, timing),
 		);
 	}
 	private async request(
 		endpoint: AutomationEndpoint,
 		body: Record<string, unknown>,
 		signal: AbortSignal,
+		timing?: SupervisorTiming,
 	): Promise<unknown> {
 		const authorizePhase =
 			endpoint === "authorize" &&
@@ -71,6 +73,7 @@ export class AutomationHttpGateway implements AutomationGateway {
 				signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
 				headers: {
 					"Content-Type": "application/json",
+					...timing?.headers,
 					...(endpoint === "authorize"
 						? {
 								"X-Cyrus-Customer-Read-Set": "1",
@@ -104,6 +107,7 @@ export class AutomationHttpGateway implements AutomationGateway {
 				code: "transport_failed",
 			});
 		});
+		timing?.read(response);
 		if (!response.ok) {
 			await response.body?.cancel();
 			throw new AutomationDiagnosticError(

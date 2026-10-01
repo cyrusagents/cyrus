@@ -107,3 +107,34 @@ Runtime monotonic offsets cannot establish cross-host wall-clock alignment. Save
 ACK→UI label also needs existing per-message UI reconciliation timestamps. A request
 for already-recorded safe metadata was sent in the existing Hosted owner thread;
 no new prompt, retry or live access is needed to establish what is missing.
+
+## Optional Hosted handler metrics (TIMING-READER-1001)
+
+The runtime reader implements Hosted00847f21's
+`docs/customer-agents/latency-measurement.md`. Only collected supervisor callback
+spans send `X-Cyrus-Latency-Diagnostics:1`: authorize/admit or renew, progress,
+result, interrupt and session delivery. Model/provider/MCP requests do not receive
+this header. Disabled collection or a full trace sends no diagnostic header.
+
+A response must have exact `X-Cyrus-Hosted-Timing:1`;401 never supplies accepted
+measurements. Parse at most1024 UTF-8 bytes of Server-Timing, at most8 unique metrics:
+`cyrus_auth`, `cyrus_body`, `cyrus_event`, `cyrus_admit`, `cyrus_commit`,
+`cyrus_callback`, `cyrus_interrupt`, `cyrus_total`. Values use non-negative decimal
+milliseconds with at most3 fraction digits, finite and <=600000. Optional descriptions
+are exactly `failed` or `capped`; capped requires600000 and means a lower bound.
+Unknown metrics/parameters/descriptions, duplicate metrics, invalid numbers, oversize
+or missing data make the entire optional header unavailable. Parsing never changes
+response success/failure, validation, authority or ACK handling. Old Hosted versions
+may ignore opt-in; missing measurements stay absent, not zero.
+
+Each callback span may contain `hosted`, a map of these names to `{durationMs,flag?}`.
+No raw headers are retained. Missing metrics are not added. Runtime `durationMs`
+continues to measure transport through response parsing/ACK validation; Hosted
+metrics measure completed handler stages and are neither pure SQL nor network time.
+`cyrus_total` includes its inner metrics, not platform/tunnel time before entry or
+response transmission afterward. Keep these clocks separate; do not sum inner
+metrics with total or call the residual pure network latency. The reader performs
+no residual calculation, interpolation, authority cache or historical reconstruction.
+Authenticated failed callbacks may retain fixed failure flags; bad diagnostics
+cannot acknowledge an invalid receipt. Existing64x128 trace bounds, opt-in status
+retrieval and process-only retention remain unchanged.

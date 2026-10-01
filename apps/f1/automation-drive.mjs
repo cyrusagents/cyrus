@@ -1018,6 +1018,21 @@ export async function runAutomationDrive({
 		reply.hijack();
 		await session.transport.handleRequest(request.raw, reply.raw, request.body);
 	});
+	if (latencyOnly)
+		app.addHook("onSend", async (request, reply, payload) => {
+			if (
+				request.headers["x-cyrus-latency-diagnostics"] === "1" &&
+				request.headers.authorization === `Bearer ${supervisorKey}`
+			) {
+				reply
+					.header("X-Cyrus-Hosted-Timing", "1")
+					.header(
+						"Server-Timing",
+						"cyrus_auth;dur=0.250, cyrus_total;dur=1.000",
+					);
+			}
+			return payload;
+		});
 	await app.listen({ host: "127.0.0.1", port: 0 });
 	const origin = `http://127.0.0.1:${app.server.address().port}`;
 	const realFetch = globalThis.fetch;
@@ -1327,10 +1342,29 @@ export async function runAutomationDrive({
 				assert.ok(
 					trace.spans.every((s) =>
 						Object.keys(s).every((k) =>
-							["stage", "startMs", "durationMs", "failed"].includes(k),
+							["stage", "startMs", "durationMs", "failed", "hosted"].includes(
+								k,
+							),
 						),
 					),
 				);
+				for (const callback of trace.spans.filter((s) =>
+					[
+						"authorize.admit",
+						"authorize.renew",
+						"progress",
+						"result",
+						"session.delivery",
+					].includes(s.stage),
+				)) {
+					assert.deepEqual(callback.hosted, {
+						cyrus_auth: { durationMs: 0.25 },
+						cyrus_total: { durationMs: 1 },
+					});
+					assert.ok(
+						callback.durationMs > callback.hosted.cyrus_total.durationMs,
+					);
+				}
 				traces.push(trace);
 			}
 			assert.equal(
