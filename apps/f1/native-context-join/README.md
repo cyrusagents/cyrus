@@ -135,8 +135,15 @@ withdrawal and terminal lost-result assertions remain. All normal references ret
 the model-input assertion; only the additional deliberately forged negative input
 is asserted absent instead.
 
-At installed39781300 / Hostedc6885f6a, the new recovery path passes but the full
-gate is **blocked at read_messages**: Hosted introduced undeclared author/time
-siblings into the strict `{reference,text}` result. Do not remove validation or
-claim this gate passes until the counterpart shape is compatible. The failed
-source is retained as reproducible evidence; no live retry is part of this test.
+The first installed39781300 / Hostedc6885f6a run blocked at read_messages because
+Hosted introduced undeclared author/time siblings into the strict `{reference,text}`
+result. That failed evidence remains preserved. The same committed b73d3b3c driver
+and installed39781300 **pass** against Hosted
+`a65f265730cbb6147588d3cf6e3437d5e13aa4be`, which places bounded provenance inside
+the existing text field. Runtime validation and the installation are unchanged.
+The passed gate includes 11 completed occurrences, 26 model exchanges, two immutable
+negative receipts and one SDK session across three combined-source renewals.
+
+The separate [engineering-to-parent recipe](../../../docs/engineering-parent-acceptance.md)
+identifies the remaining production dispatcher/native parent successor gate. It is
+preparation, not evidence that this context join exercises that path.

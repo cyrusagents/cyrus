@@ -84,6 +84,9 @@ remain controlled.
 
 Missing joined proof: production outbox delivery, interruption/current-authority
 child resume, and a current parent successor actually consuming those findings.
+The [engineering-to-parent acceptance recipe](engineering-parent-acceptance.md)
+now identifies the exact production callbacks/dispatchers, one-customer fixture
+and per-event replay assertions needed; that recipe is not a passing gate.
 Both native direct and assigned-ticket child lifecycles, actual Hosted child
 admission, durable findings and terminal lost-ACK recovery now pass. Include
 combined parent→Linear-only child and worker widening denial; no sponsor/private

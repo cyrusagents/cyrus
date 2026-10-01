@@ -63,7 +63,7 @@ explicitly. Build source using `scripts/build-local-artifact.mjs`; verify all
 17 installed copies with `scripts/verify-local-artifact.mjs`. No registry publication
 or minimum published version is implied. Coordinator alone owns live installation.
 
-## Actual Hosted join: current blocker
+## Actual Hosted join: preserved failure
 
 Installed39781300 + published Hostedc6885f6a12c7229e2903852496dabc94f2b85286
 with both combined/rejection flags progresses through ordinary memory/work and
@@ -79,3 +79,27 @@ fixture are retained, and the new gate is committed for exact reproduction after
 the counterpart correction. An earlier new-negative-case oracle assertion failed
 before Hosted because it required the deliberately forged reference in model input;
 only that added negative case was corrected, all prior positive assertions retained.
+
+## Actual Hosted join: compatible counterpart passes
+
+Hosted ACK `bf08d8c3-ac19-48b6-aa6e-3a05737bd4cc` published
+`a65f265730cbb6147588d3cf6e3437d5e13aa4be`, restoring `{reference,text}` and
+putting bounded author/time provenance inside text. The unchanged b73d3b3c driver
+and installed39781300 passed the combined + tool-rejection gate in 93.66 seconds
+(94.44 seconds including test startup). No runtime schema relaxation or rebuild.
+
+Actual SQL/HTTP/SDK/native assertions: 11 completed occurrences, 26 model exchanges,
+13 result transmissions and 121 session deliveries; two immutable rejection
+receipts, with the lost rejection ACK replayed twice under one operation key.
+The source write recovers on attempt2; the combined issue-reference mistake is
+corrected on attempt1. The delayed combined read retains one MCP session through
+three renewals, both source bodies and crossed-reference denials. Ordinary lost
+write ACK, evidence-linked verified work, mixed-source withdrawal, fresh survivor
+context and terminal receipt-only recovery after policy change remain passing.
+
+Evidence: `context-rejection-39781300/joined-a65f2657/joined-summary.json` and
+`joined-a65f2657.log` in the issue attachments directory. Driver provenance remains
+`b73d3b3c91125987d15cca70fb8bf0c0cabe1aa2`; later documentation changes do not
+alter the executable fixture. Controlled provider/model checks and prepared outbox
+limitations still apply. This does not establish live responsiveness or the
+production dispatcher/parent successor path.
