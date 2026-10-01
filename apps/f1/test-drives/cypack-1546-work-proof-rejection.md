@@ -93,5 +93,32 @@ The bounded baseline used `CYRUS_NATIVE_JOIN_LOSE_WRITE_ACK=0` without combined 
 memory-rejection flags, stopping at the first reproduced work failure. Preserved
 red evidence: issue attachment `work-rejection-76c9-6a09-red/`, including protocol
 categories, failure history, bounded checkpoint summary and exact helper hashes.
-Positive joined acceptance awaits the published Hosted receipt correction; no
-live retry, runtime upgrade, provider write or accepted WORK-02 claim follows yet.
+
+## Exact passing join
+
+Driver `e1374c058766db5f932fc922b2fd79db6e162259`, installed unchanged6a09 and
+published Hosted `107272ba0f71a339435a0e84677f6b504fefa99c` pass in **130.66 s**.
+Fifteen occurrences complete; two receiver-pause cases intentionally block.
+27 negotiated admissions, 209 checkpoint saves, 38 model exchanges, 180 activity
+deliveries and 18 result transmissions retain the authority/recovery assertions.
+Transmissions include lost ACK retries and a denied callback, not18committed results.
+
+Three immutable proof rejections arrive across four transmissions. All three
+corrected waiting operations have distinct keys and produce one honest reply each.
+Ordinary source-free and provider-bound corrections finish on attempt one; lost
+negative ACK recovers on attempt two. Matching proof still enables the original
+later verification. The47s model wait, same-session renewal, source withdrawal,
+memory/rejection recovery and terminal receipt reconciliation pass unchanged.
+
+The first1072 run reached final evidence but failed its existing memory-rejection
+count: it included the new provider-bound work receipt (three versus two). The
+corrected driver filters that aggregate by remember_context while retaining exact
+separate work-receipt/effect/reply counts. First-run evidence is preserved at
+`work-rejection-1072-6a09/`; passing evidence, exact helper hashes, logs, unchanged
+17/17 artifact provenance and replay instructions are in issue attachment
+`work-rejection-1072-6a09-verified/HANDOFF.md`.
+
+No Runtime executable or wire capability changed. Hosted changed its rejection
+boundary under the existing contract; unknown effects remain uncertain. This is
+controlled installed integration proof, not a live WORK-02 or latency acceptance
+claim. Original5672/8007, live3456/4444 and customer state were untouched.
