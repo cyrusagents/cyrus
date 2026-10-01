@@ -11,6 +11,7 @@ import {
 	type AutomationStep,
 	authorizeTool,
 	permittedToolNames,
+	scopedOutputInstructions,
 	scopedToolDescription,
 	scopedToolSchemas,
 	toolCallSchema,
@@ -179,7 +180,7 @@ class ContainedCodexTurn implements AutomationModel {
 					cwd: "/work",
 					approvalPolicy: "never",
 					sandbox: "danger-full-access",
-					developerInstructions: `This is a contained automation. Available tools: ${JSON.stringify(permittedToolNames(authority))}. Use only these admitted tools for source access and permitted engineering work. If source access is unavailable, report that limitation. Never suggest credential, filesystem, native-tool or alternate connector access as a fallback. Resource authority is fixed by the connection; arguments can only narrow it.`,
+					developerInstructions: `This is a contained automation. Available tools: ${JSON.stringify(permittedToolNames(authority))}. Use only these admitted tools for source access and permitted engineering work. If source access is unavailable, report that limitation. Never suggest credential, filesystem, native-tool or alternate connector access as a fallback. Resource authority is fixed by the connection; arguments can only narrow it.${scopedOutputInstructions(authority)}`,
 				};
 				if (state.native) {
 					const path = await runner.restore(state.native);

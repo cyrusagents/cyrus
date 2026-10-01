@@ -37,9 +37,11 @@ policy gates. Its ACK is Linear comment `9749237a-9f0e-4cf7-89a7-4522ca717354`.
 Hosted is the **only customer Slack consumer**, behind its existing verified
 ingress. It owns configured any-message OR explicit installed-bot mention eligibility,
 unique current customer mapping, enabled trigger, membership/read permission, semantic retry/twin
-deduplication and accepted-thread reply authority. No rejection/error/missing
+deduplication and separate current outbound permission. No rejection/error/missing
 mapping may fall through to ordinary Cyrus. Scheduled reads and private UI chat
-are separate triggers. Runtime does not add a customer event consumer or reply tool.
+are separate triggers. Runtime does not add a customer event consumer. Negotiated scoped `reply` is an
+explicit model operation under Hosted outbound permission; completing a run never
+authorizes an automatic Slack publication.
 
 The ordinary runtime `/slack-webhook` checks current Slack `auth.test` identity and
 `conversations.info` before either `event` or `message` emission. Both direct HMAC
@@ -68,6 +70,19 @@ customer processing requires Hosted verified ingress. No live subscriptions,
 credentials, connection settings or processes are changed by this implementation.
 Sources: [conversations.info](https://docs.slack.dev/reference/methods/conversations.info/),
 [conversation fields](https://docs.slack.dev/reference/objects/conversation-object/).
+
+## October 1 outbound and performance corrections
+
+Customer `slack.send` defaults disabled independently of both intake modes. Only an
+explicit scoped tool can send under current permission and mapping; final results
+remain private. No pending approvals or legacy Connect fallback are introduced.
+See [the negotiated contract](runtime-automations-v1.md#explicit-slack-sends).
+This supersedes historical unconditional source-thread final-response expectations.
+
+Connor accepted a bounded correlated diagnosis and PR-local latency corrections;
+broad/shared performance optimization is deferred to CYHOST-1330. Remaining measured
+latency may be documented for review/team-only testing, without waiving functional,
+isolation, recovery, truthful UI or Slack permission acceptance.
 
 ## Evidence and remaining review gates
 
