@@ -38,6 +38,12 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		denials: 0,
 	};
 	const combined = process.env.CYRUS_NATIVE_JOIN_COMBINED === "1";
+	const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
+	async function nativeResult(value, key) {
+		if (!toolRejection) return value;
+		const { checkNativeResult } = await import("./native-tool-rejection");
+		return checkNativeResult(value, key);
+	}
 	const associations = new Map();
 	const originalNative = new Map(),
 		terminalInputs = new Map(),
@@ -468,13 +474,16 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				await sql`select customer_native_source_plan(${ctx.tokenHash},${ctx.sessionId}::uuid,${tool},${args}::jsonb,${key ?? null}) plan`;
 			const visible = await validateNativeSources(
 				a,
-				plan,
+				await nativeResult(plan, key),
 				tool !== "read_context",
 				async () => {},
 			);
-			return (
-				await sql`select customer_native_invoke(${ctx.tokenHash},${ctx.sessionId}::uuid,${tool},${args}::jsonb,${key ?? null},${`{${visible.join(",")}}`}::uuid[]) v`
-			)[0].v;
+			return nativeResult(
+				(
+					await sql`select customer_native_invoke(${ctx.tokenHash},${ctx.sessionId}::uuid,${tool},${args}::jsonb,${key ?? null},${`{${visible.join(",")}}`}::uuid[]) v`
+				)[0].v,
+				key,
+			);
 		},
 	});
 	async function event(f, input, eventId = crypto.randomUUID()) {
@@ -545,6 +554,25 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				evidence.mcpAuthorizations > 0,
 				"Full SDK authorization remains required",
 			);
+			let rejectionReceipts = 0;
+			if (toolRejection) {
+				const [rejected] =
+					await sql`select count(*)::int n from customer_native_rejections r join customer_native_grants g on g.id=r.grant_id where g.binding_id in (${source.id}::uuid,${both.id}::uuid)`;
+				rejectionReceipts = rejected.n;
+				assert.equal(
+					rejectionReceipts,
+					2,
+					"one immutable negative receipt per invalid operation despite lost ACK",
+				);
+				for (const [customer, marker] of [
+					[source.customer, "WITHDRAWN_SOURCE_MARKER"],
+					[both.customer, "COMBINED_SOURCE_MARKER"],
+				]) {
+					const [effects] =
+						await sql`select count(*)::int n from customer_facts where customer_id=${customer}::uuid and body=${marker}`;
+					assert.equal(effects.n, 1, "one corrected memory effect");
+				}
+			}
 			const [facts] =
 				await sql`select count(*)::int n from customer_facts where customer_id=${main.customer} and body='JOIN_REMEMBERED_DETAIL'`;
 			assert.equal(facts.n, 1);
@@ -564,6 +592,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				...evidence,
 				passed: true,
 				memoryEffects: facts.n,
+				rejectionReceipts,
 				workStatus: thread.status,
 				linkedMessages: linked.n,
 				sessions: sessions.n,

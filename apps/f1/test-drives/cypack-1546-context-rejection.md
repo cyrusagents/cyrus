@@ -62,3 +62,20 @@ The installed driver differs only in import roots; invoke its exported function
 explicitly. Build source using `scripts/build-local-artifact.mjs`; verify all
 17 installed copies with `scripts/verify-local-artifact.mjs`. No registry publication
 or minimum published version is implied. Coordinator alone owns live installation.
+
+## Actual Hosted join: current blocker
+
+Installed39781300 + published Hostedc6885f6a12c7229e2903852496dabc94f2b85286
+with both combined/rejection flags progresses through ordinary memory/work and
+source rejection lost-ACK recovery. That source occurrence returns its immutable
+negative receipt twice under one key, corrects the write on attempt2, then source
+read/withdrawal checks pass. It next blocks at combined read_messages sequence1.
+
+Hosted84dd added timestamp/threadTimestamp/author alongside reference/text, while
+the current runtime intentionally rejects undeclared fields. The full join is not
+accepted. Hosted handoff6262ef8b requests bounded provenance within existing text
+or explicit negotiation; runtime validation is unchanged. Logs and partial private
+fixture are retained, and the new gate is committed for exact reproduction after
+the counterpart correction. An earlier new-negative-case oracle assertion failed
+before Hosted because it required the deliberately forged reference in model input;
+only that added negative case was corrected, all prior positive assertions retained.

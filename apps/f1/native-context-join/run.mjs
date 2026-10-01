@@ -59,6 +59,8 @@ try {
 				runtimeSha,
 				image: process.env.CYRUS_F1_CODEX_IMAGE,
 				combinedSources: process.env.CYRUS_NATIVE_JOIN_COMBINED === "1",
+				toolRejectionScenario:
+					process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1",
 				lostWriteAckScenario:
 					process.env.CYRUS_NATIVE_JOIN_LOSE_WRITE_ACK !== "0",
 				fixture:

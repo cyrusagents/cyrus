@@ -59,6 +59,11 @@ const control = async (body) => {
 	return r.json();
 };
 const loseWriteAck = process.env.CYRUS_NATIVE_JOIN_LOSE_WRITE_ACK !== "0";
+const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
+let correctedRejection = false,
+	lostRejectionAck = false;
+const rejectionKeys = new Set();
+let rejectionTransmissions = 0;
 let stage = "setup",
 	modelContext,
 	models = 0,
@@ -122,18 +127,33 @@ async function modelResponse(body) {
 			call = { name: "get_issue", arguments: { reference: combinedThread } };
 		if (sequence === 5)
 			call = { name: "read_thread", arguments: { reference: combinedIssue } };
-		if (sequence === 6)
+		if (sequence === 6 || (toolRejection && sequence === 7)) {
+			if (toolRejection && sequence === 7) {
+				const output = JSON.parse(modelContext.state.messages.at(-1).content);
+				assert.equal(
+					JSON.parse(output.items[0].text).code,
+					"invalid_reference",
+				);
+				assert.equal(JSON.parse(output.items[0].text).status, "denied");
+				correctedRejection = true;
+			}
 			call = {
 				name: "remember_context",
-				arguments: { kind: "source", body: "COMBINED_SOURCE_MARKER" },
+				arguments: {
+					kind: "source",
+					body: "COMBINED_SOURCE_MARKER",
+					...(toolRejection &&
+						sequence === 6 && { evidence_reference: combinedIssue }),
+				},
 			};
+		}
 		nativeInputEvidence.push({
 			sequence,
 			issue: text.includes("Scoped private body"),
 			slack: text.includes("Only mapped Slack channel"),
 			denial: text.includes("not issued by the current MCP session"),
 		});
-		if (sequence >= 7) {
+		if (sequence >= (toolRejection ? 8 : 7)) {
 			assert.ok(
 				text.includes("Scoped private body"),
 				"native model received the admitted Linear issue body",
@@ -187,12 +207,26 @@ async function modelResponse(body) {
 				outcome_reference: current.metadata.outcomes[0].reference,
 			},
 		};
-	else if (stage === "source-write" && sequence === 0)
+	else if (
+		stage === "source-write" &&
+		(sequence === 0 || (toolRejection && sequence === 1))
+	) {
+		if (sequence === 1)
+			assert.deepEqual(modelContext.state.nativeContextReceipts, [
+				{ name: "remember_context", status: "denied" },
+			]);
 		call = {
 			name: "remember_context",
-			arguments: { kind: "source", body: "WITHDRAWN_SOURCE_MARKER" },
+			arguments: {
+				kind: "source",
+				body: "WITHDRAWN_SOURCE_MARKER",
+				...(toolRejection &&
+					sequence === 0 && {
+						evidence_reference: "10000000-0000-4000-8000-000000000001",
+					}),
+			},
 		};
-	else if (stage === "source-read")
+	} else if (stage === "source-read")
 		assert.ok(
 			current.entries.some((e) => e.body === "WITHDRAWN_SOURCE_MARKER"),
 		);
@@ -203,12 +237,32 @@ async function modelResponse(body) {
 	}
 	if (call) {
 		assert.ok(names.includes(call.name));
-		for (const key of ["reference", "evidence_reference", "outcome_reference"])
-			if (call.arguments[key])
+		for (const key of [
+			"reference",
+			"evidence_reference",
+			"outcome_reference",
+		]) {
+			if (!call.arguments[key]) continue;
+			if (
+				toolRejection &&
+				stage === "source-write" &&
+				sequence === 0 &&
+				key === "evidence_reference"
+			) {
+				// This additional negative case deliberately models a forged reference.
+				// All pre-existing positive references, including the combined issue
+				// reference confused with input evidence, retain the original assertion.
+				assert.equal(
+					call.arguments[key],
+					"10000000-0000-4000-8000-000000000001",
+				);
+				assert.equal(text.includes(call.arguments[key]), false);
+			} else
 				assert.ok(
 					text.includes(call.arguments[key]),
 					"reference present in native model input",
 				);
+		}
 	}
 	const item = call
 		? {
@@ -285,6 +339,30 @@ globalThis.fetch = async (url, init) => {
 		toolCounts[body.params.name] = (toolCounts[body.params.name] ?? 0) + 1;
 	if (request.pathname.endsWith("/result")) resultSendCount++;
 	const response = await nativeFetch(new URL(request.pathname, local), init);
+	if (
+		toolRejection &&
+		stage === "source-write" &&
+		response.ok &&
+		request.pathname === "/mcp" &&
+		body?.method === "tools/call" &&
+		body.params.name === "remember_context"
+	) {
+		const data = await response.clone().json();
+		if (data.result?.structuredContent?.kind === "tool_rejection") {
+			assert.equal(data.result.isError, true);
+			assert.equal(
+				data.result.structuredContent.operationKey,
+				body.params._meta.idempotencyKey,
+			);
+			rejectionKeys.add(body.params._meta.idempotencyKey);
+			rejectionTransmissions++;
+			if (!lostRejectionAck) {
+				lostRejectionAck = true;
+				await response.body?.cancel();
+				throw Error("Controlled lost rejection ACK");
+			}
+		}
+	}
 	if (stage.startsWith("combined-") && response.ok) {
 		if (request.pathname.endsWith("/authorize")) {
 			const admission = await response.clone().json();
@@ -518,6 +596,10 @@ async function complete(label, which = "main", prepared) {
 	throw Error(`Joined ${stage} timed out`);
 }
 try {
+	assert.ok(
+		!toolRejection || fixture.combined,
+		"Tool rejection gate requires combined source mode",
+	);
 	if (fixture.combined) {
 		const capabilities = await nativeFetch(
 			`${runtimeOrigin}/api/automations/v1/capabilities`,
@@ -546,6 +628,12 @@ try {
 	await complete("work-verify");
 
 	await complete("source-write", "source");
+	if (toolRejection) {
+		assert.equal(lostRejectionAck, true);
+		assert.equal(rejectionKeys.size, 1);
+		assert.equal(rejectionTransmissions, 2);
+		assert.equal(statuses.at(-1).attempts, 2);
+	}
 	await complete("source-read", "source");
 	const old = sourceSessions.at(-1);
 	assert.ok(old);
@@ -596,8 +684,14 @@ try {
 	assert.ok(hosted.reconciliations > 0);
 	if (loseWriteAck) assert.ok(hosted.interruptions > 0);
 	assert.equal(hosted.lostResult, true);
+	if (toolRejection) assert.equal(correctedRejection, true);
 	const summary = {
 		passed: true,
+		toolRejectionScenario: toolRejection,
+		correctedRejection,
+		lostRejectionAck,
+		rejectionTransmissions,
+		rejectionOperationCount: rejectionKeys.size,
 		lostWriteAckScenario: loseWriteAck,
 		combinedSources: fixture.combined,
 		combinedRenewals,

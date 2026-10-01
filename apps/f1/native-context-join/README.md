@@ -117,3 +117,26 @@ This gate proves queued next-occurrence events and both child session lifecycles
 with ordered timeline receipts. It still manually delivers prepared outbox rows;
 it does not establish signed ingress, production wake/dispatch, parent successor
 consumption, live ticket assignment or UI reload. Keep those gaps explicit.
+
+## Native rejected-write correction
+
+`CYRUS_NATIVE_JOIN_TOOL_REJECTION=1` requires `CYRUS_NATIVE_JOIN_COMBINED=1`
+and Hosted containing the immutable native rejection migration/helper (c6885f6a
+or successor). The fixture uses production `checkNativeResult` for source-plan
+and direct invoke results; it does not classify SQL exceptions itself.
+
+One new source occurrence deliberately invents an evidence reference, loses the
+committed rejection ACK, recovers the same operation key, and corrects the call.
+The combined occurrence separately mistakes an actual issued issue reference for
+input evidence, receives a denied result and corrects it in the same attempt.
+SQL must contain two immutable rejection receipts and one corrected fact per
+occurrence. The 47-second model delay/renewal, source text, crossed-reference,
+withdrawal and terminal lost-result assertions remain. All normal references retain
+the model-input assertion; only the additional deliberately forged negative input
+is asserted absent instead.
+
+At installed39781300 / Hostedc6885f6a, the new recovery path passes but the full
+gate is **blocked at read_messages**: Hosted introduced undeclared author/time
+siblings into the strict `{reference,text}` result. Do not remove validation or
+claim this gate passes until the counterpart shape is compatible. The failed
+source is retained as reproducible evidence; no live retry is part of this test.
