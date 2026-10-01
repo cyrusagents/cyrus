@@ -91,3 +91,29 @@ source_validation includes credential/permission/provider work, not only
 provider RTT. Do not sum overlapping metrics. Initialize may involve several
 SDK requests, so no individual response is attributed to its entire span.
 These diagnostics do not change authority, MCP payloads, responses or receipts.
+
+## Registered entry-point correction
+
+E41 passive9e15/bf46 greeting1128b881 still made nine catalogs: runtime25.228s,
+first native15.514s, foreground43.814s. Catalogs totaled13.075s; their nested
+Hosted totals9.568s leave about3.507s across transport/SDK/client overhead, not
+an additional independent stage. Provider headers/body totaled1.438s. Actual
+container initialization took210ms. The post-context check12.313–13.457s was
+followed by model-entry catalog13.486–15.274s.
+
+The registered factory wrapped the contained adapter without forwarding its
+`nextAuthorization` contract. Earlier native profiles constructed the adapter
+directly and therefore missed this production wiring. The correction makes the
+registered factory's `open` pure and its opened adapters authorize `next` before
+any effect. Startup still checks private login readiness, and the broker still
+reads/validates current credentials after current authorization for every provider
+request. Messages mode also waits for current authorization before sending.
+Neither completed permissions nor credential contents are cached by this change.
+
+`CYRUS_F1_REGISTERED_RUNTIME=1` selects the actual configured factory in the
+installed catalog profile, including its readiness probes, private SQLite,
+supervisor HTTP routes, context preparation, MCP SDK and native Docker process.
+Its controlled providers use a synthetic private login only. Baseline9e15 gives
+nine catalogs per cold/warm greeting at150ms MCP delay; at1500ms it gives ten
+including watchdog work. This correction targets one serial request, not all
+remaining authority latency or the foreground/runtime timing difference.

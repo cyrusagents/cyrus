@@ -378,16 +378,27 @@ export function registerConfiguredAutomations(
 		tools: (authority, credential, signal) =>
 			new ScopedAutomationMcpClient(origin, authority, credential, signal),
 		model: {
-			async next(messages, authority, signal) {
-				return messagesModel.next(messages, authority, signal);
+			nextAuthorization: "in-flight-v1",
+			async next() {
+				throw new Error("Configured model requires an admitted session");
 			},
 			async open(context) {
 				if (configuration().harness === "codex") {
-					if (codexReason || !broker || (await broker.readiness()))
+					// Opening must stay pure so preparation can join the still-running
+					// authority check. Startup verifies login readiness; respond() reads
+					// and validates current credentials after authorization on every request.
+					if (codexReason || !broker)
 						throw new Error("Contained Codex unavailable");
 					return codexModel.open(context);
 				}
-				return messagesModel;
+				return {
+					nextAuthorization: "in-flight-v1",
+					async next(messages, authority, signal) {
+						await context.authorize();
+						signal.throwIfAborted();
+						return messagesModel.next(messages, authority, signal);
+					},
+				};
 			},
 		},
 		store: new AutomationCheckpointStore(

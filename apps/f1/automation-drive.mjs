@@ -18,7 +18,10 @@ import {
 import { AutomationHttpGateway } from "../../packages/edge-worker/dist/automations/Gateway.js";
 import { AutomationLedger } from "../../packages/edge-worker/dist/automations/Ledger.js";
 import { ConfiguredAutomationMessagesModel } from "../../packages/edge-worker/dist/automations/Model.js";
-import { registerAutomationRoutes } from "../../packages/edge-worker/dist/automations/register.js";
+import {
+	registerAutomationRoutes,
+	registerConfiguredAutomations,
+} from "../../packages/edge-worker/dist/automations/register.js";
 import { ScopedAutomationMcpClient } from "../../packages/edge-worker/dist/automations/ScopedMcpClient.js";
 import { DockerSandbox } from "../../packages/edge-worker/dist/customer-runtime/DockerSandbox.js";
 
@@ -53,6 +56,7 @@ export async function runAutomationDrive({
 	sessionDeliveryAuthority = false,
 	lifecycleAuthority = false,
 	latencyOnly = false,
+	registeredRuntime = false,
 	latencyReadSet = false,
 	latencyNativeContext = false,
 	latencyMcpMilliseconds = 150,
@@ -72,11 +76,18 @@ export async function runAutomationDrive({
 			latencyHostedMilliseconds >= 40 &&
 			latencyHostedMilliseconds <= 2000,
 	);
+	assert.ok(
+		!registeredRuntime || (latencyOnly && codexImage),
+		"Registered profile requires contained latency mode",
+	);
 	const target = codexImage
 		? { harness: "codex", model: "gpt-5.5" }
 		: { harness: "claude", model: "claude-fixture" };
 	const directory = await mkdtemp(join(tmpdir(), "cyrus-automation-f1-"));
-	const checkpoints = join(directory, "checkpoints");
+	const checkpoints = join(
+		directory,
+		registeredRuntime ? "automation-checkpoints-v1" : "checkpoints",
+	);
 	const definitions = new Map(),
 		grants = new Map(),
 		sessions = new Map(),
@@ -1395,8 +1406,39 @@ export async function runAutomationDrive({
 	}
 	let runtimeApp, runtime, runtimeOrigin;
 	let modelEnabled = true;
-	const ledger = new AutomationLedger(join(directory, "ledger"), "workspace-a");
+	const ledger = registeredRuntime
+		? { status: (...args) => runtime.status(...args), close() {} }
+		: new AutomationLedger(join(directory, "ledger"), "workspace-a");
+	const savedEnv = new Map();
+	function fixtureEnv(name, value) {
+		if (!savedEnv.has(name)) savedEnv.set(name, process.env[name]);
+		process.env[name] = value;
+	}
 	function makeRuntime(diagnostics = latencyOnly) {
+		if (registeredRuntime) {
+			for (const [name, value] of Object.entries({
+				CYRUS_TEAM_ID: "workspace-a",
+				CYRUS_API_KEY: supervisorKey,
+				CYRUS_APP_URL: "https://automation.fixture",
+				CYRUS_DEFAULT_RUNNER: "codex",
+				CYRUS_CODEX_DEFAULT_MODEL: "gpt-5.5",
+				CODEX_HOME: join(directory, "fixture-codex-login"),
+				CYRUS_CONTAINED_CODEX_IMAGE: codexImage,
+				CYRUS_CONTAINED_DOCKER_PATH:
+					process.env.CYRUS_TEST_DOCKER_PATH || "/usr/local/bin/docker",
+				CYRUS_CONTAINED_DOCKER_HOST:
+					process.env.CYRUS_TEST_DOCKER_HOST || "unix:///var/run/docker.sock",
+				CYRUS_AUTOMATION_LATENCY_DIAGNOSTICS: diagnostics ? "1" : "0",
+				CYRUS_AUTOMATION_LATENCY_RETENTION: latencyRetention ? "1" : "0",
+			}))
+				fixtureEnv(name, value);
+			runtimeApp = Fastify({ logger: false });
+			runtime = registerConfiguredAutomations(runtimeApp, directory, () => ({
+				defaultRunner: "codex",
+				codexDefaultModel: "gpt-5.5",
+			}));
+			return runtimeApp;
+		}
 		runtime = new AutomationRuntime({
 			latencyDiagnostics: diagnostics,
 			...(latencyRetention && {
@@ -1442,7 +1484,8 @@ export async function runAutomationDrive({
 			model:
 				(catalogProfile && nativeModel
 					? {
-							// Match the registered factory: preparation itself is not opted in.
+							// Historical serial wrapper for the legacy tools profile.
+							// Use registeredRuntime for actual current factory profiling.
 							open: (context) => nativeModel.open(context),
 							next: (...args) => nativeModel.next(...args),
 						}
@@ -1946,6 +1989,7 @@ export async function runAutomationDrive({
 			assert.equal(counts.resultCommits, 2);
 			const summary = {
 				passed: true,
+				registeredRuntime,
 				latencyReadSet,
 				latencyNativeContext,
 				lifecycleAuthority,
@@ -2921,6 +2965,10 @@ export async function runAutomationDrive({
 		for (const session of sessions.values()) await session.server.close();
 		await app.close();
 		globalThis.fetch = realFetch;
+		for (const [name, value] of savedEnv) {
+			if (value === undefined) delete process.env[name];
+			else process.env[name] = value;
+		}
 	}
 }
 

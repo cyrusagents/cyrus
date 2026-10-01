@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { CodexLoginBroker } from "cyrus-codex-runner";
 import Fastify from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationRuntime } from "../src/automations/AutomationRuntime.js";
@@ -25,7 +26,11 @@ import {
 	toolCallSchema,
 } from "../src/automations/contract.js";
 import { AutomationLedger } from "../src/automations/Ledger.js";
-import { modelReadiness } from "../src/automations/Model.js";
+import {
+	type AutomationModelContext,
+	ConfiguredAutomationMessagesModel,
+	modelReadiness,
+} from "../src/automations/Model.js";
 import { registerConfiguredAutomations } from "../src/automations/register.js";
 import { latestTick } from "../src/automations/scheduling.js";
 
@@ -1018,6 +1023,58 @@ it.each(
 	).toBe(3);
 });
 
+it.each([
+	"allowed",
+	"revoked",
+	"aborted",
+])("registered Messages adapter preserves pure open and authorizes next: %s", async (mode) => {
+	vi.stubEnv("CYRUS_TEAM_ID", "workspace-a");
+	vi.stubEnv("CYRUS_API_KEY", "supervisor-fixture");
+	vi.stubEnv("CYRUS_APP_URL", "https://hosted.fixture");
+	vi.stubEnv("CYRUS_DEFAULT_RUNNER", "claude");
+	const app = Fastify();
+	const runtime = registerConfiguredAutomations(app, await directory(), () => ({
+		defaultRunner: "claude",
+		claudeDefaultModel: "claude-fixture",
+	}));
+	const next = vi
+		.spyOn(ConfiguredAutomationMessagesModel.prototype, "next")
+		.mockResolvedValue({ type: "result", text: "Hi" });
+	try {
+		await app.ready();
+		const controller = new AbortController();
+		let finish!: () => void;
+		const authorize = vi.fn(async () => {
+			await new Promise<void>((resolve) => {
+				finish = resolve;
+			});
+			if (mode === "revoked") throw new Error("revoked");
+		});
+		const context = {
+			authorize,
+			signal: controller.signal,
+		} as AutomationModelContext;
+		const registered = runtime.options.model;
+		expect(registered.nextAuthorization).toBe("in-flight-v1");
+		const turn = await registered.open!(context);
+		expect(authorize).not.toHaveBeenCalled();
+		expect(next).not.toHaveBeenCalled();
+		const pending = turn.next([], authority(), controller.signal);
+		const outcome =
+			mode === "allowed"
+				? expect(pending).resolves.toEqual({ type: "result", text: "Hi" })
+				: expect(pending).rejects.toThrow();
+		expect(next).not.toHaveBeenCalled();
+		if (mode === "aborted") controller.abort(new Error("aborted"));
+		finish();
+		await outcome;
+		expect(next).toHaveBeenCalledTimes(mode === "allowed" ? 1 : 0);
+	} finally {
+		next.mockRestore();
+		await app.close();
+	}
+});
+
 it.skipIf(!process.env.CYRUS_TEST_CODEX_IMAGE)(
 	"negotiates configured Codex readiness only after private login and actual isolated app-server initialization",
 	async () => {
@@ -1049,11 +1106,15 @@ it.skipIf(!process.env.CYRUS_TEST_CODEX_IMAGE)(
 		);
 		vi.stubEnv("CYRUS_CONTAINED_DOCKER_HOST", "unix:///var/run/docker.sock");
 		const app = Fastify();
-		registerConfiguredAutomations(app, await directory(), () => ({
-			defaultRunner: "codex",
-			codexDefaultModel: "gpt-5.5",
-			claudeDefaultModel: "opus",
-		}));
+		const runtime = registerConfiguredAutomations(
+			app,
+			await directory(),
+			() => ({
+				defaultRunner: "codex",
+				codexDefaultModel: "gpt-5.5",
+				claudeDefaultModel: "opus",
+			}),
+		);
 		try {
 			await app.ready();
 			const result = await app.inject({
@@ -1071,6 +1132,21 @@ it.skipIf(!process.env.CYRUS_TEST_CODEX_IMAGE)(
 				capabilities: { engineering: true },
 				minimumPublishedVersion: null,
 			});
+			const readiness = vi.spyOn(CodexLoginBroker.prototype, "readiness");
+			try {
+				const authorize = vi.fn(async () => {});
+				const registered = runtime.options.model;
+				expect(registered.nextAuthorization).toBe("in-flight-v1");
+				const turn = await registered.open!({
+					authorize,
+				} as unknown as AutomationModelContext);
+				expect(turn.nextAuthorization).toBe("in-flight-v1");
+				expect(readiness).not.toHaveBeenCalled();
+				expect(authorize).not.toHaveBeenCalled();
+				await turn.close?.();
+			} finally {
+				readiness.mockRestore();
+			}
 		} finally {
 			await app.close();
 		}

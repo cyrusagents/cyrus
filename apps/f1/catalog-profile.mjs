@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 
 const [prefixArg, sourceSha, evidenceArg, scenario = "greeting"] =
 	process.argv.slice(2);
+const registeredRuntime = process.env.CYRUS_F1_REGISTERED_RUNTIME === "1";
 const lifecycleAuthority = process.env.CYRUS_F1_LIFECYCLE_AUTHORITY === "1";
 const latencyHostedMilliseconds = Number(
 	process.env.CYRUS_F1_HOSTED_DELAY_MS ?? 40,
@@ -78,6 +79,7 @@ try {
 						latencyReadSet: true,
 						latencyNativeContext: scenario === "context",
 					}),
+			registeredRuntime,
 			sessionDeliveryAuthority: true,
 			lifecycleAuthority,
 			latencyMcpMilliseconds,
