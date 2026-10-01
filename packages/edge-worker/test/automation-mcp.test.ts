@@ -21,14 +21,20 @@ function gate() {
 }
 
 it.each([
-	false,
-	true,
-])("pins initialize/slow writes and reconciles exact keys (session renewal=%s)", async (continuation) => {
-	const resource = {
-		provider: "linear" as const,
-		teamId: "team",
-		issueId: "issue",
-	};
+	[false, false],
+	[true, false],
+	[false, true],
+	[true, true],
+])("pins initialize/slow writes and reconciles exact keys (renewal=%s, slack=%s)", async (continuation, slack) => {
+	const readName = slack ? ("read_messages" as const) : ("get_issue" as const);
+	const writeName = slack ? ("reply" as const) : ("add_comment" as const);
+	const resource = slack
+		? { provider: "slack" as const, channelId: "channel", threadTs: "thread" }
+		: {
+				provider: "linear" as const,
+				teamId: "team",
+				issueId: "issue",
+			};
 	const binding = {
 		id: "stable-occurrence-grant",
 		connectionId: "connection",
@@ -38,6 +44,7 @@ it.each([
 	};
 	const authority: AutomationAuthority = {
 		contractVersion: 1,
+		...(slack && { slackMessages: true }),
 		definition: {
 			id: "automation",
 			workspaceId: "workspace",
@@ -118,7 +125,7 @@ it.each([
 				onsessioninitialized: (id) => sessions.set(id, session!),
 			});
 			session = { server, transport, token };
-			const result = () => ({
+			const result = (key?: string) => ({
 				content: [],
 				structuredContent: {
 					items: [
@@ -131,10 +138,12 @@ it.each([
 						},
 					],
 					nextCursor: null,
+					...(slack &&
+						key && { receipt: { idempotencyKey: key, status: "sent" } }),
 				},
 			});
 			server.registerTool(
-				"get_issue",
+				readName,
 				{ inputSchema: z.object({}).strict() },
 				async () => {
 					calls++;
@@ -151,7 +160,7 @@ it.each([
 				},
 			);
 			server.registerTool(
-				"add_comment",
+				writeName,
 				{ inputSchema: z.object({ text: z.string() }).strict() },
 				async (args, extra) => {
 					calls++;
@@ -163,7 +172,7 @@ it.each([
 					}
 					writing.release();
 					await writeRelease.promise;
-					return result();
+					return result(key);
 				},
 			);
 			await server.connect(transport);
@@ -222,7 +231,7 @@ it.each([
 		const initialTrace = new LatencyTrace();
 		const read = initialTrace.run(() =>
 			client.call(
-				{ name: "get_issue", arguments: {} },
+				{ name: readName, arguments: {} },
 				"read-before",
 				controller.signal,
 			),
@@ -258,7 +267,7 @@ it.each([
 				?.hosted,
 		).toBeUndefined();
 		const write = client.call(
-			{ name: "add_comment", arguments: { text: "first write" } },
+			{ name: writeName, arguments: { text: "first write" } },
 			"slow-write",
 			controller.signal,
 		);
@@ -286,7 +295,7 @@ it.each([
 			await expect(
 				trace.run(() =>
 					client.call(
-						{ name: "get_issue", arguments: {} },
+						{ name: readName, arguments: {} },
 						"diagnostic-read",
 						controller.signal,
 					),
@@ -301,7 +310,7 @@ it.each([
 		}
 		await expect(
 			client.call(
-				{ name: "get_issue", arguments: {} },
+				{ name: readName, arguments: {} },
 				"read-after",
 				controller.signal,
 			),
@@ -314,7 +323,7 @@ it.each([
 				expect(sessions.get(request.session)?.token).toBe(request.token);
 		loseAck = true;
 		const uncertain = {
-			name: "add_comment" as const,
+			name: writeName,
 			arguments: { text: "unchanged payload" },
 		};
 		await expect(
@@ -327,7 +336,7 @@ it.each([
 		oversizedRead = true;
 		await expect(
 			client.call(
-				{ name: "get_issue", arguments: {} },
+				{ name: readName, arguments: {} },
 				"oversized",
 				controller.signal,
 			),
@@ -336,7 +345,7 @@ it.each([
 		slowRead = true;
 		const stopRead = new AbortController();
 		const interrupted = client.call(
-			{ name: "get_issue", arguments: {} },
+			{ name: readName, arguments: {} },
 			"abort",
 			stopRead.signal,
 		);
@@ -350,7 +359,7 @@ it.each([
 		revoked = true;
 		await expect(
 			client.call(
-				{ name: "get_issue", arguments: {} },
+				{ name: readName, arguments: {} },
 				"revoked",
 				controller.signal,
 			),
@@ -368,7 +377,7 @@ it.each([
 		try {
 			await expect(
 				client.call(
-					{ name: "get_issue", arguments: {} },
+					{ name: readName, arguments: {} },
 					"cleanup-fault",
 					controller.signal,
 				),

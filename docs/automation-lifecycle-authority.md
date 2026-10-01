@@ -57,3 +57,22 @@ engineering path. Controlled native profiling keeps both broker/snapshot checks,
 actual SDK transport, two cold/warm native turns and final receipt ordering.
 Exact installed evidence and Hosted implementation ACK are required for handoff;
 controlled timing does not establish live responsiveness.
+
+
+## Automatic context read
+
+Hosted `3fda922bc3d16d98bdd5602a5f3ccb5bde643768` separately supports
+`X-Cyrus-Context-Read-Authority:1` / `contextReadAuthority:"current-call-v1"`.
+Runtime advertises `contextReadAuthority:true` with durable sessions. The exact mode
+requires a validated native-context customer coordinator, never engineering.
+Only automatic initial/recovered `read_context` omits its separate catalog preflight;
+the MCP receiver still checks current authority at the read itself. Model-selected
+tools, post-read fresh validation before context output, local abort/expiry/fencing,
+near-expiry renewal and periodic checks remain. The checkpoint pins the mode;
+unknown/absent/old checkpoints retain the full preflight, and renewal cannot change it.
+Terminal result recovery never reopens context/model work.
+
+This saves one measured redundant boundary, not the overall foreground latency.
+Connor accepted the bounded diagnosis on October 1; broader performance work is
+tracked by [CYHOST-1330](https://linear.app/ceedar/issue/CYHOST-1330). Functional,
+isolation, recovery and truthful activity requirements remain acceptance gates.

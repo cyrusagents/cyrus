@@ -31,6 +31,7 @@ const sample = (attempt = 1): LatencySnapshot => ({
 	retention: "process-memory",
 	attempt,
 	elapsedMs: 100,
+	startedAtEpochMs: 1_790_000_000_000,
 	finished: true,
 	droppedSpans: 0,
 	spans: [
@@ -131,6 +132,8 @@ describe("private optional finished latency retention", () => {
 			{ ...sample(), prompt: "private" },
 			{ ...sample(), finished: false },
 			{ ...sample(), elapsedMs: Infinity },
+			{ ...sample(), startedAtEpochMs: Infinity },
+			{ ...sample(), startedAtEpochMs: -1 },
 			{ ...sample(), spans: [{ stage: "private-tool", startMs: 0 }] },
 			{
 				...sample(),

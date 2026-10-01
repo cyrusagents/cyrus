@@ -265,6 +265,9 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			? { teamId: main.w }
 			: { error: "Denied", status: 401 };
 	const callback = createAutomationCallback({
+		...(process.env.CYRUS_NATIVE_JOIN_CONTEXT_READ_AUTHORITY === "1" && {
+			contextReadAuthority: "current-call-v1",
+		}),
 		...(requireLifecycleAuthority && {
 			lifecycleAuthority: "current-action-v1",
 		}),

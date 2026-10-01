@@ -7,12 +7,14 @@ import {
 	type AutomationAuthority,
 	admissionSchema,
 	authorizeTool,
+	checkpointKey,
 	grantForTool,
 	type McpCredential,
 	permittedToolNames,
 	resourceSchema,
 	scopedToolResult,
 	scopedToolSchemas,
+	slackMessageResult,
 } from "../src/automations/contract.js";
 import { ScopedAutomationMcpClient } from "../src/automations/ScopedMcpClient.js";
 
@@ -170,7 +172,11 @@ it("rejects foreign result metadata and unsupported negotiation values", () => {
 		},
 	};
 	expect(
-		admissionSchema.safeParse({ ...admission, slackChannelRead: true }).success,
+		admissionSchema.safeParse({
+			...admission,
+			slackChannelRead: true,
+			slackMessages: true,
+		}).success,
 	).toBe(true);
 	expect(
 		admissionSchema.safeParse({ ...admission, slackChannelRead: false })
@@ -438,4 +444,89 @@ it.each([
 		await app.close();
 		vi.unstubAllGlobals();
 	}
+});
+
+it("requires explicit channel-send negotiation and current write grant without widening reads", () => {
+	const a = authority();
+	const oldKey = checkpointKey(a);
+	expect(permittedToolNames(a)).not.toContain("reply");
+	a.slackMessages = true;
+	expect(checkpointKey(a)).not.toBe(oldKey);
+	expect(permittedToolNames(a)).toContain("reply");
+	for (const arguments_ of [
+		{ text: "hello" },
+		{ text: "hello", reference: randomUUID() },
+	])
+		expect(() =>
+			authorizeTool(a, { name: "reply", arguments: arguments_ }),
+		).not.toThrow();
+	for (const field of [
+		"channelId",
+		"threadTs",
+		"customerId",
+		"workspaceId",
+		"grantId",
+		"idempotencyKey",
+		"role",
+	])
+		expect(() =>
+			authorizeTool(a, {
+				name: "reply",
+				arguments: { text: "hello", [field]: "forged" },
+			}),
+		).toThrow();
+	a.definition.role = "investigator";
+	expect(permittedToolNames(a)).not.toContain("reply");
+	expect(permittedToolNames(a)).toContain("read_messages");
+	a.definition.role = "coordinator";
+	a.definition.grants[0]!.permissions = ["read"];
+	expect(permittedToolNames(a)).not.toContain("reply");
+	expect(permittedToolNames(a)).toContain("read_thread");
+});
+it("checks exact Slack send receipt, operation and stable bound result", () => {
+	const a = authority();
+	a.slackMessages = true;
+	const g = a.definition.grants[0]!;
+	const call = { name: "reply" as const, arguments: { text: "hello" } };
+	const result = {
+		items: [
+			{
+				grantId: g.id,
+				connectionId: g.connectionId,
+				accountId: g.accountId,
+				resource: g.resource,
+				text: "Sent",
+			},
+		],
+		nextCursor: null,
+		receipt: { idempotencyKey: "operation", status: "sent" },
+	};
+	expect(slackMessageResult(a, call, "operation", result)).toEqual({
+		items: [{ text: "Sent" }],
+		nextCursor: null,
+	});
+	for (const patch of [
+		{ receipt: undefined },
+		{ receipt: { idempotencyKey: "other", status: "sent" } },
+		{ receipt: { idempotencyKey: "operation", status: "pending" } },
+		{ nextCursor: randomUUID() },
+		{ items: [] },
+		{
+			items: [
+				{
+					...result.items[0],
+					resource: {
+						provider: "slack",
+						channelId: "foreign",
+						scope: "channel",
+					},
+				},
+			],
+		},
+	])
+		expect(() =>
+			slackMessageResult(a, call, "operation", { ...result, ...patch }),
+		).toThrow();
+	delete a.slackMessages;
+	expect(() => slackMessageResult(a, call, "operation", result)).toThrow();
 });

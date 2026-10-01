@@ -80,6 +80,7 @@ try {
 						latencyNativeContext: scenario === "context",
 					}),
 			registeredRuntime,
+			contextReadAuthority: process.env.CYRUS_F1_CONTEXT_READ_AUTHORITY === "1",
 			sessionDeliveryAuthority: true,
 			lifecycleAuthority,
 			latencyMcpMilliseconds,

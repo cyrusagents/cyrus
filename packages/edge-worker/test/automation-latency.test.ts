@@ -48,6 +48,21 @@ describe("bounded metadata-only latency diagnostics", () => {
 		markLatency("model.request"); // Outside an admitted trace, no data is retained.
 		expect(first.snapshot().spans).toHaveLength(2);
 	});
+	it("anchors monotonic stages to one numeric runtime epoch for correlation", async () => {
+		const received = performance.now();
+		const earliest = Date.now();
+		await delay(5);
+		const trace = new LatencyTrace(received);
+		trace.begin("dispatch.received", received)(false, received);
+		trace.mark("native.started");
+		trace.finish();
+		const snapshot = trace.snapshot();
+		expect(snapshot.startedAtEpochMs).toBeGreaterThanOrEqual(earliest - 2);
+		expect(snapshot.startedAtEpochMs).toBeLessThanOrEqual(earliest + 2);
+		expect(snapshot.spans[0]!.startMs).toBe(0);
+		expect(snapshot.spans[1]!.startMs).toBeGreaterThanOrEqual(4);
+		expect(trace.snapshot().startedAtEpochMs).toBe(snapshot.startedAtEpochMs);
+	});
 	it("caps and flags spans, rejects non-enumerated labels, snapshots unfinished work", () => {
 		const trace = new LatencyTrace();
 		trace.mark("secret-customer-label" as LatencyStage);

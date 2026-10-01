@@ -539,6 +539,8 @@ it.each([
 		);
 		expect(h.get("X-Cyrus-Session-Delivery")).toBe(enabled ? "1" : null);
 		expect(h.get("X-Cyrus-Lifecycle-Authority")).toBe(enabled ? "1" : null);
+		expect(h.get("X-Cyrus-Context-Read-Authority")).toBe(enabled ? "1" : null);
+		expect(h.get("X-Cyrus-Slack-Messages")).toBe(enabled ? "1" : null);
 		return new Response("{}");
 	});
 	vi.stubGlobal("fetch", fetcher);
@@ -745,4 +747,170 @@ it("pins stored lifecycle mode across checkpoint recovery", async () => {
 	await f.create().wake();
 	expect(f.state.models).toBe(1);
 	expect(f.state.results).toBe(0);
+});
+
+async function contextReadFixture(mode: string | undefined) {
+	const f = await fixture();
+	f.state.lifecycle = "current-action-v1";
+	const context = {
+		mode,
+		reads: 0,
+		checks: 0,
+		checksBeforeRead: [] as number[],
+		revokeAfterRead: false,
+		revokeBeforeRead: false,
+	};
+	const gateway = f.options.gateway.call;
+	f.options.gateway.call = async (endpoint, body) => ({
+		...(await gateway(endpoint, body)),
+		...(endpoint === "authorize" && {
+			nativeContext: {
+				contractVersion: 1,
+				bindingId: "g",
+				scopeRef: "s",
+				permissions: ["read"],
+			},
+			...(context.mode !== undefined && { contextReadAuthority: context.mode }),
+		}),
+	});
+	f.state.onGateway = (endpoint) => {
+		if (endpoint === "progress") {
+			context.checks = 0;
+			if (context.revokeBeforeRead) f.state.revoked = true;
+		}
+	};
+	f.options.tools = () => ({
+		close: async () => {},
+		renew: async (fn: () => Promise<void>) => fn(),
+		revalidate: async () => {
+			context.checks++;
+			if (f.state.revoked) throw Error("Source withdrawn");
+		},
+		call: async () => {
+			context.checksBeforeRead.push(context.checks);
+			if (f.state.revoked) throw Error("Current invocation denied");
+			context.reads++;
+			if (context.revokeAfterRead) f.state.revoked = true;
+			return { items: [{ text: "current context" }], nextCursor: null };
+		},
+	});
+	return { ...f, context };
+}
+it.each([
+	undefined,
+	"future-v2",
+	"current-call-v1",
+])("negotiates only the exact automatic context read mode: %s", async (mode) => {
+	const f = await contextReadFixture(mode);
+	await f.create().wake();
+	expect(f.state.results).toBe(1);
+	expect(f.context.reads).toBe(1);
+	expect(f.context.checksBeforeRead).toEqual([
+		mode === "current-call-v1" ? 0 : 1,
+	]);
+	expect(f.context.checks).toBeGreaterThan(f.context.checksBeforeRead[0]!);
+});
+it.each([
+	"before",
+	"after",
+])("withholds context/model output after withdrawal %s negotiated read", async (when) => {
+	const f = await contextReadFixture("current-call-v1");
+	f.context.revokeBeforeRead = when === "before";
+	f.context.revokeAfterRead = when === "after";
+	await f.create().wake();
+	expect(f.state.models).toBe(0);
+	expect(f.state.results).toBe(0);
+	expect(f.context.reads).toBe(when === "before" ? 0 : 1);
+	expect(
+		f.deliveries.some(
+			(e) =>
+				e.item.kind === "activity" &&
+				"result" in e.item.payload.content &&
+				e.item.payload.content.result !== null,
+		),
+	).toBe(false);
+});
+it("renews near expiry and denies a changed context read mode", async () => {
+	const f = await contextReadFixture("current-call-v1");
+	f.state.credentialTtl = 10000;
+	f.state.onGateway = (endpoint) => {
+		if (endpoint === "progress") f.context.mode = "future-v2";
+	};
+	await f.create().wake();
+	expect(f.state.auth).toBeGreaterThan(1);
+	expect(f.context.reads).toBe(0);
+	expect(f.state.models).toBe(0);
+});
+it.each([
+	undefined,
+	"current-call-v1",
+])("preserves old/checkpoint context read mode on recovery: %s", async (original) => {
+	const f = await contextReadFixture(original);
+	f.state.failModel = true;
+	const first = f.create();
+	await first.wake();
+	await first.stop();
+	f.state.failModel = false;
+	f.context.mode = "current-call-v1";
+	f.advance();
+	await f.create().wake();
+	expect(f.context.reads).toBe(2);
+	expect(f.context.checksBeforeRead).toEqual(
+		original === undefined ? [1, 1] : [0, 0],
+	);
+	expect(f.state.results).toBe(1);
+});
+it("denies changed stored context mode before recovery reads", async () => {
+	const f = await contextReadFixture("current-call-v1");
+	f.state.failModel = true;
+	const first = f.create();
+	await first.wake();
+	await first.stop();
+	f.state.failModel = false;
+	f.context.mode = undefined;
+	f.advance();
+	await f.create().wake();
+	expect(f.context.reads).toBe(1);
+	expect(f.state.results).toBe(0);
+});
+it("replays terminal receipts without context/model reopen under current-call mode", async () => {
+	const f = await contextReadFixture("current-call-v1");
+	f.state.loseResult = true;
+	const first = f.create();
+	await first.wake();
+	await first.stop();
+	const receipts = [...f.receipts];
+	f.advance();
+	await f.create().wake();
+	expect(f.context.reads).toBe(1);
+	expect(f.state.models).toBe(1);
+	expect(f.state.results).toBe(2);
+	expect([...f.receipts]).toEqual(receipts);
+});
+it("keeps model-selected context reads on independent preflight", async () => {
+	const f = await contextReadFixture("current-call-v1");
+	Object.assign(f.options.model, {
+		async next() {
+			f.state.models++;
+			return f.state.models === 1
+				? { type: "tool", call: { name: "read_context", arguments: {} } }
+				: { type: "result", text: "Done" };
+		},
+	});
+	await f.create().wake();
+	expect(f.context.reads).toBe(2);
+	expect(f.context.checksBeforeRead[0]).toBe(0);
+	expect(f.context.checksBeforeRead[1]).toBeGreaterThan(0);
+	expect(f.state.results).toBe(1);
+});
+it("denies expired local authority before a negotiated context call", async () => {
+	const f = await contextReadFixture("current-call-v1");
+	const now = Date.now();
+	f.state.onGateway = (endpoint) => {
+		if (endpoint === "progress")
+			vi.spyOn(Date, "now").mockReturnValue(now + 70000);
+	};
+	await f.create().wake();
+	expect(f.context.reads).toBe(0);
+	expect(f.state.models).toBe(0);
 });

@@ -11,6 +11,7 @@ import {
 	permittedToolNames,
 	scopedToolResult,
 	slackChannelHistorySchema,
+	slackMessageResult,
 } from "./contract.js";
 import { AutomationDiagnosticError } from "./Diagnostics.js";
 import {
@@ -420,6 +421,13 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 					}
 					return output;
 				}
+				if (call.name === "reply" && authority.slackMessages)
+					return slackMessageResult(
+						authority,
+						call,
+						idempotencyKey,
+						result.structuredContent,
+					);
 				const output = scopedToolResult(
 					authority,
 					call,

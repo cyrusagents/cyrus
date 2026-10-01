@@ -324,3 +324,18 @@ A newly claimed attempt starts fresh and never imports saved spans, queues or
 execution state. Missing diagnostics remain absent, not zero. Session execution
 counters, admission, revocation, provider/MCP checks and final ACK barriers are
 unchanged.
+
+
+### Cross-service correlation
+
+New numeric snapshots include `startedAtEpochMs`, captured once at the start of the
+trace. Add a span's `startMs` (and `durationMs` for its end) to derive runtime-observed
+UTC timestamps for dispatch reception, admission, native start/finish and result.
+Durations still use the monotonic clock and do not change if wall time changes.
+The existing authenticated status lookup supplies the occurrence identity; no IDs,
+content or credentials are added to spans. Compare the same occurrence/attempt with
+Hosted and browser evidence and disclose clock skew; do not infer an unobserved
+network interval as queue time. Old saved traces have no epoch anchor and remain
+readable; no timestamp is invented for them. Existing count/size/TTL, private file
+and diagnostics opt-in controls apply unchanged. A resumed attempt starts a new
+trace, without fabricating offline dispatch time.

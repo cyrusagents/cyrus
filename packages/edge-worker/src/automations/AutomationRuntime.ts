@@ -132,6 +132,7 @@ export class AutomationRuntime {
 				sessionActivities: !!this.options.sessions,
 				sessionDeliveryAuthority: !!this.options.sessions,
 				lifecycleAuthority: !!this.options.sessions,
+				contextReadAuthority: !!this.options.sessions,
 				delegation: !!this.options.sessions,
 				scheduledTicks: true,
 				eventInputs: true,
@@ -141,6 +142,7 @@ export class AutomationRuntime {
 				customerSources: !!this.options.sessions,
 				nativeContext: !!this.options.sessions,
 				slackChannelRead: true,
+				slackMessages: !!this.options.sessions,
 				mcpSessionRenewal: true,
 				operatorRecovery: true,
 				ownerInterruption: true,
@@ -322,9 +324,29 @@ export class AutomationRuntime {
 			admission.sessionDeliveryAuthority !== "current-admission-v1"
 		)
 			throw new Error("Lifecycle authority requires current session delivery");
+		if (
+			admission.contextReadAuthority === "current-call-v1" &&
+			(!admission.nativeContext ||
+				admission.authority.definition.role !== "coordinator" ||
+				admission.engineering ||
+				!admission.sessionDelivery ||
+				!this.options.sessions)
+		)
+			throw new Error(
+				"Context read authority requires a native customer coordinator",
+			);
 		const next = executionAuthority(admission);
 		if (isSlackChannel(next) && admission.slackChannelRead !== true)
 			throw new Error("Slack channel reads require negotiated admission");
+		if (
+			admission.slackMessages &&
+			(next.definition.role !== "coordinator" ||
+				next.engineering ||
+				!next.definition.grants.some((g) => g.resource.provider === "slack") ||
+				!admission.sessionDelivery ||
+				!this.options.sessions)
+		)
+			throw new Error("Slack messages require a scoped coordinator session");
 		const engineering = next.engineering;
 		if (next.definition.role === "engineering" || engineering) {
 			const scope = `engineering:${engineering?.assignmentId}`;
@@ -472,6 +494,7 @@ export class AutomationRuntime {
 		let model: AutomationModel | undefined;
 		let contextPrepared = false;
 		let lifecycleAuthority = false;
+		let contextReadAuthority = false;
 		let sandbox: EngineeringSandbox | undefined;
 		const executeCommand = async (
 			state: AutomationCheckpoint,
@@ -583,12 +606,15 @@ export class AutomationRuntime {
 								renewed.mcp.grantId !== admission.mcp.grantId ||
 								renewed.ownerInterruption !== admission.ownerInterruption ||
 								renewed.slackChannelRead !== admission.slackChannelRead ||
+								renewed.slackMessages !== admission.slackMessages ||
 								renewed.customerSources !== admission.customerSources ||
 								renewed.sessionExecutionTiming !==
 									admission.sessionExecutionTiming ||
 								renewed.sessionDeliveryAuthority !==
 									admission.sessionDeliveryAuthority ||
 								renewed.lifecycleAuthority !== admission.lifecycleAuthority ||
+								renewed.contextReadAuthority !==
+									admission.contextReadAuthority ||
 								digest(renewed.sessionDelivery ?? null) !==
 									digest(admission.sessionDelivery ?? null) ||
 								checkpointKey(next) !== key ||
@@ -616,8 +642,8 @@ export class AutomationRuntime {
 		// Only the exact negotiated server handlers can replace their own remote
 		// preflight. This is not an authority decision for model/provider/MCP work.
 		// Each callback/delivery rechecks current authority at its atomic effect.
-		const beforeLifecycleAction = async (): Promise<void> => {
-			if (!lifecycleAuthority) return fresh();
+		const beforeCurrentAction = async (negotiated: boolean): Promise<void> => {
+			if (!negotiated) return fresh();
 			controller.signal.throwIfAborted();
 			this.check(authority, receiptOnly);
 			if (Date.parse(credential.expiresAt) <= Date.now())
@@ -636,6 +662,7 @@ export class AutomationRuntime {
 			if (Date.parse(credential.expiresAt) <= Date.now())
 				throw new Error("Lifecycle admission expired");
 		};
+		const beforeLifecycleAction = () => beforeCurrentAction(lifecycleAuthority);
 		deadline();
 		try {
 			await fresh();
@@ -670,6 +697,9 @@ export class AutomationRuntime {
 					...(admission.lifecycleAuthority !== undefined && {
 						lifecycleAuthority: admission.lifecycleAuthority,
 					}),
+					...(admission.contextReadAuthority !== undefined && {
+						contextReadAuthority: admission.contextReadAuthority,
+					}),
 					messages: [
 						{
 							role: "user",
@@ -701,6 +731,19 @@ export class AutomationRuntime {
 				admission.lifecycleAuthority === "current-action-v1" &&
 				!authority.engineering &&
 				authority.definition.role !== "engineering";
+			if (
+				state.contextReadAuthority !== undefined &&
+				state.contextReadAuthority !== admission.contextReadAuthority
+			)
+				throw new Error(
+					"Context read authority changed across checkpoint recovery",
+				);
+			contextReadAuthority =
+				state.contextReadAuthority === "current-call-v1" &&
+				admission.contextReadAuthority === "current-call-v1" &&
+				!!authority.nativeContext &&
+				authority.definition.role === "coordinator" &&
+				!authority.engineering;
 			// Native tool intent is captured before the runtime pending checkpoint.
 			// Recover that immutable intent before replacing an old context transcript.
 			if (
@@ -807,7 +850,17 @@ export class AutomationRuntime {
 				);
 			}
 			while (!this.stopped) {
-				const iterationAuthority = fresh();
+				// Only automatic context preparation uses the separately negotiated
+				// self-authorizing MCP call. The receiver rechecks at the read itself;
+				// post-read fresh() still withholds output on withdrawal. Other actions
+				// and old checkpoints retain their independent current preflight.
+				const iterationAuthority =
+					contextReadAuthority &&
+					!state.pending &&
+					authority.nativeContext &&
+					!contextPrepared
+						? beforeCurrentAction(true)
+						: fresh();
 				let preparationAuthority: Promise<void> | undefined;
 				// Both callers still request current authority. A contained adapter
 				// with a pure constructor and an authorizing next() can join this

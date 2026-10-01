@@ -11,7 +11,7 @@ type FinishLatency = ((failed?: boolean, until?: number) => void) & {
 	readHosted?: (response: Response) => void;
 };
 
-/** Diagnostic data only. No authority, payload, error text, identifier or wall clock. */
+/** Diagnostic data only. No authority, payload, error text or embedded identifiers. One numeric epoch anchors correlation. */
 export const latencyStages = [
 	"dispatch.received",
 	"dispatch.enqueue",
@@ -74,7 +74,11 @@ export class LatencyTrace {
 	private readonly spans: Span[] = [];
 	private dropped = 0;
 	private ended?: number;
-	constructor(private readonly start: number = performance.now()) {}
+	private readonly startedAtEpochMs: number;
+	constructor(private readonly start: number = performance.now()) {
+		// Capture once; span durations stay monotonic even if the wall clock changes.
+		this.startedAtEpochMs = Date.now() - (performance.now() - start);
+	}
 	begin(stage: LatencyStage, at = performance.now()): FinishLatency {
 		// Enforce the same allowlist at runtime even for an untyped callback caller.
 		if (!permitted.has(stage)) return () => {};
@@ -119,6 +123,7 @@ export class LatencyTrace {
 		return {
 			version: 1,
 			retention: "process-memory" as const,
+			startedAtEpochMs: this.startedAtEpochMs,
 			elapsedMs: milliseconds((this.ended ?? performance.now()) - this.start),
 			finished: this.ended !== undefined,
 			droppedSpans: this.dropped,
@@ -159,8 +164,9 @@ export function markLatency(stage: LatencyStage): void {
 
 export type LatencySnapshot = Omit<
 	ReturnType<LatencyTrace["snapshot"]>,
-	"retention"
+	"retention" | "startedAtEpochMs"
 > & {
+	startedAtEpochMs?: number;
 	attempt: number | null;
 	retention: "process-memory" | "private-disk";
 };

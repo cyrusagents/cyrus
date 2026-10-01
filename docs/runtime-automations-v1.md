@@ -823,10 +823,11 @@ renew send `X-Cyrus-Customer-Sources:1`; Hosted responds with the optional sibli
 
 1. Linear `{provider:"linear",customerId:<UUID>}`, permissions `["read"]` or
    `["read","delegate"]`.
-2. Slack `{provider:"slack",channelId,scope:"channel"}`, permissions `["read"]`.
+2. Slack `{provider:"slack",channelId,scope:"channel"}`, permissions `["read"]`;
+   `["read","write"]` additionally requires the explicit Slack-message contract below.
 
 Only a root coordinator can receive this pair. Stable grant IDs and connection IDs
-must differ. Extra, reversed, duplicate, worker, child-session, issue/thread or write
+must differ. Extra, reversed, duplicate, worker, child-session, issue/thread or Linear-write
 pairs reject at definition parsing. Two grants without the negotiated true flag,
 or that flag on a single grant, reject admission. Existing single-resource contracts
 and checkpoint keys are unchanged. The existing Slack/read-set flags remain required.
@@ -852,4 +853,41 @@ binding. Removing either source fences the whole old connection/revision; surviv
 source work needs a new current definition/occurrence. Terminal result recovery
 retains the original pair and native envelope and cannot reopen model/MCP work.
 Native memory provenance and fresh association checks for both sources remain Hosted
-owned. This contract adds read access only, with no provider write permissions.
+owned. The original combined-source contract adds reads only. Slack writes require the
+separate opt-in below; customer-source negotiation alone never grants sending.
+
+
+### Explicit Slack sends
+
+Intake notification modes (any-message or installed-bot mention) do not authorize
+outbound messages. Hosted owns the per-customer `slack.send: automatic|disabled`
+setting, absent/default disabled, current mapping/provider checks and removal of
+final-result auto-publication. Runtime never translates completion into a Slack send.
+Normal Cyrus continues to deny all Connect/unknown-channel events without fallback;
+internal non-Connect behavior is unchanged.
+
+With durable sessions, runtime advertises `slackMessages:true` and sends
+`X-Cyrus-Slack-Messages:1` on admission/renewal. Hosted may respond with sibling
+`slackMessages:true` only for a scoped customer coordinator. A Slack channel grant
+with `write` requires that flag; the flag alone grants nothing. Investigators and
+engineering cannot send. Ordered combined Linear+Slack bindings may give only Slack
+write permission. Both grants and the flag are pinned in checkpoint identity and
+renewal. Old runtimes stay read-only; old thread-bound schemas remain `{text}`.
+
+The channel `reply` tool accepts exactly `{text,reference?}`: 1–10,000 characters and
+an optional server-issued session-bound thread UUID. No model authority/resource
+selector is accepted. Without a reference Hosted fixes the destination to the
+accepted source event thread, otherwise the mapped channel. New sends require
+current reference, mapping, permission, lease, revision and provider authority.
+The supervisor supplies the stable operation key. Uncertain sends keep that key
+and exact payload across recovery; they never re-list/rebind a destination or create
+a new key. The server must reconcile an immutable matching committed receipt before
+requiring an old session reference to resolve; only a proven receipt permits that
+recovery, never a fresh effect. Provider ambiguity remains uncertain, not success.
+
+A successful structured result has exactly one bound `items` entry, `nextCursor:null`
+and `receipt:{idempotencyKey:<same supervisor key>,status:"sent"}`. Runtime checks the
+key, status and full grant/account/connection/resource binding before model output.
+Missing/malformed receipts fail closed and retain pending intent. This wire extension
+is coordinated with Hosted; the immutable handoff records receiver ACK and joined
+proof. No published minimum version or live provider acceptance is implied.

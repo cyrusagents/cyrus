@@ -70,6 +70,10 @@ const workRejectionResponses = [];
 let lostWorkRejectionAck = false;
 const requireLifecycleAuthority =
 	process.env.CYRUS_NATIVE_JOIN_LIFECYCLE_AUTHORITY === "1";
+const requireContextReadAuthority =
+	process.env.CYRUS_NATIVE_JOIN_CONTEXT_READ_AUTHORITY === "1";
+let contextReadAdmissions = 0,
+	contextReadCheckpoints = 0;
 let lifecycleAdmissions = 0,
 	lifecycleCheckpoints = 0;
 let correctedRejection = false,
@@ -395,6 +399,19 @@ globalThis.fetch = async (url, init) => {
 	if (request.pathname.endsWith("/result")) resultSendCount++;
 	const response = await nativeFetch(new URL(request.pathname, local), init);
 	if (
+		requireContextReadAuthority &&
+		request.pathname.endsWith("/authorize") &&
+		response.ok
+	) {
+		const admission = await response.clone().json();
+		assert.equal(
+			new Headers(init.headers).get("x-cyrus-context-read-authority"),
+			"1",
+		);
+		assert.equal(admission.contextReadAuthority, "current-call-v1");
+		contextReadAdmissions++;
+	}
+	if (
 		requireLifecycleAuthority &&
 		request.pathname.endsWith("/authorize") &&
 		response.ok
@@ -629,6 +646,10 @@ const ledger = new AutomationLedger(
 const store = new AutomationCheckpointStore(join(directory, "checkpoints"));
 const saveCheckpoint = store.save.bind(store);
 store.save = async (state) => {
+	if (requireContextReadAuthority) {
+		assert.equal(state.contextReadAuthority, "current-call-v1");
+		contextReadCheckpoints++;
+	}
 	if (requireLifecycleAuthority) {
 		assert.equal(state.lifecycleAuthority, "current-action-v1");
 		lifecycleCheckpoints++;
@@ -941,8 +962,15 @@ try {
 			["progress", "result"],
 		);
 	}
+	if (requireContextReadAuthority) {
+		assert.ok(contextReadAdmissions > 0);
+		assert.ok(contextReadCheckpoints > 0);
+	}
 	const summary = {
 		passed: true,
+		requireContextReadAuthority,
+		contextReadAdmissions,
+		contextReadCheckpoints,
 		requireMcpTiming,
 		mcpTimingEvidence,
 		requireLifecycleAuthority,

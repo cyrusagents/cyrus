@@ -252,3 +252,31 @@ it("pins both full source bindings in checkpoints while allowing attempt/lease c
 	survivor.definition.revision++;
 	expect(checkpointKey(survivor)).not.toBe(key);
 });
+
+it("admits combined Slack writes only with explicit message negotiation and keeps Linear read-only", () => {
+	const a = authority();
+	a.definition.grants[1]!.permissions = ["read", "write"];
+	const { customerSources: _, ...wire } = a;
+	const admission = {
+		authority: wire,
+		customerSources: true,
+		mcp: {
+			token: "fixture-token-with-thirty-two-characters",
+			audience: "/mcp",
+			expiresAt: a.leaseUntil,
+			grantId: a.definition.grants[0]!.id,
+		},
+	};
+	expect(admissionSchema.safeParse(admission).success).toBe(false);
+	const scoped = executionAuthority(
+		admissionSchema.parse({ ...admission, slackMessages: true }),
+	);
+	expect(permittedToolNames(scoped)).toContain("reply");
+	expect(permittedToolNames(scoped)).not.toContain("add_comment");
+	expect(() =>
+		authorizeTool(scoped, {
+			name: "reply",
+			arguments: { text: "hello", reference: randomUUID() },
+		}),
+	).not.toThrow();
+});

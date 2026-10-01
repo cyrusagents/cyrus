@@ -46,6 +46,7 @@ const snapshotSchema = z
 		retention: z.literal("process-memory"),
 		attempt: z.number().int().positive(),
 		elapsedMs: numeric,
+		startedAtEpochMs: z.number().finite().nonnegative().max(8.64e15).optional(),
 		finished: z.literal(true),
 		droppedSpans: numeric.int(),
 		spans: z

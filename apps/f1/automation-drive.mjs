@@ -53,8 +53,10 @@ export async function runAutomationDrive({
 	codexImage = process.env.CYRUS_F1_CODEX_IMAGE,
 	ownerInterruptionOnly = false,
 	slackChannelOnly = false,
+	slackMessagesOnly = false,
 	sessionDeliveryAuthority = false,
 	lifecycleAuthority = false,
+	contextReadAuthority = false,
 	latencyOnly = false,
 	registeredRuntime = false,
 	latencyReadSet = false,
@@ -112,6 +114,7 @@ export async function runAutomationDrive({
 	let sessionRenewals = 0;
 	let slackThreadReference;
 	let slackThreadReads = 0;
+	const slackSends = new Map();
 	let slackModelDelayed = false;
 	let slackModelFailure;
 	const measuredCompletions = new Map();
@@ -305,11 +308,13 @@ export async function runAutomationDrive({
 				accountId: "installed-account",
 				resource,
 				permissions:
-					d.id.startsWith("delegate-") &&
-					request.headers["x-cyrus-delegation"] === "1" &&
-					request.headers["x-cyrus-session-delivery"] === "1"
-						? ["read", "delegate"]
-						: ["read"],
+					slackMessagesOnly && d.id === "slack-channel"
+						? ["read", "write"]
+						: d.id.startsWith("delegate-") &&
+								request.headers["x-cyrus-delegation"] === "1" &&
+								request.headers["x-cyrus-session-delivery"] === "1"
+							? ["read", "delegate"]
+							: ["read"],
 			};
 			const engineering = engineeringAssignments.get(d.id);
 			if (
@@ -320,6 +325,8 @@ export async function runAutomationDrive({
 				return denied(reply);
 			if (d.id.startsWith("read-set-"))
 				assert.equal(request.headers["x-cyrus-customer-read-set"], "1");
+			if (slackMessagesOnly)
+				assert.equal(request.headers["x-cyrus-slack-messages"], "1");
 			if (d.id === "slack-channel")
 				assert.equal(request.headers["x-cyrus-slack-channel-read"], "1");
 			const authority = {
@@ -385,6 +392,7 @@ export async function runAutomationDrive({
 					...authority,
 					...(engineering && { engineering }),
 					...(nativeContext && { nativeContext }),
+					...(slackMessagesOnly && { slackMessages: true }),
 				},
 				grantId,
 				until,
@@ -401,7 +409,14 @@ export async function runAutomationDrive({
 				assert.equal(request.headers["x-cyrus-session-execution-timing"], "1");
 			return {
 				authority,
+				...(contextReadAuthority &&
+					nativeContext &&
+					d.role === "coordinator" &&
+					request.headers["x-cyrus-context-read-authority"] === "1" && {
+						contextReadAuthority: "current-call-v1",
+					}),
 				...(nativeContext && { nativeContext }),
+				...(slackMessagesOnly && { slackMessages: true }),
 				...(d.id === "slack-channel" && { slackChannelRead: true }),
 				...(d.id === "owner-interruption" &&
 					request.headers["x-cyrus-owner-interruption"] === "1" && {
@@ -474,8 +489,18 @@ export async function runAutomationDrive({
 					sessionItems.length,
 					d.id === "slack-channel"
 						? codexImage
-							? 9
-							: 8
+							? [...grants.values()].some(
+									(g) =>
+										g.authority.occurrenceId === b.occurrenceId &&
+										g.authority.input.includes("FINAL_ONLY"),
+								)
+								? 5
+								: slackMessagesOnly
+									? 11
+									: 9
+							: slackMessagesOnly
+								? 10
+								: 8
 						: d.id.startsWith("read-set-")
 							? codexImage
 								? 11
@@ -706,7 +731,11 @@ export async function runAutomationDrive({
 			const names = request.body.tools.map((tool) => tool.name).sort();
 			const policy = text.includes("Never suggest credential, filesystem");
 			try {
-				assert.deepEqual(names, ["read_messages", "read_thread"]);
+				assert.deepEqual(names, [
+					"read_messages",
+					"read_thread",
+					...(slackMessagesOnly ? ["reply"] : []),
+				]);
 				assert.ok(policy);
 			} catch (error) {
 				slackModelFailure = new Error(
@@ -785,9 +814,15 @@ export async function runAutomationDrive({
 			: (text.includes("owner-interruption") &&
 					text.includes("Private result for interrupted-scope")) ||
 				sourceFree ||
+				(slackMessagesOnly && text.includes("FINAL_ONLY")) ||
 				(readSet
 					? readSetReads === 2
-					: outputs >= (engineering ? 3 : tracking || slackChannel ? 2 : 1));
+					: outputs >=
+						(engineering || (slackChannel && slackMessagesOnly)
+							? 3
+							: tracking || slackChannel
+								? 2
+								: 1));
 		if (readSet === "read-set-normal") {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			if (replied) delayedModelComplete = true;
@@ -797,7 +832,9 @@ export async function runAutomationDrive({
 			: slackChannel
 				? outputs === 0
 					? "read_messages"
-					: "read_thread"
+					: outputs === 2 && slackMessagesOnly
+						? "reply"
+						: "read_thread"
 				: readSet
 					? relist
 						? "list_issues"
@@ -827,7 +864,11 @@ export async function runAutomationDrive({
 			: slackChannel
 				? outputs === 0
 					? { limit: 10 }
-					: { reference: slackThreadReference }
+					: {
+							reference: slackThreadReference,
+							...(outputs === 2 &&
+								slackMessagesOnly && { text: "Synthetic explicit reply" }),
+						}
 				: readSet
 					? relist || replied
 						? {}
@@ -1156,6 +1197,18 @@ export async function runAutomationDrive({
 										},
 									],
 								});
+							} else if (name === "reply") {
+								assert.equal(slackMessagesOnly, true);
+								assert.ok(issuedReferences.has(args.reference));
+								const payload = {
+									channel: g.resource.channelId,
+									thread: issuedReferences.get(args.reference),
+									text: args.text,
+								};
+								if (slackSends.has(key))
+									assert.deepEqual(slackSends.get(key), payload);
+								else slackSends.set(key, payload);
+								text = "Sent";
 							} else {
 								assert.equal(name, "read_thread");
 								assert.ok(issuedReferences.has(args.reference));
@@ -1175,6 +1228,9 @@ export async function runAutomationDrive({
 										},
 									],
 									nextCursor: null,
+									...(name === "reply" && {
+										receipt: { idempotencyKey: key, status: "sent" },
+									}),
 								},
 							};
 						}
@@ -1993,6 +2049,7 @@ export async function runAutomationDrive({
 				latencyReadSet,
 				latencyNativeContext,
 				lifecycleAuthority,
+				contextReadAuthority,
 				latencyMcpMilliseconds,
 				latencyHostedMilliseconds,
 				retentionRecovered: latencyRetention,
@@ -2010,7 +2067,7 @@ export async function runAutomationDrive({
 			);
 			return summary;
 		}
-		if (slackChannelOnly) {
+		if (slackChannelOnly || slackMessagesOnly) {
 			const capabilityResponse = await realFetch(
 				`${runtimeOrigin}/api/automations/v1/capabilities`,
 				{ headers: { authorization: `Bearer ${supervisorKey}` } },
@@ -2037,13 +2094,47 @@ export async function runAutomationDrive({
 			}, 60000);
 			assert.equal(ledger.status(d.id).occurrences[0].attempts, 1);
 			assert.equal(slackThreadReads, 1);
-			assert.equal(counts.tools, 2);
+			assert.equal(counts.tools, slackMessagesOnly ? 3 : 2);
 			assert.equal(counts.initialize, 1);
 			assert.ok(sessionRenewals > 0);
 			assert.equal(slackModelDelayed, true);
+			if (slackMessagesOnly) {
+				assert.deepEqual(
+					[...slackSends.values()],
+					[
+						{
+							channel: "channel-a",
+							thread: "thread-a",
+							text: "Synthetic explicit reply",
+						},
+					],
+				);
+				await call("occurrences", {
+					contractVersion: 1,
+					revision: 1,
+					automationId: d.id,
+					eventId: "final-only",
+					input: "FINAL_ONLY: reply privately with no tool calls",
+				});
+				await until(
+					() =>
+						ledger.status(d.id).occurrences.length === 2 &&
+						ledger
+							.status(d.id)
+							.occurrences.every((o) => o.status === "completed"),
+					60000,
+				);
+				assert.equal(
+					slackSends.size,
+					1,
+					"final response alone does not send even when write is granted",
+				);
+				assert.equal(counts.tools, 3);
+			}
 			const summary = {
 				passed: true,
-				scenario: "slack-channel",
+				scenario: slackMessagesOnly ? "slack-messages" : "slack-channel",
+				slackSends: slackSends.size,
 				target,
 				containedImage: codexImage,
 				sessionRenewals,
