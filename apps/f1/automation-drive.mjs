@@ -1776,10 +1776,32 @@ export async function runAutomationDrive({
 						"session.delivery",
 					].includes(s.stage),
 				)) {
-					assert.deepEqual(callback.hosted, {
-						cyrus_auth: { durationMs: 0.25 },
-						cyrus_total: { durationMs: 1 },
-					});
+					if (callback.failed && !callback.hosted) {
+						// A fixed-phase watchdog can start during the already-authorized
+						// result request. Successful completion aborts it in cleanup;
+						// no HTTP response (and hence no timing header) was received.
+						const cleanup = trace.spans.find((s) => s.stage === "cleanup");
+						assert.equal(callback.stage, "authorize.renew");
+						assert.ok(callback.startMs >= result.startMs);
+						assert.ok(
+							callback.startMs + callback.durationMs >= cleanup.startMs,
+						);
+						assert.equal(callback.hosted, undefined);
+						continue;
+					}
+					assert.deepEqual(
+						callback.hosted,
+						{
+							cyrus_auth: { durationMs: 0.25 },
+							cyrus_total: { durationMs: 1 },
+						},
+						JSON.stringify({
+							callback,
+							terminal: trace.spans.filter((s) =>
+								["result", "cleanup"].includes(s.stage),
+							),
+						}),
+					);
 					assert.ok(
 						callback.durationMs > callback.hosted.cyrus_total.durationMs,
 					);
