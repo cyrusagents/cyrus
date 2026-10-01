@@ -631,7 +631,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			let rejectionReceipts = 0;
 			if (toolRejection) {
 				const [rejected] =
-					await sql`select count(*)::int n from customer_native_rejections r join customer_native_grants g on g.id=r.grant_id where g.binding_id in (${source.id}::uuid,${both.id}::uuid)`;
+					await sql`select count(*)::int n from customer_native_rejections r join customer_native_grants g on g.id=r.grant_id where g.binding_id in (${source.id}::uuid,${both.id}::uuid) and r.tool='remember_context'`;
 				rejectionReceipts = rejected.n;
 				assert.equal(
 					rejectionReceipts,
