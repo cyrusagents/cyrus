@@ -59,6 +59,7 @@ try {
 				runtimeSha,
 				image: process.env.CYRUS_F1_CODEX_IMAGE,
 				combinedSources: process.env.CYRUS_NATIVE_JOIN_COMBINED === "1",
+				slackMessages: process.env.CYRUS_NATIVE_JOIN_SLACK_MESSAGES === "1",
 				requireMcpTiming: process.env.CYRUS_NATIVE_JOIN_MCP_TIMING === "1",
 				requireContextReadAuthority:
 					process.env.CYRUS_NATIVE_JOIN_CONTEXT_READ_AUTHORITY === "1",

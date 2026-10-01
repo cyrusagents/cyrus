@@ -98,6 +98,9 @@ let combinedIssue,
 const combinedSessions = new Set(),
 	nativeInputEvidence = [];
 let combinedToken, combinedBindings;
+let lostSlackRuntimeAck = false,
+	revokedSlack = false;
+const slackKeys = new Set();
 function page() {
 	const text = modelContext.state.messages[0].content;
 	const marker =
@@ -124,7 +127,21 @@ async function modelResponse(body) {
 	assert.equal(current.metadata.approvedActions, undefined);
 	assert.ok(!names.includes("execute"));
 	let call;
-	if (stage === "combined-read") {
+	if (stage.startsWith("combined-slack-")) {
+		assert.ok(names.includes("list_issues") && names.includes("read_messages"));
+		assert.equal(names.includes("reply"), stage !== "combined-slack-denied");
+		assert.ok(!names.includes("add_comment"));
+		if (stage !== "combined-slack-final" && sequence === 0)
+			call = { name: "read_messages", arguments: {} };
+		if (
+			["combined-slack-send", "combined-slack-revoked"].includes(stage) &&
+			sequence === 1
+		)
+			call = {
+				name: "reply",
+				arguments: { text: "JOIN_EXPLICIT_SLACK", reference: combinedThread },
+			};
+	} else if (stage === "combined-read") {
 		assert.ok(names.includes("list_issues") && names.includes("read_messages"));
 		if (sequence === 0) call = { name: "list_issues", arguments: {} };
 		if (sequence === 1) call = { name: "read_messages", arguments: {} };
@@ -397,6 +414,16 @@ globalThis.fetch = async (url, init) => {
 	if (request.pathname === "/mcp" && body?.method === "tools/call")
 		toolCounts[body.params.name] = (toolCounts[body.params.name] ?? 0) + 1;
 	if (request.pathname.endsWith("/result")) resultSendCount++;
+	if (
+		stage === "combined-slack-revoked" &&
+		request.pathname === "/mcp" &&
+		body?.method === "tools/call" &&
+		body.params.name === "reply" &&
+		!revokedSlack
+	) {
+		revokedSlack = true;
+		await control({ op: "slack-permission", fixture: "both", allow: false });
+	}
 	const response = await nativeFetch(new URL(request.pathname, local), init);
 	if (
 		requireContextReadAuthority &&
@@ -523,6 +550,25 @@ globalThis.fetch = async (url, init) => {
 		assert.equal(data.result?.structuredContent?.status, "applied");
 		assert.ok(!workRejectionKeys.has(body.params._meta.idempotencyKey));
 		workCorrectionKeys.add(body.params._meta.idempotencyKey);
+	}
+	if (
+		stage === "combined-slack-send" &&
+		request.pathname === "/mcp" &&
+		body?.method === "tools/call" &&
+		body.params.name === "reply"
+	) {
+		slackKeys.add(body.params._meta.idempotencyKey);
+		const receipt = (await response.clone().json()).result?.structuredContent
+			?.receipt;
+		if (receipt) {
+			assert.equal(receipt.idempotencyKey, body.params._meta.idempotencyKey);
+			assert.equal(receipt.status, "sent");
+			if (!lostSlackRuntimeAck) {
+				lostSlackRuntimeAck = true;
+				await response.body?.cancel();
+				throw Error("Controlled lost Slack runtime ACK");
+			}
+		}
 	}
 	if (stage.startsWith("combined-") && response.ok) {
 		if (request.pathname.endsWith("/authorize")) {
@@ -888,6 +934,40 @@ try {
 	assert.ok(!denied.ok);
 	await complete("source-removed", "source");
 	if (fixture.combined) {
+		if (fixture.slackMessages) {
+			await complete("combined-slack-denied", "both");
+			assert.deepEqual(
+				await control({ op: "slack-effects", fixture: "both" }),
+				{ posts: 0, rows: [], automatic: 0 },
+			);
+			await control({ op: "slack-permission", fixture: "both", allow: true });
+			await complete("combined-slack-final", "both");
+			assert.deepEqual(
+				await control({ op: "slack-effects", fixture: "both" }),
+				{ posts: 0, rows: [], automatic: 0 },
+			);
+			await complete("combined-slack-send", "both");
+			assert.equal(lostSlackRuntimeAck, true);
+			assert.equal(slackKeys.size, 1);
+			const sent = await control({ op: "slack-effects", fixture: "both" });
+			assert.deepEqual(sent, {
+				posts: 1,
+				rows: [
+					{
+						status: "sent",
+						body: "JOIN_EXPLICIT_SLACK",
+						thread_ts: "1790703000.001",
+					},
+				],
+				automatic: 0,
+			});
+			await complete("combined-slack-revoked", "both", undefined, true);
+			assert.equal(revokedSlack, true);
+			assert.deepEqual(
+				await control({ op: "slack-effects", fixture: "both" }),
+				sent,
+			);
+		}
 		await complete("combined-read", "both");
 		assert.equal(
 			statuses.at(-1).attempts,
@@ -988,6 +1068,9 @@ try {
 		rejectionOperationCount: rejectionKeys.size,
 		lostWriteAckScenario: loseWriteAck,
 		combinedSources: fixture.combined,
+		slackMessages: fixture.slackMessages,
+		lostSlackRuntimeAck,
+		slackOperationKeys: slackKeys.size,
 		combinedRenewals,
 		combinedSessions: combinedSessions.size,
 		nativeInputEvidence,

@@ -1,5 +1,5 @@
 // Copied fixture setup from Hosted24a4b7e0; production handlers/migrations stay frozen.
-import { expect, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import assert from "node:assert/strict";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes } from "node:crypto";
@@ -56,6 +56,10 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		}
 	}
 	const combined = process.env.CYRUS_NATIVE_JOIN_COMBINED === "1";
+	const slackMessages = process.env.CYRUS_NATIVE_JOIN_SLACK_MESSAGES === "1";
+	assert.ok(!slackMessages || combined);
+	const slackPosted = [];
+	let lostSlackProviderAck = false;
 	const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
 	const workRejection = process.env.CYRUS_NATIVE_JOIN_WORK_REJECTION === "1";
 	const requireLifecycleAuthority =
@@ -283,9 +287,20 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			const base = binding.connection_id
 				? p.p_request
 				: { ...p.p_request, mcpSessionId: undefined };
-			const [{ v: admission }] = await (combined
+			let [{ v: admission }] = await (combined
 				? sql`select customer_sources_admit(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_credential_hash},${base}::jsonb,${p.p_token_hash},${p.p_verified_input},${`{${p.p_event_ids.join(",")}}`}::uuid[],false,${p.p_customer_sources ?? false}) v`
 				: sql`select customer_automation_admit(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_credential_hash},${base}::jsonb,${p.p_token_hash},${p.p_verified_input},${`{${p.p_event_ids.join(",")}}`}::uuid[],false) v`);
+			if (
+				slackMessages &&
+				admission.authority.definition.grants.some(
+					(g) => g.resource.provider === "slack",
+				)
+			) {
+				assert.equal(p.p_slack_messages, true);
+				admission = (
+					await sql`select customer_slack_send_admit(${p.p_token_hash},${p.p_request}::jsonb,${admission}::jsonb,${p.p_slack_messages}) v`
+				)[0].v;
+			}
 			assert.equal(p.p_native_context, true);
 			const [{ v: native }] =
 				await sql`select customer_native_admit(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_credential_hash},${p.p_request}::jsonb,${p.p_token_hash}) v`;
@@ -396,6 +411,90 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		}
 		return { ...native, kind: "native" };
 	};
+	let sendSlackMessage;
+	if (slackMessages) {
+		// Replace only database/provider transports; execute the frozen production
+		// send helper, readiness checks, durable delivery and exact result envelope.
+		mock.module("server-only", () => ({}));
+		mock.module("./mcp-store", () => ({
+			currentMcpAuthority: databaseAuthority,
+		}));
+		mock.module("./store", () => ({
+			json: (x) => x,
+			scopedConnection: async (a, id) => {
+				assert.equal(id, a.connectionId);
+				return { id, account_id: a.accountId };
+			},
+		}));
+		mock.module("./slack-message-store", () => ({
+			slackMessageRpc: async (name, p) => {
+				if (name === "customer_slack_message_prepare")
+					return (
+						await sql`select customer_slack_message_prepare(${p.p_hash},${p.p_session}::uuid,${p.p_key},${p.p_args}::jsonb) v`
+					)[0].v;
+				if (name === "customer_slack_message_dispatch")
+					return (
+						await sql`select customer_slack_message_dispatch(${p.p_hash},${p.p_session}::uuid,${p.p_id}::uuid) v`
+					)[0].v;
+				if (name === "customer_slack_message_ack")
+					return (
+						await sql`select customer_slack_message_ack(${p.p_id}::uuid,${p.p_key},${p.p_ts}) v`
+					)[0].v;
+				throw Error("Unexpected fixture RPC");
+			},
+		}));
+		mock.module("./providers", () => ({
+			providerRequest: async (connection, path, options) => {
+				if (path === "/auth.test")
+					return {
+						ok: true,
+						team_id: connection.account_id,
+						user_id: "UBOT",
+						bot_id: "BBOT",
+						user: "Fixture",
+					};
+				const url = new URL(path, "https://fixture.invalid");
+				if (url.pathname === "/conversations.info")
+					return {
+						ok: true,
+						channel: {
+							id: "C123",
+							name: "Fixture",
+							is_ext_shared: true,
+							is_archived: false,
+							is_member: true,
+							is_channel: true,
+						},
+					};
+				if (path === "/chat.postMessage") {
+					assert.equal(options.body.channel, "C123");
+					assert.equal(options.body.thread_ts, "1790703000.001");
+					assert.equal(slackPosted.length, 0, "no duplicate provider post");
+					slackPosted.push({ ...options.body, ts: "1790703001.001" });
+					assert.equal(lostSlackProviderAck, false);
+					lostSlackProviderAck = true;
+					throw Error("Controlled lost Slack provider ACK");
+				}
+				assert.ok(
+					["/conversations.history", "/conversations.replies"].includes(
+						url.pathname,
+					),
+				);
+				assert.equal(url.searchParams.get("channel"), "C123");
+				if (url.pathname === "/conversations.replies") {
+					assert.equal(url.searchParams.get("ts"), "1790703000.001");
+					evidence.slackReceiptObservations =
+						(evidence.slackReceiptObservations ?? 0) + 1;
+				}
+				return {
+					ok: true,
+					messages: slackPosted,
+					response_metadata: { next_cursor: "" },
+				};
+			},
+		}));
+		({ sendSlackMessage } = await import("./slack-message-send"));
+	}
 	const mcp = createCustomerMcpHandler({
 		preflight: async (token, session) => {
 			evidence.mcpPreflights++;
@@ -431,6 +530,9 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		},
 		invoke: async (a, tool, args, key, ctx) => {
 			evidence.tools[tool] = (evidence.tools[tool] ?? 0) + 1;
+			if (slackMessages && tool === "reply")
+				return sendSlackMessage(a, args, key, ctx.tokenHash, ctx.sessionId);
+
 			if (!["read_context", "remember_context", "track_work"].includes(tool)) {
 				if (a.resource.scope === "channel")
 					return readSlackChannel(
@@ -562,6 +664,18 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		const f = fixtures.get(body.fixture ?? "main");
 		assert.ok(f);
 		if (body.op === "event") return event(f, body.input);
+		if (body.op === "slack-permission") {
+			assert.ok(slackMessages && f === both);
+			await sql`update customer_agents set policy=policy||${{ "slack.send": body.allow ? "automatic" : "disabled" }}::jsonb where id=${f.customer}`;
+			return {};
+		}
+		if (body.op === "slack-effects") {
+			const rows =
+				await sql`select status,body,thread_ts from customer_slack_messages where customer_id=${f.customer}`;
+			const automatic =
+				await sql`select id from customer_slack_replies where customer_id=${f.customer}`;
+			return { posts: slackPosted.length, rows, automatic: automatic.length };
+		}
 		if (body.op === "arm-lifecycle-pause") {
 			assert.ok(requireLifecycleAuthority);
 			assert.equal(lifecycleFixtures.get(`denied-${body.operation}`), f);
@@ -719,6 +833,8 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				await sql`select count(*)::int n from customer_actions where customer_id=${main.customer} and status='succeeded'`;
 			return {
 				...evidence,
+				slackProviderPosts: slackPosted.length,
+				lostSlackProviderAck,
 				lifecycleDenials,
 				passed: true,
 				memoryEffects: facts.n,
@@ -854,6 +970,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 					(f) => f.request.definition,
 				),
 				combined,
+				slackMessages,
 			}),
 			{ mode: 0o600 },
 		);
