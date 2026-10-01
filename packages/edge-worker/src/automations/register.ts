@@ -24,6 +24,7 @@ import {
 } from "./Model.js";
 import { recoveryRequestSchema } from "./Recovery.js";
 import { ScopedAutomationMcpClient } from "./ScopedMcpClient.js";
+import type { TrustedPmExecutor } from "./TrustedPm.js";
 
 export function registerAutomationRoutes(
 	app: FastifyInstance,
@@ -194,6 +195,7 @@ export function registerConfiguredAutomations(
 		opencodeDefaultModel?: string;
 		defaultModel?: string;
 	},
+	trustedPm?: TrustedPmExecutor,
 ): AutomationRuntime {
 	const pairedWorkspace = process.env.CYRUS_TEAM_ID || "";
 	const origin = getCyrusAppUrl();
@@ -239,6 +241,7 @@ export function registerConfiguredAutomations(
 			true,
 			// Protocol support also permits receipt-only recovery with an unavailable image.
 			() => true,
+			() => !!trustedPm?.available(),
 		);
 	} catch {
 		gatewayError =
@@ -338,6 +341,7 @@ export function registerConfiguredAutomations(
 		}
 	});
 	const runtime = new AutomationRuntime({
+		...(trustedPm && { trustedPm }),
 		latencyDiagnostics:
 			process.env.CYRUS_AUTOMATION_LATENCY_DIAGNOSTICS === "1",
 		...(pairedWorkspace &&

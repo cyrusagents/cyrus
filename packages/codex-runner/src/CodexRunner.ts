@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import type { IAgentRunner, IMessageFormatter, SDKMessage } from "cyrus-core";
 import { AppServerCodexBackend } from "./backend/AppServerCodexBackend.js";
+import { AppServerClient } from "./backend/appServerClient.js";
+import { AppServerProcessManager } from "./backend/appServerProcess.js";
 import type {
 	CodexBackend,
 	CodexUserInput,
@@ -48,6 +50,7 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 
 	private sessionInfo: CodexSessionInfo | null = null;
 	private backend: CodexBackend | null = null;
+	private readonly ownedProcess?: AppServerProcessManager;
 	private wasStopped = false;
 	/** Set once the turn reaches a terminal state; gates {@link isStreaming}. */
 	private turnFinished = false;
@@ -61,6 +64,12 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 	constructor(config: CodexRunnerConfig) {
 		super();
 		this.config = config;
+		if (config.dedicatedProcess)
+			this.ownedProcess = new AppServerProcessManager(
+				(options) =>
+					new AppServerClient({ ...options, awaitProcessExit: true }),
+				{ idleCloseMs: 60_000 },
+			);
 		this.formatter = new CodexMessageFormatter();
 		this.skillStager = new CodexSkillStager({
 			workingDirectory: config.workingDirectory,
@@ -122,6 +131,13 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 		this.cleanupRuntimeState();
 	}
 
+	async stopAndWait(): Promise<void> {
+		if (!this.ownedProcess)
+			throw new Error("Confirmed shutdown requires a dedicated Codex process");
+		this.stop();
+		await this.ownedProcess.closeAll();
+	}
+
 	isRunning(): boolean {
 		return this.sessionInfo?.isRunning ?? false;
 	}
@@ -169,7 +185,11 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 
 		let caughtError: unknown;
 		try {
+			if (this.wasStopped)
+				throw new Error("Codex run interrupted during startup");
 			await backend.open(resolved);
+			if (this.wasStopped)
+				throw new Error("Codex run interrupted during startup");
 			await backend.runTurn(input);
 		} catch (error) {
 			caughtError = error;
@@ -181,7 +201,7 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 	}
 
 	private createBackend(): CodexBackend {
-		return new AppServerCodexBackend();
+		return new AppServerCodexBackend(this.ownedProcess);
 	}
 
 	private handleBackendEvent(event: NormalizedCodexEvent): void {

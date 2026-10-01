@@ -11,6 +11,7 @@ import {
 	type AutomationCheckpointStore,
 	automationToolOutputSchema,
 } from "./CheckpointStore.js";
+import { assertCustomerPolicyRecovery } from "./CustomerPolicy.js";
 import {
 	type AutomationAdmission,
 	type AutomationAuthority,
@@ -48,10 +49,15 @@ import { automationInputPrompt } from "./Prompt.js";
 import type { AutomationRecoveryRequest } from "./Recovery.js";
 import type { ScopedAutomationTools } from "./ScopedMcpClient.js";
 import { AUTOMATION_LIMITS } from "./scheduling.js";
+import {
+	assertTrustedPmIdentity,
+	type TrustedPmExecutor,
+} from "./TrustedPm.js";
 
 export interface AutomationRuntimeOptions {
 	workspaceId: () => string;
 	gateway: AutomationGateway;
+	trustedPm?: TrustedPmExecutor;
 	model: AutomationModel;
 	store: AutomationCheckpointStore;
 	ledger?: AutomationLedger;
@@ -129,6 +135,8 @@ export class AutomationRuntime {
 			},
 			capabilities: {
 				automations: true,
+				trustedPm:
+					!!this.options.sessions && !!this.options.trustedPm?.available(),
 				sessionExecutionTiming: !!this.options.sessions,
 				sessionActivities: !!this.options.sessions,
 				sessionDeliveryAuthority: !!this.options.sessions,
@@ -140,6 +148,8 @@ export class AutomationRuntime {
 				harnessStreaming: false,
 				scopedMcp: true,
 				customerReadSet: true,
+				customerLinearDisclosure: "email-origin-v1",
+				oneWayEngineering: !!this.options.sessions,
 				customerSources: !!this.options.sessions,
 				nativeContext: !!this.options.sessions,
 				slackChannelRead: true,
@@ -187,7 +197,10 @@ export class AutomationRuntime {
 		const claimStart = performance.now();
 		const claims = this.ledger().claim(
 			AUTOMATION_LIMITS.workspaceConcurrency,
-			this.capabilities().available,
+			(definition) =>
+				definition.execution === "trusted-pm-v1"
+					? !!this.options.trustedPm?.available()
+					: this.capabilities().available,
 		);
 		const claimEnd = performance.now();
 		await Promise.allSettled(
@@ -303,7 +316,7 @@ export class AutomationRuntime {
 				signal,
 			),
 		);
-		if (parsed.success && parsed.data.mcp.sessionId !== mcpSessionId)
+		if (parsed.success && parsed.data.mcp?.sessionId !== mcpSessionId)
 			throw new AutomationDiagnosticError({
 				phase: "admission",
 				code: "response_invalid",
@@ -337,6 +350,40 @@ export class AutomationRuntime {
 				"Context read authority requires a native customer coordinator",
 			);
 		const next = executionAuthority(admission);
+		if (next.trustedPm || next.definition.execution) {
+			assertTrustedPmIdentity(next);
+			if (
+				!this.options.sessions ||
+				!admission.sessionDelivery ||
+				admission.mcp ||
+				admission.lifecycleAuthority ||
+				admission.contextReadAuthority ||
+				admission.sessionDeliveryAuthority ||
+				!this.options.trustedPm
+			)
+				throw new Error("Trusted PM executor unavailable");
+			const session = admission.sessionDelivery.session;
+			if (
+				session.id !== `pm:${next.trustedPm!.pmId}:${next.occurrenceId}` ||
+				session.parentSessionId ||
+				session.externalSessionId ||
+				session.issueContext
+			)
+				throw new Error("Trusted PM session mismatch");
+			if (!occurrence.receipt) this.options.trustedPm.check(next);
+		}
+		if (
+			admission.oneWayEngineering &&
+			(!admission.customerPolicy ||
+				!admission.nativeContext ||
+				next.definition.role !== "coordinator" ||
+				next.engineering ||
+				!admission.sessionDelivery ||
+				!this.options.sessions)
+		)
+			throw new Error(
+				"One-way submission requires current customer coordinator authority",
+			);
 		if (isSlackChannel(next) && admission.slackChannelRead !== true)
 			throw new Error("Slack channel reads require negotiated admission");
 		if (
@@ -429,9 +476,10 @@ export class AutomationRuntime {
 		if (
 			((next.definition.grants.length > 0 || admission.nativeContext) &&
 				(next.definition.grants[0]?.id ??
-					admission.nativeContext?.bindingId) !== admission.mcp.grantId) ||
-			Date.parse(admission.mcp.expiresAt) <= Date.now() ||
-			Date.parse(admission.mcp.expiresAt) > Date.parse(next.leaseUntil)
+					admission.nativeContext?.bindingId) !== admission.mcp?.grantId) ||
+			(admission.mcp &&
+				(Date.parse(admission.mcp.expiresAt) <= Date.now() ||
+					Date.parse(admission.mcp.expiresAt) > Date.parse(next.leaseUntil)))
 		)
 			throw new Error("Invalid scoped credential deadline");
 		const { grants: _grants, ...registered } = next.definition;
@@ -448,6 +496,8 @@ export class AutomationRuntime {
 	}
 	private check(authority: AutomationAuthority, receiptOnly = false): void {
 		const configured = this.options.readiness();
+		if (authority.trustedPm && !receiptOnly)
+			this.options.trustedPm?.check(authority);
 		if (
 			this.stopped ||
 			authority.definition.workspaceId !== this.options.workspaceId() ||
@@ -455,7 +505,9 @@ export class AutomationRuntime {
 			configured.controlReason ||
 			(!receiptOnly &&
 				(authority.definition.state !== "enabled" ||
-					configured.reason ||
+					(authority.trustedPm
+						? !this.options.trustedPm?.available()
+						: configured.reason) ||
 					authority.definition.target.harness !== configured.harness ||
 					authority.definition.target.model !== configured.model ||
 					(authority.definition.role === "engineering" &&
@@ -520,11 +572,22 @@ export class AutomationRuntime {
 		};
 		const session = admission.sessionDelivery?.session;
 
-		const tools = this.options.tools(
-			() => authority,
-			() => credential,
-			controller.signal,
-		);
+		const tools = authority.trustedPm
+			? {
+					close: async () => {},
+					revalidate: async () => {
+						throw Error("PM cannot use customer MCP");
+					},
+					renew: async (fn: (sessionId?: string) => Promise<void>) => fn(),
+					call: async () => {
+						throw Error("PM cannot use customer MCP");
+					},
+				}
+			: this.options.tools(
+					() => authority,
+					() => credential!,
+					controller.signal,
+				);
 		let leaseTimer: ReturnType<typeof setTimeout> | undefined;
 		let poll: ReturnType<typeof setTimeout> | undefined;
 		let nextPollAt = 0;
@@ -576,7 +639,7 @@ export class AutomationRuntime {
 				!receiptOnly &&
 				Math.min(
 					Date.parse(authority.leaseUntil),
-					Date.parse(credential.expiresAt),
+					Date.parse(credential!.expiresAt),
 				) >
 					Date.now() + 15_000;
 			const refresh = checkSession
@@ -604,11 +667,16 @@ export class AutomationRuntime {
 							controller.signal.throwIfAborted();
 							this.check(next, receiptOnly);
 							if (
-								renewed.mcp.grantId !== admission.mcp.grantId ||
+								renewed.mcp?.grantId !== admission.mcp?.grantId ||
 								renewed.ownerInterruption !== admission.ownerInterruption ||
 								renewed.slackChannelRead !== admission.slackChannelRead ||
 								renewed.slackMessages !== admission.slackMessages ||
 								renewed.customerSources !== admission.customerSources ||
+								digest(renewed.trustedPm ?? null) !==
+									digest(admission.trustedPm ?? null) ||
+								digest(renewed.customerPolicy ?? null) !==
+									digest(admission.customerPolicy ?? null) ||
+								renewed.oneWayEngineering !== admission.oneWayEngineering ||
 								renewed.sessionExecutionTiming !==
 									admission.sessionExecutionTiming ||
 								renewed.sessionDeliveryAuthority !==
@@ -647,20 +715,20 @@ export class AutomationRuntime {
 			if (!negotiated) return fresh();
 			controller.signal.throwIfAborted();
 			this.check(authority, receiptOnly);
-			if (Date.parse(credential.expiresAt) <= Date.now())
+			if (Date.parse(credential!.expiresAt) <= Date.now())
 				throw new Error("Lifecycle admission expired");
 			if (renewing) await renewing;
 			if (
 				Math.min(
 					Date.parse(authority.leaseUntil),
-					Date.parse(credential.expiresAt),
+					Date.parse(credential!.expiresAt),
 				) <=
 				Date.now() + 15_000
 			)
 				await fresh();
 			controller.signal.throwIfAborted();
 			this.check(authority, receiptOnly);
-			if (Date.parse(credential.expiresAt) <= Date.now())
+			if (Date.parse(credential!.expiresAt) <= Date.now())
 				throw new Error("Lifecycle admission expired");
 		};
 		const beforeLifecycleAction = () => beforeCurrentAction(lifecycleAuthority);
@@ -678,12 +746,38 @@ export class AutomationRuntime {
 				state?.pending?.step.type !== "result" &&
 				state?.status !== "completed";
 			const historicalWork = !!state;
+			if (state?.pmNative && !authority.trustedPm)
+				throw Error("PM transcript cannot enter customer execution");
+			if (state?.native && authority.trustedPm)
+				throw Error("Customer transcript cannot enter PM execution");
+			if (state) {
+				const terminal =
+					state.status === "completed" || state.pending?.step.type === "result";
+				assertCustomerPolicyRecovery(
+					state.customerPolicy,
+					admission.customerPolicy,
+					terminal,
+				);
+				if (
+					!terminal &&
+					state.oneWayEngineering !== admission.oneWayEngineering
+				)
+					throw new Error(
+						"Engineering submission authority changed across checkpoint recovery",
+					);
+			}
 			if (!state) {
 				if (receiptOnly || authority.phase === "reconcile")
 					throw new Error("Missing terminal checkpoint");
 				state = {
 					version: 1,
 					scopeKey: key,
+					...(admission.customerPolicy && {
+						customerPolicy: admission.customerPolicy,
+					}),
+					...(admission.oneWayEngineering && {
+						oneWayEngineering: admission.oneWayEngineering,
+					}),
 					sequence: 0,
 					status: "running",
 					...(authority.engineering && {
@@ -730,6 +824,7 @@ export class AutomationRuntime {
 			lifecycleAuthority =
 				state.lifecycleAuthority === "current-action-v1" &&
 				admission.lifecycleAuthority === "current-action-v1" &&
+				!authority.trustedPm &&
 				!authority.engineering &&
 				authority.definition.role !== "engineering";
 			if (
@@ -781,6 +876,7 @@ export class AutomationRuntime {
 							throw new Error("Foreign session delivery denied");
 						if (
 							admission.sessionDeliveryAuthority === "current-admission-v1" &&
+							!authority.trustedPm &&
 							!authority.engineering &&
 							["coordinator", "investigator"].includes(
 								authority.definition.role,
@@ -790,7 +886,7 @@ export class AutomationRuntime {
 							// delivery boundary. An ACK never authorizes subsequent work.
 							controller.signal.throwIfAborted();
 							this.check(authority, receiptOnly);
-							if (Date.parse(credential.expiresAt) <= Date.now())
+							if (Date.parse(credential!.expiresAt) <= Date.now())
 								throw new Error("Session delivery admission expired");
 						} else {
 							await fresh();
@@ -801,7 +897,10 @@ export class AutomationRuntime {
 							...identity(authority),
 						};
 					},
-					() => [...this.options.sessions!.secrets(), credential.token],
+					() => [
+						...this.options.sessions!.secrets(),
+						...(credential ? [credential.token] : []),
+					],
 					controller.signal,
 				);
 				await measureLatency("session.create", () =>
@@ -939,9 +1038,15 @@ export class AutomationRuntime {
 						await this.options.store.save(state);
 						contextPrepared = true;
 					}
-					model ??= this.options.model.open
-						? await this.options.model.open({
+					const modelFactory = authority.trustedPm
+						? this.options.trustedPm!
+						: this.options.model;
+					model ??= modelFactory.open
+						? await modelFactory.open({
 								state,
+								...(session && sink
+									? { session: { descriptor: session, sink } }
+									: {}),
 								authority: () => authority,
 								authorize: () => (timing ? timing.exclude(fresh) : fresh()),
 								save: () => this.options.store.save(state!),
@@ -1202,6 +1307,15 @@ export class AutomationRuntime {
 				`${pending.key}:result`,
 			);
 		await fresh();
+		if (pending.step.call.name === "submit_engineering_request") {
+			const hint = nativeContextReceiptHintSchema.parse({
+				name: pending.step.call.name,
+				...JSON.parse(result.items[0]!.text),
+			});
+			state.nativeContextReceipts ??= [];
+			state.nativeContextReceipts.push(hint);
+		}
+
 		state.messages.push(
 			{ role: "assistant", content: JSON.stringify(pending.step) },
 			{ role: "user", content: JSON.stringify(result) },
@@ -1239,6 +1353,7 @@ function operationPosition(
 			"reply",
 			"add_comment",
 			"delegate_investigation",
+			"submit_engineering_request",
 			"publish_artifact",
 			"remember_context",
 			"apply_approved_action",

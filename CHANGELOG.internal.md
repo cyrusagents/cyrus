@@ -6,7 +6,7 @@ This changelog documents internal development changes, refactors, tooling update
 
 ### Changed
 
-- Removed the superseded standalone customer-runtime service, CLI/bootstrap exceptions and obsolete public API; retained shared containment and bounded transport helpers under the registered runtime with active regression coverage. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
+- Added focused registered PM and contained customer disclosure drives, including private activity receipts, referenced submission ACK recovery, policy-epoch isolation, revoked/queued ownership and confirmed dedicated Codex shutdown. Removed the superseded standalone customer-runtime service, CLI/bootstrap exceptions and obsolete public API; retained shared containment and bounded transport helpers under the registered runtime with active regression coverage. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
 - Attribute opt-in scoped MCP catalog/tool transport time separately from eight bounded Hosted numeric timing fields; keep diagnostics out of model context and preserve private bounded retention. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
 
 ### Added

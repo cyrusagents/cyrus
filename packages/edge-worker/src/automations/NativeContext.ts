@@ -204,12 +204,21 @@ export function nativeContextResult(
 	};
 }
 
-export const nativeContextReceiptHintSchema = z
-	.object({
-		name: z.enum(["remember_context", "apply_approved_action", "track_work"]),
-		status: z.enum(["applied", "pending", "denied"]),
-	})
-	.strict();
+export const nativeContextReceiptHintSchema = z.union([
+	z
+		.object({
+			name: z.enum(["remember_context", "apply_approved_action", "track_work"]),
+			status: z.enum(["applied", "pending", "denied"]),
+		})
+		.strict(),
+	z
+		.object({
+			name: z.literal("submit_engineering_request"),
+			submissionId: z.string().uuid(),
+			status: z.literal("accepted"),
+		})
+		.strict(),
+]);
 
 /** Only a positive, operation-bound no-effect receipt can resolve a rejected write. */
 export function nativeContextRejection(

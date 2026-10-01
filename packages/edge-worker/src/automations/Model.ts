@@ -1,4 +1,8 @@
 import { z } from "zod";
+import type {
+	CyrusSessionDescriptor,
+	ICyrusSessionSink,
+} from "../sinks/IActivitySink.js";
 import { readBoundedJson } from "../utils/readBoundedJson.js";
 import type {
 	AutomationCheckpoint,
@@ -17,6 +21,7 @@ import { sourceContentInstructions } from "./Prompt.js";
 
 export interface AutomationModelContext {
 	state: AutomationCheckpoint;
+	session?: { descriptor: CyrusSessionDescriptor; sink: ICyrusSessionSink };
 	authority: () => AutomationAuthority;
 	authorize: () => Promise<void>;
 	save: () => Promise<void>;

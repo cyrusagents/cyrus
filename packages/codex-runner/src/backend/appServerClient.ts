@@ -46,6 +46,8 @@ export interface AppServerClientOptions {
 	requestTimeoutMs?: number;
 	/** Bound untrusted contained-process output, including unterminated frames. */
 	maxOutputBytes?: number;
+	/** Dedicated fenced owners require confirmed process-group termination. */
+	awaitProcessExit?: boolean;
 }
 
 /**
@@ -83,6 +85,7 @@ export class AppServerClient extends EventEmitter {
 	private notificationHandler: NotificationHandler | null = null;
 	private serverRequestHandler: ServerRequestHandler | null = null;
 	private closed = false;
+	private closing?: Promise<void>;
 	private readonly logger: Pick<typeof console, "warn" | "error">;
 
 	constructor(private readonly options: AppServerClientOptions) {
@@ -206,15 +209,67 @@ export class AppServerClient extends EventEmitter {
 	}
 
 	async close(): Promise<void> {
+		if (this.closing) return this.closing;
 		this.closed = true;
 		this.rl?.close();
 		this.rl = null;
 		const child = this.child;
 		this.child = null;
-		if (child && !child.killed) {
-			this.terminateChild(child);
-		}
 		this.failAllPending(new Error("app-server client closed"));
+		this.closing = (async () => {
+			if (!child) return;
+			if (this.options.awaitProcessExit) await this.terminateAndWait(child);
+			else if (!child.killed) this.terminateChild(child);
+		})();
+		return this.closing;
+	}
+
+	private async terminateAndWait(
+		child: ChildProcessWithoutNullStreams,
+	): Promise<void> {
+		const pid = child.pid;
+		if (!pid) return; // Spawn failed; no native process was created.
+		const exited = child.exitCode !== null || child.signalCode !== null;
+		const exit = exited
+			? Promise.resolve()
+			: new Promise<void>((resolve, reject) => {
+					const timer = setTimeout(() => {
+						cleanup();
+						reject(new Error("Dedicated app-server exit not confirmed"));
+					}, 5000);
+					const done = () => {
+						cleanup();
+						resolve();
+					};
+					const cleanup = () => {
+						clearTimeout(timer);
+						child.off("exit", done);
+					};
+					child.once("exit", done);
+				});
+		try {
+			process.kill(process.platform === "win32" ? pid : -pid, "SIGKILL");
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+				await exit.catch(() => undefined);
+				throw new Error("Dedicated app-server termination failed");
+			}
+		}
+		await exit;
+		if (process.platform !== "win32") {
+			const deadline = Date.now() + 5000;
+			for (;;) {
+				try {
+					process.kill(-pid, 0);
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+					throw new Error("Dedicated app-server group exit not confirmed");
+				}
+				if (Date.now() >= deadline)
+					throw new Error("Dedicated app-server group still running");
+				await new Promise((resolve) => setTimeout(resolve, 25));
+			}
+		}
 	}
 
 	/**

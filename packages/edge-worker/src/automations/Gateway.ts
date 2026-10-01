@@ -24,6 +24,7 @@ export class AutomationHttpGateway implements AutomationGateway {
 		private readonly credentials: () => { apiKey: string; workspaceId: string },
 		private readonly sessionDelivery = false,
 		private readonly engineering: () => boolean = () => false,
+		private readonly trustedPm: () => boolean = () => false,
 	) {
 		const url = new URL(origin);
 		if (
@@ -73,10 +74,14 @@ export class AutomationHttpGateway implements AutomationGateway {
 				signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
 				headers: {
 					"Content-Type": "application/json",
+					...(endpoint === "authorize" && this.trustedPm()
+						? { "X-Cyrus-Trusted-Pm": "1" }
+						: {}),
 					...timing?.headers,
 					...(endpoint === "authorize"
 						? {
 								"X-Cyrus-Customer-Read-Set": "1",
+								"X-Cyrus-Linear-Disclosure": "email-origin-v1",
 								"X-Cyrus-Slack-Channel-Read": "1",
 								"X-Cyrus-Mcp-Session-Renewal": "1",
 								"X-Cyrus-Owner-Interruption": "1",
@@ -88,6 +93,7 @@ export class AutomationHttpGateway implements AutomationGateway {
 						? {
 								"X-Cyrus-Session-Delivery": "1",
 								"X-Cyrus-Native-Context": "1",
+								"X-Cyrus-One-Way-Engineering": "1",
 								"X-Cyrus-Customer-Sources": "1",
 								"X-Cyrus-Slack-Messages": "1",
 								"X-Cyrus-Session-Delivery-Authority": "1",

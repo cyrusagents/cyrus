@@ -1,0 +1,15 @@
+{
+	"passed": true,
+	"normalRunnerOpens": 2,
+	"resultCommits": 1,
+	"resultTransmissions": 2,
+	"privateReceipts": 14,
+	"admissions": 35,
+	"oldConfiguredRepoReceiptOnly": true,
+	"noCustomerFanout": true,
+	"activeRevocationStoppedWithoutResult": true,
+	"limits": [
+		"Actual registered HTTP/SQLite/normal CodexRunner/subprocess transport/activity persistence",
+		"Controlled app-server process, Hosted responses, provider and model; not native Codex/model or actual Hosted SQL proof"
+	]
+}

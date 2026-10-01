@@ -1,5 +1,9 @@
 # Registered runtime automations v1
 
+> Customer disclosure and the subsequent one-way PM path are specified in
+> [the current PM contract](trusted-pm-and-customer-disclosure.md). Historical
+> customer child-result scenarios below are not the new customer PM workflow.
+
 This is the current CYPACK-1546 / CYHOST-1321 implementation contract, agreed through
 issue comments after Connor's September 29 architecture and `/mcp` direction. It
 supersedes the standalone customer-runtime URL/global-model product path and crossed

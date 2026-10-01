@@ -47,9 +47,15 @@ export const checkpointSchema = z
 		sessionDeliveryAuthority: admissionSchema.shape.sessionDeliveryAuthority,
 		lifecycleAuthority: admissionSchema.shape.lifecycleAuthority,
 		contextReadAuthority: admissionSchema.shape.contextReadAuthority,
+		customerPolicy: admissionSchema.shape.customerPolicy,
+		oneWayEngineering: admissionSchema.shape.oneWayEngineering,
 		nativeContextReceipts: z
 			.array(nativeContextReceiptHintSchema)
 			.max(24)
+			.optional(),
+		pmNative: z
+			.object({ harness: z.literal("codex"), sessionId: z.string().uuid() })
+			.strict()
 			.optional(),
 		native: z
 			.object({

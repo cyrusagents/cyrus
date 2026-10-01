@@ -108,10 +108,12 @@ export class SessionSemaphore {
 export function capRunnerStarts(
 	runner: IAgentRunner,
 	semaphore: SessionSemaphore,
+	beforeStart?: () => Promise<void>,
 ): IAgentRunner {
 	const gate = async <T>(run: () => Promise<T>): Promise<T> => {
 		await semaphore.acquire();
 		try {
+			await beforeStart?.();
 			return await run();
 		} finally {
 			semaphore.release();

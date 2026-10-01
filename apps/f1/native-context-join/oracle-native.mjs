@@ -6,11 +6,18 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export async function nativeOracle(oracle, { directory, modules, load }) {
+export async function nativeOracle(
+	oracle,
+	{ directory, modules, load, codexDist },
+) {
 	const { ContainedCodexAutomationModel } = await load("ContainedCodexModel");
 	const { permittedToolNames, scopedToolDescription } = await load("contract");
 	const { CodexLoginBroker } = await import(
-		pathToFileURL(resolve(modules, "../../../cyrus-codex-runner/dist/index.js"))
+		pathToFileURL(
+			codexDist
+				? resolve(codexDist, "index.js")
+				: resolve(modules, "../../../cyrus-codex-runner/dist/index.js"),
+		)
 	);
 	const home = join(directory, "synthetic-native-login");
 	await mkdir(home, { mode: 0o700 });

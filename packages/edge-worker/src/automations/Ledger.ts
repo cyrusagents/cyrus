@@ -360,14 +360,21 @@ export class AutomationLedger {
 	}
 	claim(
 		limit: number,
-		executeEnabled = true,
+		executeEnabled:
+			| boolean
+			| ((definition: AutomationRegistration) => boolean) = true,
 	): Array<{
 		definition: AutomationRegistration;
 		occurrence: AutomationOccurrence;
 	}> {
 		return this.transact((state, now) => {
 			for (const [key, definition] of Object.entries(state.definitions)) {
-				if (!executeEnabled) break;
+				if (
+					!(typeof executeEnabled === "function"
+						? executeEnabled(definition)
+						: executeEnabled)
+				)
+					continue;
 				const tick = latestTick(definition, now, state.lastSlots[key] ?? null);
 				if (!tick) continue;
 				// Keep one queued coalesced tick; explicit instruction occurrences remain FIFO.
@@ -431,7 +438,9 @@ export class AutomationLedger {
 				if (
 					!definition ||
 					(!o.receipt &&
-						(!executeEnabled ||
+						(!(typeof executeEnabled === "function"
+							? executeEnabled(definition)
+							: executeEnabled) ||
 							definition.state !== "enabled" ||
 							definition.revision !== o.revision)) ||
 					o.status !== "queued" ||

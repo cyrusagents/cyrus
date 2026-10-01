@@ -2,6 +2,10 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { z } from "zod";
 import {
+	customerIssueListSchema,
+	engineeringSubmissionReceiptSchema,
+} from "./CustomerPolicy.js";
+import {
 	type AutomationAuthority,
 	type AutomationToolCall,
 	authorizeTool,
@@ -388,6 +392,10 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 						],
 						nextCursor: null,
 					};
+				// An uncertain write keeps its exact payload across MCP reconnect. Hosted
+				// checks current authority and an immutable receipt before admitting a
+				// new effect; only new effects may resolve current-session references.
+
 				const result = await this.measuredRequest("mcp.call", () =>
 					client.callTool({ ...call, _meta: metadata }, undefined, {
 						signal,
@@ -402,6 +410,19 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 					);
 				if (!result.structuredContent)
 					throw new Error("Scoped MCP tool denied");
+				if (call.name === "submit_engineering_request")
+					return {
+						items: [
+							{
+								text: JSON.stringify(
+									engineeringSubmissionReceiptSchema.parse(
+										result.structuredContent,
+									),
+								),
+							},
+						],
+						nextCursor: null,
+					};
 				if (call.name === "publish_artifact")
 					return engineeringPublicationResult(
 						authority.engineering!,
@@ -434,21 +455,23 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 					result.structuredContent,
 				);
 				if (isCustomerReadSet(authority) && call.name === "list_issues") {
-					const listed = z
-						.object({
-							issues: z
-								.array(
-									z
-										.object({
-											reference: z.string().uuid(),
-											identifier: z.string().max(300),
-										})
-										.strict(),
-								)
-								.max(100),
-							held: z.number().int().nonnegative(),
-						})
-						.strict();
+					const listed = authority.customerPolicy
+						? customerIssueListSchema
+						: z
+								.object({
+									issues: z
+										.array(
+											z
+												.object({
+													reference: z.string().uuid(),
+													identifier: z.string().max(300),
+												})
+												.strict(),
+										)
+										.max(100),
+									held: z.number().int().nonnegative(),
+								})
+								.strict();
 					for (const item of output.items)
 						for (const issue of listed.parse(JSON.parse(item.text)).issues)
 							this.issueReferences.add(issue.reference);
