@@ -232,8 +232,16 @@ try {
 			external = state === "external";
 			unknown = state === "unknown";
 			revoked = state === "revoked";
-			for (const type of ["app_mention", "message"])
-				assert.equal((await send(makeEvent(type))).json().ignored, true);
+			for (const type of ["app_mention", "message"]) {
+				for (const text of [
+					"<@U123> explicit mention",
+					"ordinary unmentioned reply",
+				]) {
+					const envelope = makeEvent(type);
+					envelope.event.text = text;
+					assert.equal((await send(envelope)).json().ignored, true);
+				}
+			}
 		}
 	}
 	assert.equal(events, 0);
@@ -318,7 +326,9 @@ try {
 			{
 				passed: true,
 				modes: ["signed-direct", "authenticated-proxy"],
-				deniedIngress: 12,
+				deniedIngress: 24,
+				triggerSelection:
+					"All Connect denied independently of customer any-message/mention mode",
 				internalStarts: starts.length,
 				emittedEvents: events,
 				emittedMessages: messages,

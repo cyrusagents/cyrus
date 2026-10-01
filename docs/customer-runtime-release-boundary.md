@@ -35,8 +35,8 @@ policy gates. Its ACK is Linear comment `9749237a-9f0e-4cf7-89a7-4522ca717354`.
 ## Slack Connect ownership and ordinary-agent guard
 
 Hosted is the **only customer Slack consumer**, behind its existing verified
-ingress. It owns the explicit installed-bot mention, unique current customer
-mapping, enabled mention trigger, membership/read permission, semantic retry/twin
+ingress. It owns configured any-message OR explicit installed-bot mention eligibility,
+unique current customer mapping, enabled trigger, membership/read permission, semantic retry/twin
 deduplication and accepted-thread reply authority. No rejection/error/missing
 mapping may fall through to ordinary Cyrus. Scheduled reads and private UI chat
 are separate triggers. Runtime does not add a customer event consumer or reply tool.
@@ -75,7 +75,7 @@ Sources: [conversations.info](https://docs.slack.dev/reference/methods/conversat
 proxy routes, real classification/normal chat lifecycle, internal threaded reply,
 overlap deduplication, queued channel conversion and removed credentials. Slack
 transport and the runner are controlled: it proves **no normal fallback**, not
-Hosted customer mention admission/native execution/reply.
+Hosted customer admission/native execution/reply in either configured trigger mode.
 
 The earlier exact installed04e / Hosted3b5b437f native SQL join retains memory/work,
 combined sources, renewal and immutable receipt proof. Event/delegation gaps and
@@ -87,7 +87,7 @@ Remaining capped gates (unproved is not ready):
 1. Hosted cap rejects new deferred actions/tools/admission/background dispatch,
    while ordinary scoped engineering and terminal receipt recovery continue.
 2. Signed Linear/Slack ingress through current mapping and production outbox to
-   native execution, scoped result and durable reply; Slack Connect mention-only
+   native execution, scoped result and durable reply; Slack Connect any-message and explicit-bot-mention trigger
    eligibility, exact originating-thread response and no second consumer.
 3. Actual native direct/ticket child and scoped code handoff, findings/PR returned
    once, current parent successor consumes them, durable timeline survives reload.
@@ -97,6 +97,6 @@ Remaining capped gates (unproved is not ready):
 
 Targets: implementation candidates 13:00 UTC, acceptance 15:00 UTC, ready-for-review
 16:00 UTC October 1 (06:00/08:00/09:00 America/Vancouver). The critical dependency is
-the new Hosted mention route/reply authority plus joined ingress/child delivery;
+the new Hosted dual-mode Connect route/reply authority plus joined ingress/child delivery;
 normal-agent denial alone cannot close it. No deadline waives evidence, and ready
 for review does not authorize merge, release, enablement or live mutation.
