@@ -1,0 +1,77 @@
+# CYPACK-1546 — production dispatch and a parent successor
+
+Installed Runtime: `397813003cccc9e1f936feff3e96987e1b507229`.
+Frozen Hosted: `a65f265730cbb6147588d3cf6e3437d5e13aa4be`.
+Status: **FAIL — source-free parent admission**. No live environment changes.
+
+This test invokes unchanged Hosted `deliverEngineeringAutomations`,
+`deliverCustomerAutomations` and `automationCallback` against real PostgreSQL.
+The driver exposes installed registered HTTP, SQLite, private checkpoints,
+native Codex and an isolated engineering Docker sandbox. It never submits
+work directly: production dispatch creates and delivers it; real publication
+and completion SQL create the result events. Model/GitHub responses are controlled.
+
+One customer owns the reviewed assignment. A separate customer is a negative
+isolation fixture, not another sponsor. Engineering runs a failed test, repairs
+and reruns it, requests publication and returns findings. Publication and result
+ACKs are deliberately lost. Parent dispatch preserves per-event/input/occurrence
+identity. Pause and withdrawn-link probes require no parent outbox before current
+authority is restored inside this disposable fixture.
+
+## Failure and diagnosis
+
+Engineering reaches its terminal result. The production customer dispatcher
+creates the engineering-result outbox and sends it to the installed runtime.
+Actual `customer_sources_admit` rejects the source-free parent with
+`Conversation event outside scope`. No parent model runs.
+
+The bounded failed-run summary records one completed engineering admission,
+one publication and one publication reconciliation, two persisted parent outbox
+rows, zero parent admissions, two callback wake receipts and 15 activity deliveries.
+Pause, withdrawn-sponsor and foreign-customer dispatcher checks passed. A lost
+occurrence ACK was injected, but duplicate dispatch completion is **not proved**:
+the parent blocks before the retained 30-second retry finishes. The failed test
+took 34.14 seconds. Its source snapshots and counts are retained in
+`context-rejection-39781300/parent-a65f-reproducer/`.
+
+Published migration `20261001050000_customer_automatic_actions.sql` restricts
+`customer_conversation_admit` to `operator.message`, whereas the dispatcher routes
+`engineering.result` to conversation bindings. The engineering sponsorship wrapper
+does not make that conversation predicate accept the valid result. Handoff
+`aa94763e` requests exact current assignment/customer/thread/null-connection
+validation, renewal/withdrawal denial and unchanged terminal receipt recovery.
+Do not admit arbitrary internal topics or replace this source-free parent merely
+to pass the fixture.
+
+Earlier runs found fixture transport issues: Bun serializes JSON objects itself,
+so pre-stringifying sent a JSON string; raw bigint columns also differed from
+PostgREST's numeric JSON revisions. The adapter now passes objects directly and
+returns rows through PostgreSQL `to_jsonb`. No product changes. Failed logs retained.
+
+## Reproduce
+
+```sh
+CYRUS_TEST_DOCKER_PATH=/usr/local/bin/docker \
+CYRUS_TEST_DOCKER_HOST=unix:///approved/same-user/docker.sock \
+CYRUS_F1_CODEX_IMAGE=sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f \
+node apps/f1/native-context-join/run-parent-successor.mjs \
+  /absolute/hosted-checkout FULL_HOSTED_SHA \
+  /absolute/isolated-installed-prefix \
+  397813003cccc9e1f936feff3e96987e1b507229 /absolute/new-evidence
+```
+
+The launcher freezes Hosted and fixture/driver sources and records hashes.
+The existing Hosted harness creates and drops disposable local PostgreSQL.
+`hosted-partial.json` records bounded counts even on failure;
+`parent-summary.json` requires all assertions to pass. A resolved dispatcher
+promise is insufficient: it catches errors into delivery state. The real
+30-second lost-outbox-ACK retry deadline is retained.
+
+Registered target/config resolution and cloud Workflow transport are controlled.
+Signed ingress, live provider assignment, UI reload and responsiveness are separate
+gates. Current live3978/a65 catalog latency remains unaccepted regardless of this
+fixture's eventual functional result.
+
+The reviewed assignment and coordinator definition are fixture setup. This does
+not yet prove a parent model creating the engineering handoff or resuming a prior
+parent harness session; it isolates return dispatch and a newly admitted successor.

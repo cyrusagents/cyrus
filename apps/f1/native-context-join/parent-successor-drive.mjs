@@ -303,6 +303,7 @@ try {
 		{ mode: 0o600 },
 	);
 } finally {
+	await runtime.stop();
 	await app.close();
 	ledger.close();
 }

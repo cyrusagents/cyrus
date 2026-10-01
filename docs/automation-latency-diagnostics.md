@@ -1,5 +1,24 @@
 # Automation latency diagnostics
 
+## Current live acceptance observation (2026-10-01)
+
+Coordinator-reported installed Runtime `39781300` / Hosted `a65f2657`, staging
+occurrence `a4077f6f69ddf95cfe13d0c66c1c714a90136b70edf4bbef95b02505c5ed02e2`:
+no queued predecessor; native start at 33.698 seconds. At the 111-second observation,
+23 catalog spans summed to 65.700 seconds, versus 0.703 seconds to provider headers
+and 3.903 seconds for the provider body. The 128-span bound truncated later detail.
+Hosted's subsequent observed terminal duration was 165.463 seconds with successful
+memory and both source reads. These values were supplied by the active owners;
+Runtime did not send another live prompt or inspect live checkpoints.
+
+Responsiveness remains **unaccepted**. Catalog sums can overlap and are not a
+unique critical-path attribution. The exact installed combined/native SQL fixture
+pass establishes functional recovery and scope checks; its controlled model and
+provider responses cannot establish live speed. Hosted is investigating consolidation
+of the same per-request SQL checks, preserving pre-body admission, post-provider
+current checks and per-call revocation. No runtime barrier was removed on the basis
+of these observations.
+
 These diagnostics measure supervisor stages. They are independent of the durable
 session execution counter and do not change its exclusions or user-facing meaning.
 They do not authorize work, refresh a lease, replay a command or change receipts.

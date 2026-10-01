@@ -147,3 +147,12 @@ negative receipts and one SDK session across three combined-source renewals.
 The separate [engineering-to-parent recipe](../../../docs/engineering-parent-acceptance.md)
 identifies the remaining production dispatcher/native parent successor gate. It is
 preparation, not evidence that this context join exercises that path.
+
+`run-parent-successor.mjs` now runs that separate gate against unchanged Hosted
+dispatchers/callback with a real SQL transport adapter. It supplies the installed
+runtime origin to the fixture instead of submitting prepared occurrences itself.
+Use the same five launcher arguments and Docker environment. As of Hosted a65f /
+installed3978 it **fails source-free parent admission** after engineering completion;
+see the [failure report](../test-drives/cypack-1546-parent-dispatch.md). Do not treat
+the combined context join's pass as covering this gate. Registered-target resolution,
+Workflow platform delivery and provider/model transports remain controlled.

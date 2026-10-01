@@ -2,8 +2,9 @@
 
 Prepared against Hosted `a65f265730cbb6147588d3cf6e3437d5e13aa4be`
 and installed Runtime `397813003cccc9e1f936feff3e96987e1b507229`.
-This is a preparation recipe, **not passing evidence**. It extends the existing
-owners' fixture boundaries; it introduces no execution or authority contract.
+The production dispatcher join has now run and is **failing at source-free parent
+admission**, not accepted. See the [failure report](../apps/f1/test-drives/cypack-1546-parent-dispatch.md).
+It introduces no execution or authority contract.
 
 ## Production path to exercise
 
@@ -85,9 +86,10 @@ all events from one assignment into a single occurrence or count replay as new w
 ## Reuse and ownership
 
 Runtime already supplies `oracle-native.mjs`, installed HTTP/SQLite execution,
-contained repair and checkpoint/session replay. Hosted owns its production SQL
-adapter, registered-target/config fixture and Workflow transport seam. Agree one
-shared fixture with that owner before adding a competing dispatcher emulator.
+contained repair and checkpoint/session replay. Hosted owns production SQL and routing. The frozen Runtime fixture now supplies
+a test query/RPC adapter into real PostgreSQL, invoking the unchanged production
+dispatchers and callback without implementing authority or routing policy.
+Registered target resolution and Workflow platform transport remain controlled.
 The existing `automation-dispatch.test.mjs` uses in-memory tables; it is useful
 unit coverage but cannot establish this SQL/native gate.
 
@@ -102,12 +104,12 @@ This controlled join would still exclude real Workflow infrastructure, signed
 provider ingress, live provider assignment and rendered UI reload. Label those
 separately; the coordinator owns live acceptance and any installation.
 
-## Prepared runtime driver (joined validation pending)
+## Runtime driver and frozen dispatcher fixture
 
 `apps/f1/native-context-join/parent-successor-drive.mjs` reuses the engineering
-drive and `nativeOracle` against an exact installed package source SHA. Syntax
-and lint checks pass; it is **not yet executable proof of this gate** without the
-Hosted counterpart fixture. Do not substitute its expected flags for SQL assertions.
+drive and `nativeOracle` against an exact installed package source SHA. `run-parent-successor.mjs` freezes Hosted and copies the real SQL-backed
+`parent-dispatch.fixture.mjs` into that checkout. Fixture sources/hashes and bounded
+SQL counts are retained. Syntax/lint pass; the joined gate currently fails.
 
 Private fixture fields are the existing `origin`, `supervisor`, `definition`,
 `image`, `dockerPath`, `dockerHost`, plus `parentDefinition`, `runtimeSha` and a
@@ -130,6 +132,8 @@ It never calls definition/occurrence submission directly.
 Both runtime and engineering execution use the existing reviewed image. Invocation
 is `node parent-successor-drive.mjs PRIVATE_FIXTURE_DIRECTORY INSTALLED_AUTOMATIONS_DIRECTORY`
 with the existing `CYRUS_F1_CODEX_IMAGE` and authorized Docker environment. The
-Hosted test harness owns launch, isolated SQL setup, production dispatcher wiring,
-final database assertions and cleanup. Coordination request `eb165177` supplies
-this interface; actual owner acknowledgment and a passing joined run remain open.
+existing Hosted database harness supplies migrated disposable SQL and cleanup.
+Our copied fixture wires production dispatchers and asserts database effects.
+Request `aa94763e` reports the actual source-free admission mismatch. A narrow
+Hosted correction and passing joined run remain open; changing this fixture to a
+provider-bound parent would hide the source-free gap.
