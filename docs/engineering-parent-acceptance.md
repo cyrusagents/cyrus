@@ -3,7 +3,7 @@
 Prepared against Hosted `a65f265730cbb6147588d3cf6e3437d5e13aa4be`
 and installed Runtime `397813003cccc9e1f936feff3e96987e1b507229`.
 The original source-free admission failure is preserved. The unchanged fixture
-now **passes against Hosted `ffac422c251be13ba73be126a2381e2356f071ac`**, with actual
+now **passes against Hosted `f16c70e66c166b2afef357e7b81d68d6f8760f82`**, with actual
 production dispatch/callback/SQL/native successor execution. See the
 [exact-head report](../apps/f1/test-drives/cypack-1546-parent-dispatch.md).
 It introduces no execution or authority contract.
@@ -137,7 +137,7 @@ with the existing `CYRUS_F1_CODEX_IMAGE` and authorized Docker environment. The
 existing Hosted database harness supplies migrated disposable SQL and cleanup.
 Our copied fixture wires production dispatchers and asserts database effects.
 Request `aa94763e` reported the actual source-free admission mismatch. Hosted
-`ffac422c` corrects it without changing the fixture to a provider-bound parent.
+`f16c70e6` corrects it without changing the fixture to a provider-bound parent.
 The resulting pass proves return dispatch to newly admitted source-free successors.
 Parent-model handoff creation, prior parent harness resumption, live Workflow
 infrastructure and UI reload remain distinct from this fixture. Direct/ticket

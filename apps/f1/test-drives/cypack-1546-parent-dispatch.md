@@ -2,7 +2,7 @@
 
 Installed Runtime: `397813003cccc9e1f936feff3e96987e1b507229`.
 Original frozen Hosted: `a65f265730cbb6147588d3cf6e3437d5e13aa4be` (failed).
-Corrected frozen Hosted: `ffac422c251be13ba73be126a2381e2356f071ac`.
+Corrected published Hosted: `f16c70e66c166b2afef357e7b81d68d6f8760f82`.
 Status: **PASS — production dispatch and source-free parent successor**.
 No live environment changes; original failure evidence retained below.
 
@@ -14,20 +14,23 @@ The only product change is Hosted migration admitting the exact current
 assignment/sponsor/thread engineering result and checking sponsorship on active
 operations. No switch to a provider-bound parent or weakened assertion.
 
-One Bun test/21 assertions passed in49.00s; native driver46.018s. Three completed
+One Bun test/21 assertions passed in49.24s; native driver46.434s. Three completed
 occurrences: engineering and two legitimate result-event parent successors.
 Four native opens/closes and six model exchanges; failed test exit1, repair,
 passing exit0; one publication/reconciliation, four result transmissions,
 29 durable activity deliveries and four callback wake receipts. Production
-dispatch was polled168 times at250ms while preserving the real30s retry deadline;
+dispatch was polled167 times at250ms while preserving the real30s retry deadline;
 that count is not168 model executions. Lost publication/result/occurrence ACKs
 recover without duplicate parent work. Pause/withdrawn-sponsor/foreign-customer
 checks pass. Parent input contains actual dispatched findings/PR, not a prepared
 outbox or copied prompt.
 
-[Bounded summary](evidence/cypack-1546-parent-ffac-summary.json).
+[Published-head summary](evidence/cypack-1546-parent-f16c-summary.json).
+The initial pre-push commitffac422c also passed; its [summary](evidence/cypack-1546-parent-ffac-summary.json)
+is preserved. Hosted amended only an unrelated test expectation before publishing;
+the gate was rerun on the exact remote SHA without changing driver assertions.
 Executed source hashes and full controlled log are in
-`attachments/parent-dispatch-ffac422c/` for CYPACK-1546. Installed source3978 and its
+`attachments/parent-dispatch-f16c70e6/` for CYPACK-1546. Installed source3978 and its
 17-package bundle/image are unchanged; this increment needs no new installation.
 
 This test invokes unchanged Hosted `deliverEngineeringAutomations`,
