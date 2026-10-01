@@ -71,6 +71,9 @@ const toolCounts = {},
 	toolNamesByStage = {},
 	sourceSessions = [];
 let sourceCredential;
+let combinedIssue,
+	combinedThread,
+	combinedRenewals = 0;
 function page() {
 	const text = modelContext.state.messages[0].content;
 	const marker =
@@ -84,7 +87,7 @@ function page() {
 		data,
 	};
 }
-function modelResponse(body) {
+async function modelResponse(body) {
 	models++;
 	modelCounts[stage] = (modelCounts[stage] ?? 0) + 1;
 	const text = JSON.stringify(body),
@@ -97,7 +100,45 @@ function modelResponse(body) {
 	assert.equal(current.metadata.approvedActions, undefined);
 	assert.ok(!names.includes("execute"));
 	let call;
-	if (stage === "memory-write") {
+	if (stage === "combined-read") {
+		assert.ok(names.includes("list_issues") && names.includes("read_messages"));
+		if (sequence === 0) call = { name: "list_issues", arguments: {} };
+		if (sequence === 1) call = { name: "read_messages", arguments: {} };
+		if (sequence === 2) {
+			// Hold the actual native provider request across the 60s lease renewal threshold.
+			await new Promise((r) => setTimeout(r, 47000));
+			assert.ok(
+				combinedRenewals > 0,
+				"actual runtime renewed the admitted dual-source session",
+			);
+			call = { name: "get_issue", arguments: { reference: combinedIssue } };
+		}
+		if (sequence === 3)
+			call = { name: "read_thread", arguments: { reference: combinedThread } };
+		if (sequence === 4)
+			call = { name: "get_issue", arguments: { reference: combinedThread } };
+		if (sequence === 5)
+			call = { name: "read_thread", arguments: { reference: combinedIssue } };
+		if (sequence === 6)
+			call = {
+				name: "remember_context",
+				arguments: { kind: "source", body: "COMBINED_SOURCE_MARKER" },
+			};
+		if (sequence >= 7) {
+			assert.ok(text.includes("Scoped private body"));
+			assert.ok(text.includes("Only mapped Slack channel"));
+			assert.ok(text.includes("not issued by the current MCP session"));
+		}
+	} else if (stage === "combined-terminal") {
+		assert.ok(current.entries.some((e) => e.body === "COMBINED_SOURCE_MARKER"));
+	} else if (stage === "combined-survivor") {
+		assert.ok(!names.includes("read_messages"));
+		assert.ok(names.includes("list_issues"));
+		assert.ok(!text.includes("COMBINED_SOURCE_MARKER"));
+		if (sequence === 0) call = { name: "list_issues", arguments: {} };
+		if (sequence === 1)
+			call = { name: "get_issue", arguments: { reference: combinedIssue } };
+	} else if (stage === "memory-write") {
 		if (
 			sequence === 0 &&
 			!current.entries.some((e) => e.body === "JOIN_REMEMBERED_DETAIL")
@@ -214,6 +255,18 @@ globalThis.fetch = async (url, init) => {
 		toolCounts[body.params.name] = (toolCounts[body.params.name] ?? 0) + 1;
 	if (request.pathname.endsWith("/result")) resultSendCount++;
 	const response = await nativeFetch(new URL(request.pathname, local), init);
+	if (stage.startsWith("combined-") && response.ok) {
+		if (request.pathname.endsWith("/authorize") && body.phase === "renew")
+			combinedRenewals++;
+		if (request.pathname === "/mcp" && body?.method === "tools/call") {
+			const data = await response.clone().json();
+			const item = data.result?.structuredContent?.items?.[0];
+			if (body.params.name === "list_issues" && item)
+				combinedIssue = JSON.parse(item.text).issues[0].reference;
+			if (body.params.name === "read_messages" && item)
+				combinedThread = JSON.parse(item.text).messages[0].reference;
+		}
+	}
 	if (
 		stage.startsWith("source-") &&
 		request.pathname.endsWith("/authorize") &&
@@ -436,6 +489,18 @@ try {
 	});
 	assert.ok(!denied.ok);
 	await complete("source-removed", "source");
+	if (fixture.combined) {
+		await complete("combined-read", "both");
+		await control({ op: "arm-result-loss", fixture: "both" });
+		const opens = models;
+		await complete("combined-terminal", "both");
+		assert.equal(
+			models - opens,
+			1,
+			"combined terminal recovery opens no model after source removal",
+		);
+		await complete("combined-survivor", "both");
+	}
 	await control({ op: "arm-result-loss" });
 	const modelsBefore = models;
 	await complete("terminal-reconcile");
@@ -451,6 +516,8 @@ try {
 	const summary = {
 		passed: true,
 		lostWriteAckScenario: loseWriteAck,
+		combinedSources: fixture.combined,
+		combinedRenewals,
 		runtimeSha: manifest.cyrusLocalTestArtifact.sourceSha,
 		hosted,
 		models,

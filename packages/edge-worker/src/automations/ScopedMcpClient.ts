@@ -44,7 +44,8 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 	private transport?: StreamableHTTPClientTransport;
 	private names = new Set<string>();
 	private connectedCredential?: McpCredential;
-	private readonly references = new Set<string>();
+	private readonly issueReferences = new Set<string>();
+	private readonly threadReferences = new Set<string>();
 	private readonly cursors = new Set<string>();
 	private readonly contextCursors = new Set<string>();
 	private queue: Promise<unknown> = Promise.resolve();
@@ -318,7 +319,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 				if (
 					isSlackChannel(authority) &&
 					((call.name === "read_thread" &&
-						!this.references.has(call.arguments.reference)) ||
+						!this.threadReferences.has(call.arguments.reference)) ||
 						(call.name === "read_messages" &&
 							call.arguments.cursor !== undefined &&
 							!this.cursors.has(call.arguments.cursor)))
@@ -338,7 +339,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 					call.name === "get_issue" &&
 					!(
 						"reference" in call.arguments &&
-						this.references.has(call.arguments.reference)
+						this.issueReferences.has(call.arguments.reference)
 					)
 				)
 					return {
@@ -411,7 +412,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 						.strict();
 					for (const item of output.items)
 						for (const issue of listed.parse(JSON.parse(item.text)).issues)
-							this.references.add(issue.reference);
+							this.issueReferences.add(issue.reference);
 				}
 				if (isSlackChannel(authority) && call.name === "read_messages") {
 					const pages = output.items.map((item) =>
@@ -423,7 +424,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 							: z.string().uuid().parse(output.nextCursor);
 					for (const page of pages)
 						for (const message of page.messages)
-							this.references.add(message.reference);
+							this.threadReferences.add(message.reference);
 					if (cursor) this.cursors.add(cursor);
 				}
 				return output;
@@ -448,7 +449,8 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 	}
 	private closeFailed = false;
 	private async disconnect(): Promise<void> {
-		this.references.clear();
+		this.issueReferences.clear();
+		this.threadReferences.clear();
 		this.cursors.clear();
 		this.contextCursors.clear();
 		const transport = this.transport;

@@ -9,10 +9,12 @@ import { SQL } from "bun";
 import { createSessionDeliveryHandler } from "../agent-sessions/delivery-handler";
 import { occurrenceDigest } from "./automation-contract";
 import { createAutomationCallback } from "./automation-handler";
+import { readCustomerIssues } from "./customer-issue-reader";
 import { mcpAuthoritySchema } from "./mcp-contract";
 import { createCustomerMcpHandler } from "./mcp-server";
 import { nativeAuthoritySchema } from "./native-context-contract";
 import { validateNativeSources } from "./native-context-sources";
+import { readSlackChannel } from "./slack-history-reader";
 
 test("installed contained runtime joins published native SQL/HTTP/MCP", async () => {
 	const sql = new SQL(process.env.CUSTOMER_AGENTS_TEST_DATABASE_URL, {
@@ -33,10 +35,14 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		tools: {},
 		denials: 0,
 	};
+	const combined = process.env.CYRUS_NATIVE_JOIN_COMBINED === "1";
+	const associations = new Map();
 	const originalNative = new Map(),
-		terminalInputs = new Map();
+		terminalInputs = new Map(),
+		originalSources = new Map();
 	let resultLossArmed = false,
-		lostResult = false;
+		lostResult = false,
+		resultLossFixture;
 	async function fixture(
 		provider = "linear",
 		scheduleEnabled = true,
@@ -156,7 +162,42 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		60,
 		main.w,
 	);
-	for (const f of [main, source]) {
+	const both = combined
+		? await fixture(
+				"linear",
+				false,
+				"Read both admitted sources",
+				true,
+				60,
+				main.w,
+			)
+		: undefined;
+	if (both) {
+		both.slack = crypto.randomUUID();
+		both.channel = "C123";
+		await sql`insert into customer_connections(id,workspace_id,provider,account_id,label,secret_encrypted,config,verified_at) values(${both.slack},${both.w},'slack','SLACK-ACCOUNT','Slack','','{"credential_source":"workspace"}',now())`;
+		await sql`insert into customer_mappings(workspace_id,customer_id,connection_id,object_type,external_id,display_name,verified_by) values(${both.w},${both.customer},${both.slack},'channel',${both.channel},'Connected channel',${both.user})`;
+		both.additional = [
+			{
+				connectionId: both.slack,
+				objectType: "channel",
+				externalId: both.channel,
+				resource: {
+					provider: "slack",
+					channelId: both.channel,
+					scope: "channel",
+				},
+			},
+		];
+		both.request.definition = { ...both.request.definition, revision: 2 };
+		await sql`update customer_automation_bindings set additional_sources=${both.additional}::jsonb,revision=2,definition=${both.request.definition}::jsonb where id=${both.id}`;
+		associations.set(both.resource.customerId, {
+			need: crypto.randomUUID(),
+			currentCustomer: both.resource.customerId,
+			issue: both.issue,
+		});
+	}
+	for (const f of [main, source, ...(both ? [both] : [])]) {
 		await sql`insert into team_members values(${f.w},${f.user},'admin')`;
 		await sql`delete from customer_automation_outbox where binding_id=${f.id}`;
 		await sql`update customer_events set processed_at=now() where id=${f.event}`;
@@ -165,6 +206,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 	const fixtures = new Map([
 		["main", main],
 		["source", source],
+		...(both ? [["both", both]] : []),
 	]);
 	const authenticate = async (req) =>
 		req.headers.get("authorization") === `Bearer ${supervisor}` &&
@@ -184,12 +226,26 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			const base = binding.connection_id
 				? p.p_request
 				: { ...p.p_request, mcpSessionId: undefined };
-			const [{ v: admission }] =
-				await sql`select customer_automation_admit(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_credential_hash},${base}::jsonb,${p.p_token_hash},${p.p_verified_input},${`{${p.p_event_ids.join(",")}}`}::uuid[],false) v`;
+			const [{ v: admission }] = await (combined
+				? sql`select customer_sources_admit(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_credential_hash},${base}::jsonb,${p.p_token_hash},${p.p_verified_input},${`{${p.p_event_ids.join(",")}}`}::uuid[],false,${p.p_customer_sources ?? false}) v`
+				: sql`select customer_automation_admit(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_credential_hash},${base}::jsonb,${p.p_token_hash},${p.p_verified_input},${`{${p.p_event_ids.join(",")}}`}::uuid[],false) v`);
 			assert.equal(p.p_native_context, true);
 			const [{ v: native }] =
 				await sql`select customer_native_admit(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_credential_hash},${p.p_request}::jsonb,${p.p_token_hash}) v`;
 			const key = p.p_request.occurrenceId;
+			if (originalSources.has(key))
+				assert.deepEqual(
+					admission.authority.definition.grants,
+					originalSources.get(key),
+				);
+			else originalSources.set(key, admission.authority.definition.grants);
+			if (admission.authority.definition.grants.length === 2) {
+				assert.equal(admission.customerSources, true);
+				evidence.combinedAdmissions = (evidence.combinedAdmissions ?? 0) + 1;
+				if (admission.authority.phase === "reconcile")
+					evidence.combinedReconciliations =
+						(evidence.combinedReconciliations ?? 0) + 1;
+			}
 			if (originalNative.has(key))
 				assert.deepEqual(native.nativeContext, originalNative.get(key));
 			else originalNative.set(key, native.nativeContext);
@@ -260,13 +316,18 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 	});
 	const mcp = createCustomerMcpHandler({
 		authorize: async (token, session, tool) => {
+			const isNative = [
+				"read_context",
+				"remember_context",
+				"track_work",
+			].includes(tool);
 			const [{ v }] =
-				await sql`select customer_native_mcp_authorize(${token},${session}::uuid,${tool ?? null}) v`;
+				await sql`select customer_native_mcp_authorize(${token},${session}::uuid,${isNative ? tool : null}) v`;
 			if (!v) throw Error("Denied");
 			const native = nativeAuthoritySchema.parse(v);
 			if (native.providerGrantId) {
 				const [{ p }] =
-					await sql`select customer_mcp_authorize(${token},${session}::uuid,null) p`;
+					await sql`select customer_mcp_authorize(${token},${session}::uuid,${isNative ? null : (tool ?? null)}) p`;
 				return {
 					...mcpAuthoritySchema.parse(p),
 					nativeContext: native.nativeContext,
@@ -292,6 +353,105 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		},
 		invoke: async (a, tool, args, key, ctx) => {
 			evidence.tools[tool] = (evidence.tools[tool] ?? 0) + 1;
+			if (!["read_context", "remember_context", "track_work"].includes(tool)) {
+				if (a.resource.scope === "channel")
+					return readSlackChannel(
+						a,
+						tool,
+						args,
+						async (path) => {
+							evidence.slackReads = (evidence.slackReads ?? 0) + 1;
+
+							const u = new URL(path, "https://fixture.invalid");
+							expect(u.searchParams.get("channel")).toBe(a.resource.channelId);
+							return {
+								ok: true,
+								messages: [
+									{ ts: "1790703000.001", text: "Only mapped Slack channel" },
+								],
+								response_metadata: { next_cursor: "" },
+							};
+						},
+						{
+							current: async () => {
+								await sql`select customer_mcp_authorize(${ctx.tokenHash},${ctx.sessionId}::uuid,'read_messages')`;
+							},
+							issue: async (kind, value) =>
+								(
+									await sql`select customer_mcp_slack_reference(${ctx.tokenHash},${ctx.sessionId}::uuid,${kind},${value},null) v`
+								)[0].v,
+							resolve: async (kind, ref) =>
+								(
+									await sql`select customer_mcp_slack_reference(${ctx.tokenHash},${ctx.sessionId}::uuid,${kind},null,${ref}::uuid) v`
+								)[0].v,
+						},
+					);
+				if ("customerId" in a.resource) {
+					const state = associations.get(a.resource.customerId);
+					return readCustomerIssues(
+						a,
+						tool,
+						args,
+						async (_path, options) => {
+							evidence.linearReads = (evidence.linearReads ?? 0) + 1;
+							const query = options.body.query;
+							const page = (nodes) => ({
+								nodes,
+								pageInfo: { hasNextPage: false, endCursor: null },
+							});
+							const need = {
+								id: state.need,
+								customer: { id: state.currentCustomer },
+								issue: { id: state.issue },
+								originalIssue: null,
+								archivedAt: null,
+								updatedAt: "2026-09-30T00:00:00Z",
+							};
+							if (query.includes("customer(id:"))
+								return {
+									data: {
+										customer: {
+											id: a.resource.customerId,
+											name: "Synthetic customer",
+											archivedAt: null,
+										},
+									},
+								};
+							if (query.includes("customerNeeds("))
+								return { data: { customerNeeds: page([need]) } };
+							if (query.includes("needs("))
+								return {
+									data: { issue: { id: state.issue, needs: page([need]) } },
+								};
+							if (query.includes("description"))
+								return {
+									data: {
+										issue: {
+											id: state.issue,
+											identifier: "TEST-READSET",
+											title: "Customer-only issue",
+											description: "Scoped private body",
+											team: { id: "fixed-team" },
+											state: { name: "Todo" },
+										},
+									},
+								};
+						},
+						{
+							list: async (issues) =>
+								(
+									await sql`select customer_mcp_list_issue_references(${ctx.tokenHash},${ctx.sessionId}::uuid,${issues}::jsonb) as value`
+								)[0].value,
+							resolve: async (ref) =>
+								(
+									await sql`select customer_mcp_resolve_issue_reference(${ctx.tokenHash},${ctx.sessionId}::uuid,${ref}::uuid) as value`
+								)[0].value,
+						},
+					);
+				}
+
+				throw Error("Unexpected provider tool");
+			}
 			const [{ plan }] =
 				await sql`select customer_native_source_plan(${ctx.tokenHash},${ctx.sessionId}::uuid,${tool},${args}::jsonb,${key ?? null}) plan`;
 			const visible = await validateNativeSources(
@@ -331,6 +491,8 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		}
 		if (body.op === "arm-result-loss") {
 			resultLossArmed = true;
+			lostResult = false;
+			resultLossFixture = f;
 			return {};
 		}
 		if (body.op === "facts")
@@ -340,6 +502,21 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				).map((x) => x.body),
 				work: await sql`select objective,status from customer_threads where customer_id=${f.customer}`,
 			};
+		if (body.op === "withdraw-secondary") {
+			assert.equal(f, both);
+			const [mapping] =
+				await sql`select verified_at::text verified_at from customer_mappings where customer_id=${f.customer} and connection_id=${f.slack}`;
+			await sql`select customer_remove_source(${f.w}::uuid,${f.user}::uuid,${f.customer}::uuid,${f.slack}::uuid,'channel',${f.channel},${mapping.verified_at}::timestamptz)`;
+			const [b] =
+				await sql`select * from customer_automation_bindings where id=${f.id}`;
+			assert.deepEqual(b.additional_sources, []);
+			f.request.definition = {
+				...b.definition,
+				revision: Number(b.revision) + 1,
+			};
+			await sql`update customer_automation_bindings set revision=${f.request.definition.revision},definition=${f.request.definition}::jsonb,customer_revision=(select revision from customer_agents where id=${f.customer}),connection_id=${f.connection},object_type='customer',external_id=${f.resource.customerId},resource=${f.resource}::jsonb where id=${f.id}`;
+			return { definition: f.request.definition };
+		}
 		if (body.op === "withdraw") {
 			await sql`delete from customer_mappings where customer_id=${f.customer}`;
 			f.request.definition = { ...f.request.definition, revision: 2 };
@@ -401,7 +578,10 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 						!lostResult
 					) {
 						lostResult = true;
-						await sql`update customer_agents set policy='{"memory":"disabled","thread":"disabled"}',revision=revision+1,generation=generation+1,paused=true where id=${main.customer}`;
+						if (resultLossFixture === both)
+							await control({ op: "withdraw-secondary", fixture: "both" });
+						else
+							await sql`update customer_agents set policy='{"memory":"disabled","thread":"disabled"}',revision=revision+1,generation=generation+1,paused=true where id=${main.customer}`;
 						return new Response(null, { status: 503 });
 					}
 					return response;
@@ -429,7 +609,10 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				origin: `http://127.0.0.1:${server.port}`,
 				supervisor,
 				workspaceId: main.w,
-				definitions: [main, source].map((f) => f.request.definition),
+				definitions: [main, source, ...(both ? [both] : [])].map(
+					(f) => f.request.definition,
+				),
+				combined,
 			}),
 			{ mode: 0o600 },
 		);

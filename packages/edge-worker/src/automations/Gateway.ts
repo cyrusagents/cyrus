@@ -88,6 +88,7 @@ export class AutomationHttpGateway implements AutomationGateway {
 						? {
 								"X-Cyrus-Session-Delivery": "1",
 								"X-Cyrus-Native-Context": "1",
+								"X-Cyrus-Customer-Sources": "1",
 								"X-Cyrus-Session-Delivery-Authority": "1",
 								"X-Cyrus-Delegation": "1",
 								"X-Cyrus-Session-Execution-Timing": "1",

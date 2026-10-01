@@ -57,3 +57,15 @@ This gate does not prove live provider membership, production dispatcher wake,
 browser persistence/UI, active source withdrawal or engineering publication. Those
 retain their separately labeled acceptance evidence. No release or published
 minimum runtime version is implied.
+
+
+Set `CYRUS_NATIVE_JOIN_COMBINED=1` with a Hosted head containing
+`customer_sources_admit` to extend this same installed native gate with the negotiated
+Linear+Slack pair. It reads both providers using actual Hosted read adapters with
+synthetic provider transport, delays a native model response 47 seconds across
+same-session renewal, rejects crossed issue/thread references, writes mixed-source
+memory, then loses a terminal ACK while removing the secondary mapping through
+`customer_remove_source`. Receipt-only recovery retains both original bindings;
+a fresh survivor occurrence reads Linear and cannot see the mixed-source memory.
+The fixture mirrors the current definition resolver after removal; it does not
+exercise production outbox dispatch or live provider membership.

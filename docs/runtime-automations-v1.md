@@ -16,7 +16,7 @@ it does not accept this redesign.
 | Private execution checkpoint, pending immutable tool/result | CYPACK `AutomationCheckpointStore`, separate `automation-checkpoints-v1`, never a native session/memory path |
 | Customer binding/desired revision, operator/provider inbox, reliable definition/enqueue delivery | CYHOST binding/outbox; outbox retries preserve the original event ID/body |
 | Registered supervisor ownership across machines/copies | CYHOST 90s owner lease/generation, random runtime instanceId per boot; no live-owner takeover |
-| Customer scope, coordinator write fence, policy/approval, provider credentials, operation receipts | CYHOST existing authority/action ledger, reused by admission and `/mcp` |
+| Customer scope, coordinator write fence, policy, provider credentials, operation receipts | CYHOST existing authority/action ledger, reused by admission and `/mcp` |
 
 Hosted cron may deliver/reconcile an outbox and wake the runtime; it must not create
 clock occurrences or run a competing model loop for migrated automations. No CYPACK
@@ -103,7 +103,7 @@ work; exhausted receipts stay blocked. No second queue engine or scheduling ledg
 
 The optional [native-context contract](runtime-native-context-v1.md) adds bounded,
 coordinator-only context reads and action tools on the same registered `/mcp`
-connection, including source-free runs. Hosted retains data/policy/approval ownership.
+connection, including source-free runs. Hosted retains data and current-authority ownership.
 
 ## Admitted event inputs
 
@@ -163,12 +163,12 @@ mint arbitrary scopes from these fields. Response is exactly:
 
 Lease/token times are ISO8601 UTC; token cannot outlive lease. Authority identity/input
 must match registration/claim. Each resource grant is `{id,connectionId,accountId,
-resource,permissions}`. `id` is stable per occurrence and equals `mcp.grantId` and returned `items[].grantId`.
+resource,permissions}`. `id` is stable per occurrence; `mcp.grantId` binds the primary grant and each returned `items[].grantId` binds the grant selected by the fixed tool name.
 Only the token hash/expiry rotates; a grant identity change during renewal is denied.
 Resource is `{provider:"linear",teamId,issueId}`,
 `{provider:"slack",channelId,threadTs}`, or the negotiated customer read-set binding
 `{provider:"linear",customerId:<UUID>}`. Each occurrence supports 0/1 authenticated
-binding. A customer read-set binding enumerates session-confined issue references;
+binding, or the explicitly negotiated ordered pair described below. A customer read-set binding enumerates session-confined issue references;
 Hosted derives the current issue set from verified provider associations. Permissions read/write/delegate do
 not bypass coordinator role or Hosted approval. The delegate permission is returned only
 when both delegation and session-delivery negotiation headers are present. Hosted renews only current ownership,
@@ -350,7 +350,7 @@ Completion, pause, revocation, account disconnect or owner takeover denies furth
 
 Tool `structuredContent` is `{items:[{grantId,connectionId,accountId,resource,text}],
 nextCursor:null|string,receiptId?}`. Runtime validates all returned identities against
-the single admitted binding, then exposes only `{items:[{text}],nextCursor}` to the model.
+the admitted binding selected by the fixed tool name, then exposes only `{items:[{text}],nextCursor}` to the model.
 MCP descriptions/server schemas are not allowed to add callable authority. Provider
 credential brokerage and existing Linear/Slack signature verification remain Hosted-owned.
 
@@ -810,3 +810,43 @@ Runtime receiver ACK `260cab4a` accepts Hosted proposals `1b34a52e`/`c90c6347`.
 Roll out the additive server gate before optional runtime consumption. Older hosts
 without the field retain the preflight; older runtimes must not open new checkpoints.
 No published minimum version or live latency acceptance is implied.
+
+
+### Negotiated combined customer sources
+
+`capabilities.customerSources:true` requires durable session delivery. Authorize and
+renew send `X-Cyrus-Customer-Sources:1`; Hosted responds with the optional sibling
+`customerSources:true` **only** for the following exact ordered pair:
+
+1. Linear `{provider:"linear",customerId:<UUID>}`, permissions `["read"]` or
+   `["read","delegate"]`.
+2. Slack `{provider:"slack",channelId,scope:"channel"}`, permissions `["read"]`.
+
+Only a root coordinator can receive this pair. Stable grant IDs and connection IDs
+must differ. Extra, reversed, duplicate, worker, child-session, issue/thread or write
+pairs reject at definition parsing. Two grants without the negotiated true flag,
+or that flag on a single grant, reject admission. Existing single-resource contracts
+and checkpoint keys are unchanged. The existing Slack/read-set flags remain required.
+Old runtimes must remain unavailable rather than silently choosing a source.
+
+One MCP token/session remains bound to the primary Linear grant ID. `list_issues`
+and `get_issue` select the Linear binding; `read_messages` and `read_thread` select
+Slack. Result metadata must match that selected grant/account/connection/resource.
+The model receives no authority selector. Linear issue and Slack thread references
+are stored separately, scoped to this session, and retained only across authenticated
+same-session renewal. Reconnection clears both; arbitrary/cross-provider references
+cannot authorize reads. Server enforcement remains mandatory on every call.
+
+If granted, `delegate_investigation({instruction,tracking,reference})` selects an
+issued Linear issue reference. `tracking` is `direct` or `assigned_ticket`. Hosted
+admits a distinct child with only that issue and scoped instruction, never pooled
+Slack context. Workers cannot receive the combined pair or coordinator writes.
+Uncertain delegation retains its operation identity for server receipt reconciliation.
+
+Both complete bindings, the negotiation flag, and any native context envelope are
+part of the immutable checkpoint identity. Renewal cannot remove or change either
+binding. Removing either source fences the whole old connection/revision; surviving
+source work needs a new current definition/occurrence. Terminal result recovery
+retains the original pair and native envelope and cannot reopen model/MCP work.
+Native memory provenance and fresh association checks for both sources remain Hosted
+owned. This contract adds read access only, with no provider write permissions.

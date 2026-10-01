@@ -7,6 +7,7 @@ import {
 	type AutomationAuthority,
 	admissionSchema,
 	authorizeTool,
+	grantForTool,
 	type McpCredential,
 	permittedToolNames,
 	resourceSchema,
@@ -178,11 +179,23 @@ it("rejects foreign result metadata and unsupported negotiation values", () => {
 });
 
 it.each([
-	false,
-	true,
-])("SDK channel references/cursors stay scoped through rotation (continuation=%s)", async (continuation) => {
+	[false, false],
+	[true, false],
+	[false, true],
+	[true, true],
+])("SDK references stay scoped (continuation=%s, combined=%s)", async (continuation, combined) => {
 	const a = authority();
 	a.definition.grants[0]!.permissions = ["read"];
+	if (combined) {
+		a.customerSources = true;
+		a.definition.grants.unshift({
+			id: "linear-binding",
+			connectionId: "linear-connection",
+			accountId: "linear-account",
+			resource: { provider: "linear", customerId: randomUUID() },
+			permissions: ["read"],
+		});
+	}
 	let credential: McpCredential = {
 		token: "first-fixture-token-thirty-two-characters",
 		grantId: a.definition.grants[0]!.id,
@@ -271,7 +284,7 @@ it.each([
 							cursor = randomUUID();
 						bound.references.add(reference);
 						bound.cursors.add(cursor);
-						const g = a.definition.grants[0]!;
+						const g = grantForTool(a, name)!;
 						return {
 							content: [],
 							structuredContent: {
@@ -282,17 +295,22 @@ it.each([
 										accountId: g.accountId,
 										resource: g.resource,
 										text:
-											name === "read_messages"
+											name === "list_issues"
 												? JSON.stringify({
-														messages: [
-															{
-																reference,
-																text: "Admitted channel root",
-																...(malformed && { channelId: "forged" }),
-															},
-														],
+														issues: [{ reference, identifier: "ISSUE-1" }],
+														held: 0,
 													})
-												: "Admitted thread replies",
+												: name === "read_messages"
+													? JSON.stringify({
+															messages: [
+																{
+																	reference,
+																	text: "Admitted channel root",
+																	...(malformed && { channelId: "forged" }),
+																},
+															],
+														})
+													: "Admitted thread replies",
 									},
 								],
 								nextCursor: name === "read_messages" ? cursor : null,
@@ -321,7 +339,7 @@ it.each([
 		stop.signal,
 	);
 	const call = (
-		name: "read_messages" | "read_thread",
+		name: "read_messages" | "read_thread" | "list_issues" | "get_issue",
 		args: Record<string, unknown> = {},
 	) =>
 		client.call({ name, arguments: args } as never, randomUUID(), stop.signal);
@@ -335,6 +353,16 @@ it.each([
 	};
 	try {
 		let issued = await history();
+		let issue: string | undefined;
+		if (combined) {
+			const listed = await call("list_issues");
+			issue = JSON.parse(listed.items[0]!.text).issues[0].reference;
+			await call("get_issue", { reference: issue });
+			const beforeForeign = providerCalls;
+			await call("get_issue", { reference: issued.reference });
+			await call("read_thread", { reference: issue });
+			expect(providerCalls).toBe(beforeForeign);
+		}
 		await call("read_thread", { reference: issued.reference });
 		const before = providerCalls;
 		await call("read_thread", { reference: randomUUID() });
@@ -353,6 +381,11 @@ it.each([
 		await call("read_messages", { cursor: issued.cursor });
 		expect(providerCalls).toBe(before + (continuation ? 2 : 0));
 		expect(initializations).toBe(continuation ? 1 : 2);
+		if (combined) {
+			const beforeIssue = providerCalls;
+			await call("get_issue", { reference: issue });
+			expect(providerCalls).toBe(beforeIssue + (continuation ? 1 : 0));
+		}
 		issued = await history();
 		const beforeExpiryDenials = deniedRequests;
 		expiredReference = true;

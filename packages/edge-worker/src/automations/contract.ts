@@ -69,7 +69,7 @@ export const scheduleSchema = z
 			}),
 	})
 	.strict();
-export const definitionSchema = z
+const definitionShape = z
 	.object({
 		id,
 		workspaceId: id,
@@ -87,15 +87,44 @@ export const definitionSchema = z
 				model: z.string().min(1).max(200),
 			})
 			.strict(),
-		grants: z.array(grantSchema).max(1),
+		grants: z.array(grantSchema).max(2),
 		session: cyrusSessionDescriptorSchema.optional(),
 	})
 	.strict();
-export type AutomationDefinition = z.infer<typeof definitionSchema>;
-export const registrationSchema = definitionSchema.omit({ grants: true });
+export type AutomationDefinition = z.infer<typeof definitionShape>;
+export const registrationSchema = definitionShape.omit({ grants: true });
 export type AutomationRegistration = z.infer<typeof registrationSchema>;
 export type ResourceGrant = z.infer<typeof grantSchema>;
 
+/** Exactly the negotiated ordered read pair; single-resource contracts are unchanged. */
+export function validSourceGrants(definition: AutomationDefinition): boolean {
+	const grants = definition.grants;
+	if (grants.length <= 1) return true;
+	if (
+		grants.length !== 2 ||
+		definition.role !== "coordinator" ||
+		definition.session
+	)
+		return false;
+	const [linear, slack] = grants;
+	return (
+		linear!.id !== slack!.id &&
+		linear!.connectionId !== slack!.connectionId &&
+		linear!.resource.provider === "linear" &&
+		"customerId" in linear!.resource &&
+		slack!.resource.provider === "slack" &&
+		"scope" in slack!.resource &&
+		linear!.permissions.includes("read") &&
+		linear!.permissions.every((p) => p === "read" || p === "delegate") &&
+		new Set(linear!.permissions).size === linear!.permissions.length &&
+		slack!.permissions.length === 1 &&
+		slack!.permissions[0] === "read"
+	);
+}
+export const definitionSchema = definitionShape.refine(
+	validSourceGrants,
+	"Invalid combined source grants",
+);
 export const authoritySchema = z
 	.object({
 		contractVersion: z.literal(AUTOMATION_VERSION),
@@ -112,6 +141,7 @@ export const authoritySchema = z
 export type AutomationAuthority = z.infer<typeof authoritySchema> & {
 	engineering?: EngineeringEnvelope;
 	nativeContext?: NativeContext;
+	customerSources?: true;
 };
 export const mcpCredentialSchema = z
 	.object({
@@ -132,6 +162,7 @@ export const admissionSchema = z
 		authority: authoritySchema,
 		ownerInterruption: z.literal(true).optional(),
 		slackChannelRead: z.literal(true).optional(),
+		customerSources: z.literal(true).optional(),
 		sessionExecutionTiming: z.literal(true).optional(),
 		// Unknown versions remain on the preflight path and are still pinned.
 		sessionDeliveryAuthority: z.string().min(1).max(100).optional(),
@@ -147,13 +178,20 @@ export const admissionSchema = z
 			.strict()
 			.optional(),
 	})
-	.strict();
+	.strict()
+	.refine(
+		(a) =>
+			(a.authority.definition.grants.length === 2) ===
+			(a.customerSources === true),
+		"Combined sources require explicit negotiation",
+	);
 export type AutomationAdmission = z.infer<typeof admissionSchema>;
 export function executionAuthority(
 	admission: AutomationAdmission,
 ): AutomationAuthority {
 	return {
 		...admission.authority,
+		...(admission.customerSources && { customerSources: true as const }),
 		...(admission.engineering && { engineering: admission.engineering }),
 		...(admission.nativeContext && { nativeContext: admission.nativeContext }),
 	};
@@ -281,6 +319,7 @@ export function digest(value: unknown): string {
 export function checkpointKey(authority: AutomationAuthority): string {
 	return digest({
 		definition: authority.definition,
+		...(authority.customerSources && { customerSources: true }),
 		occurrenceId: authority.occurrenceId,
 		input: authority.input,
 		...(authority.engineering && { engineering: authority.engineering }),
@@ -298,12 +337,16 @@ export function identity(authority: AutomationAuthority) {
 }
 
 export function isCustomerReadSet(authority: AutomationAuthority): boolean {
-	const resource = authority.definition.grants[0]?.resource;
+	const resource = authority.definition.grants.find(
+		(g) => g.resource.provider === "linear",
+	)?.resource;
 	return resource?.provider === "linear" && "customerId" in resource;
 }
 
 export function isSlackChannel(authority: AutomationAuthority): boolean {
-	const resource = authority.definition.grants[0]?.resource;
+	const resource = authority.definition.grants.find(
+		(g) => g.resource.provider === "slack",
+	)?.resource;
 	return (
 		resource?.provider === "slack" &&
 		"scope" in resource &&
@@ -327,7 +370,30 @@ export const slackChannelHistorySchema = z
 	})
 	.strict();
 
+/** Fixed routing; authority/resource IDs never come from model arguments. */
+export function grantForTool(
+	authority: AutomationAuthority,
+	name: string,
+): ResourceGrant | undefined {
+	const provider = ["list_issues", "get_issue", "add_comment"].includes(name)
+		? "linear"
+		: ["read_messages", "read_thread", "reply"].includes(name)
+			? "slack"
+			: name === "delegate_investigation"
+				? authority.definition.grants[0]?.resource.provider
+				: undefined;
+	const matching = authority.definition.grants.filter(
+		(g) => g.resource.provider === provider,
+	);
+	return matching.length === 1 ? matching[0] : undefined;
+}
 export function permittedToolNames(authority: AutomationAuthority): string[] {
+	if (
+		!validSourceGrants(authority.definition) ||
+		(authority.definition.grants.length === 2) !==
+			(authority.customerSources === true)
+	)
+		return [];
 	if (authority.definition.role === "engineering")
 		return authority.engineering && authority.definition.grants.length === 0
 			? ["execute", "publish_artifact"]
@@ -338,29 +404,31 @@ export function permittedToolNames(authority: AutomationAuthority): string[] {
 		authority.nativeContext?.scopeRef === authority.definition.scopeRef
 			? nativeContextTools(authority.nativeContext)
 			: [];
-	const grant = authority.definition.grants[0];
-	if (!grant) return names;
-	if (isCustomerReadSet(authority) && grant.permissions.includes("read"))
-		names.push("list_issues");
-	if (grant.permissions.includes("read"))
-		names.push(
-			grant.resource.provider === "slack" ? "read_messages" : "get_issue",
-		);
-	if (isSlackChannel(authority) && grant.permissions.includes("read"))
-		names.push("read_thread");
-	if (
-		!isCustomerReadSet(authority) &&
-		!isSlackChannel(authority) &&
-		grant.permissions.includes("write") &&
-		authority.definition.role === "coordinator"
-	)
-		names.push(grant.resource.provider === "slack" ? "reply" : "add_comment");
-	if (
-		authority.definition.role === "coordinator" &&
-		grant.permissions.includes("read") &&
-		grant.permissions.includes("delegate")
-	)
-		names.push("delegate_investigation");
+	for (const grant of authority.definition.grants) {
+		const resource = grant.resource;
+		const readSet = resource.provider === "linear" && "customerId" in resource;
+		const channel = resource.provider === "slack" && "scope" in resource;
+		if (readSet && grant.permissions.includes("read"))
+			names.push("list_issues");
+		if (grant.permissions.includes("read"))
+			names.push(resource.provider === "slack" ? "read_messages" : "get_issue");
+		if (channel && grant.permissions.includes("read"))
+			names.push("read_thread");
+		if (
+			!readSet &&
+			!channel &&
+			grant.permissions.includes("write") &&
+			authority.definition.role === "coordinator"
+		)
+			names.push(resource.provider === "slack" ? "reply" : "add_comment");
+		if (
+			authority.definition.role === "coordinator" &&
+			grant.permissions.includes("read") &&
+			grant.permissions.includes("delegate")
+		)
+			names.push("delegate_investigation");
+	}
+
 	return names;
 }
 
@@ -392,9 +460,11 @@ export function scopedToolDescription(
 		case "publish_artifact":
 			return "Publish the current reviewed-path workspace snapshot to the fixed repository and branch. No deployment is authorized.";
 		case "delegate_investigation":
-			return isSlackChannel(authority)
-				? "Ask a direct child investigator to examine the server-admitted channel or narrower thread. No ticket or provider scope selection is available."
-				: "Ask a child investigator to examine the bound source. Tracking links the already-bound ticket or creates a direct child; it does not create or assign a provider ticket.";
+			return isCustomerReadSet(authority)
+				? "Ask a child investigator to examine only the issue selected by a reference from list_issues. The child receives no other source context. Tracking links that issue or creates a direct child without a ticket."
+				: isSlackChannel(authority)
+					? "Ask a direct child investigator to examine the server-admitted channel or narrower thread. No ticket or provider scope selection is available."
+					: "Ask a child investigator to examine the bound source. Tracking links the already-bound ticket or creates a direct child; it does not create or assign a provider ticket.";
 		default:
 			return "Operate only on the resource bound to this connection";
 	}
@@ -434,9 +504,10 @@ export function scopedToolSchemas(authority: AutomationAuthority) {
 				const args = z
 					.object({
 						instruction: z.string().min(1).max(10_000),
-						tracking: isSlackChannel(authority)
-							? z.literal("direct")
-							: z.enum(["direct", "assigned_ticket"]),
+						tracking:
+							isSlackChannel(authority) && !readSet
+								? z.literal("direct")
+								: z.enum(["direct", "assigned_ticket"]),
 					})
 					.strict();
 				return z
@@ -468,7 +539,7 @@ export function authorizeTool(
 		permittedToolNames(authority).includes(call.name)
 	)
 		return undefined;
-	const grant = authority.definition.grants[0];
+	const grant = grantForTool(authority, call.name);
 	if (!grant || !permittedToolNames(authority).includes(call.name)) {
 		throw new Error("Automation tool denied");
 	}

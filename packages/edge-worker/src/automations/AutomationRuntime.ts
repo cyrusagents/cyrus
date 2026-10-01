@@ -126,6 +126,7 @@ export class AutomationRuntime {
 				harnessStreaming: false,
 				scopedMcp: true,
 				customerReadSet: true,
+				customerSources: !!this.options.sessions,
 				nativeContext: !!this.options.sessions,
 				slackChannelRead: true,
 				mcpSessionRenewal: true,
@@ -295,7 +296,8 @@ export class AutomationRuntime {
 			);
 		const admission = parsed.data;
 		if (
-			(admission.sessionExecutionTiming ||
+			(admission.customerSources ||
+				admission.sessionExecutionTiming ||
 				admission.sessionDeliveryAuthority === "current-admission-v1") &&
 			(!admission.sessionDelivery || !this.options.sessions)
 		)
@@ -538,6 +540,7 @@ export class AutomationRuntime {
 								renewed.mcp.grantId !== admission.mcp.grantId ||
 								renewed.ownerInterruption !== admission.ownerInterruption ||
 								renewed.slackChannelRead !== admission.slackChannelRead ||
+								renewed.customerSources !== admission.customerSources ||
 								renewed.sessionExecutionTiming !==
 									admission.sessionExecutionTiming ||
 								renewed.sessionDeliveryAuthority !==
