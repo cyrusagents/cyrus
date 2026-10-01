@@ -1,0 +1,76 @@
+{
+	"runtimeSha": "75438a10deb245e172bf07b7435ad321d9b7fa7a",
+	"hostedSha": "5429c3cad4aeff975f5c1c668fc0d48754b9c66c",
+	"tests": 87,
+	"assertions": 965,
+	"modes": {
+		"instruction-tick": {
+			"runtime": {
+				"passed": true,
+				"queuedNextTurn": false,
+				"completed": 2,
+				"pausedReceiptRecovered": false,
+				"modelSteps": 6,
+				"resultTransmissions": 3,
+				"automaticLostAckRecovery": true,
+				"registeredEntryPoint": true,
+				"unauthorizedRoutesDenied": 4,
+				"duplicateInstructionDeduplicated": true,
+				"elapsedMs": 31179
+			},
+			"native": {
+				"opens": 2,
+				"requests": 6,
+				"childRequests": 0,
+				"closes": 2,
+				"noPrivateParentInChildInput": true
+			}
+		},
+		"read-set-direct-child": {
+			"runtime": {
+				"passed": true,
+				"queuedNextTurn": false,
+				"childContextIsolated": true,
+				"completed": 2,
+				"pausedReceiptRecovered": false,
+				"modelSteps": 8,
+				"resultTransmissions": 3,
+				"automaticLostAckRecovery": true,
+				"registeredEntryPoint": true,
+				"unauthorizedRoutesDenied": 4,
+				"duplicateInstructionDeduplicated": true,
+				"elapsedMs": 14792
+			},
+			"native": {
+				"opens": 2,
+				"requests": 8,
+				"childRequests": 3,
+				"closes": 2,
+				"noPrivateParentInChildInput": true
+			}
+		},
+		"read-set-ticket-child": {
+			"runtime": {
+				"passed": true,
+				"queuedNextTurn": false,
+				"childContextIsolated": true,
+				"completed": 2,
+				"pausedReceiptRecovered": false,
+				"modelSteps": 8,
+				"resultTransmissions": 3,
+				"automaticLostAckRecovery": true,
+				"registeredEntryPoint": true,
+				"unauthorizedRoutesDenied": 4,
+				"duplicateInstructionDeduplicated": true,
+				"elapsedMs": 14874
+			},
+			"native": {
+				"opens": 2,
+				"requests": 8,
+				"childRequests": 3,
+				"closes": 2,
+				"noPrivateParentInChildInput": true
+			}
+		}
+	}
+}

@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 
 export async function nativeOracle(oracle, { directory, modules, load }) {
 	const { ContainedCodexAutomationModel } = await load("ContainedCodexModel");
-	const { permittedToolNames } = await load("contract");
+	const { permittedToolNames, scopedToolDescription } = await load("contract");
 	const { CodexLoginBroker } = await import(
 		pathToFileURL(resolve(modules, "../../../cyrus-codex-runner/dist/index.js"))
 	);
@@ -34,6 +34,7 @@ export async function nativeOracle(oracle, { directory, modules, load }) {
 		childRequests: 0,
 		closes: 0,
 		noPrivateParentInChildInput: true,
+		delegationDescriptionRequests: 0,
 	};
 	const save = () =>
 		writeFile(
@@ -47,6 +48,21 @@ export async function nativeOracle(oracle, { directory, modules, load }) {
 		const c = context.getStore();
 		assert.ok(c, "native provider request belongs to an admitted occurrence");
 		const authority = c.authority();
+		const request = JSON.parse(init.body);
+		// Assert the complete descriptions at the real native -> broker request
+		// boundary, where SDK rewriting or missing dynamic-tool metadata matters.
+		for (const tool of request.tools ?? []) {
+			if (
+				tool.name === "delegate_investigation" ||
+				tool.name === "read_context"
+			)
+				assert.equal(
+					tool.description,
+					scopedToolDescription(authority, tool.name),
+				);
+			if (tool.name === "delegate_investigation")
+				evidence.delegationDescriptionRequests++;
+		}
 		if (authority.definition.role === "investigator") {
 			evidence.childRequests++;
 			assert.ok(

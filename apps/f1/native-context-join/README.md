@@ -108,6 +108,14 @@ report. The frozen fixture enables event session delivery, explicit DB preflight
 and Codex target metadata. Strict source seams fail when upstream changes require
 review. Original and adapted driver/test sources and input hashes are preserved.
 
+`CYRUS_NATIVE_JOIN_MODES=instruction-tick` additionally selects the existing Hosted
+instruction-plus-scheduled-tick scenario through the same installed native bridge.
+It requires two completed occurrences (instruction and tick), exact admission,
+deduplicated instruction delivery and automatic lost-result-ACK recovery. It is a
+schedule gate, not a replacement for the four event/child modes. Installed754 /
+Hosted5429 passes it and both read-set child modes; see
+[the schedule/child report](../test-drives/cypack-1546-schedule-child-audit.md).
+
 Database and contained processes are cleaned up by the existing fixture. The frozen
 source and private synthetic fixture directories are retained for inspection;
 remove only those paths after reviewing a failure. No registered live instance is
@@ -145,14 +153,16 @@ The passed gate includes 11 completed occurrences, 26 model exchanges, two immut
 negative receipts and one SDK session across three combined-source renewals.
 
 The separate [engineering-to-parent recipe](../../../docs/engineering-parent-acceptance.md)
-identifies the remaining production dispatcher/native parent successor gate. It is
-preparation, not evidence that this context join exercises that path.
+describes the production dispatcher/native parent successor gate. Its separate
+passing evidence does not imply this context join exercises that path.
 
 `run-parent-successor.mjs` now runs that separate gate against unchanged Hosted
 dispatchers/callback with a real SQL transport adapter. It supplies the installed
 runtime origin to the fixture instead of submitting prepared occurrences itself.
-Use the same five launcher arguments and Docker environment. As of Hosted a65f /
-installed3978 it **fails source-free parent admission** after engineering completion;
-see the [failure report](../test-drives/cypack-1546-parent-dispatch.md). Do not treat
-the combined context join's pass as covering this gate. Registered-target resolution,
+Use the same five launcher arguments and Docker environment. Hosted a65f /
+installed3978 originally **failed source-free parent admission** after engineering
+completion; the [failure report](../test-drives/cypack-1546-parent-dispatch.md) is
+preserved. Hostedf16 corrected admission, and installed754 / Hosted70ea separately
+passes the unchanged production parent gate. Do not treat the combined context
+join's pass as covering it. Registered-target resolution,
 Workflow platform delivery and provider/model transports remain controlled.

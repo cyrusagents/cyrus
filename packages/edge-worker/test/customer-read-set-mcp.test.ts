@@ -59,6 +59,8 @@ it.each([
 		hideList = false,
 		providerReads = 0;
 	let catalogRequests = 0;
+	let denyCatalog = false,
+		toolRequests = 0;
 	const sessions = new Map<
 		string,
 		{
@@ -135,7 +137,10 @@ it.each([
 		if ((request.body as { method?: string })?.method === "tools/list") {
 			catalogRequests++;
 			await new Promise((resolve) => setTimeout(resolve, 30));
+			if (denyCatalog) return reply.code(403).send();
 		}
+		if ((request.body as { method?: string })?.method === "tools/call")
+			toolRequests++;
 		reply.hijack();
 		await session.transport.handleRequest(request.raw, reply.raw, request.body);
 	});
@@ -320,6 +325,36 @@ it.each([
 		hideList = true;
 		await expect(call("list_issues")).rejects.toThrow("interrupted");
 		hideList = false;
+		// A protocol-only handshake can succeed while current provider access
+		// denies the first catalog. Initialization must never stand in for that
+		// authority check or allow a tool invocation (including after renewal).
+		const candidate = new ScopedAutomationMcpClient(
+			"https://read-set.fixture",
+			() => authority,
+			() => credential,
+			controller.signal,
+		);
+		const beforeDeniedHandshake = {
+			sessions: sessions.size,
+			catalogs: catalogRequests,
+			tools: toolRequests,
+		};
+		denyCatalog = true;
+		try {
+			await expect(
+				candidate.call(
+					{ name: "list_issues", arguments: {} },
+					"denied-initial-catalog",
+					controller.signal,
+				),
+			).rejects.toThrow("interrupted");
+			expect(sessions.size).toBe(beforeDeniedHandshake.sessions + 1);
+			expect(catalogRequests).toBe(beforeDeniedHandshake.catalogs + 1);
+			expect(toolRequests).toBe(beforeDeniedHandshake.tools);
+		} finally {
+			denyCatalog = false;
+			await candidate.close();
+		}
 		const beforeRevocation = await list();
 		revoked = true;
 		await expect(client.revalidate()).rejects.toMatchObject({

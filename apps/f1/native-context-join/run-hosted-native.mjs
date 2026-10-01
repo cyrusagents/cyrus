@@ -26,6 +26,7 @@ const modes =
 for (const mode of modes.split(","))
 	assert.ok(
 		[
+			"instruction-tick",
 			"read-set-direct-child",
 			"read-set-ticket-child",
 			"linear-events",
