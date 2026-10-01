@@ -652,6 +652,13 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				const [rejected] =
 					await sql`select count(*)::int n from customer_native_rejections r join customer_native_grants g on g.id=r.grant_id where g.binding_id=${main.id}::uuid and r.tool='track_work' and r.code='proof_required'`;
 				workRejectionReceipts = rejected.n;
+				const [replies] =
+					await sql`select count(*)::int n from customer_messages where customer_id=${main.customer} and author='coordinator' and body='No matching outcome proof is available. I kept the work waiting.'`;
+				assert.equal(
+					replies.n,
+					2,
+					"both corrected source-free turns publish an honest waiting reply",
+				);
 				const [operations] =
 					await sql`select count(*)::int n from customer_native_operations o join customer_native_grants g on g.id=o.grant_id where g.binding_id=${main.id}::uuid and o.tool='track_work'`;
 				assert.equal(
@@ -668,6 +675,13 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			if (workRejection && both) {
 				const [rejected] =
 					await sql`select count(*)::int n from customer_native_rejections r join customer_native_grants g on g.id=r.grant_id where g.binding_id=${both.id}::uuid and r.tool='track_work' and r.code='proof_required'`;
+				const [replies] =
+					await sql`select count(*)::int n from customer_messages where customer_id=${both.customer} and author='coordinator' and body='No matching outcome proof is available. I kept the work waiting.'`;
+				assert.equal(
+					replies.n,
+					1,
+					"provider-bound correction publishes one honest waiting reply",
+				);
 				assert.equal(
 					rejected.n,
 					1,

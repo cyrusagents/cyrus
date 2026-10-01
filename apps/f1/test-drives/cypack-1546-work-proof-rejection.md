@@ -66,7 +66,9 @@ Before the original positive proof-backed verification, the driver now performs:
 With combined-source mode, a provider-bound coordinator also creates work, receives
 the missing-proof rejection and corrects to waiting in one attempt. Its SQL ledger
 contains one negative receipt and two successful work operations. This exercises
-both source-free and provider-bound rejection paths.
+both source-free and provider-bound rejection paths. Each corrected occurrence
+also persists one honest customer reply stating that work remains waiting; no
+proof-free verification claim is accepted.
 
 The existing positive proof fixture remains explicit: the harness inserts trusted
 synthetic proof into its owned SQL fixture, then the model uses the reference from

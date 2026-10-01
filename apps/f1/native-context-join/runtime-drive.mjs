@@ -330,7 +330,9 @@ async function modelResponse(body) {
 				content: [
 					{
 						type: "output_text",
-						text: `Completed controlled ${stage}.`,
+						text: stage.includes("work-rejection")
+							? "No matching outcome proof is available. I kept the work waiting."
+							: `Completed controlled ${stage}.`,
 						annotations: [],
 					},
 				],
