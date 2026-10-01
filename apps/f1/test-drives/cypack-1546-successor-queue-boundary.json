@@ -1,0 +1,152 @@
+{
+	"hosted": "8995bb5a2534b83b60ab00362e94f1cdd92dc9c8",
+	"runtime": "d66ed0a86d0d925fe88469a142da93f640aee416",
+	"futureDueProbe": {
+		"passed": true,
+		"tests": 87,
+		"assertions": 933,
+		"seconds": 27.07,
+		"proof": {
+			"productionDrains": 4,
+			"queueDeferralAfterCutoffMs": [49.922],
+			"queueDeferrals": 1,
+			"productionDispatcher": true,
+			"occurrenceId": "83ad74572a1ca8fc44bc328abeeed826117ed211a71a02cb116992d98a1ec4e7",
+			"outboxCount": 1,
+			"replyCount": 1,
+			"dispatches": 3,
+			"nativeReads": 1,
+			"nativeWrites": 0,
+			"memoryEffects": 0,
+			"externalReplies": 0,
+			"workIdentityPreserved": true,
+			"modelSteps": 1,
+			"providerRequests": 1,
+			"freshContext": true,
+			"exactOriginalConstraints": true,
+			"fullNativePrompt": true
+		}
+	},
+	"httpRejectionProbe": {
+		"passed": true,
+		"expectedSuiteFailure": true,
+		"attempts": 1,
+		"rejectionCount": 1,
+		"queueDeferrals": 0,
+		"diagnostic": {
+			"queueSelected": 2,
+			"afterQueueCutoffMs": 30005,
+			"attempts": 1,
+			"nextAttemptInMs": 29980,
+			"databaseClockOffsetMs": -2.115966796875,
+			"bindingHasError": true,
+			"boundaries": [
+				{
+					"boundary": "registered",
+					"path": "definitions",
+					"state": "started"
+				},
+				{
+					"boundary": "registered",
+					"path": "definitions",
+					"state": "response",
+					"status": 200,
+					"elapsedMs": 3
+				},
+				{
+					"boundary": "ack",
+					"path": "definitions",
+					"version": 1,
+					"occurrence": false,
+					"definitionMatches": true
+				},
+				{
+					"boundary": "registered",
+					"path": "occurrences",
+					"state": "started"
+				},
+				{
+					"boundary": "registered",
+					"path": "occurrences",
+					"state": "response",
+					"status": 200,
+					"elapsedMs": 1
+				},
+				{
+					"boundary": "ack",
+					"path": "occurrences",
+					"version": 1,
+					"occurrence": true
+				},
+				{
+					"boundary": "registered",
+					"path": "occurrences",
+					"state": "started"
+				},
+				{
+					"boundary": "registered",
+					"path": "occurrences",
+					"state": "response",
+					"status": 403,
+					"elapsedMs": 0
+				},
+				{
+					"boundary": "registered",
+					"path": "definitions",
+					"state": "started"
+				},
+				{
+					"boundary": "registered",
+					"path": "definitions",
+					"state": "response",
+					"status": 200,
+					"elapsedMs": 1
+				},
+				{
+					"boundary": "ack",
+					"path": "definitions",
+					"version": 1,
+					"occurrence": false,
+					"definitionMatches": true
+				},
+				{
+					"boundary": "registered",
+					"path": "occurrences",
+					"state": "started"
+				},
+				{
+					"boundary": "registered",
+					"path": "occurrences",
+					"state": "response",
+					"status": 200,
+					"elapsedMs": 1
+				},
+				{
+					"boundary": "ack",
+					"path": "occurrences",
+					"version": 1,
+					"occurrence": true
+				},
+				{
+					"boundary": "registered",
+					"path": "wake",
+					"state": "started"
+				},
+				{
+					"boundary": "registered",
+					"path": "wake",
+					"state": "response",
+					"status": 202,
+					"elapsedMs": 1
+				},
+				{
+					"boundary": "ack",
+					"path": "wake",
+					"version": 1,
+					"occurrence": false
+				}
+			]
+		}
+	},
+	"independentOriginalFailureAttributed": false
+}

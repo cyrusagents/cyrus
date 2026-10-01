@@ -180,6 +180,9 @@ await writeFile(
 			runtimeSha,
 			modes,
 			successorMode,
+			dispatchRejectionProbe:
+				process.env.CYRUS_NATIVE_JOIN_DISPATCH_REJECTION === "1",
+			queueDelayProbe: process.env.CYRUS_NATIVE_JOIN_QUEUE_DELAY === "1",
 			helperSha256,
 			image: process.env.CYRUS_F1_CODEX_IMAGE,
 			privateFixtureSource: work,

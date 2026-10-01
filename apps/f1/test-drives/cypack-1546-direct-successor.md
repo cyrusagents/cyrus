@@ -95,3 +95,34 @@ of the independent run. Diagnostics now record selected row count and compute
 `next_attempt_at - actual queue cutoff` in PostgreSQL at full precision. Date
 conversion in the old diagnostic discarded milliseconds; it is corrected.
 No extra dispatch retries or relaxed due predicate have been added.
+
+
+## Bounded due-time fixture correction
+
+The fixture now invokes a subsequent **production drain** only when SQL proves
+`0 < next_attempt_at - first_queue_cutoff <= 100ms`, the successor has zero
+attempts, no binding error and no recorded SQL/HTTP failure. It waits at most
+102ms; it does not change rows, due filtering, attempts, input, credentials or
+authority. Any other undelivered row still fails with the exact bounded diagnostic.
+A second unsuccessful drain also fails. Three logical probe requests can now
+produce four production drains; evidence reports both counts and the exact gap.
+
+Controlled installed d66/frozen Hosted8995 validation:
+
+- `CYRUS_NATIVE_JOIN_QUEUE_DELAY=1` changes only the fresh fixture DB's new-outbox
+  default to now()+50ms for the first drain, then restores it. PASS87/933 in27.07s.
+  SQL measured49.922ms after cutoff; one subsequent drain, one actual successor
+  delivery, one reply, three native opens/closes, nine requests, zero memory or
+  external writes. Exact original restrictions/work identity assertions remain.
+- `CYRUS_NATIVE_JOIN_DISPATCH_REJECTION=1` returns a controlled403 only for the
+  successor occurrence transport. Expected suite failure86/1 remains fatal with
+  attempts1, binding error true, one403, **zero** due-time re-drains. The external
+  negative-probe assertions pass. This tests error preservation, not live auth.
+
+Evidence: `attachments/successor-queue-delay-8995-r3/queue-boundary-summary.json`
+and `attachments/successor-denial-8995-r3/` under the issue's attachments root.
+Original failed independent runs and earlier diagnostic source remain preserved.
+No attribution of the independent failure is claimed until its full-precision
+queue-cutoff evidence is available. No production Runtime or Hosted code changed.
+The existing normal replay command needs no flag; the two flags above are only
+for deterministic positive/negative fixture probes.

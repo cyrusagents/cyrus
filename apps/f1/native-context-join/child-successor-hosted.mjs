@@ -51,6 +51,7 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 	}));
 	let runtimeOrigin,
 		dispatches = 0,
+		queueDeferrals = 0,
 		nativeReads = 0,
 		nativeWrites = 0;
 	const nativeFetch = globalThis.fetch;
@@ -60,7 +61,22 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 			assert.ok(runtimeOrigin);
 			const started = performance.now();
 			record({ boundary: "registered", path, state: "started" });
-			const response = await nativeFetch(
+			let rejectSuccessor = false;
+			if (
+				process.env.CYRUS_NATIVE_JOIN_DISPATCH_REJECTION === "1" &&
+				path === "occurrences"
+			) {
+				try {
+					rejectSuccessor =
+						JSON.parse(body.input).topic === "automation.child.result";
+				} catch {
+					/* Other fixture occurrences can have plain text input. */
+				}
+			}
+			const fetchRegistered = rejectSuccessor
+				? async () => new Response(null, { status: 403 })
+				: nativeFetch;
+			const response = await fetchRegistered(
 				new URL(`/api/automations/v1/${path}`, runtimeOrigin),
 				{
 					method: body ? "POST" : "GET",
@@ -162,9 +178,16 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 			assert.equal(event.thread_id, thread);
 			assert.equal(event.payload.continuation.originalInput, initial.input);
 			assert.equal(event.payload.findings, findings);
+			// Opt-in deterministic queue-boundary probe, confined to this fresh test DB.
+			const delayProbe =
+				process.env.CYRUS_NATIVE_JOIN_QUEUE_DELAY === "1" && dispatches === 0;
+			if (delayProbe)
+				await sql`alter table customer_automation_outbox alter column next_attempt_at set default (now() + interval '50 milliseconds')`;
 			await deliverCustomerAutomations(f.w, f.customer);
+			if (delayProbe)
+				await sql`alter table customer_automation_outbox alter column next_attempt_at set default now()`;
 			dispatches++;
-			const rows =
+			let rows =
 				await sql`select * from customer_automation_outbox where binding_id=${f.id} and event_id=${event.id}`;
 			assert.equal(rows.length, 1);
 			if (!rows[0].delivered_at) {
@@ -184,8 +207,46 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 					bindingHasError: binding.last_error !== null,
 					boundaries: diagnostics,
 				};
-				assert.fail(
+				// A microsecond DB default can be later than JS's millisecond cutoff.
+				// Only re-drain a proven not-yet-due, unattempted row; never retry a
+				// rejection, reset attempts, rewrite its input or bypass due filtering.
+				const deferred =
+					parentQueue &&
+					diagnostic.afterQueueCutoffMs > 0 &&
+					diagnostic.afterQueueCutoffMs <= 100 &&
+					diagnostic.attempts === 0 &&
+					!diagnostic.bindingHasError &&
+					!diagnostics.some(
+						(entry) =>
+							entry.boundary === "query" ||
+							entry.boundary === "rpc" ||
+							entry.state === "failed" ||
+							entry.status >= 400,
+					);
+				assert.ok(
+					deferred,
 					`Production successor was not delivered: ${JSON.stringify(diagnostic)}`,
+				);
+				queueDeferrals++;
+				record({
+					boundary: "queue-deferred",
+					afterQueueCutoffMs: diagnostic.afterQueueCutoffMs,
+				});
+				await new Promise((resolve) =>
+					setTimeout(resolve, Math.ceil(diagnostic.afterQueueCutoffMs) + 2),
+				);
+				await deliverCustomerAutomations(f.w, f.customer);
+				rows =
+					await sql`select * from customer_automation_outbox where binding_id=${f.id} and event_id=${event.id}`;
+				assert.equal(rows.length, 1);
+				assert.ok(
+					rows[0].delivered_at,
+					`Due successor still undelivered: ${JSON.stringify(diagnostic)}`,
+				);
+				assert.equal(
+					rows[0].attempts,
+					1,
+					"One actual transport attempt after due-time deferral",
 				);
 			}
 			assert.equal(
@@ -211,7 +272,18 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 			const externalReplies = (
 				await sql`select count(*)::int n from customer_slack_replies where customer_id=${f.customer}`
 			)[0].n;
+			if (delayProbe)
+				assert.equal(
+					queueDeferrals,
+					1,
+					"Controlled future-due row requires one subsequent drain",
+				);
 			return Response.json({
+				productionDrains: dispatches + queueDeferrals,
+				queueDeferralAfterCutoffMs: diagnostics
+					.filter((entry) => entry.boundary === "queue-deferred")
+					.map((entry) => entry.afterQueueCutoffMs),
+				queueDeferrals,
 				productionDispatcher: true,
 				occurrenceId: rows[0].occurrence_id,
 				outboxCount: rows.length,
