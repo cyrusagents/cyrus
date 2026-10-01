@@ -152,3 +152,35 @@ No attribution of the independent failure is claimed until its full-precision
 queue-cutoff evidence is available. No production Runtime or Hosted code changed.
 The existing normal replay command needs no flag; the two flags above are only
 for deterministic positive/negative fixture probes.
+
+## Actual Workflow retry after occurrence ACK loss
+
+Installed Runtime03ce05d2 and frozen Hosted
+`0cc0180279543a3262a51472535999bf6b9c3794`: **87tests/933assertions PASS55.87s**.
+With `CYRUS_NATIVE_JOIN_WORKFLOW_RETRY=1`, the original successor fixture invokes
+actual `customerAgentDispatchWorkflow` rather than calling the dispatcher directly.
+Only unrelated source reconciliation/engineering/reply work is stubbed. The
+registered transport accepts the exact successor occurrence then loses its ACK.
+Actual SQL retains attempts1 and an undelivered receipt. Hosted's real Workflow
+throws the SDK `RetryableError` because pending delivery includes future backoff.
+
+The controlled Workflow runner waits the actual29,998ms `retryAfter` deadline,
+then invokes that same Workflow again. SQL proves unchanged row/input/occurrence,
+attempts2 and delivered state. Exactly one successor model turn/reply, no memory or
+external writes, original constraints/work identity and ordered final ACKs remain.
+There are three logical probes and four production drains (one actual Workflow
+retry), zero fixture queue-deferral drains. No direct ledger/outbox edits, artificial
+clock advance or operator retry. Real installed native/SQL/HTTP/MCP; Workflow
+platform persistence, model/provider and registered-target transports controlled.
+
+The same injected loss against frozen8ddc fails as expected86PASS/1FAIL/884assertions:
+Workflow returns with an undelivered row instead of requesting a retry. This red
+case is preserved at `attachments/workflow-retry-8ddc-before/`; the passing case,
+exact helpers/hashes and summary are at `attachments/workflow-retry-0cc0-03ce/`.
+Enable the new flag with the existing reproduction command and those exact SHAs.
+The normal fixture retains its original assertions; this mode refuses the legacy
+queue-delay or permanent-rejection probes and cannot fall back to manual re-drain.
+
+This proves production Workflow code requests and carries out the bounded retry
+when driven according to its real SDK deadline. It does not claim an actual cloud
+Workflow infrastructure outage/restart test or live speed acceptance.

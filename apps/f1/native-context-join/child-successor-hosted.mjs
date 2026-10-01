@@ -7,6 +7,11 @@ import assert from "node:assert/strict";
 import { parseMcpAuthoritySnapshot } from "./mcp-contract";
 import { sqlAdapter } from "./sql-adapter.mjs";
 export async function prepareChildSuccessor(sql, f, initial, supervisor) {
+	const workflowRetry = process.env.CYRUS_NATIVE_JOIN_WORKFLOW_RETRY === "1";
+	if (workflowRetry) {
+		assert.notEqual(process.env.CYRUS_NATIVE_JOIN_QUEUE_DELAY, "1");
+		assert.notEqual(process.env.CYRUS_NATIVE_JOIN_DISPATCH_REJECTION, "1");
+	}
 	const thread = crypto.randomUUID();
 	const restrictions =
 		"Investigate then summarize here. Do not save memory, change work, post external messages or make provider writes.";
@@ -52,6 +57,9 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 	let runtimeOrigin,
 		dispatches = 0,
 		queueDeferrals = 0,
+		workflowRetries = 0,
+		lostOccurrenceAck = false,
+		retryWaitMs = 0,
 		nativeReads = 0,
 		nativeWrites = 0;
 	const nativeFetch = globalThis.fetch;
@@ -110,6 +118,20 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 				`registered ${path} returned ${response.status}`,
 			);
 			const ack = await response.json();
+			if (workflowRetry && !lostOccurrenceAck && path === "occurrences") {
+				let successor = false;
+				try {
+					successor =
+						JSON.parse(body.input).topic === "automation.child.result";
+				} catch {
+					/* Other admitted fixture input can be plain text. */
+				}
+				if (successor) {
+					lostOccurrenceAck = true;
+					record({ boundary: "ack-lost", path });
+					throw Error("Controlled occurrence acknowledgement lost");
+				}
+			}
 			record({
 				boundary: "ack",
 				path,
@@ -126,6 +148,28 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 		},
 	}));
 	const { deliverCustomerAutomations } = await import("./automation-dispatch");
+	let deliver = () => deliverCustomerAutomations(f.w, f.customer);
+	let RetryableError;
+	if (workflowRetry) {
+		// Only unrelated provider/engineering work and the durable Workflow runner
+		// are controlled. The actual result-wake workflow and customer dispatcher
+		// must produce their own RetryableError from real SQL pending state.
+		mock.module("./linear-intake", () => ({
+			reconcileLinearCustomerIntake: async () => {},
+		}));
+		mock.module("./linear-comments", () => ({
+			reconcileLinearComments: async () => false,
+		}));
+		mock.module("./engineering-automation-dispatch", () => ({
+			deliverEngineeringAutomations: async () => {},
+		}));
+		mock.module("./slack-replies", () => ({
+			deliverCustomerSlackReplies: async () => false,
+		}));
+		({ RetryableError } = await import("workflow"));
+		const { customerAgentDispatchWorkflow } = await import("./workflow");
+		deliver = () => customerAgentDispatchWorkflow(f.w);
+	}
 	return {
 		config: {
 			thread,
@@ -183,7 +227,35 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 				process.env.CYRUS_NATIVE_JOIN_QUEUE_DELAY === "1" && dispatches === 0;
 			if (delayProbe)
 				await sql`alter table customer_automation_outbox alter column next_attempt_at set default (now() + interval '50 milliseconds')`;
-			await deliverCustomerAutomations(f.w, f.customer);
+			try {
+				await deliver();
+			} catch (error) {
+				if (!workflowRetry || !(error instanceof RetryableError)) throw error;
+				assert.equal(
+					workflowRetries++,
+					0,
+					"Only one bounded Workflow retry is injected",
+				);
+				assert.equal(lostOccurrenceAck, true);
+				const before =
+					await sql`select * from customer_automation_outbox where binding_id=${f.id} and event_id=${event.id}`;
+				assert.equal(before.length, 1);
+				assert.equal(before[0].attempts, 1);
+				assert.equal(before[0].delivered_at, null);
+				retryWaitMs = error.retryAfter.getTime() - Date.now();
+				assert.ok(
+					retryWaitMs > 0 && retryWaitMs <= 31000,
+					"Use actual bounded Workflow deadline",
+				);
+				await new Promise((resolve) => setTimeout(resolve, retryWaitMs + 25));
+				await deliver(); // Actual workflow retried, never call its dispatcher directly.
+				const after =
+					await sql`select * from customer_automation_outbox where id=${before[0].id}`;
+				assert.equal(after[0].occurrence_id, before[0].occurrence_id);
+				assert.equal(after[0].input, before[0].input);
+				assert.equal(after[0].attempts, 2);
+				assert.ok(after[0].delivered_at);
+			}
 			if (delayProbe)
 				await sql`alter table customer_automation_outbox alter column next_attempt_at set default now()`;
 			dispatches++;
@@ -191,6 +263,11 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 				await sql`select * from customer_automation_outbox where binding_id=${f.id} and event_id=${event.id}`;
 			assert.equal(rows.length, 1);
 			if (!rows[0].delivered_at) {
+				assert.equal(
+					workflowRetry,
+					false,
+					"Workflow must handle pending delivery itself",
+				);
 				const [clock] =
 					await sql`select extract(epoch from clock_timestamp()) * 1000 as ms`;
 				const [binding] =
@@ -279,7 +356,13 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 					"Controlled future-due row requires one subsequent drain",
 				);
 			return Response.json({
-				productionDrains: dispatches + queueDeferrals,
+				productionDrains: dispatches + queueDeferrals + workflowRetries,
+				...(workflowRetry && {
+					workflowRetries,
+					lostOccurrenceAck,
+					retryWaitMs,
+					actualResultWakeWorkflow: true,
+				}),
 				queueDeferralAfterCutoffMs: diagnostics
 					.filter((entry) => entry.boundary === "queue-deferred")
 					.map((entry) => entry.afterQueueCutoffMs),

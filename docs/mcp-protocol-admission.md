@@ -132,3 +132,12 @@ selection. The actual SQL/native direct-successor gate with installedd66 passes
 87tests/933assertions with zero fixture re-drains, preserved constraints and one
 reply. Its dispatcher still returns after caught transport failure; the durable
 Workflow retry gap is not closed by this passing fresh-row case.
+
+Hosted `0cc0180279543a3262a51472535999bf6b9c3794` subsequently adds bounded
+pending-delivery retry to both existing workflows. Installed03ce's direct-successor
+join now invokes actual `customerAgentDispatchWorkflow`, loses an accepted occurrence
+ACK and requires the real SDK RetryableError. After its actual30s deadline, the same
+Workflow delivers the same identity;87/933pass, one successor reply, original
+constraints/work retained, zero writes. Old8ddc fails this exact loss probe. Cloud
+Workflow persistence/runner transport is controlled, so the gate proves production
+retry code and unchanged identities, not deployed infrastructure outage recovery.

@@ -183,6 +183,7 @@ await writeFile(
 			dispatchRejectionProbe:
 				process.env.CYRUS_NATIVE_JOIN_DISPATCH_REJECTION === "1",
 			queueDelayProbe: process.env.CYRUS_NATIVE_JOIN_QUEUE_DELAY === "1",
+			workflowRetryProbe: process.env.CYRUS_NATIVE_JOIN_WORKFLOW_RETRY === "1",
 			helperSha256,
 			image: process.env.CYRUS_F1_CODEX_IMAGE,
 			privateFixtureSource: work,
@@ -192,8 +193,9 @@ await writeFile(
 			originalTestSha256: createHash("sha256")
 				.update(originalTest)
 				.digest("hex"),
-			limitations:
-				"Original prepared outbox delivery/provider transport/step oracle controlled; actual installed native+SQL/HTTP/SDK. No signed ingress or production dispatcher claim.",
+			limitations: successorMode
+				? "Actual production successor dispatch/SQL/installed native; initial child delivery/provider/model/registered-target and durable Workflow runner controlled. No live Workflow infrastructure or signed ingress claim."
+				: "Original prepared outbox delivery/provider transport/step oracle controlled; actual installed native+SQL/HTTP/SDK. No signed ingress or production dispatcher claim.",
 		},
 		null,
 		2,

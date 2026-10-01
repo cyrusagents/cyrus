@@ -1,5 +1,17 @@
 // Exact-source seams extend (rather than replace) the existing child assertions.
 export function extendChildSuccessor({ test, driver, replaceOnce: r }) {
+	if (process.env.CYRUS_NATIVE_JOIN_WORKFLOW_RETRY === "1") {
+		test = r(
+			test,
+			"const server = Bun.serve({",
+			"const server = Bun.serve({idleTimeout:60,",
+		);
+		test = r(
+			test,
+			'mode.startsWith("operator-recovery") ? 150_000 : 60_000',
+			'mode.startsWith("operator-recovery") ? 150_000 : 120_000',
+		);
+	}
 	driver = `import {childSuccessorRuntime} from './child-successor-runtime.mjs';\n${driver}`;
 	driver = r(
 		driver,
