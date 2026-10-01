@@ -203,12 +203,19 @@ async function modelResponse(body) {
 		firstNativeId ??= modelContext.state.native.threadId;
 	} else if (stage === "memory-recall")
 		assert.ok(current.entries.some((e) => e.body === "JOIN_REMEMBERED_DETAIL"));
-	else if (stage === "work-create" && sequence === 0)
+	else if (
+		(stage === "work-create" || stage === "combined-work-create") &&
+		sequence === 0
+	)
 		call = {
 			name: "track_work",
 			arguments: { objective: "Investigate synthetic joined export" },
 		};
-	else if (stage === "work-rejection" || stage === "work-rejection-ack") {
+	else if (
+		stage === "work-rejection" ||
+		stage === "work-rejection-ack" ||
+		stage === "combined-work-rejection"
+	) {
 		assert.equal(current.metadata.outcomes.length, 0);
 		if (sequence === 0)
 			call = {
@@ -224,7 +231,7 @@ async function modelResponse(body) {
 				{ name: "track_work", status: "denied" },
 			]);
 			assert.ok(text.includes("denied"), "native model receives the rejection");
-			if (stage === "work-rejection") {
+			if (stage !== "work-rejection-ack") {
 				const output = JSON.parse(modelContext.state.messages.at(-1).content);
 				assert.equal(JSON.parse(output.items[0].text).code, "proof_required");
 				assert.ok(text.includes("otherwise retain a nonterminal status"));
@@ -433,7 +440,7 @@ globalThis.fetch = async (url, init) => {
 	}
 	if (
 		workRejection &&
-		stage.startsWith("work-rejection") &&
+		stage.includes("work-rejection") &&
 		response.ok &&
 		request.pathname === "/mcp" &&
 		body?.method === "tools/call" &&
@@ -461,13 +468,16 @@ globalThis.fetch = async (url, init) => {
 			if (workRejectionReceipts.has(key))
 				assert.deepEqual(receipt, workRejectionReceipts.get(key));
 			else workRejectionReceipts.set(key, receipt);
-			const facts = await control({ op: "facts" });
+			const facts = await control({
+				op: "facts",
+				fixture: stage.startsWith("combined-") ? "both" : "main",
+			});
 			assert.deepEqual(
 				facts.work,
 				[
 					{
 						objective: "Investigate synthetic joined export",
-						status: stage === "work-rejection" ? "active" : "waiting",
+						status: stage === "work-rejection-ack" ? "waiting" : "active",
 					},
 				],
 				"rejected terminal update makes no partial objective/status change",
@@ -481,7 +491,7 @@ globalThis.fetch = async (url, init) => {
 	}
 	if (
 		workRejection &&
-		stage.startsWith("work-rejection") &&
+		stage.includes("work-rejection") &&
 		response.ok &&
 		request.pathname === "/mcp" &&
 		body?.method === "tools/call" &&
@@ -838,6 +848,20 @@ try {
 			1,
 			"both references stay on their initialized session",
 		);
+		if (workRejection) {
+			await complete("combined-work-create", "both");
+			await complete("combined-work-rejection", "both");
+			assert.equal(statuses.at(-1).attempts, 1);
+			assert.deepEqual((await control({ op: "facts", fixture: "both" })).work, [
+				{
+					objective: "Investigate synthetic joined export",
+					status: "waiting",
+				},
+			]);
+			assert.equal(workRejectionKeys.size, 3);
+			assert.equal(workCorrectionKeys.size, 3);
+			assert.equal(workRejectionResponses.length, 4);
+		}
 		await control({ op: "arm-result-loss", fixture: "both" });
 		const opens = models;
 		await complete("combined-terminal", "both");

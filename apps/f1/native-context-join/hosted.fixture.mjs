@@ -665,6 +665,22 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 					"one immutable receipt per rejected work update despite ACK loss",
 				);
 			}
+			if (workRejection && both) {
+				const [rejected] =
+					await sql`select count(*)::int n from customer_native_rejections r join customer_native_grants g on g.id=r.grant_id where g.binding_id=${both.id}::uuid and r.tool='track_work' and r.code='proof_required'`;
+				assert.equal(
+					rejected.n,
+					1,
+					"provider-bound coordinator receives the same no-effect work receipt",
+				);
+				const [operations] =
+					await sql`select count(*)::int n from customer_native_operations o join customer_native_grants g on g.id=o.grant_id where g.binding_id=${both.id}::uuid and o.tool='track_work'`;
+				assert.equal(
+					operations.n,
+					2,
+					"provider-bound create and corrected waiting update only",
+				);
+			}
 			const [facts] =
 				await sql`select count(*)::int n from customer_facts where customer_id=${main.customer} and body='JOIN_REMEMBERED_DETAIL'`;
 			assert.equal(facts.n, 1);
