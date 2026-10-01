@@ -126,3 +126,9 @@ A second test-only drain does not establish a deployed successor wake. Hosted ow
 the bounded retry in the existing Workflow, using current eligible outboxes and
 unchanged occurrence/input/attempt budgets. Database-clock due selection removes
 the precision race; transport/backoff also needs the existing workflow to retry.
+
+Hosted `3da5b741861a67dc81922619939e7b33bf60991b` supplies that database-clock
+selection. The actual SQL/native direct-successor gate with installedd66 passes
+87tests/933assertions with zero fixture re-drains, preserved constraints and one
+reply. Its dispatcher still returns after caught transport failure; the durable
+Workflow retry gap is not closed by this passing fresh-row case.

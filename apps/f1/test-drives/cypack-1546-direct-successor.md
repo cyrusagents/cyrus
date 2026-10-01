@@ -1,5 +1,31 @@
 # Native direct child through production parent dispatch
 
+## Database-clock production selection (2026-10-01)
+
+Frozen Hosted `3da5b741861a67dc81922619939e7b33bf60991b`, installed Runtime
+`d66ed0a86d0d925fe88469a142da93f640aee416`: **87tests/933assertions PASS24.92s**.
+Hosted now selects eligible events before the bounded page and selects due outboxes
+using database time. The existing fixture calls those actual SQL functions. Its
+adapter now uses PostgreSQL `proretset` metadata to return SETOF rows as JSON arrays,
+including empty sets and numeric revisions, matching PostgREST. Scalar RPC handling
+is unchanged. The first run failed because that fixture adapter expected scalar
+RPCs; its86/1 log remains at `attachments/successor-db-clock-3da5-d66/`.
+
+The corrected run has **zero queue deferrals**, three logical/production drains
+(including duplicate assertions), one successor reply, exact original constraints
+and work identity, one fresh context read, zero memory/native/external writes.
+No test-only second drain was used to get the first outbox delivered. Evidence and
+source hashes: `attachments/successor-db-clock-3da5-d66-r2/inputs.json` and
+`read-set-direct-child.json`. Use the reproduction below with Hosted3da5 and the
+updated SQL adapter; executable bundle/image are unchanged.
+
+This closes the exercised fresh-row clock-domain path. It does **not** prove a
+deployed Workflow retries a deliberately future-dated row or caught transport
+failure/backoff; that separate pending-delivery handoff remains open. Historical
+8995 independent failures are retained and are not retroactively attributed.
+
+## Original controlled proof
+
 Frozen Hosted `8995bb5a2534b83b60ab00362e94f1cdd92dc9c8`, installed Runtime
 `d66ed0a86d0d925fe88469a142da93f640aee416`. No new executable or test bundle:
 this patch extends the existing native child launcher and its assertions.

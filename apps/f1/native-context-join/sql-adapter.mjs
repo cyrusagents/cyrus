@@ -14,7 +14,7 @@ export function sqlAdapter(sql, onError = () => {}, onQueue = () => {}) {
 			try {
 				const entries = Object.entries(args).filter(([, v]) => v !== undefined);
 				const [fn] =
-					await sql`select proargnames, oidvectortypes(proargtypes) as types from pg_proc where proname=${name} and pronamespace='public'::regnamespace order by pronargs desc limit 1`;
+					await sql`select proargnames, proretset, oidvectortypes(proargtypes) as types from pg_proc where proname=${name} and pronamespace='public'::regnamespace order by pronargs desc limit 1`;
 				assert.ok(fn, `Fixture RPC missing: ${name}`);
 				const types = fn.types.split(", ");
 				const parameters = entries.map(([k, v]) => {
@@ -24,11 +24,19 @@ export function sqlAdapter(sql, onError = () => {}, onQueue = () => {}) {
 						? `{${v.join(",")}}`
 						: value(v);
 				});
+				const invocation = `${identifier(name)}(${entries.map(([k], i) => `${identifier(k)} => $${i + 1}`).join(",")})`;
 				const rows = await sql.unsafe(
-					`select ${identifier(name)}(${entries.map(([k], i) => `${identifier(k)} => $${i + 1}`).join(",")}) as v`,
+					fn.proretset
+						? `select to_jsonb(result) as v from ${invocation} result`
+						: `select ${invocation} as v`,
 					parameters,
 				);
-				return { data: rows[0].v, error: null };
+				// Match PostgREST's array/JSON representation for SETOF rows, including
+				// an empty set and numeric bigint fields. Scalar RPCs stay unchanged.
+				return {
+					data: fn.proretset ? rows.map((row) => row.v) : rows[0].v,
+					error: null,
+				};
 			} catch (error) {
 				onError({
 					boundary: "rpc",
