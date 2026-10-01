@@ -898,7 +898,8 @@ proof. No published minimum version or live provider acceptance is implied.
 The shipping `cyrus customer-runtime` command and `/customer-runtime/v1/*`
 server are removed. Their private config loader, global model key adapter, old
 scope/operation contract, gateway, checkpoint store and runtime loop have no
-registered caller and are no longer exported or packaged. The CLI uses its normal
+registered caller and are no longer exported or packaged. The sandbox uses the current reviewed Node image directly; the old Bun selector
+has no remaining caller and is removed. The CLI uses its normal
 environment/Sentry bootstrap for every supported command. No standalone package
 dependency was exclusive: Fastify, Zod and core utilities still serve active paths.
 The edge-worker build cleans its output before compiling so obsolete modules do

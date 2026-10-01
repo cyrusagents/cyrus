@@ -1531,7 +1531,6 @@ export async function runAutomationDrive({
 							dockerHost:
 								process.env.CYRUS_TEST_DOCKER_HOST ||
 								"unix:///var/run/docker.sock",
-							javascriptRuntime: "node",
 						}),
 				},
 			}),

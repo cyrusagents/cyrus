@@ -104,7 +104,6 @@ const runtime = new AutomationRuntime({
 				image: f.image,
 				dockerPath: f.dockerPath,
 				dockerHost: f.dockerHost,
-				javascriptRuntime: "node",
 			});
 			return {
 				start: (...a) => sandbox.start(...a),

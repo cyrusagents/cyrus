@@ -324,7 +324,6 @@ export function registerConfiguredAutomations(
 		if (!codexReason) {
 			const sandbox = new DockerSandbox({
 				...codexConfig,
-				javascriptRuntime: "node",
 			});
 			try {
 				const signal = AbortSignal.timeout(15_000);
@@ -350,8 +349,7 @@ export function registerConfiguredAutomations(
 			}),
 		engineering: {
 			available: () => configuration().harness === "codex" && engineeringReady,
-			sandbox: () =>
-				new DockerSandbox({ ...codexConfig, javascriptRuntime: "node" }),
+			sandbox: () => new DockerSandbox(codexConfig),
 		},
 		workspaceId: () => pairedWorkspace,
 		gateway,

@@ -42,8 +42,6 @@ export interface DockerSandboxConfig {
 	dockerPath: string;
 	dockerHost: string;
 	image: string;
-	/** Supervisor-selected image runtime; never supplied by a run or model. */
-	javascriptRuntime?: "bun" | "node";
 }
 
 export interface EngineeringSandbox {
@@ -59,25 +57,16 @@ export interface EngineeringSandbox {
 /**
  * Disposable engineering computer. No host mounts, credentials, network, plugins,
  * git credentials or host repository checkout ever enter this container.
- * The trusted image must provide /usr/bin/env, /bin/sh and the selected local
- * JavaScript binary (Bun by default, Node for the reviewed native Codex image).
+ * The trusted image must provide /usr/bin/env, /bin/sh and /usr/local/bin/node
+ * (the reviewed native Codex image used by registered engineering).
  */
 export class DockerSandbox implements EngineeringSandbox {
 	private readonly name = `cyrus-scoped-${randomUUID()}`;
 	private created = false;
 
-	private get binary(): string {
-		return this.config.javascriptRuntime === "node"
-			? "/usr/local/bin/node"
-			: "/usr/local/bin/bun";
-	}
+	private readonly binary = "/usr/local/bin/node";
 
 	constructor(private readonly config: DockerSandboxConfig) {
-		if (
-			config.javascriptRuntime !== undefined &&
-			!["bun", "node"].includes(config.javascriptRuntime)
-		)
-			throw new Error("Unsupported engineering image runtime");
 		if (!/^sha256:[a-f0-9]{64}$/.test(config.image)) {
 			throw new Error("Scoped engineering requires a local immutable image ID");
 		}

@@ -12,7 +12,6 @@ describe.skipIf(!image)(
 					process.env.CYRUS_TEST_DOCKER_PATH || "/usr/local/bin/docker",
 				dockerHost:
 					process.env.CYRUS_TEST_DOCKER_HOST || "unix:///var/run/docker.sock",
-				javascriptRuntime: "node",
 			});
 		it("retains edits and diagnostics across a failing test, repair and passing rerun", async () => {
 			const runner = sandbox(),
