@@ -423,19 +423,18 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 								return {
 									data: { issue: { id: state.issue, needs: page([need]) } },
 								};
-							if (query.includes("description"))
-								return {
-									data: {
-										issue: {
-											id: state.issue,
-											identifier: "TEST-READSET",
-											title: "Customer-only issue",
-											description: "Scoped private body",
-											team: { id: "fixed-team" },
-											state: { name: "Todo" },
-										},
+							return {
+								data: {
+									issue: {
+										id: state.issue,
+										identifier: "TEST-READSET",
+										title: "Customer-only issue",
+										description: "Scoped private body",
+										team: { id: "fixed-team" },
+										state: { name: "Todo" },
 									},
-								};
+								},
+							};
 						},
 						{
 							list: async (issues) =>

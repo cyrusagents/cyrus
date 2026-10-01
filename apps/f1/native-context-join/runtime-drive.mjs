@@ -456,6 +456,17 @@ async function complete(label, which = "main", prepared) {
 	throw Error(`Joined ${stage} timed out`);
 }
 try {
+	if (fixture.combined) {
+		const capabilities = await nativeFetch(
+			`${runtimeOrigin}/api/automations/v1/capabilities`,
+			{ headers },
+		);
+		assert.equal(capabilities.status, 200);
+		assert.equal(
+			(await capabilities.json()).capabilities.customerSources,
+			true,
+		);
+	}
 	await complete("memory-write");
 	if (loseWriteAck) {
 		assert.ok(lostWrite);
