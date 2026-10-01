@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.281` to [`0.3.286`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03286), bringing Claude sessions to parity with Claude Code 2.1.286, and updated `@anthropic-ai/sdk` from `^0.128.0` to [`^0.131.0`](https://github.com/anthropics/anthropic-sdk-typescript/blob/main/CHANGELOG.md#01310-2026-09-30). The refreshed live inventory retains the existing 30 built-in Claude tools. Published `cyrus-core@0.2.74-test.1` under the `test` tag for the companion hosted update without moving `latest`. ([CYPACK-1553](https://linear.app/ceedar/issue/CYPACK-1553/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1515](https://github.com/cyrusagents/cyrus/pull/1515), [cyrus-hosted#1106](https://github.com/cyrusagents/cyrus-hosted/pull/1106))
+
 ## [0.2.73] - 2026-09-30
 
 ### Changed
