@@ -45,6 +45,7 @@ export const checkpointSchema = z
 		engineeringFiles: engineeringFilesSchema.optional(),
 		sessionDelivery: admissionSchema.shape.sessionDelivery,
 		sessionDeliveryAuthority: admissionSchema.shape.sessionDeliveryAuthority,
+		lifecycleAuthority: admissionSchema.shape.lifecycleAuthority,
 		nativeContextReceipts: z
 			.array(nativeContextReceiptHintSchema)
 			.max(24)

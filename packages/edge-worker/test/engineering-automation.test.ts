@@ -275,6 +275,7 @@ it("keeps the delivery preflight for engineering even with a customer-only mode"
 		sandbox = vi.fn();
 	const f = await fixture({ next }, sandbox, (a) => {
 		a.sessionDeliveryAuthority = "current-admission-v1";
+		a.lifecycleAuthority = "current-action-v1";
 		if (++authorizations === 3) throw Error("Delivery preflight denied");
 	});
 	await f.runtime.wake();

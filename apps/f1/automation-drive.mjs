@@ -51,6 +51,7 @@ export async function runAutomationDrive({
 	ownerInterruptionOnly = false,
 	slackChannelOnly = false,
 	sessionDeliveryAuthority = false,
+	lifecycleAuthority = false,
 	latencyOnly = false,
 	latencyReadSet = false,
 	latencyMcpMilliseconds = 150,
@@ -395,6 +396,12 @@ export async function runAutomationDrive({
 						sessionDeliveryAuthority: "current-admission-v1",
 					}),
 				...(engineering && { engineering }),
+				...(lifecycleAuthority &&
+					sessionDeliveryAuthority &&
+					!engineering &&
+					request.headers["x-cyrus-lifecycle-authority"] === "1" && {
+						lifecycleAuthority: "current-action-v1",
+					}),
 				...(request.headers["x-cyrus-session-delivery"] === "1" && {
 					sessionDelivery: {
 						contractVersion: 1,
@@ -415,6 +422,21 @@ export async function runAutomationDrive({
 					...(b.mcpSessionId && { sessionId: b.mcpSessionId }),
 				},
 			};
+		}
+		if (
+			lifecycleAuthority &&
+			["progress", "result"].includes(request.params.operation)
+		) {
+			const admitted = [...grants.values()].find(
+				(g) =>
+					!g.revoked &&
+					g.instanceId === b.instanceId &&
+					g.authority.occurrenceId === b.occurrenceId &&
+					g.authority.attemptId === b.attemptId &&
+					g.authority.fence === b.fence &&
+					Date.parse(g.authority.leaseUntil) > Date.now(),
+			);
+			if (!admitted) return denied(reply);
 		}
 		if (request.params.operation === "progress") {
 			counts.progress++;
@@ -1677,7 +1699,7 @@ export async function runAutomationDrive({
 					"authority.check",
 					"native.snapshot",
 					"authorize.admit",
-					"authorize.renew",
+					...(!lifecycleAuthority ? ["authorize.renew"] : []),
 					"session.delivery",
 					"container.initialize",
 					"native.thread",
@@ -1884,6 +1906,7 @@ export async function runAutomationDrive({
 			const summary = {
 				passed: true,
 				latencyReadSet,
+				lifecycleAuthority,
 				latencyMcpMilliseconds,
 				retentionRecovered: latencyRetention,
 				traces,

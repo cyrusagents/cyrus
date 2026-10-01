@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 
 const [prefixArg, sourceSha, evidenceArg, scenario = "greeting"] =
 	process.argv.slice(2);
+const lifecycleAuthority = process.env.CYRUS_F1_LIFECYCLE_AUTHORITY === "1";
 assert.ok(["greeting", "tools"].includes(scenario));
 assert.ok(prefixArg && evidenceArg);
 assert.match(sourceSha ?? "", /^[a-f0-9]{40}$/);
@@ -71,6 +72,7 @@ try {
 				? { slackChannelOnly: true, catalogProfile: true }
 				: { latencyOnly: true, latencyReadSet: true }),
 			sessionDeliveryAuthority: true,
+			lifecycleAuthority,
 			latencyMcpMilliseconds,
 		});
 		const elapsedMs = performance.now() - start;

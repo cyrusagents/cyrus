@@ -131,6 +131,7 @@ export class AutomationRuntime {
 				sessionExecutionTiming: !!this.options.sessions,
 				sessionActivities: !!this.options.sessions,
 				sessionDeliveryAuthority: !!this.options.sessions,
+				lifecycleAuthority: !!this.options.sessions,
 				delegation: !!this.options.sessions,
 				scheduledTicks: true,
 				eventInputs: true,
@@ -316,6 +317,11 @@ export class AutomationRuntime {
 			(!admission.sessionDelivery || !this.options.sessions)
 		)
 			throw new Error("Negotiated session features require session delivery");
+		if (
+			admission.lifecycleAuthority === "current-action-v1" &&
+			admission.sessionDeliveryAuthority !== "current-admission-v1"
+		)
+			throw new Error("Lifecycle authority requires current session delivery");
 		const next = executionAuthority(admission);
 		if (isSlackChannel(next) && admission.slackChannelRead !== true)
 			throw new Error("Slack channel reads require negotiated admission");
@@ -465,6 +471,7 @@ export class AutomationRuntime {
 		let sink: DurableCyrusSessionSink | undefined;
 		let model: AutomationModel | undefined;
 		let contextPrepared = false;
+		let lifecycleAuthority = false;
 		let sandbox: EngineeringSandbox | undefined;
 		const executeCommand = async (
 			state: AutomationCheckpoint,
@@ -559,6 +566,7 @@ export class AutomationRuntime {
 									admission.sessionExecutionTiming ||
 								renewed.sessionDeliveryAuthority !==
 									admission.sessionDeliveryAuthority ||
+								renewed.lifecycleAuthority !== admission.lifecycleAuthority ||
 								digest(renewed.sessionDelivery ?? null) !==
 									digest(admission.sessionDelivery ?? null) ||
 								checkpointKey(next) !== key ||
@@ -581,6 +589,29 @@ export class AutomationRuntime {
 					renewing = undefined;
 				});
 			return renewing;
+		};
+		// Only the exact negotiated server handlers can replace their own remote
+		// preflight. This is not an authority decision for model/provider/MCP work.
+		// Each callback/delivery rechecks current authority at its atomic effect.
+		const beforeLifecycleAction = async (): Promise<void> => {
+			if (!lifecycleAuthority) return fresh();
+			controller.signal.throwIfAborted();
+			this.check(authority, receiptOnly);
+			if (Date.parse(credential.expiresAt) <= Date.now())
+				throw new Error("Lifecycle admission expired");
+			if (renewing) await renewing;
+			if (
+				Math.min(
+					Date.parse(authority.leaseUntil),
+					Date.parse(credential.expiresAt),
+				) <=
+				Date.now() + 15_000
+			)
+				await fresh();
+			controller.signal.throwIfAborted();
+			this.check(authority, receiptOnly);
+			if (Date.parse(credential.expiresAt) <= Date.now())
+				throw new Error("Lifecycle admission expired");
 		};
 		deadline();
 		const poll = setInterval(() => {
@@ -616,6 +647,9 @@ export class AutomationRuntime {
 					...(admission.sessionDeliveryAuthority !== undefined && {
 						sessionDeliveryAuthority: admission.sessionDeliveryAuthority,
 					}),
+					...(admission.lifecycleAuthority !== undefined && {
+						lifecycleAuthority: admission.lifecycleAuthority,
+					}),
 					messages: [
 						{
 							role: "user",
@@ -633,6 +667,20 @@ export class AutomationRuntime {
 					digest(admission.sessionDelivery ?? null)
 			)
 				throw new Error("Session delivery changed across checkpoint recovery");
+			if (
+				state.lifecycleAuthority !== undefined &&
+				state.lifecycleAuthority !== admission.lifecycleAuthority
+			)
+				throw new Error(
+					"Lifecycle authority changed across checkpoint recovery",
+				);
+			// Old checkpoints stay on full preflight even if a newly upgraded server
+			// offers the optimization. Never retrofit it onto pending/terminal work.
+			lifecycleAuthority =
+				state.lifecycleAuthority === "current-action-v1" &&
+				admission.lifecycleAuthority === "current-action-v1" &&
+				!authority.engineering &&
+				authority.definition.role !== "engineering";
 			// Native tool intent is captured before the runtime pending checkpoint.
 			// Recover that immutable intent before replacing an old context transcript.
 			if (
@@ -727,7 +775,7 @@ export class AutomationRuntime {
 						},
 						timing ? `started:${initial.attemptId}` : "started",
 					);
-				await fresh();
+				await beforeLifecycleAction();
 				await this.options.gateway.call(
 					"progress",
 					{
@@ -866,6 +914,7 @@ export class AutomationRuntime {
 					tools,
 					controller.signal,
 					fresh,
+					beforeLifecycleAction,
 					executeCommand,
 					sink,
 					session?.id,
@@ -962,6 +1011,7 @@ export class AutomationRuntime {
 		tools: ScopedAutomationTools,
 		signal: AbortSignal,
 		fresh: () => Promise<void>,
+		beforeLifecycleAction: () => Promise<void>,
 		executeCommand: (
 			state: AutomationCheckpoint,
 			command: string,
@@ -971,7 +1021,7 @@ export class AutomationRuntime {
 		timing?: SessionExecutionTiming,
 	): Promise<void> {
 		const pending = state.pending!;
-		await fresh();
+		await (pending.step.type === "result" ? beforeLifecycleAction() : fresh());
 		if (pending.step.type === "result") {
 			if (sink && sessionId) {
 				await sink.postActivity(
@@ -994,7 +1044,7 @@ export class AutomationRuntime {
 				// An unacknowledged activity must never be stranded by hosted completion.
 				await measureLatency("session.finalFlush", () => sink.flush(signal));
 			}
-			await fresh();
+			await beforeLifecycleAction();
 			const ack = z
 				.object({
 					contractVersion: z.literal(1),

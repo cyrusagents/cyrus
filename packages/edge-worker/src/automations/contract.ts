@@ -166,6 +166,7 @@ export const admissionSchema = z
 		sessionExecutionTiming: z.literal(true).optional(),
 		// Unknown versions remain on the preflight path and are still pinned.
 		sessionDeliveryAuthority: z.string().min(1).max(100).optional(),
+		lifecycleAuthority: z.string().min(1).max(100).optional(),
 		engineering: engineeringEnvelopeSchema.optional(),
 		nativeContext: nativeContextSchema.optional(),
 		mcp: mcpCredentialSchema,

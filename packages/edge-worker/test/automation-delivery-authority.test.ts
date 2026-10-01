@@ -43,6 +43,7 @@ async function fixture(mode: string | undefined = "current-admission-v1") {
 	const occurrence = ledger.enqueue("d", 1, "e", "Hello");
 	const state = {
 		mode,
+		lifecycle: undefined as string | undefined,
 		auth: 0,
 		models: 0,
 		results: 0,
@@ -58,6 +59,7 @@ async function fixture(mode: string | undefined = "current-admission-v1") {
 		saved: false,
 		beforeSave: undefined as undefined | (() => void),
 		onModel: undefined as undefined | ((signal: AbortSignal) => Promise<void>),
+		onGateway: undefined as undefined | ((endpoint: string) => void),
 		onDelivery: undefined as
 			| undefined
 			| ((e: SessionDeliveryEnvelope) => Promise<void>),
@@ -119,6 +121,7 @@ async function fixture(mode: string | undefined = "current-admission-v1") {
 		},
 		gateway: {
 			async call(endpoint: string, body: Record<string, unknown>) {
+				state.onGateway?.(endpoint);
 				if (state.revoked) throw Error("Authority revoked");
 				if (endpoint === "authorize") {
 					state.auth++;
@@ -145,6 +148,9 @@ async function fixture(mode: string | undefined = "current-admission-v1") {
 						...(state.mode !== undefined && {
 							sessionDeliveryAuthority:
 								state.renewMode && state.auth > 2 ? "future-v2" : state.mode,
+						}),
+						...(state.lifecycle !== undefined && {
+							lifecycleAuthority: state.lifecycle,
 						}),
 						sessionDelivery: {
 							contractVersion: 1,
@@ -296,6 +302,7 @@ it.each([
 	"wrong-ack",
 ])("fails closed before model on %s", async (failure) => {
 	const f = await fixture();
+	f.state.lifecycle = "current-action-v1";
 	const r = f.create();
 	if (failure === "lease-expired")
 		f.state.beforeSave = () => {
@@ -410,6 +417,7 @@ it.each([
 			enabled ? "1" : null,
 		);
 		expect(h.get("X-Cyrus-Session-Delivery")).toBe(enabled ? "1" : null);
+		expect(h.get("X-Cyrus-Lifecycle-Authority")).toBe(enabled ? "1" : null);
 		return new Response("{}");
 	});
 	vi.stubGlobal("fetch", fetcher);
@@ -420,4 +428,137 @@ it.each([
 	);
 	await gateway.call("authorize", {}, new AbortController().signal);
 	expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+it("uses fresh authoritative lifecycle handlers only with exact negotiation", async () => {
+	const calls: number[] = [];
+	for (const mode of [undefined, "future-v2", "current-action-v1"]) {
+		const f = await fixture();
+		f.state.lifecycle = mode;
+		await f.create().wake();
+		expect(f.ledger.status("d").occurrences[0]?.status).toBe("completed");
+		expect(f.state.models).toBe(1);
+		expect(f.state.progress).toBe(1);
+		expect(f.state.results).toBe(1);
+		calls.push(f.state.auth);
+	}
+	expect(calls[1]).toBe(calls[0]);
+	// Progress and the two terminal callback barriers use their own server checks.
+	expect(calls[2]).toBe(calls[0]! - 3);
+});
+it.each([
+	"progress",
+	"result",
+])("denies revoked current lifecycle handler: %s", async (endpoint) => {
+	const f = await fixture();
+	f.state.lifecycle = "current-action-v1";
+	let reached = false;
+	f.state.onGateway = (current) => {
+		if (current === endpoint) {
+			reached = true;
+			if (endpoint === "result") expect(f.receipts.size).toBeGreaterThan(0);
+			f.state.revoked = true;
+		}
+	};
+	await f.create().wake();
+	expect(reached).toBe(true); // Actual server action, not a cached permission.
+	expect(f.state.models).toBe(endpoint === "progress" ? 0 : 1);
+	expect(f.state.committed).toBe(false);
+	expect(f.state.results).toBe(0);
+});
+it.each([
+	"expired",
+	"near-expiry",
+	"revoked",
+])("rechecks the lifecycle boundary after final ACK: %s", async (failure) => {
+	const f = await fixture();
+	f.state.lifecycle = "current-action-v1";
+	let beforeAck = 0;
+	f.state.onDelivery = async (e) => {
+		if (e.item.kind === "lifecycle" && e.item.payload.status === "complete") {
+			beforeAck = f.state.auth;
+			if (failure === "revoked") f.state.revoked = true;
+			else {
+				const later = Date.now() + (failure === "expired" ? 61000 : 50000);
+				vi.spyOn(Date, "now").mockReturnValue(later);
+			}
+		}
+	};
+	await f.create().wake();
+	expect(beforeAck).toBeGreaterThan(0);
+	expect(f.state.committed).toBe(failure === "near-expiry");
+	if (failure === "near-expiry")
+		expect(f.state.auth).toBeGreaterThan(beforeAck);
+	if (failure === "expired") expect(f.state.results).toBe(0);
+});
+it.each([
+	false,
+	true,
+])("keeps periodic revocation under lifecycle optimization: %s", async (optimized) => {
+	const f = await fixture();
+	f.state.lifecycle = optimized ? "current-action-v1" : undefined;
+	f.options.renewMilliseconds = 10;
+	f.state.onModel = (signal) =>
+		new Promise((resolve) => {
+			f.state.revoked = true;
+			signal.addEventListener("abort", () => resolve(), { once: true });
+		});
+	await f.create().wake();
+	expect(f.state.models).toBe(1);
+	expect(f.state.results).toBe(0);
+});
+it("requires current session delivery for lifecycle negotiation", async () => {
+	const f = await fixture();
+	f.state.mode = undefined;
+	f.state.lifecycle = "current-action-v1";
+	await f.create().wake();
+	expect(f.state.models).toBe(0);
+	expect(f.state.progress).toBe(0);
+});
+it("denies changed lifecycle negotiation during a current renewal", async () => {
+	const f = await fixture();
+	f.state.lifecycle = "current-action-v1";
+	f.state.onModel = async () => {
+		f.state.lifecycle = "future-v2";
+	};
+	await f.create().wake();
+	expect(f.state.models).toBe(1);
+	expect(f.state.results).toBe(0);
+});
+it.each([
+	undefined,
+	"current-action-v1",
+])("recovers immutable result ACK without model reopen, old mode: %s", async (original) => {
+	const f = await fixture();
+	f.state.lifecycle = original;
+	f.state.loseResult = true;
+	const first = f.create();
+	await first.wake();
+	await first.stop();
+	expect(f.state.results).toBe(1);
+	const receipts = [...f.receipts];
+	const previousAuth = f.state.auth;
+	f.state.lifecycle = "current-action-v1";
+	f.advance();
+	await f.create().wake();
+	expect(f.state.models).toBe(1);
+	expect(f.state.results).toBe(2);
+	expect([...f.receipts]).toEqual(receipts);
+	expect(f.ledger.status("d").occurrences[0]?.status).toBe("completed");
+	// Old checkpoints retain both terminal preflights even after server upgrade.
+	expect(f.state.auth - previousAuth).toBe(original === undefined ? 5 : 3);
+});
+it("pins stored lifecycle mode across checkpoint recovery", async () => {
+	const f = await fixture();
+	f.state.lifecycle = "current-action-v1";
+	f.state.failModel = true;
+	const first = f.create();
+	await first.wake();
+	await first.stop();
+	f.state.failModel = false;
+	f.state.lifecycle = undefined;
+	f.advance();
+	await f.create().wake();
+	expect(f.state.models).toBe(1);
+	expect(f.state.results).toBe(0);
 });
