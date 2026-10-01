@@ -1,0 +1,44 @@
+{
+	"passed": true,
+	"baselineSha": "397813003cccc9e1f936feff3e96987e1b507229",
+	"candidateSha": "75438a10deb245e172bf07b7435ad321d9b7fa7a",
+	"driverSha256": "e2222fdb86232f3c1c607f04a6f6fbfdd1b59d8c1018f3340ce7d401bf3f7795",
+	"mcpDelayMs": 500,
+	"hostedCallbackDelayMs": 40,
+	"modelPauseMs": 25000,
+	"before": {
+		"elapsedMs": 41265.063375,
+		"counts": {
+			"sessionDeliveries": 10,
+			"initialize": 1,
+			"list": 27,
+			"tools": 2,
+			"models": 3,
+			"progress": 1,
+			"resultTransmissions": 1,
+			"resultCommits": 1,
+			"denied": 0
+		},
+		"sessionRenewals": 7
+	},
+	"after": {
+		"elapsedMs": 40072.325209,
+		"counts": {
+			"sessionDeliveries": 10,
+			"initialize": 1,
+			"list": 25,
+			"tools": 2,
+			"models": 3,
+			"progress": 1,
+			"resultTransmissions": 1,
+			"resultCommits": 1,
+			"denied": 0
+		},
+		"sessionRenewals": 7
+	},
+	"limits": [
+		"One sample each, includes fixture setup/cleanup; controlled provider/model/Hosted transports, actual native container and MCP SDK",
+		"Unmarked factory retains configured startup ordering; two later model entries share a pending request",
+		"No completed authority cache and no claim that live 90s latency is fixed"
+	]
+}
