@@ -461,11 +461,19 @@ test("production dispatcher delivers scoped engineering result to native parent"
 			return { object: { sha: "a".repeat(40) } };
 		if (path.endsWith(`/git/commits/${"a".repeat(40)}`))
 			return { tree: { sha: "c".repeat(40) } };
+		if (path.endsWith(`/git/trees/${"c".repeat(40)}?recursive=1`)) {
+			expect(options?.method ?? "GET").toBe("GET");
+			return {
+				sha: "c".repeat(40),
+				truncated: false,
+				tree: [{ path: "index.ts", type: "blob", mode: "100755" }],
+			};
+		}
 		if (path.endsWith("/git/trees")) {
 			expect(options.body.tree).toEqual([
 				{
 					path: "index.ts",
-					mode: "100644",
+					mode: "100755",
 					type: "blob",
 					content: "export const n=2",
 				},

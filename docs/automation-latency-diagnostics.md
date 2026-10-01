@@ -1,5 +1,56 @@
 # Automation latency diagnostics
 
+## Clean greeting baseline (2026-10-01, 09:51 UTC)
+
+The verifier's fresh, empty Linear-only conversation used installed Runtime
+`d66ed0a86d0d925fe88469a142da93f640aee416` and Hosted `71edabeef3ab353cc42e92de69990e5db18688ea`.
+Occurrence `8f49112fa597b48469e6fb66df1220a69796839ef786d54f7f6cd56c240ebf67`
+completed on attempt1 with the correct greeting and no native function calls.
+The foreground DOM observer measured60ms optimistic display,5.319s saved-message
+ACK, and52.452s to the final response. All128-span capacity was available: zero
+spans were dropped. These are existing live observations, not a new author prompt.
+
+| Observed Runtime stage | Time |
+| --- | ---: |
+| Total dispatch-handler through cleanup | 32.299s |
+| Dispatch-handler to native turn/start | 16.696s |
+| Admission | 2.282s |
+| MCP initialization | 1.633s |
+| Five pre-native catalogs, disjoint requests | 9.057s |
+| Container initialization | 0.225s |
+| Provider response headers + body | 0.539s +0.564s |
+| Native completed to Runtime cleanup done | 9.348s |
+| All ten catalogs | 17.421s |
+
+The five pre-native catalogs correspond to initial checkpoint access, progress,
+the iteration before context retrieval, the post-context check and contained
+model entry. Native-context bootstrap still invokes supervisor-owned
+`read_context`: zero model-issued tools does not mean zero MCP operations. The
+2.331s between its recorded MCP queue entry and the next authority check is
+consistent with that source path, but lacks a dedicated tool-duration span and
+must not be reported as an independently measured provider call.
+
+The completion tail includes two catalog barriers (3.337s), two receipt-phase
+renewals (4.283s), final ordered activity ACKs (0.950s), result ACK (0.550s),
+snapshot/local bookkeeping and cleanup. The first catalogs guard native capture
+and the pending result checkpoint. Receipt renewal checks current terminal-delivery
+authority before final activities and again before the result callback. These
+barriers cannot be removed merely because the response text is already available.
+
+The32.299s Runtime span excludes20.153s of the52.452s visible journey. The saved
+records do not apportion that difference between Hosted dispatch, tunnel delivery,
+and browser refresh/polling; cross-clock `scheduledAt` subtraction is not a
+replacement for those spans. The UI's Worked for2s is the existing active-execution
+counter excluding authority/delivery waits, not elapsed response time. Responsiveness
+remains unaccepted. Source evidence: verifier files
+`2026-10-01-bulk-greeting-numeric-timing-095505.json` and
+`2026-10-01-71ed-d66-live-greeting-dom.json` in the shared CYHOST-1321 evidence root.
+
+The current bounded improvement proposal is Hosted-owned: combine the catalog's
+two serial Linear permission/customer GraphQL reads into one fresh fixed-customer
+request, retaining token/account/scope validation and final current SQL checks.
+No permission cache, removed invocation check or live improvement is implied.
+
 ## Current live acceptance observation (2026-10-01)
 
 Coordinator-reported installed Runtime `39781300` / Hosted `a65f2657`, staging

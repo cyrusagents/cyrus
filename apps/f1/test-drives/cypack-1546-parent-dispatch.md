@@ -1,5 +1,27 @@
 # CYPACK-1546 — production dispatch and a parent successor
 
+## Executable-mode bridge regression (2026-10-01)
+
+Frozen Hosted `19702b7de6f9b778cdd37e4fd273d109d0025a1c`, installed Runtime
+`d66ed0a86d0d925fe88469a142da93f640aee416`: **1test/24assertions PASS49.07s**.
+The controlled GitHub transport now serves the exact immutable base tree and
+asserts that editing an admitted100755 file preserves its executable mode. This
+exercises Hosted9058's correction; Runtime production code and artifact are unchanged.
+
+The original failed-test/repair1→0, one publication, lost ACK recovery, current
+scope denials and two parent successors remain. Three occurrences complete,
+four native opens/closes, six model exchanges,29 activity deliveries, four result
+transmissions. Evidence and source hashes:
+`CYPACK-1546/attachments/engineering-mode-parent-1970-d66/inputs.json` and
+`parent-summary.json`. The fixture file SHA256 is
+`b4b17d515c37a785261a122248d2ecd8026518b695795d7237d35c59e0af3339`.
+Reproduce with the command below, substituting these exact Hosted/Runtime SHAs.
+The installed d66 bundle/image remain unchanged. Registration/Workflow transport
+and model/GitHub are controlled; this does not close the production Workflow
+pending-outbox retry or live responsiveness gates.
+
+## Original exact-head evidence
+
 Installed Runtime: `397813003cccc9e1f936feff3e96987e1b507229`.
 Original frozen Hosted: `a65f265730cbb6147588d3cf6e3437d5e13aa4be` (failed).
 Corrected published Hosted: `f16c70e66c166b2afef357e7b81d68d6f8760f82`.

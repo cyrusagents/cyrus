@@ -78,11 +78,13 @@ registered routes without adding another scheduler.
 
 Child execution uses its admitted session/parent link and separate checkpoint;
 session receipt flush precedes result. Hosted owns `automation.child.result`
-routing into a new currently admitted parent occurrence. Existing direct/ticket
-native fixtures prove child completion and the durable event, but their prepared
-outbox transport stops before production parent continuation. The engineering
-parent fixture proves that continuation for engineering; it is not evidence for
-direct-child event routing. Coordinator subsequently observed live754/5429 automatic direct-child return,
+routing into a new currently admitted parent occurrence. The original direct/ticket
+native fixtures stop at their prepared outbox boundary. The optional
+`child-successor-hosted.mjs` extension now invokes production dispatch and native
+parent continuation, checking exact original restrictions and work-thread linkage;
+the coordinator independently passed this at driverf19/Hosted71ed/installedd66.
+This controlled step execution does not prove Workflow retry liveness. Coordinator
+previously observed live754/5429 automatic direct-child return,
 but the successor lost the original no-memory instruction and work-thread origin.
 Hosted must carry exact initiating constraints through current successor admission;
 Runtime preserves the supplied input and must not fetch another occurrence's
@@ -107,3 +109,20 @@ never turn it into a data/stream response. These are coverage gaps, not observed
 authorization bypasses. The pre-body path checks auth/session; post-body protocol
 uses a second SQL snapshot, catalog/call use full current authorization, and the
 session open is still atomic. No cached permission decision was found in review.
+
+## Follow-up coverage and production liveness
+
+Hosted71ed adds the missing protocol branches above. Independent Runtime-owner
+execution of frozen `19702b7de6f9b778cdd37e4fd273d109d0025a1c` passes the actual
+SDK suite:11tests/288assertions. No Runtime negotiation change or new executable
+is required. This is controlled HTTP/provider coverage, not a live revocation test.
+
+Production liveness remains separate: at71ed/1970, the result callback awaits only
+the durable Workflow start receipt. Both `deliveryStep` and
+`conversationDeliveryStep` call the dispatcher once and return even when an
+automation outbox is not yet due or receives a caught transport failure/backoff.
+The Workflow retries Slack/Linear delivery, but lacks an automation-pending signal.
+A second test-only drain does not establish a deployed successor wake. Hosted owns
+the bounded retry in the existing Workflow, using current eligible outboxes and
+unchanged occurrence/input/attempt budgets. Database-clock due selection removes
+the precision race; transport/backoff also needs the existing workflow to retry.
