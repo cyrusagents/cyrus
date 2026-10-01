@@ -77,3 +77,11 @@ stay identical, and only one SDK session/model attempt serves the delayed read.
 A manual fixture renewal with a supplied session ID is insufficient. The final
 model-input assertions for both source bodies and crossed-reference denials remain
 mandatory; only finite diagnostic flags are retained in the summary.
+
+The gateway explicitly supplies its existing **database-only** authorizer as
+`preflight`, enabling Hosted3b5b437f's pre-body POST path. It separately supplies
+`authorize` to retain full SDK calls. Evidence requires positive `mcpPreflights`
+and `mcpAuthorizations` counts. This fixture exercises actual handler/SQL framing;
+provider membership is still synthetic, so the counts are not proof of production
+provider-verification latency or coverage of `mcp-store.ts`. An older handler that
+ignores the preflight hook fails the changed gate. Existing assertions are unchanged.

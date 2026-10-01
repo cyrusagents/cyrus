@@ -32,6 +32,8 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		deliveries: 0,
 		results: 0,
 		interruptions: 0,
+		mcpPreflights: 0,
+		mcpAuthorizations: 0,
 		tools: {},
 		denials: 0,
 	};
@@ -314,26 +316,37 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			}
 		},
 	});
+	// This fixture's existing authorizer is database-only; provider membership is
+	// synthetic. Enable Hosted's POST preflight path explicitly without bypassing
+	// its separate post-body SDK authorize calls or any SQL scope checks.
+	const databaseAuthority = async (token, session, tool) => {
+		const isNative = [
+			"read_context",
+			"remember_context",
+			"track_work",
+		].includes(tool);
+		const [{ v }] =
+			await sql`select customer_native_mcp_authorize(${token},${session}::uuid,${isNative ? tool : null}) v`;
+		if (!v) throw Error("Denied");
+		const native = nativeAuthoritySchema.parse(v);
+		if (native.providerGrantId) {
+			const [{ p }] =
+				await sql`select customer_mcp_authorize(${token},${session}::uuid,${isNative ? null : (tool ?? null)}) p`;
+			return {
+				...mcpAuthoritySchema.parse(p),
+				nativeContext: native.nativeContext,
+			};
+		}
+		return { ...native, kind: "native" };
+	};
 	const mcp = createCustomerMcpHandler({
+		preflight: async (token, session) => {
+			evidence.mcpPreflights++;
+			return databaseAuthority(token, session);
+		},
 		authorize: async (token, session, tool) => {
-			const isNative = [
-				"read_context",
-				"remember_context",
-				"track_work",
-			].includes(tool);
-			const [{ v }] =
-				await sql`select customer_native_mcp_authorize(${token},${session}::uuid,${isNative ? tool : null}) v`;
-			if (!v) throw Error("Denied");
-			const native = nativeAuthoritySchema.parse(v);
-			if (native.providerGrantId) {
-				const [{ p }] =
-					await sql`select customer_mcp_authorize(${token},${session}::uuid,${isNative ? null : (tool ?? null)}) p`;
-				return {
-					...mcpAuthoritySchema.parse(p),
-					nativeContext: native.nativeContext,
-				};
-			}
-			return { ...native, kind: "native" };
+			evidence.mcpAuthorizations++;
+			return databaseAuthority(token, session, tool);
 		},
 		open: async (token, protocol) => {
 			const [{ n }] =
@@ -524,6 +537,14 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			return { definition: f.request.definition };
 		}
 		if (body.op === "evidence") {
+			assert.ok(
+				evidence.mcpPreflights > 0,
+				"Hosted POST preflight must be exercised",
+			);
+			assert.ok(
+				evidence.mcpAuthorizations > 0,
+				"Full SDK authorization remains required",
+			);
 			const [facts] =
 				await sql`select count(*)::int n from customer_facts where customer_id=${main.customer} and body='JOIN_REMEMBERED_DETAIL'`;
 			assert.equal(facts.n, 1);

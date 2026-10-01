@@ -5,7 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Added
-- Added optional private, bounded retention of finished automation latency traces across runtime restarts, without persisting inputs or credentials or changing execution authority. Includes controlled native cold/warm timing and authenticated restart retrieval coverage. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
+- Added optional private, bounded retention of finished automation latency traces across runtime restarts, without persisting inputs or credentials or changing execution authority. Includes controlled native cold/warm timing and authenticated restart retrieval coverage, plus explicit Hosted MCP preflight in the installed native SQL join. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
 
 ## [0.2.73] - 2026-09-29
 
