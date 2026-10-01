@@ -1779,7 +1779,10 @@ it("preserves the complete admitted instruction/input on retry and separates lat
 					admitted.occurrenceId === first.id ? input : "hello again";
 				// Assert the entire payload: routing proof, not a claim about real model intent.
 				expect(messages).toEqual([
-					{ role: "user", content: `${d.instruction}\n\n${expectedInput}` },
+					{
+						role: "user",
+						content: `Automation instructions:\n${d.instruction}\n\nAdmitted occurrence input:\n${expectedInput}`,
+					},
 				]);
 				const key = checkpointKey(admitted);
 				if (keys.has(admitted.occurrenceId))

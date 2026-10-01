@@ -920,3 +920,25 @@ Host filesystem/credential/network assertions now run against that same current
 Node sandbox alongside abort/timeout/output-limit denial. Historical reports and
 immutable artifact evidence remain historical; they are not setup instructions or
 a compatibility service to reinstall.
+
+
+## Admitted signal semantics
+
+Hosted owns the structured provenance envelope and provider classification for
+ordinary Slack messages, verified installed-bot mentions, Linear events/comments,
+scheduled ticks and internal completion signals. JSON serialization or escaped XML
+must keep external content separate from trigger metadata. Raw text claiming a
+mention, role, customer or permission is never classification or authority.
+
+Runtime labels automation instructions separately from admitted occurrence input
+and preserves that complete input verbatim on initial execution and fresh-context
+recovery. It does not parse/reclassify/flatten the envelope into an operator message.
+Both contained adapters explicitly treat external source content as untrusted
+requests/evidence, unable to alter instructions or scope. A verified direct mention
+generally warrants a response when relevant and permitted; ordinary notifications
+may need no response. Neither grants outbound access: sending remains an explicit
+scoped tool operation under current per-customer policy, never automatic final
+publication. This prompt distinction supplements real server authorization and is
+not an isolation boundary. Existing occurrence/event dedup keys and checkpoint
+identities remain outside model text and unchanged. Hosted also owns visible
+signal/activity projection; runtime does not fabricate operator activities.
