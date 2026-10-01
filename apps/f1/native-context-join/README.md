@@ -166,3 +166,13 @@ preserved. Hostedf16 corrected admission, and installed754 / Hosted70ea separate
 passes the unchanged production parent gate. Do not treat the combined context
 join's pass as covering it. Registered-target resolution,
 Workflow platform delivery and provider/model transports remain controlled.
+
+The direct-child scenario can continue through the actual production Hosted
+result dispatcher with `CYRUS_NATIVE_JOIN_PARENT_SUCCESSOR=1` and
+`CYRUS_NATIVE_JOIN_MODES=read-set-direct-child`. It retains the original assertions
+and additionally verifies the exact initiating restrictions/work thread after
+fresh native context, complete prompt delivery, one successor on repeated
+dispatch, and zero memory/external-write effects under the controlled model.
+See [the exact installed proof](../test-drives/cypack-1546-direct-successor.md).
+This mode requires the immutable Hosted continuation contract including
+`parentRevision`; it does not fabricate a successor outbox or authorize live tests.

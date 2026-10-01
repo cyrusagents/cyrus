@@ -15,6 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { extendChildSuccessor } from "./extend-child-successor.mjs";
 
 const [checkout, sha, prefix, runtimeSha, output] = process.argv.slice(2);
 assert.match(sha ?? "", /^[a-f0-9]{40}$/);
@@ -33,6 +34,8 @@ for (const mode of modes.split(","))
 			"slack-channel-events",
 		].includes(mode),
 	);
+const successorMode = process.env.CYRUS_NATIVE_JOIN_PARENT_SUCCESSOR === "1";
+if (successorMode) assert.equal(modes, "read-set-direct-child");
 const modules = join(
 	resolve(prefix),
 	"lib/node_modules/cyrus-edge-worker/dist/automations",
@@ -135,11 +138,40 @@ test = replaceOnce(
           if(childMode) { expect(native.childRequests).toBeGreaterThan(0); expect(native.delegationDescriptionRequests).toBeGreaterThan(0); }
           await writeFile(join(process.env.CYRUS_NATIVE_JOIN_EVIDENCE, mode+".json"),JSON.stringify({runtime:result,native},null,2));`,
 );
+if (successorMode) {
+	({ test, driver } = extendChildSuccessor({ test, driver, replaceOnce }));
+	await writeFile(driverPath, driver);
+	for (const name of ["child-successor-hosted.mjs", "sql-adapter.mjs"])
+		await cp(
+			join(here, name),
+			join(work, "apps/app/src/lib/customer-agents", name),
+		);
+	await cp(
+		join(here, "child-successor-runtime.mjs"),
+		join(work, "tooling/child-successor-runtime.mjs"),
+	);
+}
 await writeFile(testPath, test);
 await writeFile(join(evidence, "original-driver.mjs"), originalDriver);
 await writeFile(join(evidence, "adapted-driver.mjs"), driver);
 await writeFile(join(evidence, "original-test.mjs"), originalTest);
 await writeFile(join(evidence, "adapted-test.mjs"), test);
+const helperSha256 = {};
+for (const name of [
+	"oracle-native.mjs",
+	...(successorMode
+		? [
+				"child-successor-hosted.mjs",
+				"child-successor-runtime.mjs",
+				"extend-child-successor.mjs",
+				"sql-adapter.mjs",
+			]
+		: []),
+]) {
+	const source = await readFile(join(here, name));
+	await writeFile(join(evidence, name), source);
+	helperSha256[name] = createHash("sha256").update(source).digest("hex");
+}
 await writeFile(
 	join(evidence, "inputs.json"),
 	JSON.stringify(
@@ -147,6 +179,8 @@ await writeFile(
 			sha,
 			runtimeSha,
 			modes,
+			successorMode,
+			helperSha256,
 			image: process.env.CYRUS_F1_CODEX_IMAGE,
 			privateFixtureSource: work,
 			originalDriverSha256: createHash("sha256")

@@ -1,7 +1,10 @@
 # Protocol-only MCP admission
 
-Proposal sent to the Hosted owner in comment1db26f26 on2026-10-01. It is not yet
-an accepted or shipped capability. Baseline Hosted5429c3cad4aeff975f5c1c668fc0d48754b9c66c;
+Contract sent in comment1db26f26 and accepted by Hosted in9ce2548a on2026-10-01.
+Exact server-owned opt-in: `protocolAdmission: "current-sql-v1"`, requiring preflight.
+Published in Hosted8995bb5a2534b83b60ab00362e94f1cdd92dc9c8. The installed
+d66 direct-child successor join exercises this mode; explicit negative-branch gaps
+are recorded below. Baseline Hosted5429c3cad4aeff975f5c1c668fc0d48754b9c66c;
 compatible installed Runtime75438a10deb245e172bf07b7435ad321d9b7fa7a.
 
 ## Boundary
@@ -12,8 +15,8 @@ Bearer credential, current session identity and JSON-only responses. A session I
 is not authentication. No new endpoint, runtime registration scope, token field,
 model-visible parameter or positive authority cache is introduced.
 
-The proposed switch belongs to the server's `McpGateway` configuration, not an
-HTTP header controlled by clients. Hosted must name and explicitly enable it;
+The switch belongs to the server's `McpGateway` configuration, not an
+HTTP header controlled by clients. Hosted must explicitly enable the exact mode;
 without the exact supported mode and `preflight`, existing full checks remain.
 Runtime does not infer authorization from an optimized initialization response:
 its `connect()` still awaits a successful fresh full `tools/list` before returning.
@@ -85,3 +88,22 @@ Hosted must carry exact initiating constraints through current successor admissi
 Runtime preserves the supplied input and must not fetch another occurrence's
 private checkpoint. Async tool guidance also clarifies that read_context is not
 a child-status polling API. The complete live journey remains unaccepted.
+
+## Exact8995 review
+
+The real SDK protocol suite passes7tests/68assertions. It covers absent/unknown
+mode fallback, full catalog provider denial after protocol success, revocation or
+execution replacement while initialize body is held, engineering GET fallback,
+unknown methods and DELETE full authorization. The direct successor native join
+uses the new mode with real SQL snapshots and fresh native context. Existing SQL
+SDK mutation/rotation/withdrawal tests use the mode but primarily assert list/call.
+
+Missing explicit branch cases at this head (sent to Hosted in930f0a7d):
+unauthenticated/expired/revoked/foreign-session optional GET; malformed/oversized
+initialize with the mode on; revocation during held notifications/initialized;
+engineering initialize/initialized fallback; supported mode without preflight.
+GET returns no data and405 for valid admission; malformed protocol headers must
+never turn it into a data/stream response. These are coverage gaps, not observed
+authorization bypasses. The pre-body path checks auth/session; post-body protocol
+uses a second SQL snapshot, catalog/call use full current authorization, and the
+session open is still atomic. No cached permission decision was found in review.

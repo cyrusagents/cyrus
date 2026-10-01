@@ -70,7 +70,18 @@ export async function nativeOracle(oracle, { directory, modules, load }) {
 				"native child request excludes private parent input",
 			);
 		}
-		const step = await oracle.next(c.state.messages, authority, c.signal);
+		let step;
+		try {
+			await oracle.inspectRequest?.(request, c);
+			step = await oracle.next(c.state.messages, authority, c.signal);
+		} catch (error) {
+			console.error(
+				JSON.stringify({
+					nativeOracleAssertion: error.message.split("\n")[0].slice(0, 200),
+				}),
+			);
+			throw error;
+		}
 		const id = `native_oracle_${++evidence.requests}`;
 		const item =
 			step.type === "tool"
