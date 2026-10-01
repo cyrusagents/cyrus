@@ -87,6 +87,7 @@ export class AutomationHttpGateway implements AutomationGateway {
 					...(endpoint === "authorize" && this.sessionDelivery
 						? {
 								"X-Cyrus-Session-Delivery": "1",
+								"X-Cyrus-Native-Context": "1",
 								"X-Cyrus-Session-Delivery-Authority": "1",
 								"X-Cyrus-Delegation": "1",
 								"X-Cyrus-Session-Execution-Timing": "1",

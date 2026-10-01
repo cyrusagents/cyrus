@@ -53,6 +53,7 @@ export async function runAutomationDrive({
 	sessionDeliveryAuthority = false,
 	latencyOnly = false,
 	latencyReadSet = false,
+	nativeContextOnly = false,
 	ownerInterruptionFault = "model",
 } = {}) {
 	const target = codexImage
@@ -104,6 +105,20 @@ export async function runAutomationDrive({
 	let lostDelegationAck = false;
 	let delegationCalls = 0;
 	let lostActivityAck = false;
+	const contextFacts = [
+		{
+			kind: "source",
+			body: "OLD_CONTEXT_WITHDRAWN",
+			provenance: "synthetic current input",
+		},
+	];
+	const contextReceipts = new Map();
+	let lostContextAck = false;
+	let contextModelCalls = 0;
+	const contextWork = [];
+	let contextWorkReference, contextApprovalReference;
+	let contextApproved = false;
+	let contextPendingFact;
 	const counts = {
 		sessionDeliveries: 0,
 		initialize: 0,
@@ -328,8 +343,22 @@ export async function runAutomationDrive({
 				sessionRenewals++;
 			}
 			if (previous) previous.revoked = true;
+			const nativeContext = nativeContextOnly
+				? {
+						contractVersion: 1,
+						bindingId: grantId,
+						scopeRef: d.scopeRef,
+						permissions: ["read", "remember", "apply_approved", "work"],
+					}
+				: undefined;
+			if (nativeContext)
+				assert.equal(request.headers["x-cyrus-native-context"], "1");
 			grants.set(token, {
-				authority: { ...authority, ...(engineering && { engineering }) },
+				authority: {
+					...authority,
+					...(engineering && { engineering }),
+					...(nativeContext && { nativeContext }),
+				},
 				grantId,
 				until,
 				instanceId: b.instanceId,
@@ -345,6 +374,7 @@ export async function runAutomationDrive({
 				assert.equal(request.headers["x-cyrus-session-execution-timing"], "1");
 			return {
 				authority,
+				...(nativeContext && { nativeContext }),
 				...(d.id === "slack-channel" && { slackChannelRead: true }),
 				...(d.id === "owner-interruption" &&
 					request.headers["x-cyrus-owner-interruption"] === "1" && {
@@ -390,26 +420,27 @@ export async function runAutomationDrive({
 					entry.item.sessionId ===
 					(d.session?.id ?? `automation:${d.id}:${b.occurrenceId}`),
 			);
-			assert.equal(
-				sessionItems.length,
-				d.id === "slack-channel"
-					? codexImage
-						? 9
-						: 8
-					: d.id.startsWith("read-set-")
+			if (!nativeContextOnly)
+				assert.equal(
+					sessionItems.length,
+					d.id === "slack-channel"
 						? codexImage
-							? 11
-							: 10
-						: engineeringAssignments.has(d.id)
-							? 11
-							: d.id === "source-free"
-								? codexImage
-									? 5
-									: 4
-								: codexImage
-									? 7
-									: 6,
-			);
+							? 9
+							: 8
+						: d.id.startsWith("read-set-")
+							? codexImage
+								? 11
+								: 10
+							: engineeringAssignments.has(d.id)
+								? 11
+								: d.id === "source-free"
+									? codexImage
+										? 5
+										: 4
+									: codexImage
+										? 7
+										: 6,
+				);
 			assert.equal(sessionItems.at(-1).item.payload.status, "complete");
 			const measurement = sessionItems.at(-1).item.payload;
 			if (
@@ -636,66 +667,126 @@ export async function runAutomationDrive({
 			slackModelDelayed = true;
 			await new Promise((resolve) => setTimeout(resolve, 25000));
 		}
-		const replied =
-			(text.includes("owner-interruption") &&
-				text.includes("Private result for interrupted-scope")) ||
-			sourceFree ||
-			(readSet
-				? readSetReads === 2
-				: outputs >= (engineering ? 3 : tracking || slackChannel ? 2 : 1));
+		if (nativeContextOnly) {
+			contextModelCalls++;
+			assert.deepEqual(request.body.tools.map((tool) => tool.name).sort(), [
+				"apply_approved_action",
+				"read_context",
+				"remember_context",
+				"track_work",
+			]);
+			if (contextModelCalls > 1) {
+				assert.ok(
+					text.includes("F1_NATIVE_CONTEXT_STORED"),
+					"fresh memory reaches resumed/later native model",
+				);
+				assert.ok(
+					!text.includes("OLD_CONTEXT_WITHDRAWN"),
+					"withdrawn checkpoint/native memory excluded",
+				);
+			}
+		}
+		const contextAction = !nativeContextOnly
+			? null
+			: text.includes("REQUEST_WORK_CREATE")
+				? {
+						name: "track_work",
+						arguments: { objective: "Investigate the synthetic issue" },
+					}
+				: text.includes("REQUEST_WORK_WAIT")
+					? {
+							name: "track_work",
+							arguments: { reference: contextWorkReference, status: "waiting" },
+						}
+					: text.includes("REQUEST_APPROVAL_PROPOSE")
+						? {
+								name: "remember_context",
+								arguments: { kind: "hypothesis", body: "F1_APPROVAL_CONTEXT" },
+							}
+						: text.includes("REQUEST_APPROVAL_APPLY")
+							? {
+									name: "apply_approved_action",
+									arguments: { reference: contextApprovalReference },
+								}
+							: null;
+		if (contextAction?.arguments.reference)
+			assert.ok(
+				text.includes(contextAction.arguments.reference),
+				"model sees only references from current context",
+			);
+		const replied = nativeContextOnly
+			? contextAction
+				? outputs >= 1
+				: text.includes("F1_NATIVE_CONTEXT_STORED")
+			: (text.includes("owner-interruption") &&
+					text.includes("Private result for interrupted-scope")) ||
+				sourceFree ||
+				(readSet
+					? readSetReads === 2
+					: outputs >= (engineering ? 3 : tracking || slackChannel ? 2 : 1));
 		if (readSet === "read-set-normal") {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			if (replied) delayedModelComplete = true;
 		}
-		const name = slackChannel
-			? outputs === 0
-				? "read_messages"
-				: "read_thread"
-			: readSet
-				? relist
-					? "list_issues"
-					: "get_issue"
-				: engineering
-					? outputs < 2
-						? "execute"
-						: "publish_artifact"
-					: tracking
-						? "delegate_investigation"
-						: (
-									codexImage
-										? request.body.tools.some((t) => t.name === "read_messages")
-										: request.body.system.includes(
-												'Available names: ["read_messages"]',
-											)
-								)
-							? "read_messages"
-							: "get_issue";
-		const toolArguments = slackChannel
-			? outputs === 0
-				? { limit: 10 }
-				: { reference: slackThreadReference }
-			: readSet
-				? relist || replied
-					? {}
-					: { reference: readSetReferences.get(readSet)[readSetReads] }
-				: engineering
-					? outputs === 0
-						? { command: "printf retained > retained.txt; node --test" }
-						: outputs === 1
+		const name = nativeContextOnly
+			? (contextAction?.name ?? "remember_context")
+			: slackChannel
+				? outputs === 0
+					? "read_messages"
+					: "read_thread"
+				: readSet
+					? relist
+						? "list_issues"
+						: "get_issue"
+					: engineering
+						? outputs < 2
+							? "execute"
+							: "publish_artifact"
+						: tracking
+							? "delegate_investigation"
+							: (
+										codexImage
+											? request.body.tools.some(
+													(t) => t.name === "read_messages",
+												)
+											: request.body.system.includes(
+													'Available names: ["read_messages"]',
+												)
+									)
+								? "read_messages"
+								: "get_issue";
+		const toolArguments = nativeContextOnly
+			? (contextAction?.arguments ?? {
+					kind: "hypothesis",
+					body: "F1_NATIVE_CONTEXT_STORED",
+				})
+			: slackChannel
+				? outputs === 0
+					? { limit: 10 }
+					: { reference: slackThreadReference }
+				: readSet
+					? relist || replied
+						? {}
+						: { reference: readSetReferences.get(readSet)[readSetReads] }
+					: engineering
+						? outputs === 0
+							? { command: "printf retained > retained.txt; node --test" }
+							: outputs === 1
+								? {
+										command:
+											"printf 'exports.sum=(a,b)=>a+b;' > sum.cjs; node --test",
+									}
+								: {
+										title: "Repair addition",
+										summary: "Synthetic reproduction passes",
+									}
+						: tracking
 							? {
-									command:
-										"printf 'exports.sum=(a,b)=>a+b;' > sum.cjs; node --test",
+									instruction:
+										"Investigate the bound source and return findings",
+									tracking,
 								}
-							: {
-									title: "Repair addition",
-									summary: "Synthetic reproduction passes",
-								}
-					: tracking
-						? {
-								instruction: "Investigate the bound source and return findings",
-								tracking,
-							}
-						: {};
+							: {};
 		if (slackChannel && outputs === 1)
 			assert.ok(
 				text.includes(slackThreadReference),
@@ -807,6 +898,8 @@ export async function runAutomationDrive({
 			});
 			session = { server, transport, grantId: grant.grantId, token };
 			const issuedReferences = new Map();
+			const nativeWorkRefs = new Set(),
+				nativeApprovalRefs = new Set();
 			for (const name of permittedToolNames(grant.authority).filter(
 				(name) => name !== "execute",
 			)) {
@@ -828,6 +921,83 @@ export async function runAutomationDrive({
 						else {
 							operationReceipts.set(key, payload);
 							counts.tools++;
+						}
+						if (nativeContextOnly) {
+							const bound = {
+								bindingId: grant.authority.nativeContext.bindingId,
+								scopeRef: d.scopeRef,
+							};
+							if (name === "read_context") {
+								contextWorkReference = randomUUID();
+								contextApprovalReference = randomUUID();
+								nativeWorkRefs.add(contextWorkReference);
+								if (contextApproved)
+									nativeApprovalRefs.add(contextApprovalReference);
+								return {
+									content: [],
+									structuredContent: {
+										...bound,
+										snapshotRevision: `facts-${contextFacts.length}`,
+										entries: contextFacts,
+										nextCursor: null,
+										approvedActions: contextApproved
+											? [
+													{
+														reference: contextApprovalReference,
+														description: "Apply reviewed synthetic fact",
+													},
+												]
+											: [],
+										work: contextWork.map((w) => ({
+											reference: contextWorkReference,
+											...w,
+										})),
+										inputEvidence: [],
+										outcomes: [],
+									},
+								};
+							}
+							if (!contextReceipts.has(key)) {
+								let status = "applied";
+								if (name === "track_work") {
+									if (args.reference) {
+										assert.ok(nativeWorkRefs.has(args.reference));
+										assert.equal(args.status, "waiting");
+										contextWork[0].status = args.status;
+									} else
+										contextWork.push({
+											objective: args.objective,
+											status: "active",
+										});
+								} else if (name === "apply_approved_action") {
+									assert.ok(nativeApprovalRefs.has(args.reference));
+									assert.ok(contextApproved && contextPendingFact);
+									contextFacts.push({
+										...contextPendingFact,
+										provenance: "approved exact fixture action",
+									});
+									contextApproved = false;
+								} else {
+									assert.equal(name, "remember_context");
+									if (args.body === "F1_APPROVAL_CONTEXT") {
+										status = "pending";
+										contextPendingFact = args;
+									} else
+										contextFacts.push({
+											...args,
+											provenance: "immutable synthetic write receipt",
+										});
+								}
+								contextReceipts.set(key, {
+									...bound,
+									status,
+									receiptId: randomUUID(),
+								});
+							}
+							return {
+								content: [],
+								structuredContent: contextReceipts.get(key),
+							};
 						}
 						if (name === "delegate_investigation") {
 							delegationCalls++;
@@ -1063,6 +1233,18 @@ export async function runAutomationDrive({
 				options,
 			);
 			if (
+				nativeContextOnly &&
+				value.endsWith("/mcp") &&
+				response.ok &&
+				!lostContextAck &&
+				options?.body &&
+				JSON.parse(options.body).params?.name === "remember_context"
+			) {
+				lostContextAck = true;
+				await response.body?.cancel();
+				throw new Error("Controlled lost native memory ACK");
+			}
+			if (
 				ownerInterruptionFault === "tool" &&
 				value.endsWith("/mcp") &&
 				response.ok &&
@@ -1248,6 +1430,150 @@ export async function runAutomationDrive({
 			return { statusCode: response.status, json: () => result };
 		};
 
+		if (nativeContextOnly) {
+			assert.ok(
+				codexImage,
+				"Native context drive requires actual isolated native model process",
+			);
+			const d = definition("source-free", "customer-context");
+			assert.equal(
+				(await call("definitions", { contractVersion: 1, definition: d }))
+					.statusCode,
+				200,
+			);
+			const start = async (eventId, input) => {
+				const response = await call("occurrences", {
+					contractVersion: 1,
+					automationId: d.id,
+					revision: 1,
+					eventId,
+					input,
+				});
+				assert.equal(response.statusCode, 200);
+				return response.json().occurrenceId;
+			};
+			const first = await start(
+				"context-write",
+				"Remember the requested detail using the current context.",
+			);
+			await until(
+				() =>
+					lostContextAck &&
+					ledger.status(d.id).occurrences.find((o) => o.id === first)
+						?.status === "queued",
+				30000,
+			);
+			const before = ledger
+				.status(d.id)
+				.occurrences.find((o) => o.id === first);
+			const saved = await new AutomationCheckpointStore(checkpoints).load(
+				before.checkpointScope,
+			);
+			assert.equal(saved.pending.step.call.name, "remember_context");
+			assert.equal(contextReceipts.size, 1);
+			assert.ok(
+				Buffer.from(saved.native.rollout, "base64")
+					.toString()
+					.includes("OLD_CONTEXT_WITHDRAWN"),
+			);
+			const oldNativeId = saved.native.threadId,
+				oldKey = saved.pending.key;
+			await runtime.stop();
+			await runtimeApp.close();
+			// Controlled server expiry only; never edit a ledger/checkpoint to recover.
+			owner = undefined;
+			for (const grant of grants.values()) grant.until = Date.now() - 1;
+			contextFacts.shift();
+			await new Promise((resolve) => setTimeout(resolve, 11000));
+			runtimeOrigin = await makeRuntime().listen({
+				host: "127.0.0.1",
+				port: 0,
+			});
+			await runtime.wake();
+			await until(
+				() =>
+					ledger.status(d.id).occurrences.find((o) => o.id === first)
+						?.status === "completed",
+				30000,
+			);
+			const recovered = await new AutomationCheckpointStore(checkpoints).load(
+				before.checkpointScope,
+			);
+			assert.equal(contextReceipts.size, 1);
+			assert.ok(contextReceipts.has(oldKey));
+			assert.notEqual(recovered.native.threadId, oldNativeId);
+			assert.equal(recovered.sequence, 1);
+			assert.equal(contextModelCalls, 2);
+			const later = await start(
+				"context-recall",
+				"Use the remembered context in this later occurrence.",
+			);
+			await until(
+				() =>
+					ledger.status(d.id).occurrences.find((o) => o.id === later)
+						?.status === "completed",
+				30000,
+			);
+			assert.equal(contextModelCalls, 3);
+			assert.equal(contextReceipts.size, 1);
+			assert.equal(counts.resultCommits, 2);
+			const completeAction = async (input) => {
+				const id = await start(input, input);
+				await until(
+					() =>
+						ledger.status(d.id).occurrences.find((o) => o.id === id)?.status ===
+						"completed",
+					30000,
+				);
+				return id;
+			};
+			await completeAction("REQUEST_WORK_CREATE");
+			assert.deepEqual(contextWork, [
+				{ objective: "Investigate the synthetic issue", status: "active" },
+			]);
+			await completeAction("REQUEST_WORK_WAIT");
+			assert.equal(contextWork[0].status, "waiting");
+			const proposal = await completeAction("REQUEST_APPROVAL_PROPOSE");
+			assert.ok(
+				!contextFacts.some((f) => f.body === "F1_APPROVAL_CONTEXT"),
+				"pending fact is not saved",
+			);
+			assert.equal(
+				[...contextReceipts.values()].filter((r) => r.status === "pending")
+					.length,
+				1,
+			);
+			contextApproved = true; // Only controlled Hosted operator approval, not runtime authority.
+			const successor = await completeAction("REQUEST_APPROVAL_APPLY");
+			assert.notEqual(successor, proposal);
+			assert.equal(
+				contextFacts.filter((f) => f.body === "F1_APPROVAL_CONTEXT").length,
+				1,
+			);
+			assert.equal(contextReceipts.size, 5);
+			assert.equal(counts.resultCommits, 6);
+			assert.equal(contextModelCalls, 11);
+			const summary = {
+				passed: true,
+				counts,
+				contextModelCalls,
+				contextWrites: contextReceipts.size,
+				workCreatedAndUpdated: contextWork[0].status === "waiting",
+				approvalAppliedByFreshSuccessor: successor !== proposal,
+				lostAckReconciled: lostContextAck,
+				freshNativeOnResume: recovered.native.threadId !== oldNativeId,
+				futureOccurrence: later !== first,
+				limits: [
+					"Actual registered runtime/SQLite/MCP SDK/native Docker; controlled Hosted/model providers",
+					"No actual Hosted SQL/UI/live acceptance; provider/model/approval policy are controlled fixtures",
+				],
+			};
+			await writeFile(
+				join(directory, "native-context-summary.json"),
+				JSON.stringify(summary, null, 2),
+			);
+			return summary;
+		}
 		if (latencyOnly) {
 			assert.ok(codexImage, "Latency drive requires actual native container");
 			const d = definition("source-free", "customer-source-free");

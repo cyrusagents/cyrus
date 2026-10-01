@@ -18,6 +18,11 @@ import {
 	publicationMetadata,
 } from "./Engineering.js";
 import { beginLatency, measureLatency } from "./Latency.js";
+import {
+	isNativeContextTool,
+	nativeContextPageSchema,
+	nativeContextResult,
+} from "./NativeContext.js";
 
 export interface ScopedAutomationTools {
 	call(
@@ -41,6 +46,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 	private connectedCredential?: McpCredential;
 	private readonly references = new Set<string>();
 	private readonly cursors = new Set<string>();
+	private readonly contextCursors = new Set<string>();
 	private queue: Promise<unknown> = Promise.resolve();
 	private exclusive<T>(operation: () => Promise<T>): Promise<T> {
 		const queued = beginLatency("mcp.queue");
@@ -287,7 +293,8 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 			authorizeTool(authority, call);
 			if (
 				!authority.engineering &&
-				authority.definition.grants[0]?.id !== credential.grantId
+				(authority.definition.grants[0]?.id ??
+					authority.nativeContext?.bindingId) !== credential.grantId
 			)
 				throw new Error("MCP grant identity mismatch");
 			if (call.name === "execute")
@@ -342,6 +349,19 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 						],
 						nextCursor: null,
 					};
+				if (
+					call.name === "read_context" &&
+					call.arguments.cursor &&
+					!this.contextCursors.has(call.arguments.cursor)
+				)
+					return {
+						items: [
+							{
+								text: "This context cursor was not issued by the current MCP session. Call read_context without a cursor to obtain a fresh page.",
+							},
+						],
+						nextCursor: null,
+					};
 				const result = await client.callTool(
 					{ ...call, _meta: metadata },
 					undefined,
@@ -354,6 +374,20 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 						authority.engineering!,
 						result.structuredContent,
 					);
+				if (isNativeContextTool(call.name)) {
+					const output = nativeContextResult(
+						authority.nativeContext!,
+						call.name,
+						result.structuredContent,
+					);
+					if (call.name === "read_context") {
+						const page = nativeContextPageSchema.parse(
+							result.structuredContent,
+						);
+						if (page.nextCursor) this.contextCursors.add(page.nextCursor);
+					}
+					return output;
+				}
 				const output = scopedToolResult(
 					authority,
 					call,
@@ -416,6 +450,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 	private async disconnect(): Promise<void> {
 		this.references.clear();
 		this.cursors.clear();
+		this.contextCursors.clear();
 		const transport = this.transport;
 		this.transport = undefined;
 		this.connectedCredential = undefined;

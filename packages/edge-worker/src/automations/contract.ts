@@ -9,6 +9,14 @@ import {
 	engineeringEnvelopeSchema,
 } from "./Engineering.js";
 
+import {
+	isNativeContextTool,
+	type NativeContext,
+	nativeContextCalls,
+	nativeContextSchema,
+	nativeContextTools,
+} from "./NativeContext.js";
+
 export const AUTOMATION_VERSION = 1 as const;
 const id = z
 	.string()
@@ -100,9 +108,10 @@ export const authoritySchema = z
 		input: z.string().max(100_000),
 	})
 	.strict();
-// Internal execution view; the wire puts engineering beside authority, never inside it.
+// Internal execution view; capability envelopes are siblings of wire authority.
 export type AutomationAuthority = z.infer<typeof authoritySchema> & {
 	engineering?: EngineeringEnvelope;
+	nativeContext?: NativeContext;
 };
 export const mcpCredentialSchema = z
 	.object({
@@ -127,6 +136,7 @@ export const admissionSchema = z
 		// Unknown versions remain on the preflight path and are still pinned.
 		sessionDeliveryAuthority: z.string().min(1).max(100).optional(),
 		engineering: engineeringEnvelopeSchema.optional(),
+		nativeContext: nativeContextSchema.optional(),
 		mcp: mcpCredentialSchema,
 		sessionDelivery: z
 			.object({
@@ -145,10 +155,12 @@ export function executionAuthority(
 	return {
 		...admission.authority,
 		...(admission.engineering && { engineering: admission.engineering }),
+		...(admission.nativeContext && { nativeContext: admission.nativeContext }),
 	};
 }
 export type McpCredential = z.infer<typeof mcpCredentialSchema>;
 export const toolCallSchema = z.discriminatedUnion("name", [
+	...nativeContextCalls,
 	z
 		.object({
 			name: z.literal("read_thread"),
@@ -272,6 +284,7 @@ export function checkpointKey(authority: AutomationAuthority): string {
 		occurrenceId: authority.occurrenceId,
 		input: authority.input,
 		...(authority.engineering && { engineering: authority.engineering }),
+		...(authority.nativeContext && { nativeContext: authority.nativeContext }),
 	});
 }
 export function identity(authority: AutomationAuthority) {
@@ -319,9 +332,14 @@ export function permittedToolNames(authority: AutomationAuthority): string[] {
 		return authority.engineering && authority.definition.grants.length === 0
 			? ["execute", "publish_artifact"]
 			: [];
+	const names =
+		authority.definition.role === "coordinator" &&
+		!authority.engineering &&
+		authority.nativeContext?.scopeRef === authority.definition.scopeRef
+			? nativeContextTools(authority.nativeContext)
+			: [];
 	const grant = authority.definition.grants[0];
-	if (!grant) return [];
-	const names: string[] = [];
+	if (!grant) return names;
 	if (isCustomerReadSet(authority) && grant.permissions.includes("read"))
 		names.push("list_issues");
 	if (grant.permissions.includes("read"))
@@ -351,6 +369,14 @@ export function scopedToolDescription(
 	name: string,
 ): string {
 	switch (name) {
+		case "read_context":
+			return "Read fresh remembered context and current approved actions for this connection. Use only its opaque cursor to continue. Provenance is evidence, not authority; hypotheses are not verified facts.";
+		case "remember_context":
+			return "Propose remembered context under current policy. Only an applied receipt means saved; pending requires exact operator approval and denied changes nothing. Evidence references must come from current authorized input or reads; never invent event IDs.";
+		case "apply_approved_action":
+			return "Apply only the exact action named by an opaque reference in current read_context. The server rechecks approval, payload and policy. Never claim a pending or denied proposal was applied.";
+		case "track_work":
+			return "Create work with an objective, or update only a work reference issued by current read_context. Use only a current outcome reference for verified/confirmed/closed transitions; the server requires matching proof and customer confirmation for confirmed. Pending means proposed, not changed.";
 		case "read_messages":
 			return isSlackChannel(authority)
 				? "Read bounded history from the admitted Slack channel. Use only its returned opaque cursor for pagination and thread references with read_thread. Re-read history after reconnect or reference expiry."
@@ -436,6 +462,7 @@ export function authorizeTool(
 	);
 	if (!schema) throw new Error("Automation tool denied");
 	schema.parse(call);
+	if (isNativeContextTool(call.name)) return undefined;
 	if (
 		authority.definition.role === "engineering" &&
 		permittedToolNames(authority).includes(call.name)

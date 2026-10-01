@@ -9,6 +9,7 @@ import {
 	toolCallSchema,
 } from "./contract.js";
 import { engineeringFilesSchema } from "./Engineering.js";
+import { nativeContextReceiptHintSchema } from "./NativeContext.js";
 
 export const messageSchema = z
 	.object({
@@ -44,6 +45,10 @@ export const checkpointSchema = z
 		engineeringFiles: engineeringFilesSchema.optional(),
 		sessionDelivery: admissionSchema.shape.sessionDelivery,
 		sessionDeliveryAuthority: admissionSchema.shape.sessionDeliveryAuthority,
+		nativeContextReceipts: z
+			.array(nativeContextReceiptHintSchema)
+			.max(24)
+			.optional(),
 		native: z
 			.object({
 				threadId: z.string().uuid(),

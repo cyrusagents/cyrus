@@ -99,6 +99,12 @@ cannot cancel this reconciliation. Current supervisor registration/ownership and
 receipt authority remain mandatory. Receipt claims cannot reopen model, progress or MCP
 work; exhausted receipts stay blocked. No second queue engine or scheduling ledger.
 
+## Native remembered context and work
+
+The optional [native-context contract](runtime-native-context-v1.md) adds bounded,
+coordinator-only context reads and action tools on the same registered `/mcp`
+connection, including source-free runs. Hosted retains data/policy/approval ownership.
+
 ## Admitted event inputs
 
 The additive event discriminator/capability proposal has been sent to the Hosted owner;
