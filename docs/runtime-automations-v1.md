@@ -496,9 +496,12 @@ is null. The exact session descriptor is `{id:"assignment:<assignmentId>",
 scopeRef:"engineering:<assignmentId>",role:"engineering"}`. It contains no private
 parent, customer, issue or external session association. Generic journal parent
 checks are unchanged. Hosted separately authorizes sponsor/private-parent links
-and projects the shared technical timeline into each authorized customer view.
-Withdrawal removes that customer's projection without borrowing another sponsor's
-private context or terminating unrelated sponsorships.
+and projects the technical timeline into the authorized customer view. The
+2026-10-01 customer release cap permits single-customer engineering handoff only;
+Hosted rejects new cross-customer shared-management and production-release work
+before admission/dispatch. The generic assignment wire format and historical
+receipt/projection records remain compatible; they do not enable those deferred
+customer workflows. See [the capped boundary and Slack ingress ownership](customer-runtime-release-boundary.md).
 
 The model receives only the reviewed technical brief/reproduction and permitted
 publication paths. Generic registration instruction and occurrence input are not
