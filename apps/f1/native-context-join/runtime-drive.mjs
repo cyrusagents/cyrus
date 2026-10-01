@@ -74,6 +74,9 @@ let sourceCredential;
 let combinedIssue,
 	combinedThread,
 	combinedRenewals = 0;
+const combinedSessions = new Set(),
+	nativeInputEvidence = [];
+let combinedToken, combinedBindings;
 function page() {
 	const text = modelContext.state.messages[0].content;
 	const marker =
@@ -124,10 +127,25 @@ async function modelResponse(body) {
 				name: "remember_context",
 				arguments: { kind: "source", body: "COMBINED_SOURCE_MARKER" },
 			};
+		nativeInputEvidence.push({
+			sequence,
+			issue: text.includes("Scoped private body"),
+			slack: text.includes("Only mapped Slack channel"),
+			denial: text.includes("not issued by the current MCP session"),
+		});
 		if (sequence >= 7) {
-			assert.ok(text.includes("Scoped private body"));
-			assert.ok(text.includes("Only mapped Slack channel"));
-			assert.ok(text.includes("not issued by the current MCP session"));
+			assert.ok(
+				text.includes("Scoped private body"),
+				"native model received the admitted Linear issue body",
+			);
+			assert.ok(
+				text.includes("Only mapped Slack channel"),
+				"native model received admitted Slack content",
+			);
+			assert.ok(
+				text.includes("not issued by the current MCP session"),
+				"native model received crossed-reference denials",
+			);
 		}
 	} else if (stage === "combined-terminal") {
 		assert.ok(current.entries.some((e) => e.body === "COMBINED_SOURCE_MARKER"));
@@ -244,7 +262,19 @@ globalThis.fetch = async (url, init) => {
 		request.origin === "https://chatgpt.com" &&
 		request.pathname === "/backend-api/codex/responses"
 	)
-		return modelResponse(JSON.parse(init.body));
+		return modelResponse(JSON.parse(init.body)).catch((error) => {
+			console.error(
+				JSON.stringify({
+					stage,
+					sequence: modelContext.state.sequence,
+					fixtureModelError:
+						error.code === "ERR_ASSERTION"
+							? "fixture_assertion"
+							: "fixture_response",
+				}),
+			);
+			throw error;
+		});
 	assert.equal(
 		request.origin,
 		"https://native-join.invalid",
@@ -256,8 +286,40 @@ globalThis.fetch = async (url, init) => {
 	if (request.pathname.endsWith("/result")) resultSendCount++;
 	const response = await nativeFetch(new URL(request.pathname, local), init);
 	if (stage.startsWith("combined-") && response.ok) {
-		if (request.pathname.endsWith("/authorize") && body.phase === "renew")
-			combinedRenewals++;
+		if (request.pathname.endsWith("/authorize")) {
+			const admission = await response.clone().json();
+			if (stage === "combined-read") {
+				assert.equal(
+					admission.mcp.sessionRenewal,
+					true,
+					"initial admission must negotiate same-session renewal",
+				);
+				assert.equal(admission.customerSources, true);
+				const bindings = JSON.stringify(admission.authority.definition.grants);
+				if (combinedBindings) assert.equal(bindings, combinedBindings);
+				else combinedBindings = bindings;
+				if (body.phase === "renew") {
+					assert.ok(
+						body.mcpSessionId,
+						"runtime automatically requests admitted session continuation",
+					);
+					assert.equal(admission.mcp.sessionId, body.mcpSessionId);
+					assert.ok(combinedSessions.has(body.mcpSessionId));
+					assert.notEqual(admission.mcp.token, combinedToken);
+					combinedRenewals++;
+				}
+				combinedToken = admission.mcp.token;
+			}
+		}
+		if (
+			stage === "combined-read" &&
+			request.pathname === "/mcp" &&
+			body?.method === "initialize"
+		) {
+			const id = response.headers.get("mcp-session-id");
+			assert.ok(id);
+			combinedSessions.add(id);
+		}
 		if (request.pathname === "/mcp" && body?.method === "tools/call") {
 			const data = await response.clone().json();
 			const item = data.result?.structuredContent?.items?.[0];
@@ -502,6 +564,16 @@ try {
 	await complete("source-removed", "source");
 	if (fixture.combined) {
 		await complete("combined-read", "both");
+		assert.equal(
+			statuses.at(-1).attempts,
+			1,
+			"combined read completes without a reconnect/retry",
+		);
+		assert.equal(
+			combinedSessions.size,
+			1,
+			"both references stay on their initialized session",
+		);
 		await control({ op: "arm-result-loss", fixture: "both" });
 		const opens = models;
 		await complete("combined-terminal", "both");
@@ -529,6 +601,8 @@ try {
 		lostWriteAckScenario: loseWriteAck,
 		combinedSources: fixture.combined,
 		combinedRenewals,
+		combinedSessions: combinedSessions.size,
+		nativeInputEvidence,
 		runtimeSha: manifest.cyrusLocalTestArtifact.sourceSha,
 		hosted,
 		models,

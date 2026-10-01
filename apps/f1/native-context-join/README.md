@@ -69,3 +69,11 @@ memory, then loses a terminal ACK while removing the secondary mapping through
 a fresh survivor occurrence reads Linear and cannot see the mixed-source memory.
 The fixture mirrors the current definition resolver after removal; it does not
 exercise production outbox dispatch or live provider membership.
+
+The combined gate also requires the **initial HTTP admission** to advertise
+`mcp.sessionRenewal:true`. It then asserts the runtime automatically supplies its
+initialized session ID at renewal, the new token differs, both resource bindings
+stay identical, and only one SDK session/model attempt serves the delayed read.
+A manual fixture renewal with a supplied session ID is insufficient. The final
+model-input assertions for both source bodies and crossed-reference denials remain
+mandatory; only finite diagnostic flags are retained in the summary.
