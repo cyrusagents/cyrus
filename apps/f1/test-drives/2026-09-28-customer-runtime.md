@@ -1,5 +1,10 @@
 # Customer-scoped runtime F1 drive
 
+> Historical evidence for the immutable source below. The standalone command,
+> service and driver were removed on October 1; these are not current setup
+> instructions. See [registered automations](../../../docs/runtime-automations-v1.md)
+> for the supported entry point. Original results are preserved.
+
 Date: 2026-09-28 (America/Vancouver)
 Tested implementation commit: `fc16b5a95fefeef8ce35a05faa26c7adf3936e0b`
 PR: https://github.com/cyrusagents/cyrus/pull/1507
