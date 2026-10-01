@@ -20,6 +20,8 @@ export interface ConfigApiResponse {
 	config?: {
 		cloudflareToken: string;
 		apiKey: string;
+		/** Optional hosted-managed listener port; absent preserves legacy behavior. */
+		serverPort?: number;
 	};
 	error?: string;
 }
@@ -58,7 +60,9 @@ export class ConfigApiClient {
 
 			// Call config API with auth key
 			const url = `${ConfigApiClient.getConfigApiUrl()}?auth_key=${encodeURIComponent(authKey)}`;
-			const response = await fetch(url);
+			const response = await fetch(url, {
+				headers: { "X-Cyrus-Config-Capabilities": "self-host-port-v1" },
+			});
 
 			if (!response.ok) {
 				const errorText = await response.text();
@@ -85,6 +89,12 @@ export class ConfigApiClient {
 					error: "Config API response missing required fields",
 				};
 			}
+			if (!ConfigApiClient.isValid(data)) {
+				return {
+					success: false,
+					error: "Config API response contains an invalid listener port",
+				};
+			}
 
 			return data;
 		} catch (error) {
@@ -108,7 +118,12 @@ export class ConfigApiClient {
 		return (
 			response.success &&
 			!!response.config?.cloudflareToken &&
-			!!response.config?.apiKey
+			!!response.config?.apiKey &&
+			(response.config.serverPort === undefined ||
+				(typeof response.config.serverPort === "number" &&
+					Number.isInteger(response.config.serverPort) &&
+					response.config.serverPort >= 1 &&
+					response.config.serverPort <= 65535))
 		);
 	}
 }

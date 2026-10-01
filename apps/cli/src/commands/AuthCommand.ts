@@ -61,6 +61,7 @@ export class AuthCommand extends BaseCommand {
 CLOUDFLARE_TOKEN=${configResponse.config!.cloudflareToken}
 CYRUS_API_KEY=${configResponse.config!.apiKey}
 CYRUS_SETUP_PENDING=true
+${configResponse.config!.serverPort === undefined ? "" : `CYRUS_SERVER_PORT=${configResponse.config!.serverPort}\n`}
 `;
 
 			writeFileSync(envPath, envContent, "utf-8");
