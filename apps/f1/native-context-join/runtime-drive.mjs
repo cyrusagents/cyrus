@@ -830,7 +830,30 @@ async function complete(
 						assert.ok(span.durationMs >= span.hosted.cyrus_total.durationMs);
 					}
 				}
-				mcpTimingEvidence = { elapsedMs: trace.elapsedMs, spans };
+				assert.ok(Number.isFinite(trace.startedAtEpochMs));
+				const correlation = trace.spans.filter((s) =>
+					[
+						"dispatch.received",
+						"authorize.admit",
+						"native.started",
+						"native.completed",
+						"result",
+					].includes(s.stage),
+				);
+				for (const stage of [
+					"dispatch.received",
+					"authorize.admit",
+					"native.started",
+					"native.completed",
+					"result",
+				])
+					assert.ok(correlation.some((s) => s.stage === stage));
+				mcpTimingEvidence = {
+					startedAtEpochMs: trace.startedAtEpochMs,
+					elapsedMs: trace.elapsedMs,
+					correlation,
+					spans,
+				};
 			}
 			statuses.push({
 				stage,
