@@ -41,6 +41,8 @@ const describedReferences = z
 			.strict(),
 	)
 	.max(25);
+// Includes the retired call shape solely so old checkpoints remain readable.
+// permittedToolNames/authorizeTool never expose or execute it.
 export const nativeContextCalls = [
 	z
 		.object({
@@ -130,7 +132,8 @@ export const nativeContextPageSchema = z
 					})
 					.strict(),
 			)
-			.max(25),
+			.max(25)
+			.optional(),
 	})
 	.strict();
 export const nativeContextReceiptSchema = z
@@ -151,8 +154,8 @@ export function nativeContextTools(
 	if (!context) return [];
 	const names = ["read_context"];
 	if (context.permissions.includes("remember")) names.push("remember_context");
-	if (context.permissions.includes("apply_approved"))
-		names.push("apply_approved_action");
+	// Legacy approval metadata is parsed only for checkpoint/receipt compatibility.
+	// No model or recovered executable step receives the retired tool.
 	if (context.permissions.includes("work")) names.push("track_work");
 	return names;
 }
@@ -178,7 +181,6 @@ export function nativeContextResult(
 				{
 					text: JSON.stringify({
 						snapshotRevision: parsed.snapshotRevision,
-						approvedActions: parsed.approvedActions,
 						...(parsed.inputEvidence
 							? { inputEvidence: parsed.inputEvidence }
 							: {}),

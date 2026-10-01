@@ -1,5 +1,10 @@
 # Registered native context, work and approval continuation
 
+Historical evidence for `6ce464738323806743c510da7107ca563bbb80f5`. Connor's
+subsequent pending-approval removal supersedes its positive approval scenario.
+See [ordinary memory/work validation](cypack-1546-native-direct.md) for the current
+capability; this report is preserved without upgrading its original claims.
+
 Date: 2026-10-01. Changed behavior: negotiated native context through the existing
 registered runtime, including source-free memory, current-context recovery and
 strict work/action tools. F1 is required for these execution/recovery changes.

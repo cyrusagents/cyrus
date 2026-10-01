@@ -57,7 +57,6 @@ it("native authority is explicit, independent of provider resources and unavaila
 	expect(permittedToolNames(a)).toEqual([
 		"read_context",
 		"remember_context",
-		"apply_approved_action",
 		"track_work",
 	]);
 	const { nativeContext, ...wire } = a;
@@ -131,7 +130,6 @@ it("native authority is explicit, independent of provider resources and unavaila
 	expect(permittedToolNames(withProvider)).toEqual([
 		"read_context",
 		"remember_context",
-		"apply_approved_action",
 		"track_work",
 		"get_issue",
 	]);
@@ -154,7 +152,7 @@ it("native authority is explicit, independent of provider resources and unavaila
 	);
 });
 
-it("SDK native context paginates, enforces session/scope, reconciles writes and retains pending approval truth", async () => {
+it("SDK native context paginates, enforces session/scope, reconciles writes and denies retired approval execution", async () => {
 	const a = authority();
 	let credential: McpCredential = {
 		grantId: context.bindingId,
@@ -164,8 +162,7 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 	};
 	let revoked = false,
 		foreign = false,
-		policy: "automatic" | "approval" | "disabled" = "automatic",
-		approved = false,
+		policy: "automatic" | "legacy_pending" | "disabled" = "automatic",
 		loseAck = false;
 	const facts = Array.from({ length: 125 }, (_, i) => ({
 		kind: "source",
@@ -202,8 +199,7 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 		if (!session) {
 			if ((request.body as { method?: string })?.method !== "initialize")
 				return reply.code(403).send();
-			const cursors = new Map<string, number>(),
-				approvalRefs = new Set<string>();
+			const cursors = new Map<string, number>();
 			const workRefs = new Map<string, number>();
 			const server = new McpServer({
 				name: "native-context-fixture",
@@ -215,7 +211,9 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 				onsessioninitialized: (sid) => sessions.set(sid, session!),
 			});
 			session = { server, transport, token: credential.token };
-			for (const schema of nativeContextCalls) {
+			for (const schema of nativeContextCalls.filter((s) =>
+				permittedToolNames(a).includes(s.shape.name.value),
+			)) {
 				const name = schema.shape.name.value;
 				server.registerTool(
 					name,
@@ -233,8 +231,6 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 							const offset = cursor ? cursors.get(cursor)! : 0,
 								nextCursor = offset + 25 < facts.length ? randomUUID() : null;
 							if (nextCursor) cursors.set(nextCursor, offset + 25);
-							const reference = randomUUID();
-							if (approved) approvalRefs.add(reference);
 							return {
 								content: [],
 								structuredContent: {
@@ -251,14 +247,6 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 									],
 									outcomes: [],
 									nextCursor,
-									approvedActions: approved
-										? [
-												{
-													reference,
-													description: "Apply the exact approved fact",
-												},
-											]
-										: [],
 								},
 							};
 						}
@@ -268,12 +256,6 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 						if (old && old.payload !== payload)
 							throw Error("Conflicting immutable write");
 						if (!old) {
-							if (
-								name === "apply_approved_action" &&
-								(!approved ||
-									!approvalRefs.has((args as { reference: string }).reference))
-							)
-								throw Error("Foreign approval reference");
 							if (name === "track_work") {
 								const update = args as {
 									reference?: string;
@@ -291,7 +273,7 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 							const status =
 								policy === "disabled"
 									? "denied"
-									: policy === "approval" && name === "remember_context"
+									: policy === "legacy_pending" && name === "remember_context"
 										? "pending"
 										: "applied";
 							const receipt = { payload, status, receiptId: randomUUID() };
@@ -413,48 +395,28 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 		expect(await read(oldCursor)).toMatchObject({
 			items: [{ text: expect.stringContaining("not issued") }],
 		});
-		policy = "approval";
+		// Older servers may return a historical pending receipt; it is not a saved fact.
+		policy = "legacy_pending";
 		expect(
 			await client.call(remember, "proposal", controller.signal),
 		).toMatchObject({ items: [{ text: '{"status":"pending"}' }] });
 		expect(commits).toBe(1);
-		approved = true;
-		page = await read();
-		const reference = JSON.parse(page.items[0]!.text).approvedActions[0]
-			.reference;
 		await expect(
 			client.call(
 				{
 					name: "apply_approved_action",
 					arguments: { reference: randomUUID() },
 				},
-				"forged",
+				"retired",
 				controller.signal,
 			),
-		).rejects.toThrow("interrupted");
-		await expect(
-			client.call(
-				{ name: "apply_approved_action", arguments: { reference } },
-				"old-session",
-				controller.signal,
-			),
-		).rejects.toThrow("interrupted");
-		page = await read();
-		const current = JSON.parse(page.items[0]!.text).approvedActions[0]
-			.reference;
-		expect(
-			await client.call(
-				{ name: "apply_approved_action", arguments: { reference: current } },
-				"approved-action",
-				controller.signal,
-			),
-		).toMatchObject({ items: [{ text: '{"status":"applied"}' }] });
-		expect(commits).toBe(2);
+		).rejects.toThrow();
+		expect(commits).toBe(1);
 		policy = "disabled";
 		expect(
 			await client.call(remember, "disabled", controller.signal),
 		).toMatchObject({ items: [{ text: '{"status":"denied"}' }] });
-		expect(commits).toBe(2);
+		expect(commits).toBe(1);
 		policy = "automatic";
 		const create = {
 			name: "track_work" as const,
@@ -515,7 +477,7 @@ it("SDK native context paginates, enforces session/scope, reconciles writes and 
 		revoked = true;
 		await expect(client.revalidate()).rejects.toThrow("unavailable");
 		await expect(read()).rejects.toThrow("interrupted");
-		expect(commits).toBe(2);
+		expect(commits).toBe(1);
 	} finally {
 		controller.abort();
 		await client.close();
@@ -535,7 +497,7 @@ it("context result rejects foreign scope, oversized pages and forged fields with
 		approvedActions: [],
 	};
 	expect(nativeContextResult(context, "read_context", page)).toEqual({
-		items: [{ text: '{"snapshotRevision":"r","approvedActions":[]}' }],
+		items: [{ text: '{"snapshotRevision":"r"}' }],
 		nextCursor: null,
 	});
 	const reference = randomUUID();
@@ -551,7 +513,6 @@ it("context result rejects foreign scope, oversized pages and forged fields with
 			{
 				text: JSON.stringify({
 					snapshotRevision: "r",
-					approvedActions: [],
 					...extras,
 				}),
 			},
@@ -633,4 +594,32 @@ it("work updates require the permission and strict issued-reference shape", () =
 			{ name: "track_work", arguments: { objective: "x" } },
 		),
 	).toThrow();
+});
+
+it("legacy approval envelopes and receipt shapes do not expose an executable tool or model references", () => {
+	const a = authority();
+	const reference = randomUUID();
+	expect(permittedToolNames(a)).not.toContain("apply_approved_action");
+	expect(() =>
+		authorizeTool(a, {
+			name: "apply_approved_action",
+			arguments: { reference },
+		}),
+	).toThrow();
+	const page = {
+		bindingId: context.bindingId,
+		scopeRef: context.scopeRef,
+		snapshotRevision: "legacy",
+		entries: [],
+		nextCursor: null,
+		approvedActions: [{ reference, description: "Old proposal" }],
+	};
+	expect(nativeContextResult(context, "read_context", page)).toEqual({
+		items: [{ text: '{"snapshotRevision":"legacy"}' }],
+		nextCursor: null,
+	});
+	const { approvedActions, ...current } = page;
+	expect(nativeContextResult(context, "read_context", current)).toEqual(
+		nativeContextResult(context, "read_context", page),
+	);
 });

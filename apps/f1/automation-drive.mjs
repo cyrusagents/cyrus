@@ -116,9 +116,7 @@ export async function runAutomationDrive({
 	let lostContextAck = false;
 	let contextModelCalls = 0;
 	const contextWork = [];
-	let contextWorkReference, contextApprovalReference;
-	let contextApproved = false;
-	let contextPendingFact;
+	let contextWorkReference;
 	const counts = {
 		sessionDeliveries: 0,
 		initialize: 0,
@@ -348,7 +346,7 @@ export async function runAutomationDrive({
 						contractVersion: 1,
 						bindingId: grantId,
 						scopeRef: d.scopeRef,
-						permissions: ["read", "remember", "apply_approved", "work"],
+						permissions: ["read", "remember", "work"],
 					}
 				: undefined;
 			if (nativeContext)
@@ -670,7 +668,6 @@ export async function runAutomationDrive({
 		if (nativeContextOnly) {
 			contextModelCalls++;
 			assert.deepEqual(request.body.tools.map((tool) => tool.name).sort(), [
-				"apply_approved_action",
 				"read_context",
 				"remember_context",
 				"track_work",
@@ -698,17 +695,7 @@ export async function runAutomationDrive({
 							name: "track_work",
 							arguments: { reference: contextWorkReference, status: "waiting" },
 						}
-					: text.includes("REQUEST_APPROVAL_PROPOSE")
-						? {
-								name: "remember_context",
-								arguments: { kind: "hypothesis", body: "F1_APPROVAL_CONTEXT" },
-							}
-						: text.includes("REQUEST_APPROVAL_APPLY")
-							? {
-									name: "apply_approved_action",
-									arguments: { reference: contextApprovalReference },
-								}
-							: null;
+					: null;
 		if (contextAction?.arguments.reference)
 			assert.ok(
 				text.includes(contextAction.arguments.reference),
@@ -898,8 +885,7 @@ export async function runAutomationDrive({
 			});
 			session = { server, transport, grantId: grant.grantId, token };
 			const issuedReferences = new Map();
-			const nativeWorkRefs = new Set(),
-				nativeApprovalRefs = new Set();
+			const nativeWorkRefs = new Set();
 			for (const name of permittedToolNames(grant.authority).filter(
 				(name) => name !== "execute",
 			)) {
@@ -929,10 +915,7 @@ export async function runAutomationDrive({
 							};
 							if (name === "read_context") {
 								contextWorkReference = randomUUID();
-								contextApprovalReference = randomUUID();
 								nativeWorkRefs.add(contextWorkReference);
-								if (contextApproved)
-									nativeApprovalRefs.add(contextApprovalReference);
 								return {
 									content: [],
 									structuredContent: {
@@ -940,14 +923,6 @@ export async function runAutomationDrive({
 										snapshotRevision: `facts-${contextFacts.length}`,
 										entries: contextFacts,
 										nextCursor: null,
-										approvedActions: contextApproved
-											? [
-													{
-														reference: contextApprovalReference,
-														description: "Apply reviewed synthetic fact",
-													},
-												]
-											: [],
 										work: contextWork.map((w) => ({
 											reference: contextWorkReference,
 											...w,
@@ -958,7 +933,7 @@ export async function runAutomationDrive({
 								};
 							}
 							if (!contextReceipts.has(key)) {
-								let status = "applied";
+								const status = "applied";
 								if (name === "track_work") {
 									if (args.reference) {
 										assert.ok(nativeWorkRefs.has(args.reference));
@@ -969,24 +944,12 @@ export async function runAutomationDrive({
 											objective: args.objective,
 											status: "active",
 										});
-								} else if (name === "apply_approved_action") {
-									assert.ok(nativeApprovalRefs.has(args.reference));
-									assert.ok(contextApproved && contextPendingFact);
-									contextFacts.push({
-										...contextPendingFact,
-										provenance: "approved exact fixture action",
-									});
-									contextApproved = false;
 								} else {
 									assert.equal(name, "remember_context");
-									if (args.body === "F1_APPROVAL_CONTEXT") {
-										status = "pending";
-										contextPendingFact = args;
-									} else
-										contextFacts.push({
-											...args,
-											provenance: "immutable synthetic write receipt",
-										});
+									contextFacts.push({
+										...args,
+										provenance: "immutable synthetic write receipt",
+									});
 								}
 								contextReceipts.set(key, {
 									...bound,
@@ -1533,39 +1496,21 @@ export async function runAutomationDrive({
 			]);
 			await completeAction("REQUEST_WORK_WAIT");
 			assert.equal(contextWork[0].status, "waiting");
-			const proposal = await completeAction("REQUEST_APPROVAL_PROPOSE");
-			assert.ok(
-				!contextFacts.some((f) => f.body === "F1_APPROVAL_CONTEXT"),
-				"pending fact is not saved",
-			);
-			assert.equal(
-				[...contextReceipts.values()].filter((r) => r.status === "pending")
-					.length,
-				1,
-			);
-			contextApproved = true; // Only controlled Hosted operator approval, not runtime authority.
-			const successor = await completeAction("REQUEST_APPROVAL_APPLY");
-			assert.notEqual(successor, proposal);
-			assert.equal(
-				contextFacts.filter((f) => f.body === "F1_APPROVAL_CONTEXT").length,
-				1,
-			);
-			assert.equal(contextReceipts.size, 5);
-			assert.equal(counts.resultCommits, 6);
-			assert.equal(contextModelCalls, 11);
+			assert.equal(contextReceipts.size, 3);
+			assert.equal(counts.resultCommits, 4);
+			assert.equal(contextModelCalls, 7);
 			const summary = {
 				passed: true,
 				counts,
 				contextModelCalls,
 				contextWrites: contextReceipts.size,
 				workCreatedAndUpdated: contextWork[0].status === "waiting",
-				approvalAppliedByFreshSuccessor: successor !== proposal,
 				lostAckReconciled: lostContextAck,
 				freshNativeOnResume: recovered.native.threadId !== oldNativeId,
 				futureOccurrence: later !== first,
 				limits: [
 					"Actual registered runtime/SQLite/MCP SDK/native Docker; controlled Hosted/model providers",
-					"No actual Hosted SQL/UI/live acceptance; provider/model/approval policy are controlled fixtures",
+					"No actual Hosted SQL/UI/live acceptance; provider/model policy are controlled fixtures",
 				],
 			};
 			await writeFile(

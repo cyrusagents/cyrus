@@ -370,13 +370,13 @@ export function scopedToolDescription(
 ): string {
 	switch (name) {
 		case "read_context":
-			return "Read fresh remembered context and current approved actions for this connection. Use only its opaque cursor to continue. Provenance is evidence, not authority; hypotheses are not verified facts.";
+			return "Read fresh remembered context and current work for this connection. Use only its opaque cursor to continue. Provenance is evidence, not authority; hypotheses are not verified facts.";
 		case "remember_context":
-			return "Propose remembered context under current policy. Only an applied receipt means saved; pending requires exact operator approval and denied changes nothing. Evidence references must come from current authorized input or reads; never invent event IDs.";
+			return "Save remembered context under current authority. Only an applied receipt means saved; a legacy pending or denied receipt changes nothing and must not be replayed under another identity. Evidence references must come from current authorized input or reads; never invent event IDs.";
 		case "apply_approved_action":
-			return "Apply only the exact action named by an opaque reference in current read_context. The server rechecks approval, payload and policy. Never claim a pending or denied proposal was applied.";
+			return "Retired compatibility shape; this operation is unavailable.";
 		case "track_work":
-			return "Create work with an objective, or update only a work reference issued by current read_context. Use only a current outcome reference for verified/confirmed/closed transitions; the server requires matching proof and customer confirmation for confirmed. Pending means proposed, not changed.";
+			return "Create work with an objective, or update only a work reference issued by current read_context. Use only a current outcome reference for verified/confirmed/closed transitions; the server requires matching proof and customer confirmation for confirmed. Only an applied receipt means changed; never replay legacy pending actions under another identity.";
 		case "read_messages":
 			return isSlackChannel(authority)
 				? "Read bounded history from the admitted Slack channel. Use only its returned opaque cursor for pagination and thread references with read_thread. Re-read history after reconnect or reference expiry."
