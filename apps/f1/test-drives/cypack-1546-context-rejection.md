@@ -1,0 +1,64 @@
+# CYPACK-1546 — repair a rejected native context write
+
+Source/artifact: `397813003cccc9e1f936feff3e96987e1b507229`.
+Parent: `2419f3d3a430346b131dc18bc25a50aa5586d734`.
+Hosted ACK: `163d6f45-d16a-44e6-bf82-23f76766af10`; contract in
+[registered native context](../../../docs/runtime-native-context-v1.md).
+
+The observed live failure supplied an issue reference to `evidence_reference`;
+generic MCP failure kept that invalid write pending and repeated it. This change
+only recognizes an authenticated, strict, operation-bound no-effect rejection for
+`remember_context`/`track_work`. It returns fixed corrective guidance and checkpoints
+the result. Unknown failures and uncertain writes retain the original pending key.
+It does not reset or replay the existing blocked live occurrence.
+
+## Focused checks
+
+24 tests passed across native context, context recovery, SDK renewal, combined
+sources and Slack channel access. The new SDK regression failed before the patch
+with `Scoped MCP operation interrupted`, then passed. It checks all three declared
+rejection codes, wrong key/version/effect/code/extra fields/oversize denials, raw
+error text suppression, lost rejection ACK retry and existing applied-write lost
+ACK reconciliation. Native rejection markers cannot resolve publication, provider
+writes, delegation or context reads. Build, typecheck and lint hooks passed.
+
+## Native drive
+
+The existing `runAutomationDrive({nativeContextOnly:true})` now adds one occurrence:
+invalid evidence reference -> native model receives denied/code/guidance -> model
+corrects the arguments -> exactly one fact stored -> completed on attempt 1.
+Private checkpoint retains denied then applied hints, sequence 2, and only its
+immutable terminal result intent. No raw rejection detail reaches the model.
+
+Source and exact installed drives passed: 5 completed occurrences, 10 native model exchanges, 4 applied
+writes, 1 rejected write, 52 session delivery calls. Existing lost write ACK, fresh
+native transcript/context after recovery, future retrieval and work create/update
+remain in this same drive. The first run exposed a new fixture assertion wrongly
+expecting terminal pending data to be deleted; the corrected assertion requires
+the durable final-result receipt and no pending tool. Both logs are retained.
+
+Registered runtime HTTP, SQLite/checkpoints, MCP SDK and isolated native Docker
+are real. Gateway policy/provider/model responses are controlled. This is not
+Hosted SQL rejection-receipt proof, live customer acceptance or latency improvement.
+
+## Reproduce
+
+Use the exact reviewed preloaded image
+`sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f`
+and an authorized disposable Docker socket. No network/mounts/pull in the container.
+
+```sh
+CYRUS_F1_CODEX_IMAGE=sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f \
+node --input-type=module -e 'const {runAutomationDrive}=await import("./apps/f1/automation-drive.mjs"); console.log(JSON.stringify(await runAutomationDrive({nativeContextOnly:true})));'
+```
+
+Bundle SHA256: `db63952ef67a855c71295eb07a268e90b17902735062e5af6d78737447335aa8`.
+All 17 packages and 17 resolved installed copies verified; CLI version smoke passed.
+Exact-head Node22/24 CI36821814870/36821821741 green.
+
+Artifact and installed evidence are under
+`/Users/agentops/.cyrus/CYPACK-1546/attachments/context-rejection-39781300/`.
+The installed driver differs only in import roots; invoke its exported function
+explicitly. Build source using `scripts/build-local-artifact.mjs`; verify all
+17 installed copies with `scripts/verify-local-artifact.mjs`. No registry publication
+or minimum published version is implied. Coordinator alone owns live installation.
