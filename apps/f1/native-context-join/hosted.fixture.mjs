@@ -481,6 +481,12 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 					),
 				);
 				assert.equal(url.searchParams.get("channel"), "C123");
+				// Readiness samples a root; receipt observation reads its reply page.
+				if (url.searchParams.get("limit") === "1")
+					return {
+						ok: true,
+						messages: [{ ts: "1790703000.001", text: "Synthetic root" }],
+					};
 				if (url.pathname === "/conversations.replies") {
 					assert.equal(url.searchParams.get("ts"), "1790703000.001");
 					evidence.slackReceiptObservations =
