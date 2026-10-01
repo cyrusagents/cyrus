@@ -59,6 +59,7 @@ try {
 				runtimeSha,
 				image: process.env.CYRUS_F1_CODEX_IMAGE,
 				combinedSources: process.env.CYRUS_NATIVE_JOIN_COMBINED === "1",
+				requireMcpTiming: process.env.CYRUS_NATIVE_JOIN_MCP_TIMING === "1",
 				requireLifecycleAuthority:
 					process.env.CYRUS_NATIVE_JOIN_LIFECYCLE_AUTHORITY === "1",
 				workRejectionScenario:

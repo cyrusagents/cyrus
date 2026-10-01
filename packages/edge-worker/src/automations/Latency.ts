@@ -1,7 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import {
 	type HostedTiming,
+	type McpHostedTiming,
 	readHostedTiming,
+	readMcpHostedTiming,
 	type SupervisorTiming,
 } from "./HostedTiming.js";
 
@@ -27,6 +29,7 @@ export const latencyStages = [
 	"mcp.queue",
 	"mcp.initialize",
 	"mcp.catalog",
+	"mcp.call",
 	"native.snapshot",
 	"session.delivery",
 	"session.create",
@@ -65,7 +68,7 @@ interface Span {
 	startMs: number;
 	durationMs?: number;
 	failed?: true;
-	hosted?: HostedTiming;
+	hosted?: HostedTiming | McpHostedTiming;
 }
 export class LatencyTrace {
 	private readonly spans: Span[] = [];
@@ -89,9 +92,16 @@ export class LatencyTrace {
 			span.durationMs = milliseconds(until - at);
 			if (failed) span.failed = true;
 		};
-		if (supervisorStages.has(stage))
+		if (
+			supervisorStages.has(stage) ||
+			stage === "mcp.catalog" ||
+			stage === "mcp.call"
+		)
 			finish.readHosted = (response) => {
-				const timing = readHostedTiming(response);
+				const timing =
+					stage === "mcp.catalog" || stage === "mcp.call"
+						? readMcpHostedTiming(response)
+						: readHostedTiming(response);
 				if (timing) span.hosted = timing;
 			};
 		return finish;

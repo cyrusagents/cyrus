@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { readHostedTiming } from "../src/automations/HostedTiming.js";
+import {
+	readHostedTiming,
+	readMcpHostedTiming,
+} from "../src/automations/HostedTiming.js";
 import { LatencyTrace, measureLatency } from "../src/automations/Latency.js";
 
 const response = (header: string, marker = "1", status = 200) =>
@@ -43,6 +46,7 @@ describe("optional Hosted diagnostic reader", () => {
 		`cyrus_auth;dur=0,${" ".repeat(1024)}cyrus_total;dur=1`,
 	])("rejects malformed/unknown/oversized metadata %# without affecting response", (header) => {
 		expect(readHostedTiming(response(header))).toBeUndefined();
+		expect(readMcpHostedTiming(response(header))).toBeUndefined();
 	});
 	it("requires the exact marker and rejects unauthenticated timings", () => {
 		for (const marker of ["", "0", "2", "1, 1"])
@@ -94,4 +98,32 @@ describe("optional Hosted diagnostic reader", () => {
 		);
 		expect(trace.snapshot().spans).toHaveLength(128);
 	});
+});
+
+it("keeps the eight MCP metrics separate and rejects unauthenticated/mixed metadata", () => {
+	const names = [
+		"cyrus_mcp_preflight",
+		"cyrus_mcp_authorize",
+		"cyrus_mcp_sql",
+		"cyrus_mcp_connection",
+		"cyrus_mcp_selection",
+		"cyrus_mcp_source_validation",
+		"cyrus_mcp_session",
+		"cyrus_total",
+	];
+	const header = names.map((n, i) => `${n};dur=${i}`).join(", ");
+	expect(readMcpHostedTiming(response(header))).toEqual(
+		Object.fromEntries(names.map((n, i) => [n, { durationMs: i }])),
+	);
+	expect(readHostedTiming(response(header))).toBeUndefined();
+	for (const invalid of [
+		"cyrus_auth;dur=1",
+		`${header}, cyrus_event;dur=1`,
+		"cyrus_mcp_sql;dur=1,cyrus_mcp_sql;dur=2",
+	])
+		expect(readMcpHostedTiming(response(invalid))).toBeUndefined();
+	for (const status of [401, 403])
+		expect(readMcpHostedTiming(response(header, "1", status))).toBeUndefined();
+	for (const marker of ["", "2", "1, 1"])
+		expect(readMcpHostedTiming(response(header, marker))).toBeUndefined();
 });

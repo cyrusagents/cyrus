@@ -91,6 +91,27 @@ describe("private optional finished latency retention", () => {
 			expect(statSync(join(path, name)).mode & 0o777).toBe(0o600);
 		}
 	});
+	it("retains only allowlisted MCP numeric spans across recreation", () => {
+		const path = directory();
+		const value = sample();
+		value.spans = [
+			{
+				stage: "mcp.call",
+				startMs: 0,
+				durationMs: 7,
+				hosted: {
+					cyrus_mcp_sql: { durationMs: 2 },
+					cyrus_mcp_source_validation: { durationMs: 3 },
+					cyrus_total: { durationMs: 5 },
+				},
+			},
+		];
+		new PrivateLatencyRetention(path, "w").save("o", value);
+		expect(new PrivateLatencyRetention(path, "w").read("o")?.spans).toEqual(
+			value.spans,
+		);
+	});
+
 	it("bounds count, expires after 24h, and does not let stale writers replace a newer attempt", () => {
 		const path = directory();
 		let now = 100000;

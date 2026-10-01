@@ -61,6 +61,8 @@ const control = async (body) => {
 const loseWriteAck = process.env.CYRUS_NATIVE_JOIN_LOSE_WRITE_ACK !== "0";
 const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
 const workRejection = process.env.CYRUS_NATIVE_JOIN_WORK_REJECTION === "1";
+const requireMcpTiming = process.env.CYRUS_NATIVE_JOIN_MCP_TIMING === "1";
+let mcpTimingEvidence;
 const workRejectionKeys = new Set();
 const workCorrectionKeys = new Set();
 const workRejectionReceipts = new Map();
@@ -649,6 +651,7 @@ AutomationRuntime.prototype.execute = async function (...args) {
 	}
 };
 const runtime = new AutomationRuntime({
+	latencyDiagnostics: requireMcpTiming,
 	workspaceId: () => fixture.workspaceId,
 	ledger,
 	store,
@@ -732,6 +735,31 @@ async function complete(
 				false,
 				"revoked lifecycle action must not complete",
 			);
+			if (requireMcpTiming && stage === "memory-recall") {
+				const response = await nativeFetch(
+					`${runtimeOrigin}/api/automations/v1/status/${event.definition.id}`,
+					{ headers: { ...headers, "X-Cyrus-Latency-Diagnostics": "1" } },
+				);
+				assert.equal(response.status, 200);
+				const trace = (await response.json()).occurrences.find(
+					(item) => item.id === event.occurrenceId,
+				).latencyDiagnostics;
+				assert.equal(trace.droppedSpans, 0);
+				const spans = trace.spans.filter((s) =>
+					["mcp.catalog", "mcp.call"].includes(s.stage),
+				);
+				for (const name of ["mcp.catalog", "mcp.call"]) {
+					const measured = spans.filter((s) => s.stage === name);
+					assert.ok(measured.length > 0);
+					for (const span of measured) {
+						assert.ok(span.hosted?.cyrus_mcp_preflight);
+						assert.ok(span.hosted?.cyrus_mcp_authorize);
+						assert.ok(span.hosted?.cyrus_mcp_sql);
+						assert.ok(span.durationMs >= span.hosted.cyrus_total.durationMs);
+					}
+				}
+				mcpTimingEvidence = { elapsedMs: trace.elapsedMs, spans };
+			}
 			statuses.push({
 				stage,
 				status: o.status,
@@ -915,6 +943,8 @@ try {
 	}
 	const summary = {
 		passed: true,
+		requireMcpTiming,
+		mcpTimingEvidence,
 		requireLifecycleAuthority,
 		lifecycleAdmissions,
 		lifecycleCheckpoints,

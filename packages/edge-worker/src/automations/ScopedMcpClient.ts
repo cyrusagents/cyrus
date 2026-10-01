@@ -17,6 +17,7 @@ import {
 	engineeringPublicationResult,
 	publicationMetadata,
 } from "./Engineering.js";
+import type { SupervisorTiming } from "./HostedTiming.js";
 import { beginLatency, measureLatency } from "./Latency.js";
 import {
 	isNativeContextTool,
@@ -99,6 +100,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 		});
 	}
 	private readonly url: URL;
+	private requestTiming?: SupervisorTiming;
 	constructor(
 		origin: string,
 		private readonly authority: () => AutomationAuthority,
@@ -153,7 +155,11 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 				)
 					throw new Error("Scoped MCP credential expired");
 				this.signal.throwIfAborted();
+				const timing = init?.method === "POST" ? this.requestTiming : undefined;
 				const headers = new Headers(init?.headers);
+				if (timing)
+					for (const [key, value] of Object.entries(timing.headers))
+						headers.set(key, value);
 				headers.set("Authorization", `Bearer ${admitted.token}`);
 				const response = await fetch(this.url, {
 					...init,
@@ -165,6 +171,7 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 						AbortSignal.timeout(20_000),
 					]),
 				});
+				timing?.read(response);
 				if (
 					!response.ok &&
 					!(response.status === 405 && init?.method === "GET")
@@ -234,8 +241,24 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 		}
 	}
 
+	private measuredRequest<T>(
+		stage: "mcp.catalog" | "mcp.call",
+		work: () => Promise<T>,
+	): Promise<T> {
+		return measureLatency(stage, async (timing) => {
+			// Only inside the serialized SDK request, never initialization/GET or
+			// model context. One response belongs to this one numeric span.
+			this.requestTiming = timing;
+			try {
+				return await work();
+			} finally {
+				this.requestTiming = undefined;
+			}
+		});
+	}
+
 	private async readCatalog(client: Client): Promise<void> {
-		await measureLatency("mcp.catalog", async () => {
+		await this.measuredRequest("mcp.catalog", async () => {
 			this.admitCatalog(
 				await client.listTools(undefined, {
 					signal: this.signal,
@@ -364,10 +387,11 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 						],
 						nextCursor: null,
 					};
-				const result = await client.callTool(
-					{ ...call, _meta: metadata },
-					undefined,
-					{ signal, timeout: 20_000 },
+				const result = await this.measuredRequest("mcp.call", () =>
+					client.callTool({ ...call, _meta: metadata }, undefined, {
+						signal,
+						timeout: 20_000,
+					}),
 				);
 				if (result.isError)
 					return nativeContextRejection(

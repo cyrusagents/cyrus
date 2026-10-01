@@ -400,10 +400,14 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 				databaseAuthority(token, session),
 			);
 		},
-		authorize: async (token, session, tool) => {
+		authorize: async (token, session, tool, timing) => {
 			evidence.mcpAuthorizations++;
 			return measuredAuthority("authorize", () =>
-				databaseAuthority(token, session, tool),
+				timing
+					? timing.measure("mcp_sql", () =>
+							databaseAuthority(token, session, tool),
+						)
+					: databaseAuthority(token, session, tool),
 			);
 		},
 		open: async (token, protocol) => {

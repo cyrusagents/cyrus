@@ -9,6 +9,7 @@ import type {
 	AutomationAuthority,
 	McpCredential,
 } from "../src/automations/contract.js";
+import { LatencyTrace } from "../src/automations/Latency.js";
 import { ScopedAutomationMcpClient } from "../src/automations/ScopedMcpClient.js";
 
 function gate() {
@@ -184,11 +185,22 @@ it.each([
 		await session.transport.handleRequest(request.raw, reply.raw, request.body);
 	});
 	const origin = await app.listen({ host: "127.0.0.1", port: 0 });
+	let timingHeader = "cyrus_mcp_sql;dur=1,cyrus_total;dur=2";
+	const timingMethods: string[] = [];
 	const realFetch = globalThis.fetch;
-	vi.stubGlobal("fetch", (url: URL | string, init?: RequestInit) => {
+	vi.stubGlobal("fetch", async (url: URL | string, init?: RequestInit) => {
 		if (String(url) !== "https://scoped.fixture/mcp")
 			throw new Error("External request denied");
-		return realFetch(`${origin}/mcp`, init);
+		const response = await realFetch(`${origin}/mcp`, init);
+		if (new Headers(init?.headers).get("x-cyrus-latency-diagnostics") === "1") {
+			timingMethods.push(JSON.parse(String(init?.body)).method);
+			await new Promise((r) => setTimeout(r, 5));
+			const headers = new Headers(response.headers);
+			headers.set("x-cyrus-hosted-timing", "1");
+			headers.set("server-timing", timingHeader);
+			return new Response(response.body, { status: response.status, headers });
+		}
+		return response;
 	});
 	const controller = new AbortController();
 	const client = new ScopedAutomationMcpClient(
@@ -207,10 +219,13 @@ it.each([
 			credential = { ...credential, token, sessionId };
 		});
 	try {
-		const read = client.call(
-			{ name: "get_issue", arguments: {} },
-			"read-before",
-			controller.signal,
+		const initialTrace = new LatencyTrace();
+		const read = initialTrace.run(() =>
+			client.call(
+				{ name: "get_issue", arguments: {} },
+				"read-before",
+				controller.signal,
+			),
 		);
 		await initialized.promise;
 		let rotated = false;
@@ -227,6 +242,21 @@ it.each([
 			nextCursor: null,
 		});
 		await rotation;
+		expect(timingMethods).toEqual(["tools/list", "tools/call"]);
+		for (const stage of ["mcp.catalog", "mcp.call"]) {
+			const span = initialTrace
+				.snapshot()
+				.spans.find((s) => s.stage === stage)!;
+			expect(span.hosted).toEqual({
+				cyrus_mcp_sql: { durationMs: 1 },
+				cyrus_total: { durationMs: 2 },
+			});
+			expect(span.durationMs).toBeGreaterThan(2);
+		}
+		expect(
+			initialTrace.snapshot().spans.find((s) => s.stage === "mcp.initialize")
+				?.hosted,
+		).toBeUndefined();
 		const write = client.call(
 			{ name: "add_comment", arguments: { text: "first write" } },
 			"slow-write",
@@ -244,6 +274,31 @@ it.each([
 		writeRelease.release();
 		await write;
 		await secondRotation;
+		expect(timingMethods).toHaveLength(2); // ordinary requests cannot opt in
+		for (const header of [
+			"",
+			"secret;dur=1",
+			"x".repeat(1025),
+			"cyrus_total;dur=NaN",
+		]) {
+			timingHeader = header;
+			const trace = new LatencyTrace();
+			await expect(
+				trace.run(() =>
+					client.call(
+						{ name: "get_issue", arguments: {} },
+						"diagnostic-read",
+						controller.signal,
+					),
+				),
+			).resolves.toEqual({
+				items: [{ text: "bound result" }],
+				nextCursor: null,
+			});
+			expect(trace.snapshot().spans.every((s) => s.hosted === undefined)).toBe(
+				true,
+			);
+		}
 		await expect(
 			client.call(
 				{ name: "get_issue", arguments: {} },

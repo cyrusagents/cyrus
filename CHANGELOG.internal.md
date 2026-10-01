@@ -4,6 +4,10 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Changed
+
+- Attribute opt-in scoped MCP catalog/tool transport time separately from eight bounded Hosted numeric timing fields; keep diagnostics out of model context and preserve private bounded retention. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
+
 ### Added
 - Added an installed before/after watchdog profile with configurable bounded Hosted delay, explicit cleanup-cancelled renewal measurements and passive live-stage attribution; preserved current-authority, delayed-model renewal and receipt recovery checks in the native SQL join. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
 - Added explicit lifecycle-authority negotiation and receiver-bound pause cases to the installed Hosted SQL/native join; the fixture requires the production current-action callback, preserves renewal/withdrawal/receipt checks, and distinguishes transmissions from committed results. The opt-in work-proof gate reproduces missing-proof retry exhaustion and verifies model correction, immutable rejection recovery and later proof-backed work completion. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))

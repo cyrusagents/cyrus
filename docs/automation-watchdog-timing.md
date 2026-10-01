@@ -66,3 +66,28 @@ cached permission or edit Hosted's implementation.
 The older approximately 44-second pre-native examples lacked this complete
 telemetry. This newer trace does not retroactively establish their exact cause.
 The candidate and controlled fixtures do not close live responsiveness acceptance.
+
+## October 1: fresh context preparation and MCP attribution
+
+Passive live 107272ba/6a099aee greeting6d37179d took24.069s in the runtime and35.777s to final foreground DOM. Nine catalog checks totaled12.357s (not additive with enclosing spans). Admission3.180s, initialize1.423s and first catalog2.262s precede checkpoint load. Automatic context preparation adds before/after checks; model entry adds another. Native container/thread setup is approximately0.35s, provider headers/body0.837/0.694s. The one-tool work turn adds a second native model exchange and eight catalog checks;17 catalogs total26.412s. These observations do not explain the old uninstrumented44s gap.
+
+The preparation patch keeps the post-context check but overlaps its pending request with private checkpoint preparation. The authorizing contained adapter's model entry joins only a still-pending request; a completed decision is never reusable. Context activity enters the journal only after the source check succeeds. Legacy/unknown adapters remain serial. Controlled native profiles eliminate one catalog per greeting; the cold150ms sample regressed under concurrent isolated fixture load. No universal speedup or live acceptance is claimed.
+
+Hosted014ef206 and the diagnostic reader agree eight MCP-only metric names:
+`cyrus_mcp_preflight`, `cyrus_mcp_authorize`, `cyrus_mcp_sql`,
+`cyrus_mcp_connection`, `cyrus_mcp_selection`, `cyrus_mcp_source_validation`,
+`cyrus_mcp_session`, `cyrus_total`.
+Only an enabled numeric trace requests `X-Cyrus-Latency-Diagnostics: 1` for
+catalog and tool calls. The exact `X-Cyrus-Hosted-Timing: 1` sentinel and
+`Server-Timing` format are required, with at most8 metrics/1KB, finite0–600000ms
+and optional `failed`/`capped` flags. Unknown, malformed, missing or
+unauthenticated fields remain unavailable; no raw headers or model/customer
+content enter diagnostics. Existing supervisor metrics retain their separate
+allowlist. Private retention keeps the existing128-span/64-trace bounds.
+
+`mcp.catalog`/`mcp.call` duration measures the overall SDK operation; nested Hosted
+metrics are separately attached. Authorize includes its nested checks, and
+source_validation includes credential/permission/provider work, not only
+provider RTT. Do not sum overlapping metrics. Initialize may involve several
+SDK requests, so no individual response is attributed to its entire span.
+These diagnostics do not change authority, MCP payloads, responses or receipts.

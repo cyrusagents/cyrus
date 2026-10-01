@@ -28,6 +28,18 @@ const hosted = z
 		cyrus_total: metric.optional(),
 	})
 	.strict();
+const mcpHosted = z
+	.object({
+		cyrus_mcp_preflight: metric.optional(),
+		cyrus_mcp_authorize: metric.optional(),
+		cyrus_mcp_sql: metric.optional(),
+		cyrus_mcp_connection: metric.optional(),
+		cyrus_mcp_selection: metric.optional(),
+		cyrus_mcp_source_validation: metric.optional(),
+		cyrus_mcp_session: metric.optional(),
+		cyrus_total: metric.optional(),
+	})
+	.strict();
 const snapshotSchema = z
 	.object({
 		version: z.literal(1),
@@ -44,7 +56,7 @@ const snapshotSchema = z
 						startMs: numeric,
 						durationMs: numeric.optional(),
 						failed: z.literal(true).optional(),
-						hosted: hosted.optional(),
+						hosted: z.union([hosted, mcpHosted]).optional(),
 					})
 					.strict(),
 			)
