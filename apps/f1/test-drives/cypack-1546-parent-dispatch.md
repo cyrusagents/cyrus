@@ -1,8 +1,34 @@
 # CYPACK-1546 — production dispatch and a parent successor
 
 Installed Runtime: `397813003cccc9e1f936feff3e96987e1b507229`.
-Frozen Hosted: `a65f265730cbb6147588d3cf6e3437d5e13aa4be`.
-Status: **FAIL — source-free parent admission**. No live environment changes.
+Original frozen Hosted: `a65f265730cbb6147588d3cf6e3437d5e13aa4be` (failed).
+Corrected frozen Hosted: `ffac422c251be13ba73be126a2381e2356f071ac`.
+Status: **PASS — production dispatch and source-free parent successor**.
+No live environment changes; original failure evidence retained below.
+
+## Corrected exact-head result
+
+Unchanged driver/fixture from `980641252b4bc7ee55a50ac865e0d1bbc4aa1680`
+(executed at test-only head `e24ec55b10605b837ba7463bdcbdec54fdf7e561`).
+The only product change is Hosted migration admitting the exact current
+assignment/sponsor/thread engineering result and checking sponsorship on active
+operations. No switch to a provider-bound parent or weakened assertion.
+
+One Bun test/21 assertions passed in49.00s; native driver46.018s. Three completed
+occurrences: engineering and two legitimate result-event parent successors.
+Four native opens/closes and six model exchanges; failed test exit1, repair,
+passing exit0; one publication/reconciliation, four result transmissions,
+29 durable activity deliveries and four callback wake receipts. Production
+dispatch was polled168 times at250ms while preserving the real30s retry deadline;
+that count is not168 model executions. Lost publication/result/occurrence ACKs
+recover without duplicate parent work. Pause/withdrawn-sponsor/foreign-customer
+checks pass. Parent input contains actual dispatched findings/PR, not a prepared
+outbox or copied prompt.
+
+[Bounded summary](evidence/cypack-1546-parent-ffac-summary.json).
+Executed source hashes and full controlled log are in
+`attachments/parent-dispatch-ffac422c/` for CYPACK-1546. Installed source3978 and its
+17-package bundle/image are unchanged; this increment needs no new installation.
 
 This test invokes unchanged Hosted `deliverEngineeringAutomations`,
 `deliverCustomerAutomations` and `automationCallback` against real PostgreSQL.
@@ -18,7 +44,7 @@ ACKs are deliberately lost. Parent dispatch preserves per-event/input/occurrence
 identity. Pause and withdrawn-link probes require no parent outbox before current
 authority is restored inside this disposable fixture.
 
-## Failure and diagnosis
+## Preserved original failure and diagnosis
 
 Engineering reaches its terminal result. The production customer dispatcher
 creates the engineering-result outbox and sends it to the installed runtime.
@@ -69,8 +95,8 @@ promise is insufficient: it catches errors into delivery state. The real
 
 Registered target/config resolution and cloud Workflow transport are controlled.
 Signed ingress, live provider assignment, UI reload and responsiveness are separate
-gates. Current live3978/a65 catalog latency remains unaccepted regardless of this
-fixture's eventual functional result.
+gates. Current live3978/a65 catalog latency remains unaccepted despite this
+fixture's functional pass.
 
 The reviewed assignment and coordinator definition are fixture setup. This does
 not yet prove a parent model creating the engineering handoff or resuming a prior

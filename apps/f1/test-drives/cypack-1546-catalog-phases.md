@@ -67,6 +67,11 @@ Likewise, the two broker-side checks straddle persisted native snapshot work and
 cannot be collapsed using a cached authority result. This bounded investigation
 does not justify a production check removal; no runtime executable code changed.
 
+Catalogs themselves are serialized by the client's exclusive queue. Their duration
+overlaps enclosing authority/model spans and may overlap other activities; do not
+add catalog and enclosing-span sums. The live count alone does not identify which
+caller awaited each request or which requests blocked first native activity.
+
 The warm1500ms run spends about9s before native start in two initialization HTTP
 requests plus four serialized catalog probes. The measured8.133s warm startup
 increase is consistent with six requests each delayed an additional1.35s, plus

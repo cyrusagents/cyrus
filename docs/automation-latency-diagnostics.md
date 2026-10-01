@@ -11,8 +11,10 @@ Hosted's subsequent observed terminal duration was 165.463 seconds with successf
 memory and both source reads. These values were supplied by the active owners;
 Runtime did not send another live prompt or inspect live checkpoints.
 
-Responsiveness remains **unaccepted**. Catalog sums can overlap and are not a
-unique critical-path attribution. The exact installed combined/native SQL fixture
+Responsiveness remains **unaccepted**. Catalog requests are serialized within one
+scoped client, but their time overlaps enclosing authority/model spans and can
+overlap other activity. Their sum is not automatically total critical-path time.
+The exact installed combined/native SQL fixture
 pass establishes functional recovery and scope checks; its controlled model and
 provider responses cannot establish live speed. Hosted is investigating consolidation
 of the same per-request SQL checks, preserving pre-body admission, post-provider
