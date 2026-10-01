@@ -365,6 +365,14 @@ it.each([
 			if (mode !== "settled") {
 				expect(effects).toBe(0);
 				expect(checks).toBe(postContext);
+				expect(
+					f.deliveries.some(
+						(e) =>
+							e.item.kind === "activity" &&
+							"result" in e.item.payload.content &&
+							e.item.payload.content.result !== null,
+					),
+				).toBe(false);
 			}
 		} else {
 			expect(entries).toBe(0);

@@ -845,8 +845,25 @@ export class AutomationRuntime {
 						const context = automationToolOutputSchema.parse(
 							await tools.call(call, contextKey, controller.signal),
 						);
-						preparationAuthority = fresh();
-						void preparationAuthority.catch(() => {});
+						const contextAuthority = fresh();
+						preparationAuthority = contextAuthority.then(async () => {
+							// Source output cannot enter the delivery journal until this
+							// fresh source check succeeds. Append synchronously before the
+							// contained adapter's joined waiter can emit native activities.
+							if (sink && session)
+								await sink.postActivity(
+									session.id,
+									{
+										type: AgentActivityType.Action,
+										action: call.name,
+										parameter: "{}",
+										result: JSON.stringify(context).slice(0, 32768),
+									},
+									undefined,
+									`${contextKey}:result`,
+								);
+						});
+						void preparationAuthority.catch(() => controller.abort());
 						// Only an adapter whose pure open/next contract checks current
 						// authority can overlap private checkpoint preparation with this
 						// request. Its next() joins if still pending, otherwise makes a
@@ -855,18 +872,6 @@ export class AutomationRuntime {
 							(model ?? this.options.model).nextAuthorization !== "in-flight-v1"
 						)
 							await preparationAuthority;
-						if (sink && session)
-							await sink.postActivity(
-								session.id,
-								{
-									type: AgentActivityType.Action,
-									action: call.name,
-									parameter: "{}",
-									result: JSON.stringify(context).slice(0, 32768),
-								},
-								undefined,
-								`${contextKey}:result`,
-							);
 						// Never restore an old native transcript or old source/context tool
 						// outputs on a recovered context-capable attempt. Pending writes
 						// were reconciled above with their original operation identities.
