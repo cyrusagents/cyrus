@@ -85,3 +85,35 @@ and `mcpAuthorizations` counts. This fixture exercises actual handler/SQL framin
 provider membership is still synthetic, so the counts are not proof of production
 provider-verification latency or coverage of `mcp-store.ts`. An older handler that
 ignores the preflight hook fails the changed gate. Existing assertions are unchanged.
+
+## Existing Hosted event and child scenarios through native Codex
+
+`run-hosted-native.mjs` freezes the existing Hosted automation SQL suite and wraps
+its deterministic step oracle with `oracle-native.mjs`: actual installed contained
+Codex, private synthetic login broker, Responses SSE, HTTP/SDK and SQL. The original
+model/provider decisions stay controlled. Async-local occurrence context keeps
+parent and child requests separate. No live credentials or provider calls are used.
+
+Use the same prerequisites/environment as above, substituting this launcher:
+
+```sh
+node apps/f1/native-context-join/run-hosted-native.mjs \
+  /absolute/hosted-checkout FULL_HOSTED_SHA \
+  /absolute/isolated-installed-prefix FULL_RUNTIME_SHA /absolute/new-evidence
+```
+
+Default modes: `read-set-direct-child,read-set-ticket-child,linear-events,slack-channel-events`.
+`CYRUS_NATIVE_JOIN_MODES` may narrow this list. All four are required for the full
+report. The frozen fixture enables event session delivery, explicit DB preflight,
+and Codex target metadata. Strict source seams fail when upstream changes require
+review. Original and adapted driver/test sources and input hashes are preserved.
+
+Database and contained processes are cleaned up by the existing fixture. The frozen
+source and private synthetic fixture directories are retained for inspection;
+remove only those paths after reviewing a failure. No registered live instance is
+started. The evidence directory must be new.
+
+This gate proves queued next-occurrence events and both child session lifecycles
+with ordered timeline receipts. It still manually delivers prepared outbox rows;
+it does not establish signed ingress, production wake/dispatch, parent successor
+consumption, live ticket assignment or UI reload. Keep those gaps explicit.

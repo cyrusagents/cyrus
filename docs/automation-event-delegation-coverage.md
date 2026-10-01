@@ -1,7 +1,7 @@
 # Event and delegation fixture inventory — 2026-10-01
 
-Inspected Runtime04e941be / driver5bf0d0c0 and Hosted3b5b437f. This is a source-grounded
-inventory, not a rerun or live acceptance claim. Canonical verifier checklist gates:
+Updated with installed Runtimee26a77f8 against frozen Hosteda3359a3b: four native
+SQL modes passed, 87 tests / 1,029 assertions. See the [joined report](../apps/f1/test-drives/cypack-1546-native-events-children.md). This is controlled proof, not live acceptance. Canonical verifier checklist gates:
 SETTINGS-02 (Linear), SETTINGS-03 (Slack), ENGINEERING-01 (investigation children),
 and the session timeline/tenant isolation gates. Existing evidence stays historical.
 
@@ -17,7 +17,7 @@ and the session timeline/tenant isolation gates. Existing evidence stays histori
 | Hosted `linear-intake.integration.test.mjs`, `combined-sources.integration.test.mjs` | Actual association/mapping SQL; combined SDK reference, withdrawal, companion-event and narrowed-child admission | Synthetic provider association/membership; no contained child execution in combined suite |
 | Hosted `session-journal.integration.test.mjs`, `session-timeline.integration.test.mjs` | Durable child/parent identity, optional issue association, ordering/dedup/authorization, timeline SQL | No native/provider event chain or rendered reload proof |
 | Hosted `automation-result-wake.test.mjs` | Production callback commits before durable wake; failed wake requires receipt replay | DB and workflow mocked; no parent native successor consuming findings |
-| CYPACK `apps/f1/native-context-join/` | Actual installed native/SDK/SQL/HTTP, current memory/work, combined read/rotation/withdrawal/receipt recovery; explicit preflight at5bf0d0c0 | Does not emit provider webhooks, delegate children or run production outbox dispatcher; fixed model/provider checks |
+| CYPACK `apps/f1/native-context-join/` | Actual installed native/SDK/SQL/HTTP, memory/work, combined read/rotation/withdrawal/receipt recovery; new native bridge covers Linear/Slack queued events and direct/ticket children with durable session delivery | Does not emit signed provider webhooks or run production outbox dispatcher; fixed model/provider checks |
 
 ## Event scenarios already available
 
@@ -33,11 +33,12 @@ Hosted optional installed-runtime modes are `linear-events`, `slack-events` and
 `slack-channel-events`. They normalize synthetic provider events, call
 `customer_ingest_connected`, create exact SQL outbox rows, deliver registered
 occurrences, and assert arrivals during running work remain queued and two events
-become processed. They include duplicate dispatch and lost result ACK. Their model
-is a deterministic `next` implementation, not native Codex. Their current gateway
-in `automation.integration.test.mjs` does not yet pass optional `preflight`; if used
-for the new request-boundary gate, Hosted must enable that hook explicitly as in
-the current combined native fixture. This inventory does not silently change it.
+become processed. They include duplicate dispatch and lost result ACK. Their original model is a deterministic `next` implementation. The new
+`run-hosted-native.mjs` bridge replaces only that model boundary with the installed
+contained Codex process and synthetic Responses transport. It explicitly adds the
+SQL preflight hook and enables session delivery for both event modes in its frozen
+test copy. Original assertions remain, plus native execution/cleanup assertions;
+the exact original/adapted sources are retained for review.
 
 Implemented event shapes, from Hosted3b contracts (not a subscription assertion):
 
@@ -76,13 +77,15 @@ Hosted reusable modes: `direct-child`, `ticket-child`, `model-direct-child`,
 modes replay one operation key and assert one child. Child model context excludes
 private parent text. Actual timeline asserts investigator role, parent/issue linkage,
 one response and unique sequences; exactly one `automation.child.result` event is
-stored. Lost activity/result ACKs remain covered. These are useful SQL/installed
-runtime checks, but the child execution is a stub and child outbox is manually sent.
+stored. Lost activity/result ACKs remain covered. The new native bridge proves both read-set child modes execute actual contained
+Codex, including tool calls and final findings, with those same SQL assertions.
+The child outbox is still manually delivered; provider identities/model output
+remain controlled.
 
-Missing joined proof: extend the existing native+SQL driver with the real Hosted
-child admission and production outbox delivery, then both direct and assigned-ticket
-native child lifecycles, interruption/current-authority resume, findings durable
-once, and a current parent successor actually consuming those findings. Include
+Missing joined proof: production outbox delivery, interruption/current-authority
+child resume, and a current parent successor actually consuming those findings.
+Both native direct and assigned-ticket child lifecycles, actual Hosted child
+admission, durable findings and terminal lost-ACK recovery now pass. Include
 combined parent→Linear-only child and worker widening denial; no sponsor/private
 parent context. Ticket-backed proof must validate the current existing issue and
 optional association without requiring a Linear agent session. Render/reload the
