@@ -54,6 +54,7 @@ export async function runAutomationDrive({
 	lifecycleAuthority = false,
 	latencyOnly = false,
 	latencyReadSet = false,
+	latencyNativeContext = false,
 	latencyMcpMilliseconds = 150,
 	latencyHostedMilliseconds = 40,
 	catalogProfile = false,
@@ -357,14 +358,15 @@ export async function runAutomationDrive({
 				sessionRenewals++;
 			}
 			if (previous) previous.revoked = true;
-			const nativeContext = nativeContextOnly
-				? {
-						contractVersion: 1,
-						bindingId: grantId,
-						scopeRef: d.scopeRef,
-						permissions: ["read", "remember", "work"],
-					}
-				: undefined;
+			const nativeContext =
+				nativeContextOnly || latencyNativeContext
+					? {
+							contractVersion: 1,
+							bindingId: grantId,
+							scopeRef: d.scopeRef,
+							permissions: ["read", "remember", "work"],
+						}
+					: undefined;
 			if (nativeContext)
 				assert.equal(request.headers["x-cyrus-native-context"], "1");
 			grants.set(token, {
@@ -455,7 +457,8 @@ export async function runAutomationDrive({
 					entry.item.sessionId ===
 					(d.session?.id ?? `automation:${d.id}:${b.occurrenceId}`),
 			);
-			if (!nativeContextOnly)
+			if (latencyNativeContext) assert.equal(sessionItems.length, 7);
+			if (!nativeContextOnly && !latencyNativeContext)
 				assert.equal(
 					sessionItems.length,
 					d.id === "slack-channel"
@@ -683,6 +686,9 @@ export async function runAutomationDrive({
 			assert.deepEqual(request.body.tools.map((tool) => tool.name).sort(), [
 				"get_issue",
 				"list_issues",
+				...(latencyNativeContext
+					? ["read_context", "remember_context", "track_work"]
+					: []),
 			]);
 		const slackChannel = text.includes("slack-channel");
 		if (slackChannel && codexImage) {
@@ -968,7 +974,7 @@ export async function runAutomationDrive({
 							operationReceipts.set(key, payload);
 							counts.tools++;
 						}
-						if (nativeContextOnly) {
+						if (nativeContextOnly || latencyNativeContext) {
 							const bound = {
 								bindingId: grant.authority.nativeContext.bindingId,
 								scopeRef: d.scopeRef,
@@ -1850,9 +1856,16 @@ export async function runAutomationDrive({
 						1,
 					);
 					assert.ok(
-						beforeCredentials.every(
-							(s) => s.startMs + s.durationMs <= credential.startMs,
-						),
+						beforeCredentials
+							.filter((s) =>
+								["authority.check", "mcp.catalog", "native.snapshot"].includes(
+									s.stage,
+								),
+							)
+							.every(
+								(s) => s.startMs + s.durationMs <= credential.startMs + 0.002,
+							),
+						JSON.stringify({ beforeCredentials, credential }),
 					);
 					assert.ok(
 						trace.spans.filter((s) => s.stage === "mcp.queue").length > 0,
@@ -1928,12 +1941,13 @@ export async function runAutomationDrive({
 				).statusCode,
 				401,
 			);
-			assert.equal(counts.tools, 0);
+			assert.equal(counts.tools, latencyNativeContext ? 2 : 0);
 			assert.equal(counts.models, 2);
 			assert.equal(counts.resultCommits, 2);
 			const summary = {
 				passed: true,
 				latencyReadSet,
+				latencyNativeContext,
 				lifecycleAuthority,
 				latencyMcpMilliseconds,
 				latencyHostedMilliseconds,

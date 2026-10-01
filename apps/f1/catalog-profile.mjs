@@ -11,7 +11,7 @@ const lifecycleAuthority = process.env.CYRUS_F1_LIFECYCLE_AUTHORITY === "1";
 const latencyHostedMilliseconds = Number(
 	process.env.CYRUS_F1_HOSTED_DELAY_MS ?? 40,
 );
-assert.ok(["greeting", "tools"].includes(scenario));
+assert.ok(["greeting", "context", "tools"].includes(scenario));
 assert.ok(prefixArg && evidenceArg);
 assert.match(sourceSha ?? "", /^[a-f0-9]{40}$/);
 const modules = join(resolve(prefixArg), "lib/node_modules");
@@ -73,7 +73,11 @@ try {
 		const summary = await runAutomationDrive({
 			...(scenario === "tools"
 				? { slackChannelOnly: true, catalogProfile: true }
-				: { latencyOnly: true, latencyReadSet: true }),
+				: {
+						latencyOnly: true,
+						latencyReadSet: true,
+						latencyNativeContext: scenario === "context",
+					}),
 			sessionDeliveryAuthority: true,
 			lifecycleAuthority,
 			latencyMcpMilliseconds,
@@ -81,7 +85,7 @@ try {
 		});
 		const elapsedMs = performance.now() - start;
 		assert.equal(checks.length, summary.counts.list);
-		if (scenario === "greeting")
+		if (scenario !== "tools")
 			assert.equal(
 				checks.length,
 				summary.traces

@@ -272,6 +272,119 @@ it.each([
 });
 
 it.each([
+	"joined",
+	"revoked",
+	"aborted",
+	"settled",
+	"legacy",
+	"unknown",
+])("keeps fresh context preparation and model entry behind current authority: %s", async (mode) => {
+	const f = await fixture();
+	f.state.lifecycle = "current-action-v1";
+	const nativeContext = {
+		contractVersion: 1,
+		bindingId: "g",
+		scopeRef: "s",
+		permissions: ["read"],
+	};
+	const call = f.options.gateway.call;
+	f.options.gateway.call = async (endpoint, body) => ({
+		...(await call(endpoint, body)),
+		...(endpoint === "authorize" && { nativeContext }),
+	});
+	let release!: () => void, entered!: () => void, prepared!: () => void;
+	const gate = new Promise<void>((r) => {
+		release = r;
+	});
+	const pending = new Promise<void>((r) => {
+		entered = r;
+	});
+	const localPrepared = new Promise<void>((r) => {
+		prepared = r;
+	});
+	let reads = 0,
+		checks = 0,
+		postContext = 0,
+		entries = 0,
+		effects = 0;
+	f.options.tools = () => ({
+		close: async () => {},
+		renew: async (fn: () => Promise<void>) => fn(),
+		revalidate: async () => {
+			checks++;
+			if (reads && !postContext) {
+				postContext = checks;
+				entered();
+				if (mode !== "settled") await gate;
+			}
+			if (f.state.revoked) throw Error("Current source withdrawn");
+		},
+		call: async () => {
+			reads++;
+			return { items: [{ text: "fresh scoped context" }], nextCursor: null };
+		},
+	});
+	const save = f.store.save.bind(f.store);
+	f.store.save = async (state) => {
+		await save(state);
+		if (reads) prepared();
+	};
+	Object.assign(f.options.model, {
+		...(mode !== "legacy" && {
+			nextAuthorization: mode === "unknown" ? "future-v2" : "in-flight-v1",
+		}),
+		async open(context: AutomationModelContext) {
+			return {
+				async next() {
+					entries++;
+					await context.authorize();
+					context.signal.throwIfAborted();
+					effects++;
+					return { type: "result" as const, text: "Used current context" };
+				},
+			};
+		},
+	});
+	const runtime = f.create();
+	const running = runtime.wake();
+	try {
+		await pending;
+		if (mode !== "legacy" && mode !== "unknown") {
+			await Promise.race([
+				localPrepared,
+				new Promise((_, reject) =>
+					setTimeout(
+						() =>
+							reject(Error("Local preparation serialized behind remote check")),
+						500,
+					),
+				),
+			]);
+			await new Promise((r) => setImmediate(r));
+			expect(entries).toBe(1);
+			if (mode !== "settled") {
+				expect(effects).toBe(0);
+				expect(checks).toBe(postContext);
+			}
+		} else {
+			expect(entries).toBe(0);
+		}
+		if (mode === "revoked") f.state.revoked = true;
+		const stopping = mode === "aborted" ? runtime.stop() : undefined;
+		release();
+		await running;
+		await stopping;
+		expect(effects).toBe(mode === "revoked" || mode === "aborted" ? 0 : 1);
+		expect(f.state.results).toBe(effects);
+		// Fast checks cannot be kept as a permission cache for model entry.
+		if (mode === "settled") expect(checks).toBeGreaterThan(postContext);
+	} finally {
+		release();
+		await running;
+	}
+});
+
+it.each([
 	undefined,
 	"future-v2",
 	"current-admission-v1",

@@ -808,6 +808,7 @@ export class AutomationRuntime {
 			}
 			while (!this.stopped) {
 				const iterationAuthority = fresh();
+				let preparationAuthority: Promise<void> | undefined;
 				// Both callers still request current authority. A contained adapter
 				// with a pure constructor and an authorizing next() can join this
 				// pending request before doing anything, instead of starting a second
@@ -844,7 +845,16 @@ export class AutomationRuntime {
 						const context = automationToolOutputSchema.parse(
 							await tools.call(call, contextKey, controller.signal),
 						);
-						await fresh();
+						preparationAuthority = fresh();
+						void preparationAuthority.catch(() => {});
+						// Only an adapter whose pure open/next contract checks current
+						// authority can overlap private checkpoint preparation with this
+						// request. Its next() joins if still pending, otherwise makes a
+						// new check. No completed decision is handed to the adapter.
+						if (
+							(model ?? this.options.model).nextAuthorization !== "in-flight-v1"
+						)
+							await preparationAuthority;
 						if (sink && session)
 							await sink.postActivity(
 								session.id,
@@ -902,6 +912,7 @@ export class AutomationRuntime {
 						),
 					);
 					await iterationAuthority;
+					await preparationAuthority;
 					if (step.type === "result") interruptible = false;
 					await fresh();
 					if (step.type === "tool") authorizeTool(authority, step.call);
