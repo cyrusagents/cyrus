@@ -60,7 +60,7 @@ At most64 occurrence traces are retained per runtime. Repeated dispatch does not
 reset a retained trace. A new claim replaces that occurrence's previous attempt.
 Restart or eviction loses diagnostics; absence is not zero. Scheduled/offline/retry
 claims without a newly observed dispatch start at claim, and do not fabricate queue
-time from historical wall clocks. Trace collection never writes durable state.
+time from historical wall clocks. By default trace collection never writes durable state. Optional finished-trace retention is described below.
 Unfinished spans have no duration; a truncated list has positive `droppedSpans`.
 These are incomplete measurements, not successful zero-duration operations.
 
@@ -137,7 +137,7 @@ metrics with total or call the residual pure network latency. The reader perform
 no residual calculation, interpolation, authority cache or historical reconstruction.
 Authenticated failed callbacks may retain fixed failure flags; bad diagnostics
 cannot acknowledge an invalid receipt. Existing64x128 trace bounds, opt-in status
-retrieval and process-only retention remain unchanged.
+retrieval and default process-only retention remain unchanged.
 
 ## LIVE-LATENCY-1001: current-authority waits
 
@@ -199,3 +199,48 @@ The fixed native model→credentials gap measured two153–158ms catalog gates a
 38–48ms snapshot, directly exposing the serialized work. Final ordered ACKs, zero
 tool calls and exactly two result commits passed. Installed exact-head evidence is
 packaged separately; these synthetic timings are not live responsiveness acceptance.
+
+## Optional private finished-trace retention
+
+At a future operator-coordinated launch, set BOTH
+`CYRUS_AUTOMATION_LATENCY_DIAGNOSTICS=1` and
+`CYRUS_AUTOMATION_LATENCY_RETENTION=1` to retain **finished attempts** across restarts.
+Both default off; the request header cannot enable either. No new listener, key,
+capability negotiation, scheduler table, checkpoint format or model context changes.
+No live launch or configuration change is implied by these instructions.
+
+The separate `automation-latency-v1` directory under the runtime's existing Cyrus
+home is owner-only0700. Its per-workspace SHA256-named SQLite file is owner-only0600;
+occurrence lookup keys are SHA256 digests, not raw workspace/customer/occurrence IDs.
+Only the strict fixed span schema and an internal numeric retention timestamp are
+stored. The internal keys/timestamp never enter exported diagnostics. The existing
+supervisor status route still requires authentication and the diagnostic header,
+and only looks up occurrences belonging to its current ledger. The model/sandbox
+cannot access this directory. This is diagnostic storage, never an authority store.
+
+Limits:64 latest occurrence attempts,128 spans per attempt,2MiB serialized payload,
+4MiB database (plus a bounded transient rollback journal),24h eligibility from save.
+Evict oldest on count/byte pressure; expired/future-clock entries are unavailable and
+purged on the next store access. No background timer deletes files while collection
+is disabled. To erase retained evidence, an operator can remove this directory at
+an idle boundary; disabling retention alone does not erase it. SQLite secure-delete
+is enabled; ordinary retention is not a forensic secure-erasure guarantee.
+
+A completed attempt saves only after execution/cleanup finishes. Synchronous FULL
+SQLite commit makes a successful save survive process restart; it is outside the
+reported attempt span; disk work can briefly block the supervisor, so this optional
+diagnostic mode is not a zero-overhead measurement. Status reads the bounded store
+once for all requested occurrences. The separate diagnostic transaction never waits on another
+writer (`busy_timeout=0`). Corrupt/oversized data, unsafe ownership/modes/symlinks,
+locks or I/O failure make diagnostics unavailable; they cannot fail or replay work.
+There is no guarantee of diagnostic delivery under disk failure or contention.
+A crash before finish/save loses that attempt's trace; no duration is reconstructed
+from a checkpoint or wall-clock gap. Higher attempt numbers replace older ones;
+stale writers cannot overwrite a retained newer attempt or extend its retention.
+
+After restart, an available snapshot has `retention:"private-disk"`; otherwise its
+numeric span fields are identical. In-process snapshots retain `process-memory`.
+A newly claimed attempt starts fresh and never imports saved spans, queues or
+execution state. Missing diagnostics remain absent, not zero. Session execution
+counters, admission, revocation, provider/MCP checks and final ACK barriers are
+unchanged.

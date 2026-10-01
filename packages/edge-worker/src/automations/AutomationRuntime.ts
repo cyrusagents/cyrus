@@ -40,6 +40,7 @@ import {
 } from "./Engineering.js";
 import type { AutomationGateway } from "./Gateway.js";
 import { AutomationLatency, beginLatency, measureLatency } from "./Latency.js";
+import { PrivateLatencyRetention } from "./LatencyRetention.js";
 import type { AutomationLedger, AutomationOccurrence } from "./Ledger.js";
 import type { AutomationModel } from "./Model.js";
 import { nativeContextReceiptHintSchema } from "./NativeContext.js";
@@ -73,8 +74,10 @@ export interface AutomationRuntimeOptions {
 		transport: SessionDeliveryTransport;
 		secrets: () => readonly string[];
 	};
-	/** Opt-in, bounded metadata on authenticated status; never persisted or logged. */
+	/** Opt-in, bounded metadata on authenticated status; never logged. */
 	latencyDiagnostics?: boolean;
+	/** Separate operator opt-in; completed diagnostics only, never execution state. */
+	latencyRetention?: { directory: string; workspaceId: string };
 	pollMilliseconds?: number;
 	renewMilliseconds?: number;
 	engineering?: { available: () => boolean; sandbox: () => EngineeringSandbox };
@@ -89,7 +92,15 @@ export class AutomationRuntime {
 	private stopped = false;
 	private readonly latency?: AutomationLatency;
 	constructor(private readonly options: AutomationRuntimeOptions) {
-		if (options.latencyDiagnostics) this.latency = new AutomationLatency();
+		if (options.latencyDiagnostics)
+			this.latency = new AutomationLatency(
+				options.latencyRetention
+					? new PrivateLatencyRetention(
+							options.latencyRetention.directory,
+							options.latencyRetention.workspaceId,
+						)
+					: undefined,
+			);
 	}
 	capabilities() {
 		const configured = this.options.readiness();
@@ -204,7 +215,7 @@ export class AutomationRuntime {
 						);
 					} finally {
 						end();
-						trace?.finish();
+						if (trace) this.latency?.completed(occurrence.id, trace);
 					}
 				};
 				return trace ? trace.run(work) : work();
@@ -246,11 +257,14 @@ export class AutomationRuntime {
 	status(automationId: string, includeLatency = false) {
 		const status = this.ledger().status(automationId);
 		if (!this.latency || !includeLatency) return status;
+		const traces = this.latency.snapshots(
+			status.occurrences.map((occurrence) => occurrence.id),
+		);
 		return {
 			...status,
 			occurrences: status.occurrences.map((occurrence) => ({
 				...occurrence,
-				latencyDiagnostics: this.latency!.snapshot(occurrence.id),
+				latencyDiagnostics: traces.get(occurrence.id),
 			})),
 		};
 	}

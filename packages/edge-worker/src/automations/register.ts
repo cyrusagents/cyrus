@@ -341,6 +341,13 @@ export function registerConfiguredAutomations(
 	const runtime = new AutomationRuntime({
 		latencyDiagnostics:
 			process.env.CYRUS_AUTOMATION_LATENCY_DIAGNOSTICS === "1",
+		...(pairedWorkspace &&
+			process.env.CYRUS_AUTOMATION_LATENCY_RETENTION === "1" && {
+				latencyRetention: {
+					directory: join(cyrusHome, "automation-latency-v1"),
+					workspaceId: pairedWorkspace,
+				},
+			}),
 		engineering: {
 			available: () => configuration().harness === "codex" && engineeringReady,
 			sandbox: () =>

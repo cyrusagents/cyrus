@@ -53,6 +53,7 @@ export async function runAutomationDrive({
 	sessionDeliveryAuthority = false,
 	latencyOnly = false,
 	latencyReadSet = false,
+	latencyRetention = false,
 	nativeContextOnly = false,
 	ownerInterruptionFault = "model",
 } = {}) {
@@ -1313,9 +1314,15 @@ export async function runAutomationDrive({
 	let runtimeApp, runtime, runtimeOrigin;
 	let modelEnabled = true;
 	const ledger = new AutomationLedger(join(directory, "ledger"), "workspace-a");
-	function makeRuntime() {
+	function makeRuntime(diagnostics = latencyOnly) {
 		runtime = new AutomationRuntime({
-			latencyDiagnostics: latencyOnly,
+			latencyDiagnostics: diagnostics,
+			...(latencyRetention && {
+				latencyRetention: {
+					directory: join(directory, "private-latency"),
+					workspaceId: "workspace-a",
+				},
+			}),
 			workspaceId: () => "workspace-a",
 			ledger,
 			gateway: new AutomationHttpGateway(
@@ -1527,7 +1534,8 @@ export async function runAutomationDrive({
 					.statusCode,
 				200,
 			);
-			const traces = [];
+			const traces = [],
+				traceIds = [];
 			for (const eventId of ["cold", "warm"]) {
 				const response = await call("occurrences", {
 					contractVersion: 1,
@@ -1710,6 +1718,65 @@ export async function runAutomationDrive({
 					);
 				}
 				traces.push(trace);
+				traceIds.push(id);
+			}
+			if (latencyRetention) {
+				const completedCounts = { ...counts };
+				await runtimeApp.close();
+				runtimeOrigin = await makeRuntime().listen({
+					host: "127.0.0.1",
+					port: 0,
+				});
+				const recovered = await runtimeApp.inject({
+					method: "GET",
+					url: `/api/automations/v1/status/${d.id}`,
+					headers: {
+						authorization: `Bearer ${supervisorKey}`,
+						"x-cyrus-latency-diagnostics": "1",
+					},
+				});
+				assert.equal(recovered.statusCode, 200);
+				for (const [index, id] of traceIds.entries())
+					assert.deepEqual(
+						recovered.json().occurrences.find((o) => o.id === id)
+							.latencyDiagnostics,
+						{ ...traces[index], retention: "private-disk" },
+					);
+				assert.deepEqual(
+					counts,
+					completedCounts,
+					"Diagnostics retrieval must not replay any work",
+				);
+				const ordinary = await runtimeApp.inject({
+					method: "GET",
+					url: `/api/automations/v1/status/${d.id}`,
+					headers: { authorization: `Bearer ${supervisorKey}` },
+				});
+				assert.ok(
+					ordinary
+						.json()
+						.occurrences.every((o) => !("latencyDiagnostics" in o)),
+				);
+				await runtimeApp.close();
+				runtimeOrigin = await makeRuntime(false).listen({
+					host: "127.0.0.1",
+					port: 0,
+				});
+				const disabled = await runtimeApp.inject({
+					method: "GET",
+					url: `/api/automations/v1/status/${d.id}`,
+					headers: {
+						authorization: `Bearer ${supervisorKey}`,
+						"x-cyrus-latency-diagnostics": "1",
+					},
+				});
+				assert.ok(
+					disabled
+						.json()
+						.occurrences.every((o) => !("latencyDiagnostics" in o)),
+					"Request headers cannot enable retention or diagnostic collection",
+				);
+				assert.deepEqual(counts, completedCounts);
 			}
 			assert.equal(
 				(
@@ -1726,6 +1793,7 @@ export async function runAutomationDrive({
 			const summary = {
 				passed: true,
 				latencyReadSet,
+				retentionRecovered: latencyRetention,
 				traces,
 				counts,
 				limits: [

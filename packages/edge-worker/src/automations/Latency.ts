@@ -10,7 +10,7 @@ type FinishLatency = ((failed?: boolean, until?: number) => void) & {
 };
 
 /** Diagnostic data only. No authority, payload, error text, identifier or wall clock. */
-const stages = [
+export const latencyStages = [
 	"dispatch.received",
 	"dispatch.enqueue",
 	"queue.wait",
@@ -45,8 +45,8 @@ const stages = [
 	"credential.refresh",
 	"cleanup",
 ] as const;
-export type LatencyStage = (typeof stages)[number];
-const permitted = new Set<string>(stages);
+export type LatencyStage = (typeof latencyStages)[number];
+const permitted = new Set<string>(latencyStages);
 const supervisorStages = new Set<LatencyStage>([
 	"authorize.admit",
 	"authorize.renew",
@@ -147,8 +147,21 @@ export function markLatency(stage: LatencyStage): void {
 	context.getStore()?.mark(stage);
 }
 
+export type LatencySnapshot = Omit<
+	ReturnType<LatencyTrace["snapshot"]>,
+	"retention"
+> & {
+	attempt: number | null;
+	retention: "process-memory" | "private-disk";
+};
+export interface LatencyRetention {
+	save(id: string, snapshot: LatencySnapshot): void;
+	readMany(ids: readonly string[]): Map<string, LatencySnapshot>;
+}
+
 /** Bounded recent traces; keyed internally by existing occurrence identity, never exported in spans. */
 export class AutomationLatency {
+	constructor(private readonly retention?: LatencyRetention) {}
 	private readonly records = new Map<
 		string,
 		{ trace: LatencyTrace; attempt?: number; queuedAt?: number }
@@ -186,10 +199,37 @@ export class AutomationLatency {
 		this.set(id, { trace, attempt });
 		return trace;
 	}
-	snapshot(id: string) {
-		const entry = this.records.get(id);
-		return entry
-			? { attempt: entry.attempt ?? null, ...entry.trace.snapshot() }
-			: undefined;
+	completed(id: string, trace: LatencyTrace): void {
+		trace.finish();
+		if (this.records.get(id)?.trace !== trace) return;
+		try {
+			this.retention?.save(id, this.snapshot(id)!);
+		} catch {
+			// Diagnostic failure must never change execution, authority or receipts.
+		}
+	}
+	snapshot(id: string): LatencySnapshot | undefined {
+		return this.snapshots([id]).get(id);
+	}
+	snapshots(ids: readonly string[]): Map<string, LatencySnapshot> {
+		const result = new Map<string, LatencySnapshot>();
+		const missing: string[] = [];
+		for (const id of ids) {
+			const entry = this.records.get(id);
+			if (entry)
+				result.set(id, {
+					attempt: entry.attempt ?? null,
+					...entry.trace.snapshot(),
+				});
+			else missing.push(id);
+		}
+		try {
+			if (missing.length)
+				for (const [id, snapshot] of this.retention?.readMany(missing) ?? [])
+					result.set(id, snapshot);
+		} catch {
+			// Missing diagnostic data is not a work failure.
+		}
+		return result;
 	}
 }
