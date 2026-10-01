@@ -1,6 +1,39 @@
 # Explicit Slack sending and current-call context reads
 
-Executable/artifact: `b1ff4fcce13052b5b38ac207aadd3fd5d45ffeeb` (PR1507).
+Final executable **01d804f18dd15cab0b102bcdb4a84fdf82f0232e**, driver
+**d85a61650ba61a7e05fa5cf065016c88e560e8ad**, Hosted
+**7346880977dc1210532fac309d3ce879dfb2be94**: full native SQL/HTTP/MCP join PASS169.44s.
+Bundle SHA256 `1697000721097cfd43189fc357db4f2b841a63671dd329ef49352be44e0e3a19`;
+17 packages/17 installed copies verified. Final guidance applies even without a
+write tool and overrides obsolete automatic-post claims without rewriting saved
+input or weakening operator restrictions. Receiver schema ACK00f92afc is consumed.
+Final evidence: sibling artifact folder `slack-context-01d804f1/VALIDATION.json`,
+`HANDOFF.md`, `installed-slack/summary.json`, and
+`slack-native-join-isolated/joined-summary.json`.
+
+The final join invokes actual production `sendSlackMessage`, readiness and durable
+provider-delivery helpers plus real migrated SQL, with controlled database transport,
+provider and model. Its result is **not** normalized by the fixture. One immutable
+operation produced one provider POST despite first losing the provider ACK and then
+the runtime ACK. Recovery observed the exact thread and reused the original key,
+payload and reference. Default-denied/read and allowed final-only turns sent nothing;
+queued permission withdrawal denied a new send. 18 occurrences completed,3 intentional
+blocks;46 model exchanges,21 result transmissions,225 ordered deliveries. Context
+mode:33 admissions/253 checkpoint checks. Original combined47s renewal/reference,
+source withdrawal, memory/work corrections and terminal receipt assertions pass.
+Numeric epoch + dispatch/admit/native/result spans are asserted and retained for
+same-occurrence correlation. No live Slack/UI/foreground latency claim.
+
+The first c706 joined run passed send/withdrawal assertions but failed the next read
+with409 after reusing the intentionally blocked customer/binding. d85 isolates that
+negative to a separate disposable customer; production authority is unchanged. The
+original failed log remains in `slack-native-join/failed-shared-negative-binding.log`.
+Additional final-guidance check:9 channel tests PASS; native opt-in unit case skipped
+in that command, then exercised through both installed contained drives.
+
+## Initial implementation and bounded before/after evidence
+
+Initial executable/artifact: `b1ff4fcce13052b5b38ac207aadd3fd5d45ffeeb` (PR1507).
 Bundle SHA256 `e95969ac0e93bff03b5c4eb8180ec58e572aa47767a80b896f30730f8e495f15`.
 17 packages and 17 installed resolved copies verified. No published minimum version.
 Evidence folder: `/Users/agentops/.cyrus/CYPACK-1546/attachments/slack-context-b1ff4fcc/`.
@@ -27,9 +60,9 @@ foreign resource results and absent write negotiation reject. Read permission do
 imply sending; investigator writes remain absent; combined Linear remains read-only.
 
 This gate does **not** establish Hosted setting persistence or actual provider access.
-The additional native SQL/send-helper join must exercise the published Hosted outbound
-counterpart and exact matching-key receipt; no fixture may normalize incompatible
-production results into the expected runtime shape. Live acceptance stays separate.
+The final native SQL/send-helper join above exercises the published Hosted outbound
+counterpart and exact matching-key receipt without normalizing the production result.
+Live acceptance stays separate.
 
 ## Actual Hosted context-read join
 
