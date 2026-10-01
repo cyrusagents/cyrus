@@ -8,7 +8,7 @@ const identifier = (s) => {
 };
 // Bun binds JSON objects itself; pre-stringifying would send a JSON string.
 const value = (x) => x;
-export function sqlAdapter(sql) {
+export function sqlAdapter(sql, onError = () => {}) {
 	return {
 		async rpc(name, args) {
 			try {
@@ -30,6 +30,11 @@ export function sqlAdapter(sql) {
 				);
 				return { data: rows[0].v, error: null };
 			} catch (error) {
+				onError({
+					boundary: "rpc",
+					routine: name,
+					code: error.code ?? error.name,
+				});
 				console.error(
 					JSON.stringify({
 						fixtureSqlError: [
@@ -154,6 +159,12 @@ export function sqlAdapter(sql) {
 							error: null,
 						});
 					} catch (error) {
+						onError({
+							boundary: "query",
+							table,
+							operation: mutation?.kind ?? "select",
+							code: error.code ?? error.name,
+						});
 						return resolve({ data: null, error: { message: error.message } });
 					}
 				},

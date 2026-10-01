@@ -20,7 +20,11 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 	await sql`insert into customer_threads(id,workspace_id,customer_id,objective) values(${thread},${f.w},${f.customer},'Original investigation')`;
 	await sql`update customer_events set thread_id=${thread},payload=${{ body: restrictions }}::jsonb where id=${f.event}`;
 	await sql`update customer_automation_outbox set input=${initial.input} where binding_id=${f.id}`;
-	const client = sqlAdapter(sql);
+	const diagnostics = [];
+	const record = (entry) => {
+		if (diagnostics.length < 64) diagnostics.push(entry);
+	};
+	const client = sqlAdapter(sql, record);
 	const checked = (r) => {
 		if (r.error) throw Error(r.error.message);
 		assert.notEqual(r.data, null);
@@ -51,6 +55,8 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 		registeredAutomationRequest: async (w, path, body) => {
 			assert.equal(w, f.w);
 			assert.ok(runtimeOrigin);
+			const started = performance.now();
+			record({ boundary: "registered", path, state: "started" });
 			const response = await nativeFetch(
 				new URL(`/api/automations/v1/${path}`, runtimeOrigin),
 				{
@@ -62,13 +68,42 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 					body: body ? JSON.stringify(body) : undefined,
 					signal: AbortSignal.timeout(8000),
 				},
-			);
+			).catch((error) => {
+				record({
+					boundary: "registered",
+					path,
+					state: "failed",
+					code: error.code ?? error.name,
+					elapsedMs: Math.round(performance.now() - started),
+				});
+				throw error;
+			});
+			record({
+				boundary: "registered",
+				path,
+				state: "response",
+				status: response.status,
+				elapsedMs: Math.round(performance.now() - started),
+			});
 			assert.equal(
 				response.ok,
 				true,
 				`registered ${path} returned ${response.status}`,
 			);
-			return response.json();
+			const ack = await response.json();
+			record({
+				boundary: "ack",
+				path,
+				version: ack.contractVersion,
+				occurrence: typeof ack.occurrenceId === "string",
+				definitionMatches:
+					path === "definitions"
+						? ack.automationId === body.definition.id &&
+							ack.revision === body.definition.revision &&
+							ack.state === body.definition.state
+						: undefined,
+			});
+			return ack;
 		},
 	}));
 	const { deliverCustomerAutomations } = await import("./automation-dispatch");
@@ -129,7 +164,22 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 			const rows =
 				await sql`select * from customer_automation_outbox where binding_id=${f.id} and event_id=${event.id}`;
 			assert.equal(rows.length, 1);
-			assert.ok(rows[0].delivered_at);
+			if (!rows[0].delivered_at) {
+				const [clock] =
+					await sql`select extract(epoch from clock_timestamp()) * 1000 as ms`;
+				const [binding] =
+					await sql`select last_error from customer_automation_bindings where id=${f.id}`;
+				const diagnostic = {
+					attempts: rows[0].attempts,
+					nextAttemptInMs: Date.parse(rows[0].next_attempt_at) - Date.now(),
+					databaseClockOffsetMs: Number(clock.ms) - Date.now(),
+					bindingHasError: binding.last_error !== null,
+					boundaries: diagnostics,
+				};
+				assert.fail(
+					`Production successor was not delivered: ${JSON.stringify(diagnostic)}`,
+				);
+			}
 			assert.equal(
 				rows[0].input,
 				JSON.stringify({

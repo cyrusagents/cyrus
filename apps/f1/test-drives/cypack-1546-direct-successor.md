@@ -67,3 +67,20 @@ and tool checks remain. Frozen Hosted protocol suite independently passes7/68.
 [The contract review](../../../docs/mcp-protocol-admission.md#exact8995-review)
 records remaining GET/notification/fallback negative-branch gaps handed to Hosted.
 No live performance claim follows from these controlled timings.
+
+
+## Independent replay diagnostic follow-up
+
+The coordinator's frozen 6315/d66/8995 replay failed with 86 passes and one failure:
+its child-result outbox was not marked delivered. The old assertion did not expose
+whether production dispatch rejected a request or skipped a not-yet-due row.
+The fixture now retains up to 64 fixed transport/ACK and SQL error-code records,
+and reports attempt count, relative next-attempt time, database clock offset and
+whether the binding recorded an error. It does not record credentials, request
+bodies or provider content. Dispatch semantics and all existing assertions are unchanged.
+
+Author replay of the diagnostic driver with the same installed d66 and frozen
+Hosted 8995 passed 87 tests / 933 assertions (25.80s). Evidence is in
+`/Users/agentops/.cyrus/CYPACK-1546/attachments/successor-diagnostics-8995`.
+This does **not** explain or supersede the independent failure; that environment
+needs the diagnostic replay before a cause or correction can be claimed.
