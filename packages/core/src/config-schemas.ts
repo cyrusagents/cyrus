@@ -258,6 +258,13 @@ export const SandboxConfigSchema = z.object({
 	 */
 	enabled: z.boolean().optional(),
 
+	/**
+	 * Extra directories agent tools may write outside their session workspace.
+	 * Applies independently of the network egress proxy's enabled setting.
+	 * Supports absolute paths, ~ expansion, and paths relative to the Cyrus cwd.
+	 */
+	additionalWritableDirectories: z.array(z.string().trim().min(1)).optional(),
+
 	/** HTTP proxy port for SDK sandbox.network.httpProxyPort */
 	httpProxyPort: z.number().optional().default(9080),
 

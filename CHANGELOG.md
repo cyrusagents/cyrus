@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Configure `sandbox.additionalWritableDirectories` to let CLI tools create sockets, caches, or state outside their session worktree. Applies to issue and chat sessions without requiring the network proxy, with no additional directories allowed by default. ([#1516](https://github.com/cyrusagents/cyrus/pull/1516))
+
 ## [0.2.73] - 2026-09-30
 
 ### Changed

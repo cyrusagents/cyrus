@@ -22,6 +22,37 @@ const repo: RepositoryConfig = {
 describe("ConfigManager", () => {
 	let tempDir: string | undefined;
 
+	it("reloads and clears tool directories while network sandboxing is disabled", async () => {
+		tempDir = await mkdtemp(join(tmpdir(), "cyrus-config-manager-"));
+		const configPath = join(tempDir, "config.json");
+		const manager = new ConfigManager(
+			{ repositories: [repo] },
+			logger,
+			configPath,
+			new Map([[repo.id, repo]]),
+		);
+		const onConfigChanged = vi.fn();
+		manager.on("configChanged", onConfigChanged);
+		const reloadable = manager as unknown as {
+			handleConfigChange(): Promise<void>;
+		};
+		for (const directories of [["~/.tool-state"], []]) {
+			const sandbox = {
+				enabled: false,
+				additionalWritableDirectories: directories,
+			};
+			await writeFile(
+				configPath,
+				JSON.stringify({ repositories: [repo], sandbox }),
+			);
+			await reloadable.handleConfigChange();
+			const changes = onConfigChanged.mock.lastCall?.[0];
+			expect(changes.newConfig.sandbox).toEqual(sandbox);
+			manager.setConfig(changes.newConfig);
+		}
+		expect(onConfigChanged).toHaveBeenCalledTimes(2);
+	});
+
 	afterEach(async () => {
 		if (tempDir) {
 			await rm(tempDir, { recursive: true, force: true });

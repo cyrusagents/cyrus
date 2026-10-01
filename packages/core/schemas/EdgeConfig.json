@@ -945,6 +945,13 @@
 				"enabled": {
 					"type": "boolean"
 				},
+				"additionalWritableDirectories": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
 				"httpProxyPort": {
 					"default": 9080,
 					"type": "number"

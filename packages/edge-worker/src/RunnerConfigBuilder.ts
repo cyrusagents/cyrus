@@ -19,6 +19,7 @@ import type {
 	RepositoryConfig,
 	RunnerType,
 } from "cyrus-core";
+import { resolvePath } from "cyrus-core";
 import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
@@ -87,6 +88,8 @@ export interface ChatRunnerConfigInput {
 	repository?: RepositoryConfig;
 	/** Repository paths the chat session can read */
 	repositoryPaths?: string[];
+	/** Operator-configured writable roots for external tool sockets/state. */
+	additionalWritableDirectories?: readonly string[];
 	/**
 	 * Filesystem paths to custom-integration `.mcp.json` files to load for
 	 * this chat session (sourced from `EdgeWorkerConfig.slackMcpConfigs` for
@@ -128,6 +131,8 @@ export interface IssueRunnerConfigInput {
 	systemPrompt: string | undefined;
 	allowedTools: string[];
 	allowedDirectories: string[];
+	/** Operator-configured writable roots for external tool sockets/state. */
+	additionalWritableDirectories?: readonly string[];
 	disallowedTools: string[];
 	resumeSessionId?: string;
 	labels?: string[];
@@ -304,6 +309,7 @@ export class RunnerConfigBuilder {
 				input.workspacePath,
 				autoMemoryDirectory,
 				...repositoryPaths,
+				...(input.additionalWritableDirectories ?? []).map(resolvePath),
 			],
 			workspaceName: input.workspaceName,
 			cyrusHome: input.cyrusHome,
@@ -448,12 +454,18 @@ export class RunnerConfigBuilder {
 		const additionalDirectories = Object.values(
 			input.session.workspace.repoPaths ?? {},
 		).filter((p): p is string => typeof p === "string" && p !== cwd);
+		const writableDirectories = (input.additionalWritableDirectories ?? []).map(
+			resolvePath,
+		);
+		const allowedDirectories = [
+			...new Set([...input.allowedDirectories, ...writableDirectories]),
+		];
 
 		const config: AgentRunnerConfig & Record<string, unknown> = {
 			workingDirectory: cwd,
 			allowedTools: input.allowedTools,
 			disallowedTools: input.disallowedTools,
-			allowedDirectories: input.allowedDirectories,
+			allowedDirectories,
 			...(additionalDirectories.length > 0 && { additionalDirectories }),
 			workspaceName: input.session.issue?.identifier || input.session.issueId,
 			cyrusHome: input.cyrusHome,
@@ -540,13 +552,13 @@ export class RunnerConfigBuilder {
 
 		// When the egress sandbox is enabled, give Codex the same filesystem
 		// posture Claude gets (see buildSandboxConfig): writes restricted to the
-		// worktree, reads restricted to the worktree + allowed directories (home
+		// worktree + configured tool roots, reads restricted to allowed directories (home
 		// is denied by omission). The Codex runner turns this into a per-thread
 		// app-server permission profile (read/write allow-list).
 		if (runnerType === "codex" && input.sandboxSettings) {
 			config.sandboxSettings = {
-				allowWrite: [input.session.workspace.path],
-				allowRead: [input.session.workspace.path, ...input.allowedDirectories],
+				allowWrite: [input.session.workspace.path, ...writableDirectories],
+				allowRead: [input.session.workspace.path, ...allowedDirectories],
 			};
 		}
 
@@ -581,7 +593,7 @@ export class RunnerConfigBuilder {
 	/**
 	 * Build sandbox and env config for a Claude runner session.
 	 * Merges base sandbox settings with per-session filesystem restrictions
-	 * (worktree as the only writable directory) and passes the CA cert
+	 * (worktree plus configured writable directories) and passes the CA cert
 	 * for MITM TLS termination via additionalEnv instead of process.env.
 	 */
 	private buildSandboxConfig(
@@ -605,10 +617,17 @@ export class RunnerConfigBuilder {
 					// See: https://code.claude.com/docs/en/settings#sandbox-path-prefixes
 					// allowedDirectories contains the attachments dir, repo paths, and git
 					// metadata dirs — all of which need OS-level read access alongside the worktree.
-					allowRead: [".", ...input.allowedDirectories],
+					allowRead: [
+						".",
+						...input.allowedDirectories,
+						...(input.additionalWritableDirectories ?? []).map(resolvePath),
+					],
 					denyRead: ["~/"],
-					// Restrict subprocess writes to the session worktree only
-					allowWrite: [input.session.workspace.path],
+					// Restrict writes to the worktree and operator-configured tool roots.
+					allowWrite: [
+						input.session.workspace.path,
+						...(input.additionalWritableDirectories ?? []).map(resolvePath),
+					],
 				},
 			};
 		}

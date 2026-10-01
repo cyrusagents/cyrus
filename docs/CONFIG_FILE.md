@@ -352,7 +352,36 @@ Users can be specified in three formats:
 
 ---
 
-## Sandbox (Network Egress Control)
+## Sandbox (Filesystem and Network Egress Control)
+
+### `sandbox.additionalWritableDirectories` (array of strings)
+
+Some CLI tools need to create sockets, caches, or state outside the session
+worktree. List those directories explicitly to grant access in Claude, Codex,
+and Cursor sessions. This applies to issue and chat sessions and does not require
+enabling the network egress proxy (`sandbox.enabled`). No extra directories are
+granted by default, and Cyrus does not automatically allow any tool's directory.
+
+```json
+{
+  "sandbox": {
+    "additionalWritableDirectories": [
+      "~/.agent-browser",
+      "~/.cache/my-tool"
+    ]
+  }
+}
+```
+
+`~/` expands to the Cyrus user's home directory. Absolute paths are used directly;
+relative paths resolve against the Cyrus process's working directory, not an issue
+worktree. Writable directories are also readable. Choose the narrow directory
+each tool needs rather than the entire home directory.
+
+Changes are picked up when a new runner is created; an already-running turn keeps
+its current permissions. Set the list to `[]` to remove the extra grants for
+subsequent runners. These grants do not enable disabled command tools or network access,
+and other OS restrictions can still prevent a tool from launching.
 
 ### `sandbox` (object)
 

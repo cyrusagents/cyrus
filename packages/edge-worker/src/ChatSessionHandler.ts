@@ -110,6 +110,8 @@ export interface ChatSessionHandlerDeps {
 	getPlatformMcpConfigOverrides?: () => readonly string[] | undefined;
 	/** Live read of whether Claude should ignore ambient MCP configuration. */
 	getStrictMcpConfig?: () => boolean | undefined;
+	/** Live read of operator-configured writable roots for external tools. */
+	getAdditionalWritableDirectories?: () => readonly string[] | undefined;
 	/**
 	 * Refresh the workspace's Linear access token if it has expired. Called
 	 * before each runner config is built, because the Linear MCP server
@@ -801,6 +803,8 @@ export class ChatSessionHandler<TEvent> {
 			repositoryPaths,
 			platformMcpConfigOverrides: this.deps.getPlatformMcpConfigOverrides?.(),
 			strictMcpConfig: this.deps.getStrictMcpConfig?.(),
+			additionalWritableDirectories:
+				this.deps.getAdditionalWritableDirectories?.(),
 			plugins: skillsConfig.plugins,
 			skills: skillsConfig.skills,
 			opencodeGlobalConfig: this.deps.getOpenCodeGlobalConfig?.(),

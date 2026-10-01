@@ -1140,6 +1140,8 @@ export class EdgeWorker extends EventEmitter {
 			},
 			getPlatformMcpConfigOverrides,
 			getStrictMcpConfig: () => this.config.strictMcpConfig,
+			getAdditionalWritableDirectories: () =>
+				this.config.sandbox?.additionalWritableDirectories,
 			ensureLinearTokenFresh: (linearWorkspaceId) =>
 				this.ensureLinearTokenFresh(linearWorkspaceId),
 			resolveSkillsConfig: async ({ repository, repositoryPaths }) => {
@@ -6892,6 +6894,8 @@ ${input.userComment}
 			allowedDirectories,
 			disallowedTools,
 			resumeSessionId,
+			additionalWritableDirectories:
+				this.config.sandbox?.additionalWritableDirectories,
 			labels,
 			issueDescription,
 			maxTurns,

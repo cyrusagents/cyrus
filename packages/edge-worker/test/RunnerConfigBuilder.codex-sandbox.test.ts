@@ -1,4 +1,11 @@
-import type { CyrusAgentSession, ILogger, RepositoryConfig } from "cyrus-core";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+import type {
+	CyrusAgentSession,
+	ILogger,
+	RepositoryConfig,
+	RunnerType,
+} from "cyrus-core";
 import { describe, expect, it } from "vitest";
 import {
 	type IChatToolResolver,
@@ -14,7 +21,9 @@ const silentLogger: ILogger = {
 	error: () => {},
 } as unknown as ILogger;
 
-function makeCodexBuilder(): RunnerConfigBuilder {
+function makeCodexBuilder(
+	runnerType: RunnerType = "codex",
+): RunnerConfigBuilder {
 	const chatToolResolver: IChatToolResolver = {
 		buildChatAllowedTools: () => ["Read(**)"],
 	};
@@ -23,7 +32,8 @@ function makeCodexBuilder(): RunnerConfigBuilder {
 		buildMergedMcpConfigPath: () => undefined,
 	};
 	const runnerSelector: IRunnerSelector = {
-		determineRunnerSelection: () => ({ runnerType: "codex" as const }),
+		getDefaultRunner: () => runnerType,
+		determineRunnerSelection: () => ({ runnerType }),
 		getDefaultModelForRunner: () => "gpt-5.5",
 		getDefaultFallbackModelForRunner: () => "gpt-5.4",
 	};
@@ -42,8 +52,12 @@ function makeSession(): CyrusAgentSession {
 	} as unknown as CyrusAgentSession;
 }
 
-function buildCodexConfig(sandboxSettings?: Record<string, unknown>) {
-	const { config } = makeCodexBuilder().buildIssueConfig({
+function buildCodexConfig(
+	sandboxSettings?: Record<string, unknown>,
+	additionalWritableDirectories?: string[],
+	runnerType: RunnerType = "codex",
+) {
+	const { config } = makeCodexBuilder(runnerType).buildIssueConfig({
 		session: makeSession(),
 		repository: {
 			id: "repo-a",
@@ -55,6 +69,7 @@ function buildCodexConfig(sandboxSettings?: Record<string, unknown>) {
 		systemPrompt: "test",
 		allowedTools: ["Read(**)"],
 		allowedDirectories: ["/ws/root", "/repos/repo-a"],
+		additionalWritableDirectories,
 		disallowedTools: [],
 		cyrusHome: "/tmp/cyrus-home",
 		linearWorkspaceId: "ws-1",
@@ -65,11 +80,78 @@ function buildCodexConfig(sandboxSettings?: Record<string, unknown>) {
 		...(sandboxSettings ? { sandboxSettings } : {}),
 	});
 	return config as {
+		allowedDirectories: string[];
+		sandbox?: { filesystem?: { allowWrite?: string[]; allowRead?: string[] } };
 		sandboxSettings?: { allowWrite?: string[]; allowRead?: string[] };
 	};
 }
 
 describe("RunnerConfigBuilder Codex sandbox plumbing", () => {
+	it.each([
+		"codex",
+		"claude",
+		"cursor",
+	] as const)("resolves configured tool directories for %s issue sessions", (runnerType) => {
+		const config = buildCodexConfig(
+			undefined,
+			["~/.tool-state", "tool-cache", "/repos/repo-a"],
+			runnerType,
+		);
+		expect(config.allowedDirectories).toEqual([
+			"/ws/root",
+			"/repos/repo-a",
+			join(homedir(), ".tool-state"),
+			resolve("tool-cache"),
+		]);
+	});
+
+	it.each([
+		"codex",
+		"claude",
+	] as const)("includes configured tool directories in the %s filesystem sandbox", (runnerType) => {
+		const config = buildCodexConfig(
+			{ enabled: true },
+			["~/.tool-state"],
+			runnerType,
+		);
+		const filesystem =
+			runnerType === "codex"
+				? config.sandboxSettings
+				: config.sandbox?.filesystem;
+		expect(filesystem?.allowWrite).toEqual([
+			"/ws/root",
+			join(homedir(), ".tool-state"),
+		]);
+		expect(filesystem?.allowRead).toContain(join(homedir(), ".tool-state"));
+	});
+
+	it("does not grant extra directories when the setting is absent", () => {
+		expect(buildCodexConfig().allowedDirectories).toEqual([
+			"/ws/root",
+			"/repos/repo-a",
+		]);
+	});
+
+	it("includes configured tool directories in chat sessions", () => {
+		const config = makeCodexBuilder().buildChatConfig({
+			workspacePath: "/ws/chat",
+			workspaceName: "chat",
+			systemPrompt: "test",
+			sessionId: "chat-1",
+			cyrusHome: "/tmp/cyrus-home",
+			platformName: "slack",
+			logger: silentLogger,
+			additionalWritableDirectories: ["~/.tool-state"],
+			onMessage: () => {},
+			onError: () => {},
+		});
+		expect(config.allowedDirectories).toEqual([
+			"/ws/chat",
+			"/tmp/cyrus-home/slack-memory",
+			join(homedir(), ".tool-state"),
+		]);
+	});
+
 	it("translates the egress sandbox into a Codex filesystem allow-list", () => {
 		// Plumbs both write (worktree) and read (worktree + allowed dirs) roots;
 		// the Codex runner turns these into a per-thread permission profile.
