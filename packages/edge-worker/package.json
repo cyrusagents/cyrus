@@ -18,7 +18,7 @@
 		"prompts"
 	],
 	"scripts": {
-		"build": "tsgo && npm run copy-prompts",
+		"build": "rm -rf dist && tsgo && npm run copy-prompts",
 		"copy-prompts": "cp label-prompt-template.md dist/ && cp -r prompts dist/ && rm -rf dist/cyrus-skills-plugin && cp -rL cyrus-skills-plugin dist/cyrus-skills-plugin",
 		"dev": "tsgo --watch",
 		"test": "vitest",

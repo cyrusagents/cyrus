@@ -891,3 +891,31 @@ key, status and full grant/account/connection/resource binding before model outp
 Missing/malformed receipts fail closed and retain pending intent. This wire extension
 is coordinated with Hosted; the immutable handoff records receiver ACK and joined
 proof. No published minimum version or live provider acceptance is implied.
+
+
+## Removed standalone prototype (October 1)
+
+The shipping `cyrus customer-runtime` command and `/customer-runtime/v1/*`
+server are removed. Their private config loader, global model key adapter, old
+scope/operation contract, gateway, checkpoint store and runtime loop have no
+registered caller and are no longer exported or packaged. The CLI uses its normal
+environment/Sentry bootstrap for every supported command. No standalone package
+dependency was exclusive: Fastify, Zod and core utilities still serve active paths.
+The edge-worker build cleans its output before compiling so obsolete modules do
+not survive a rebuild into an installable package.
+
+Retained code has current callers:
+
+| Component | Current callers / regression |
+| --- | --- |
+| `automations/DockerSandbox.ts` and its path/snapshot validator | `register.ts` engineering readiness/factory, `AutomationRuntime` engineering execution; engineering automation and Node image tests, active native engineering F1 |
+| `utils/readBoundedJson.ts` | automation HTTP gateway, configured Messages model and durable session HTTP transport; streamed-byte bound/cancellation tests and active transport/session tests |
+| Registered ledger/checkpoints/authority/receipts | Existing automation execution, resume/retry, fencing and terminal reconciliation; unchanged schemas and storage |
+
+The standalone test suite and executable F1 driver are removed with their subject.
+Registered engineering tests already exercise failing-test diagnostics, retained
+edits, model-directed repair, immutable publication and result-only recovery.
+Host filesystem/credential/network assertions now run against that same current
+Node sandbox alongside abort/timeout/output-limit denial. Historical reports and
+immutable artifact evidence remain historical; they are not setup instructions or
+a compatibility service to reinstall.

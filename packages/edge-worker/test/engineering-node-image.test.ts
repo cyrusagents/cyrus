@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DockerSandbox } from "../src/customer-runtime/DockerSandbox.js";
+import { DockerSandbox } from "../src/automations/DockerSandbox.js";
 
 const image = process.env.CYRUS_TEST_CODEX_IMAGE;
 describe.skipIf(!image)(
@@ -52,6 +52,42 @@ describe.skipIf(!image)(
 				await runner.stop();
 			}
 		}, 15000);
+		it("denies host credentials, filesystem and network access", async () => {
+			const runner = sandbox(),
+				signal = new AbortController().signal;
+			const prior = process.env.CYRUS_SCOPED_HOST_SECRET;
+			process.env.CYRUS_SCOPED_HOST_SECRET = "synthetic-must-not-inherit";
+			try {
+				await runner.start({}, signal);
+				const proof = await runner.execute(
+					`node -e '
+(async () => {
+const fs = require("node:fs");
+if(process.getuid() === 0) throw Error("root");
+for(const path of ["/var/run/docker.sock", "/Users/agentops", "/root/.aws", "/root/.cyrus"])
+ if(fs.existsSync(path)) throw Error("host filesystem");
+for(const key of ["ANTHROPIC_API_KEY", "GITHUB_TOKEN", "LINEAR_API_KEY", "DATABASE_URL", "DOCKER_HOST", "CYRUS_SCOPED_HOST_SECRET"])
+ if(process.env[key]) throw Error("inherited credential");
+try { fs.writeFileSync("/etc/cyrus-escape", "bad"); throw Error("writable root"); }
+ catch(error) { if(error.message === "writable root") throw error; }
+try { await fetch("http://1.1.1.1", {signal: AbortSignal.timeout(1000)}); throw Error("network"); }
+ catch(error) { if(error.message === "network") throw error; }
+console.log("isolated");
+})().catch(() => process.exitCode = 1);'`,
+					signal,
+				);
+				expect(proof).toEqual({
+					exitCode: 0,
+					stdout: "isolated\n",
+					stderr: "",
+				});
+			} finally {
+				if (prior === undefined) delete process.env.CYRUS_SCOPED_HOST_SECRET;
+				else process.env.CYRUS_SCOPED_HOST_SECRET = prior;
+				await runner.stop();
+			}
+		}, 15000);
+
 		it.each([
 			"abort",
 			"timeout",

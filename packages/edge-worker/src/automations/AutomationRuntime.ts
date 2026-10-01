@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { AgentActivityType } from "@linear/sdk";
 import { AgentSessionStatus } from "cyrus-core";
 import { z } from "zod";
-import type { EngineeringSandbox } from "../customer-runtime/DockerSandbox.js";
 import { DurableCyrusSessionSink } from "../sinks/DurableCyrusSessionSink.js";
 import { SessionActivityJournal } from "../sinks/SessionActivityJournal.js";
 import type { SessionDeliveryTransport } from "../sinks/SessionDeliveryTransport.js";
@@ -33,6 +32,7 @@ import {
 	AutomationDiagnosticError,
 	safeDiagnostic,
 } from "./Diagnostics.js";
+import type { EngineeringSandbox } from "./DockerSandbox.js";
 import {
 	engineeringDiagnostics,
 	engineeringFilesSchema,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { readBoundedJson } from "../customer-runtime/Gateway.js";
+import { readBoundedJson } from "../utils/readBoundedJson.js";
 import type {
 	AutomationCheckpoint,
 	AutomationMessage,

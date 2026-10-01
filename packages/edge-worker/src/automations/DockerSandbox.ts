@@ -1,7 +1,32 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { filesSchema } from "./contract.js";
+// Filesystem boundary independent of Hosted admission; active engineering
+// adds its stricter reviewed-path and artifact checks before publication.
+export const filesSchema = z
+	.record(
+		z
+			.string()
+			.min(1)
+			.max(300)
+			.refine(
+				(path) =>
+					!path.startsWith("/") &&
+					!path.includes("\\") &&
+					!path.includes("\0") &&
+					path
+						.split("/")
+						.every((part) => part !== ".." && part !== "." && part !== ""),
+				"Unsafe repository path",
+			),
+		z.string().max(1_000_000),
+	)
+	.refine(
+		(files) =>
+			Object.keys(files).length <= 1000 &&
+			JSON.stringify(files).length <= 8_000_000,
+		"Snapshot exceeds limit",
+	);
 
 const commandResultSchema = z
 	.object({

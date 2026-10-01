@@ -1,4 +1,4 @@
-import { readBoundedJson } from "../customer-runtime/Gateway.js";
+import { readBoundedJson } from "../utils/readBoundedJson.js";
 import { AutomationDiagnosticError } from "./Diagnostics.js";
 import type { SupervisorTiming } from "./HostedTiming.js";
 import { measureLatency } from "./Latency.js";

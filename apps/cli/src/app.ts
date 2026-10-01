@@ -5,8 +5,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
-import { NoopErrorReporter, setGlobalErrorReporter } from "cyrus-core";
-import { startCustomerRuntime } from "cyrus-edge-worker";
+import { setGlobalErrorReporter } from "cyrus-core";
 import dotenv from "dotenv";
 import { Application } from "./Application.js";
 import { AuthCommand } from "./commands/AuthCommand.js";
@@ -30,16 +29,13 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
 // that CYRUS_SENTRY_DISABLED / CYRUS_SENTRY_DSN take effect on the first run.
 // We re-resolve the path inside Application using the same precedence (CLI
 // flag wins); this preliminary load only honours CYRUS_HOME and the default.
-const isCustomerRuntime = process.argv.includes("customer-runtime");
-if (!isCustomerRuntime) preloadEnvForBootstrap();
+preloadEnvForBootstrap();
 
 // Initialise the error reporter as early as possible so that exceptions
 // thrown by subsequent imports/bootstrap are captured. Install it as the
 // process-wide reporter so that every Logger.error(...) call across the
 // codebase forwards to Sentry automatically.
-const errorReporter = isCustomerRuntime
-	? new NoopErrorReporter()
-	: createErrorReporter({ release: packageJson.version });
+const errorReporter = createErrorReporter({ release: packageJson.version });
 setGlobalErrorReporter(errorReporter);
 
 // Setup Commander program
@@ -55,29 +51,6 @@ program
 		resolve(homedir(), ".cyrus"),
 	)
 	.option("--env-file <path>", "Path to environment variables file");
-
-program
-	.command("customer-runtime")
-	.description("Start the isolated authenticated customer runtime")
-	.requiredOption(
-		"--config <path>",
-		"Explicit private runtime configuration file",
-	)
-	.action(async (options: { config: string }) => {
-		try {
-			const server = await startCustomerRuntime(resolve(options.config));
-			const stop = async () => {
-				await server.close();
-			};
-			process.once("SIGINT", stop);
-			process.once("SIGTERM", stop);
-		} catch {
-			console.error(
-				"Customer runtime failed to start; verify explicit configuration and isolation backend.",
-			);
-			process.exitCode = 1;
-		}
-	});
 
 // Start command (default)
 program

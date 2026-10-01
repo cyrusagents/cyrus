@@ -4,7 +4,6 @@ import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
 import { CodexLoginBroker, ContainedCodexProcess } from "cyrus-codex-runner";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { DockerSandbox } from "../customer-runtime/DockerSandbox.js";
 import { HttpSessionDeliveryTransport } from "../sinks/SessionDeliveryTransport.js";
 import { AutomationRuntime } from "./AutomationRuntime.js";
 import { AutomationCheckpointStore } from "./CheckpointStore.js";
@@ -14,6 +13,7 @@ import {
 	permittedToolNames,
 	registrationSchema,
 } from "./contract.js";
+import { DockerSandbox } from "./DockerSandbox.js";
 import { type AutomationGateway, AutomationHttpGateway } from "./Gateway.js";
 import { beginLatency } from "./Latency.js";
 import { AutomationLedger } from "./Ledger.js";

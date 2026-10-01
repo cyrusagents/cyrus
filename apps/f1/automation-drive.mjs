@@ -15,6 +15,7 @@ import {
 	scopedToolSchemas,
 	toolCallSchema,
 } from "../../packages/edge-worker/dist/automations/contract.js";
+import { DockerSandbox } from "../../packages/edge-worker/dist/automations/DockerSandbox.js";
 import { AutomationHttpGateway } from "../../packages/edge-worker/dist/automations/Gateway.js";
 import { AutomationLedger } from "../../packages/edge-worker/dist/automations/Ledger.js";
 import { ConfiguredAutomationMessagesModel } from "../../packages/edge-worker/dist/automations/Model.js";
@@ -23,7 +24,6 @@ import {
 	registerConfiguredAutomations,
 } from "../../packages/edge-worker/dist/automations/register.js";
 import { ScopedAutomationMcpClient } from "../../packages/edge-worker/dist/automations/ScopedMcpClient.js";
-import { DockerSandbox } from "../../packages/edge-worker/dist/customer-runtime/DockerSandbox.js";
 
 import { HttpSessionDeliveryTransport } from "../../packages/edge-worker/dist/sinks/SessionDeliveryTransport.js";
 import {

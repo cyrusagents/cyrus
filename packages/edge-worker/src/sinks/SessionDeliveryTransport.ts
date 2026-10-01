@@ -1,6 +1,6 @@
 import type { SupervisorTiming } from "../automations/HostedTiming.js";
 import { measureLatency } from "../automations/Latency.js";
-import { readBoundedJson } from "../customer-runtime/Gateway.js";
+import { readBoundedJson } from "../utils/readBoundedJson.js";
 import {
 	parseSessionDeliveryEnvelope,
 	SESSION_DELIVERY_PATH,

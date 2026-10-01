@@ -21,8 +21,8 @@ policy gates. Its ACK is Linear comment `9749237a-9f0e-4cf7-89a7-4522ca717354`.
 - `automations/Gateway.ts` permits only authorize/progress/result/interrupt at the
   fixed authority origin. `automations/register.ts` registers capabilities, wake,
   definitions, occurrences, retry and status. Definitions never authorize execution
-  without current Hosted admission. The older `customer-runtime/contract.ts` also
-  pins engineering deployment to deny; it is not a registered-path fallback.
+  without current Hosted admission. The superseded standalone service, config and
+  public API have been removed; there is no registered-path fallback.
 - Generic runtime envelopes contain no private sponsor membership. Hosted must deny
   new deferred customer work at action/tool/admission/dispatch boundaries. Adding
   customer tables or sponsor policy to this runtime would duplicate authority and

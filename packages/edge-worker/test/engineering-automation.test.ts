@@ -13,6 +13,10 @@ import {
 	executionAuthority,
 } from "../src/automations/contract.js";
 import {
+	DockerSandbox,
+	type EngineeringSandbox,
+} from "../src/automations/DockerSandbox.js";
+import {
 	type EngineeringEnvelope,
 	engineeringDiagnostics,
 	engineeringEnvelopeSchema,
@@ -22,10 +26,6 @@ import {
 import { AutomationHttpGateway } from "../src/automations/Gateway.js";
 import { AutomationLedger } from "../src/automations/Ledger.js";
 import type { AutomationModel } from "../src/automations/Model.js";
-import {
-	DockerSandbox,
-	type EngineeringSandbox,
-} from "../src/customer-runtime/DockerSandbox.js";
 import { sessionDeliveryDigest } from "../src/sinks/session-delivery.js";
 
 const cleanups: (() => Promise<void> | void)[] = [];

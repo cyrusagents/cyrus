@@ -37,7 +37,7 @@ const { AutomationCheckpointStore } = await load("CheckpointStore");
 const { AutomationHttpGateway } = await load("Gateway");
 const { ScopedAutomationMcpClient } = await load("ScopedMcpClient");
 const { registerAutomationRoutes } = await load("register");
-const { DockerSandbox } = await load("../customer-runtime/DockerSandbox");
+const { DockerSandbox } = await load("DockerSandbox");
 const { HttpSessionDeliveryTransport } = await load(
 	"../sinks/SessionDeliveryTransport",
 );
