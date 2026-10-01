@@ -8,7 +8,7 @@ const identifier = (s) => {
 };
 // Bun binds JSON objects itself; pre-stringifying would send a JSON string.
 const value = (x) => x;
-export function sqlAdapter(sql, onError = () => {}) {
+export function sqlAdapter(sql, onError = () => {}, onQueue = () => {}) {
 	return {
 		async rpc(name, args) {
 			try {
@@ -54,6 +54,7 @@ export function sqlAdapter(sql, onError = () => {}) {
 			const conditions = [],
 				params = [],
 				orders = [];
+			let queueBinding, queueCutoff;
 			let fields = "*",
 				maximum,
 				mutation,
@@ -69,6 +70,8 @@ export function sqlAdapter(sql, onError = () => {}) {
 					return q;
 				},
 				eq(k, v) {
+					if (table === "customer_automation_outbox" && k === "binding_id")
+						queueBinding = v;
 					conditions.push(`${identifier(k)}=${parameter(v)}`);
 					return q;
 				},
@@ -82,6 +85,8 @@ export function sqlAdapter(sql, onError = () => {}) {
 					return q;
 				},
 				lte(k, v) {
+					if (table === "customer_automation_outbox" && k === "next_attempt_at")
+						queueCutoff = v;
 					conditions.push(`${identifier(k)}<=${parameter(v)}`);
 					return q;
 				},
@@ -150,6 +155,12 @@ export function sqlAdapter(sql, onError = () => {}) {
 							params,
 						);
 						const rows = encoded.map((row) => row.fixture_row);
+						if (!mutation && queueBinding && queueCutoff)
+							onQueue({
+								binding: queueBinding,
+								cutoff: queueCutoff,
+								selected: rows.length,
+							});
 						if (single) {
 							assert.ok(rows.length <= 1);
 							if (required) assert.equal(rows.length, 1);

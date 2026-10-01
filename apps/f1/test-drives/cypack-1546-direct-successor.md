@@ -84,3 +84,14 @@ Hosted 8995 passed 87 tests / 933 assertions (25.80s). Evidence is in
 `/Users/agentops/.cyrus/CYPACK-1546/attachments/successor-diagnostics-8995`.
 This does **not** explain or supersede the independent failure; that environment
 needs the diagnostic replay before a cause or correction can be claimed.
+
+
+The second independent replay exposed attempts=0 and no binding/transport/SQL
+error. A targeted PostgreSQL/actual-adapter experiment proves a submillisecond
+queue boundary can produce exactly that outcome: row timestamp `.123456` is
+excluded by the dispatcher's JS cutoff `.123`, then included at `.124`, without
+changing attempts or authority. This is a candidate explanation, not attribution
+of the independent run. Diagnostics now record selected row count and compute
+`next_attempt_at - actual queue cutoff` in PostgreSQL at full precision. Date
+conversion in the old diagnostic discarded milliseconds; it is corrected.
+No extra dispatch retries or relaxed due predicate have been added.

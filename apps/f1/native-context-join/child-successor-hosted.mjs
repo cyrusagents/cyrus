@@ -24,7 +24,10 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 	const record = (entry) => {
 		if (diagnostics.length < 64) diagnostics.push(entry);
 	};
-	const client = sqlAdapter(sql, record);
+	let parentQueue;
+	const client = sqlAdapter(sql, record, (query) => {
+		if (query.binding === f.id) parentQueue = query;
+	});
 	const checked = (r) => {
 		if (r.error) throw Error(r.error.message);
 		assert.notEqual(r.data, null);
@@ -169,9 +172,14 @@ export async function prepareChildSuccessor(sql, f, initial, supervisor) {
 					await sql`select extract(epoch from clock_timestamp()) * 1000 as ms`;
 				const [binding] =
 					await sql`select last_error from customer_automation_bindings where id=${f.id}`;
+				const [predicate] =
+					await sql`select extract(epoch from (next_attempt_at - ${parentQueue?.cutoff ?? new Date(0).toISOString()}::timestamptz)) * 1000 as after_cutoff_ms from customer_automation_outbox where id=${rows[0].id}`;
 				const diagnostic = {
+					queueSelected: parentQueue?.selected ?? null,
+					afterQueueCutoffMs: Number(predicate.after_cutoff_ms),
 					attempts: rows[0].attempts,
-					nextAttemptInMs: Date.parse(rows[0].next_attempt_at) - Date.now(),
+					nextAttemptInMs:
+						new Date(rows[0].next_attempt_at).getTime() - Date.now(),
 					databaseClockOffsetMs: Number(clock.ms) - Date.now(),
 					bindingHasError: binding.last_error !== null,
 					boundaries: diagnostics,
