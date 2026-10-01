@@ -22,6 +22,11 @@ export interface AutomationModelContext {
 	signal: AbortSignal;
 }
 export interface AutomationModel {
+	/** Pure open; next awaits context.authorize before effects or replay output.
+	 * Allows the loop and adapter to join only an in-flight authority check.
+	 * No completed check/permission result is reusable through this contract.
+	 */
+	readonly nextAuthorization?: "in-flight-v1";
 	open?(context: AutomationModelContext): Promise<AutomationModel>;
 	close?(): Promise<void>;
 	next(

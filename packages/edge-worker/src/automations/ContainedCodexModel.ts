@@ -20,6 +20,7 @@ import type { AutomationModel, AutomationModelContext } from "./Model.js";
 
 /** One native process per admitted occurrence. No shared app-server pool or user config. */
 export class ContainedCodexAutomationModel implements AutomationModel {
+	readonly nextAuthorization = "in-flight-v1" as const;
 	constructor(
 		private readonly config: ContainedCodexConfig,
 		private readonly broker: (
@@ -36,6 +37,7 @@ export class ContainedCodexAutomationModel implements AutomationModel {
 }
 
 class ContainedCodexTurn implements AutomationModel {
+	readonly nextAuthorization = "in-flight-v1" as const;
 	private runner?: ContainedCodexProcess;
 	private threadId?: string;
 	private waiting?: {
@@ -77,8 +79,11 @@ class ContainedCodexTurn implements AutomationModel {
 			!this.runner &&
 			state.native?.tool &&
 			state.sequence === state.native.tool.sequence
-		)
+		) {
+			await this.context.authorize();
+			signal.throwIfAborted();
 			return { type: "tool", call: state.native.tool.call };
+		}
 		const result = new Promise<AutomationStep>((resolve, reject) => {
 			this.waiting = { resolve, reject };
 		});

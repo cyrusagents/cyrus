@@ -7,6 +7,7 @@ import { AutomationCheckpointStore } from "../src/automations/CheckpointStore.js
 import type { AutomationRegistration } from "../src/automations/contract.js";
 import { AutomationHttpGateway } from "../src/automations/Gateway.js";
 import { AutomationLedger } from "../src/automations/Ledger.js";
+import type { AutomationModelContext } from "../src/automations/Model.js";
 import {
 	type SessionDeliveryEnvelope,
 	sessionDeliveryDigest,
@@ -195,6 +196,75 @@ async function fixture(mode: string | undefined = "current-admission-v1") {
 		},
 	};
 }
+it.each([
+	"legacy",
+	"unknown",
+	"joined",
+	"revoked",
+	"aborted",
+])("keeps model effects behind current authority at entry: %s", async (mode) => {
+	const f = await fixture();
+	let enter!: () => void;
+	const entered = new Promise<void>((resolve) => {
+		enter = resolve;
+	});
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	let held = false,
+		modelEntry = 0,
+		effects = 0,
+		authRequests = 0;
+	const call = f.options.gateway.call;
+	f.options.gateway.call = async (endpoint, body) => {
+		if (endpoint === "authorize") {
+			authRequests++;
+			if (f.state.progress && !held) {
+				held = true;
+				enter();
+				await gate;
+			}
+		}
+		return call(endpoint, body);
+	};
+	Object.assign(f.options.model, {
+		...(mode !== "legacy" && {
+			nextAuthorization: mode === "unknown" ? "future-v2" : "in-flight-v1",
+		}),
+		async open(context: AutomationModelContext) {
+			return {
+				async next() {
+					modelEntry++;
+					await context.authorize();
+					context.signal.throwIfAborted();
+					effects++;
+					// A later invocation still makes a NEW current check.
+					const before = authRequests;
+					await context.authorize();
+					expect(authRequests).toBe(before + 1);
+					return { type: "result" as const, text: "Authorized" };
+				},
+			};
+		},
+	});
+	const runtime = f.create();
+	const running = runtime.wake();
+	await entered;
+	await new Promise((resolve) => setImmediate(resolve));
+	expect(modelEntry).toBe(mode === "legacy" || mode === "unknown" ? 0 : 1);
+	expect(effects).toBe(0);
+	if (mode === "revoked") f.state.revoked = true;
+	const stopping = mode === "aborted" ? runtime.stop() : undefined;
+	release();
+	await running;
+	await stopping;
+	expect(effects).toBe(mode === "revoked" || mode === "aborted" ? 0 : 1);
+	expect(f.state.results).toBe(
+		mode === "revoked" || mode === "aborted" ? 0 : 1,
+	);
+});
+
 it.each([
 	undefined,
 	"future-v2",

@@ -157,6 +157,17 @@ describe.skipIf(!image)("native contained automation recovery", () => {
 			await session.close!();
 			state = (await store.load(state.scopeKey))!;
 			expect(state.native?.tool?.sequence).toBe(0);
+			const denied = await model.open({
+				...context(),
+				authorize: async () => {
+					throw new Error("Revoked replay");
+				},
+			});
+			await expect(
+				denied.next(state.messages, authority, controller.signal),
+			).rejects.toThrow("Revoked replay");
+			await denied.close!();
+			expect(modelCalls).toBe(1);
 			session = await model.open(context());
 			expect(
 				await session.next(state.messages, authority, controller.signal),

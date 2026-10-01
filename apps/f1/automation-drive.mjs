@@ -54,6 +54,7 @@ export async function runAutomationDrive({
 	latencyOnly = false,
 	latencyReadSet = false,
 	latencyMcpMilliseconds = 150,
+	catalogProfile = false,
 	latencyRetention = false,
 	nativeContextOnly = false,
 	ownerInterruptionFault = "model",
@@ -1230,11 +1231,11 @@ export async function runAutomationDrive({
 	globalThis.fetch = async (url, options) => {
 		const value = String(url);
 		if (value.startsWith("https://automation.fixture/")) {
-			if (latencyOnly)
+			if (latencyOnly || catalogProfile)
 				await new Promise((resolve) =>
 					setTimeout(
 						resolve,
-						latencyReadSet && value.endsWith("/mcp")
+						(latencyReadSet || catalogProfile) && value.endsWith("/mcp")
 							? latencyMcpMilliseconds
 							: 40,
 					),
@@ -1405,7 +1406,13 @@ export async function runAutomationDrive({
 				),
 			},
 			model:
-				nativeModel ||
+				(catalogProfile && nativeModel
+					? {
+							// Match the registered factory: preparation itself is not opted in.
+							open: (context) => nativeModel.open(context),
+							next: (...args) => nativeModel.next(...args),
+						}
+					: nativeModel) ||
 				new ConfiguredAutomationMessagesModel(() => ({
 					...target,
 					apiKey: modelKey,

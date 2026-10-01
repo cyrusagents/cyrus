@@ -5,7 +5,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const [prefixArg, sourceSha, evidenceArg] = process.argv.slice(2);
+const [prefixArg, sourceSha, evidenceArg, scenario = "greeting"] =
+	process.argv.slice(2);
+assert.ok(["greeting", "tools"].includes(scenario));
 assert.ok(prefixArg && evidenceArg);
 assert.match(sourceSha ?? "", /^[a-f0-9]{40}$/);
 const modules = join(resolve(prefixArg), "lib/node_modules");
@@ -59,26 +61,36 @@ ScopedAutomationMcpClient.prototype.revalidate = async function () {
 	}
 };
 try {
-	for (const latencyMcpMilliseconds of [150, 1500]) {
+	for (const latencyMcpMilliseconds of scenario === "tools"
+		? [500]
+		: [150, 1500]) {
 		checks = [];
+		const start = performance.now();
 		const summary = await runAutomationDrive({
-			latencyOnly: true,
-			latencyReadSet: true,
+			...(scenario === "tools"
+				? { slackChannelOnly: true, catalogProfile: true }
+				: { latencyOnly: true, latencyReadSet: true }),
 			sessionDeliveryAuthority: true,
 			latencyMcpMilliseconds,
 		});
-		assert.equal(
-			checks.length,
-			summary.traces
-				.flatMap((t) => t.spans)
-				.filter((s) => s.stage === "mcp.catalog").length,
-		);
+		const elapsedMs = performance.now() - start;
+		assert.equal(checks.length, summary.counts.list);
+		if (scenario === "greeting")
+			assert.equal(
+				checks.length,
+				summary.traces
+					.flatMap((t) => t.spans)
+					.filter((s) => s.stage === "mcp.catalog").length,
+			);
+		delete summary.directory;
 		assert.ok(checks.every((c) => !c.failed));
 		await writeFile(
 			join(evidence, `profile-${latencyMcpMilliseconds}.json`),
 			JSON.stringify(
 				{
 					sourceSha,
+					scenario,
+					elapsedMs,
 					driverSha256: createHash("sha256").update(input).digest("hex"),
 					...summary,
 					checks,

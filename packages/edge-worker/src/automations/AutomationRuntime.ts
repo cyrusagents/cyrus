@@ -739,7 +739,18 @@ export class AutomationRuntime {
 				);
 			}
 			while (!this.stopped) {
-				await fresh();
+				const iterationAuthority = fresh();
+				// Both callers still request current authority. A contained adapter
+				// with a pure constructor and an authorizing next() can join this
+				// pending request before doing anything, instead of starting a second
+				// roundtrip immediately after it. Never reuse a completed decision.
+				// Context I/O and pending operations keep their ordered preflight.
+				const joinsAuthority =
+					(model ?? this.options.model).nextAuthorization === "in-flight-v1" &&
+					!state.pending &&
+					(!authority.nativeContext || contextPrepared);
+				void iterationAuthority.catch(() => {});
+				if (!joinsAuthority) await iterationAuthority;
 				if (!state.pending) {
 					if (state.sequence >= AUTOMATION_LIMITS.maxSteps)
 						throw new Error("Automation step limit exceeded");
@@ -822,6 +833,7 @@ export class AutomationRuntime {
 								: model!.next(state!.messages, authority, controller.signal),
 						),
 					);
+					await iterationAuthority;
 					if (step.type === "result") interruptible = false;
 					await fresh();
 					if (step.type === "tool") authorizeTool(authority, step.call);
