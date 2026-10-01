@@ -55,6 +55,7 @@ export async function runAutomationDrive({
 	latencyOnly = false,
 	latencyReadSet = false,
 	latencyMcpMilliseconds = 150,
+	latencyHostedMilliseconds = 40,
 	catalogProfile = false,
 	latencyRetention = false,
 	nativeContextOnly = false,
@@ -64,6 +65,11 @@ export async function runAutomationDrive({
 		Number.isInteger(latencyMcpMilliseconds) &&
 			latencyMcpMilliseconds >= 150 &&
 			latencyMcpMilliseconds <= 2000,
+	);
+	assert.ok(
+		Number.isInteger(latencyHostedMilliseconds) &&
+			latencyHostedMilliseconds >= 40 &&
+			latencyHostedMilliseconds <= 2000,
 	);
 	const target = codexImage
 		? { harness: "codex", model: "gpt-5.5" }
@@ -1259,7 +1265,7 @@ export async function runAutomationDrive({
 						resolve,
 						(latencyReadSet || catalogProfile) && value.endsWith("/mcp")
 							? latencyMcpMilliseconds
-							: 40,
+							: latencyHostedMilliseconds,
 					),
 				);
 			const response = await realFetch(
@@ -1908,13 +1914,14 @@ export async function runAutomationDrive({
 				latencyReadSet,
 				lifecycleAuthority,
 				latencyMcpMilliseconds,
+				latencyHostedMilliseconds,
 				retentionRecovered: latencyRetention,
 				traces,
 				counts,
 				limits: [
 					"Controlled Hosted and model/provider transports; actual native container, runtime, SQLite and status route",
 					"No historical44s attribution or live runtime/customer access",
-					`40ms Hosted,80ms provider headers,120ms provider body injection; read-set profile adds${latencyMcpMilliseconds}ms per MCP HTTP request`,
+					`${latencyHostedMilliseconds}ms Hosted,80ms provider headers,120ms provider body injection; read-set profile adds${latencyMcpMilliseconds}ms per MCP HTTP request`,
 				],
 			};
 			await writeFile(

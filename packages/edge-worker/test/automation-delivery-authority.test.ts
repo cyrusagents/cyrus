@@ -507,6 +507,69 @@ it.each([
 	expect(f.state.models).toBe(1);
 	expect(f.state.results).toBe(0);
 });
+it("schedules the watchdog from the latest real authority check and still revokes a held final ACK", async () => {
+	const f = await fixture();
+	f.state.lifecycle = "current-action-v1";
+	f.options.renewMilliseconds = 5000;
+	const modelEntered = Promise.withResolvers<void>();
+	const modelRelease = Promise.withResolvers<void>();
+	const receiptEntered = Promise.withResolvers<void>();
+	const receiptRelease = Promise.withResolvers<void>();
+	let signal!: AbortSignal;
+	f.state.onModel = async (current) => {
+		signal = current;
+		current.addEventListener(
+			"abort",
+			() => {
+				modelRelease.resolve();
+				receiptRelease.resolve();
+			},
+			{ once: true },
+		);
+		modelEntered.resolve();
+		await modelRelease.promise;
+	};
+	f.state.onDelivery = async (e) => {
+		if (e.item.kind === "lifecycle" && e.item.payload.status === "complete") {
+			receiptEntered.resolve();
+			await receiptRelease.promise;
+		}
+	};
+	vi.useFakeTimers({
+		toFake: [
+			"setTimeout",
+			"setInterval",
+			"clearTimeout",
+			"clearInterval",
+			"performance",
+		],
+	});
+	const runtime = f.create();
+	const work = runtime.wake();
+	try {
+		await modelEntered.promise;
+		await vi.advanceTimersByTimeAsync(4000);
+		modelRelease.resolve();
+		await receiptEntered.promise;
+		const checkedBeforeReceipt = f.state.auth;
+		await vi.advanceTimersByTimeAsync(1500);
+		// The old fixed timer fires at5000 even though the result boundary
+		// already made a real current check at4000. No action reuses that check.
+		expect(f.state.auth).toBe(checkedBeforeReceipt);
+		expect(signal.aborted).toBe(false);
+		f.state.revoked = true;
+		await vi.advanceTimersByTimeAsync(3500);
+		expect(signal.aborted).toBe(true);
+		await work;
+		expect(f.state.results).toBe(0);
+	} finally {
+		modelRelease.resolve();
+		receiptRelease.resolve();
+		await runtime.stop();
+		await work;
+		vi.useRealTimers();
+	}
+});
 it("requires current session delivery for lifecycle negotiation", async () => {
 	const f = await fixture();
 	f.state.mode = undefined;

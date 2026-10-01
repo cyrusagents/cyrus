@@ -8,6 +8,9 @@ import { pathToFileURL } from "node:url";
 const [prefixArg, sourceSha, evidenceArg, scenario = "greeting"] =
 	process.argv.slice(2);
 const lifecycleAuthority = process.env.CYRUS_F1_LIFECYCLE_AUTHORITY === "1";
+const latencyHostedMilliseconds = Number(
+	process.env.CYRUS_F1_HOSTED_DELAY_MS ?? 40,
+);
 assert.ok(["greeting", "tools"].includes(scenario));
 assert.ok(prefixArg && evidenceArg);
 assert.match(sourceSha ?? "", /^[a-f0-9]{40}$/);
@@ -74,6 +77,7 @@ try {
 			sessionDeliveryAuthority: true,
 			lifecycleAuthority,
 			latencyMcpMilliseconds,
+			latencyHostedMilliseconds,
 		});
 		const elapsedMs = performance.now() - start;
 		assert.equal(checks.length, summary.counts.list);

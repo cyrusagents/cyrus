@@ -502,8 +502,22 @@ export class AutomationRuntime {
 			controller.signal,
 		);
 		let leaseTimer: ReturnType<typeof setTimeout> | undefined;
+		let poll: ReturnType<typeof setTimeout> | undefined;
+		let nextPollAt = 0;
 		let renewing: Promise<void> | undefined;
 		let authorityFailure: AutomationDiagnostic | undefined;
+		const schedulePoll = () => {
+			clearTimeout(poll);
+			if (controller.signal.aborted) return;
+			poll = setTimeout(
+				() => {
+					// An outstanding real check owns this interval. Its finally handler
+					// re-arms immediately if overdue; no concurrent or cached decision.
+					if (!renewing) void fresh().catch(() => {});
+				},
+				Math.max(0, nextPollAt - performance.now()),
+			);
+		};
 		const deadline = () => {
 			clearTimeout(leaseTimer);
 			leaseTimer = setTimeout(
@@ -519,6 +533,14 @@ export class AutomationRuntime {
 		};
 		const fresh = (): Promise<void> => {
 			if (renewing) return renewing;
+			// Every action still starts (or joins) a current request. Only the
+			// watchdog clock moves: don't poll again on the old fixed phase shortly
+			// after another action already checked authority. Idle work is checked
+			// within the same interval from the latest actual request's start.
+			nextPollAt =
+				performance.now() +
+				(this.options.renewMilliseconds ?? AUTOMATION_LIMITS.renewMilliseconds);
+			schedulePoll();
 			// A read-set reference belongs to this MCP session. Check current authority
 			// through Hosted's authenticated tools/list while the existing lease has
 			// time remaining; only authorize/rotate when renewal is needed. Neither
@@ -587,6 +609,7 @@ export class AutomationRuntime {
 				})
 				.finally(() => {
 					renewing = undefined;
+					schedulePoll();
 				});
 			return renewing;
 		};
@@ -614,9 +637,6 @@ export class AutomationRuntime {
 				throw new Error("Lifecycle admission expired");
 		};
 		deadline();
-		const poll = setInterval(() => {
-			void fresh().catch(() => {});
-		}, this.options.renewMilliseconds ?? AUTOMATION_LIMITS.renewMilliseconds);
 		try {
 			await fresh();
 			let state = await measureLatency("checkpoint.load", () =>
@@ -942,7 +962,7 @@ export class AutomationRuntime {
 			controller.abort();
 			clearTimeout(leaseTimer);
 			const endCleanup = beginLatency("cleanup");
-			clearInterval(poll);
+			clearTimeout(poll);
 			let quiescent = false;
 			try {
 				try {

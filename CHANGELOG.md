@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Reduce redundant customer automation lifecycle round trips when the hosted gateway explicitly provides current action authorization; preserve renewal, revocation and ordered result receipts, with the original path for older servers and checkpoints. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
+- Reduce redundant customer automation lifecycle round trips when the hosted gateway explicitly provides current action authorization; schedule watchdog checks from the latest actual authority request instead of immediately repeating it on a fixed timer. Preserve action checks, renewal, revocation and ordered result receipts, with the original lifecycle path for older servers and checkpoints. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
 
 ### Added
 - Contained Codex model entry can join the runtime's still-pending authority request, avoiding a second sequential catalog lookup at the same boundary. Completed permission decisions are never cached; later provider/tool checks, revocation, renewal and receipt barriers remain enforced. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
