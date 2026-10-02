@@ -34,3 +34,37 @@ fresh native transcript; terminal receipt recovery after policy epoch change.
 These are controlled Hosted/provider fixtures. Actual published Hosted SQL,
 production outbox dispatch and private UI authorization must be joined separately.
 No live PM/model/provider or customer UI acceptance is implied.
+
+## Installed PM with actual Hosted team eligibility
+
+`hosted-gate.mjs` reuses the frozen Hosted `pmFixture`, production admission,
+outbox delivery, session SQL adapter and installed normal-runner driver. It
+applies checked test-only overlays in a disposable archive; it never edits the
+Hosted checkout or installed package. Existing fixture dependencies and an owned
+local PostgreSQL server are prerequisites. No Docker or real provider login is
+needed for this normal-runner test; its app-server/model is controlled.
+
+```sh
+node apps/f1/trusted-pm/hosted-gate.mjs \
+  /path/to/cyrus-hosted ebf27fd91a14eec19e56d28ce2ccfb4302891ad9 \
+  /path/to/private-installed-prefix 23811dfadc78bf12549319435c4f94a81b79705b \
+  /path/to/new-evidence-directory
+```
+
+The four cases change only disposable `teams.is_admin_team` markers:
+
+- Initial OFF: persist/deliver the real queued submission while ON, withdraw
+  before initial admission; no runner or model starts.
+- Queued withdrawal: hold the real runner concurrency slot, admit while ON,
+  withdraw and release the slot; current authority denies the native start.
+- Active withdrawal: one controlled native/tool turn starts while ON; withdrawal
+  stops it, denies retries and commits no result.
+- Terminal recovery: commit one result, lose its ACK and withdraw; retry accepts
+  only reconciliation authority, replays the exact result key/text and existing
+  session-creation receipt, and opens no new model/tool/progress/configuration.
+  The persisted journal remains unchanged.
+
+An optional final comma-separated case list selects a bounded diagnostic rerun,
+for example `terminal-recovery`. Unknown case names fail closed. Private failed
+fixture diagnostics remain in their owned temporary directory; published JSON
+contains only synthetic identities, counters, receipt hashes and test limits.
