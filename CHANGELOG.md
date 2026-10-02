@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Managed GitHub commands now refuse removed, expired or unreadable installation credentials instead of falling back to stale session or cached authentication; unmanaged self-host authentication is preserved. ([CYPACK-1522](https://linear.app/ceedar/issue/CYPACK-1522), [#1487](https://github.com/cyrusagents/cyrus/pull/1487))
+- Codex sessions can use `gpt-6.1-sol` with ChatGPT accounts now that the bundled CLI and SDK have been updated to 0.159.2. ([#1512](https://github.com/cyrusagents/cyrus/issues/1512), [#1514](https://github.com/cyrusagents/cyrus/pull/1514))
+- Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. (CYHOST-909)
 
 ## [0.2.73] - 2026-09-30
 
