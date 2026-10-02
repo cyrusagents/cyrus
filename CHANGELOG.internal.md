@@ -4,6 +4,10 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.74-cypack1546.0] - 2026-10-02
+
+Coordinated internal test-channel release metadata; canonical OIDC and npm installation gates remain required. (CYPACK-1546, [#1522](https://github.com/cyrusagents/cyrus/pull/1522))
+
 ### Changed
 
 - Added an opt-in joined owning-team rollout gate drive for queued instructions/events, stale ticks, admission-to-MCP withdrawal and immutable terminal receipt recovery, plus installed trusted-PM initial/queued/active team withdrawal and model-free receipt reconciliation against actual Hosted SQL; generic Runtime continues to use Hosted current authority without a second eligibility flag. (CYPACK-1546, [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
