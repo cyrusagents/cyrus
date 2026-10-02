@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.74-cypack1546.0] - 2026-10-02
+
 ### Changed
 
 - Reduce redundant customer automation lifecycle round trips when the hosted gateway explicitly provides current action authorization; schedule watchdog checks from the latest actual authority request instead of immediately repeating it on a fixed timer. Preserve action checks, renewal, revocation and ordered result receipts, with the original lifecycle path for older servers and checkpoints. Automatic context preparation can separately omit one redundant preflight when the receiver checks current authority at the read itself; recovery and post-read checks remain. Customer automations can explicitly send scoped Slack replies only under separately negotiated customer permission; mentions and completed results never grant send authority. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
@@ -14,6 +16,26 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Codex sessions can use `gpt-6.1-sol` with ChatGPT accounts now that the bundled CLI and SDK have been updated to 0.159.2. ([#1512](https://github.com/cyrusagents/cyrus/issues/1512), [#1514](https://github.com/cyrusagents/cyrus/pull/1514))
 - Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. (CYHOST-909)
+
+### Packages
+
+- `cyrus-cloudflare-tunnel-client@0.2.74-cypack1546.0`
+- `cyrus-mcp-tools@0.2.74-cypack1546.0`
+- `cyrus-core@0.2.74-cypack1546.0`
+- `cyrus-claude-runner@0.2.74-cypack1546.0`
+- `cyrus-config-updater@0.2.74-cypack1546.0`
+- `cyrus-linear-event-transport@0.2.74-cypack1546.0`
+- `cyrus-github-event-transport@0.2.74-cypack1546.0`
+- `cyrus-gitlab-event-transport@0.2.74-cypack1546.0`
+- `cyrus-slack-event-transport@0.2.74-cypack1546.0`
+- `cyrus-zulip-event-transport@0.2.74-cypack1546.0`
+- `cyrus-simple-agent-runner@0.2.74-cypack1546.0`
+- `cyrus-opencode-runner@0.2.74-cypack1546.0`
+- `cyrus-codex-runner@0.2.74-cypack1546.0`
+- `cyrus-cursor-runner@0.2.74-cypack1546.0`
+- `cyrus-gemini-runner@0.2.74-cypack1546.0`
+- `cyrus-edge-worker@0.2.74-cypack1546.0`
+- `cyrus-ai@0.2.74-cypack1546.0`
 
 ## [0.2.73] - 2026-09-30
 

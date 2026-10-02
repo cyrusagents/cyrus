@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-github-event-transport",
-	"version": "0.2.73",
+	"version": "0.2.74-cypack1546.0",
 	"description": "GitHub event transport for receiving and verifying forwarded GitHub webhooks",
 	"repository": {
 		"type": "git",
