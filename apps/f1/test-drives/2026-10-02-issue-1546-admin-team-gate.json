@@ -1,0 +1,106 @@
+{
+	"passed": true,
+	"runtimeSha": "23811dfadc78bf12549319435c4f94a81b79705b",
+	"hosted": {
+		"hostedSha": "131712e0f21e16dff68ced02b80876aa78ae882c",
+		"runtimeSha": "23811dfadc78bf12549319435c4f94a81b79705b",
+		"admissions": 9,
+		"renewals": 6,
+		"reconciliations": 5,
+		"deliveries": 8,
+		"results": 2,
+		"interruptions": 0,
+		"mcpPreflights": 14,
+		"mcpAuthorizations": 14,
+		"mcpPhases": {
+			"initialize": {
+				"requests": 2,
+				"denied": 1,
+				"durationMs": 38.50033300000359,
+				"preflight": 2,
+				"preflightMs": 4.509374999994179,
+				"authorize": 1,
+				"authorizeMs": 1.44120799999655
+			},
+			"notifications/initialized": {
+				"requests": 1,
+				"denied": 0,
+				"durationMs": 7.41358400000172,
+				"preflight": 1,
+				"preflightMs": 3.5357500000027358,
+				"authorize": 1,
+				"authorizeMs": 2.4734170000010636
+			},
+			"tools/list": {
+				"requests": 10,
+				"denied": 0,
+				"durationMs": 67.35674999998446,
+				"preflight": 10,
+				"preflightMs": 34.08891800001584,
+				"authorize": 10,
+				"authorizeMs": 22.62478999999439
+			},
+			"GET": {
+				"requests": 1,
+				"denied": 1,
+				"durationMs": 10.608707999999751,
+				"preflight": 0,
+				"preflightMs": 0,
+				"authorize": 1,
+				"authorizeMs": 10.555917000005138
+			},
+			"tools/call": {
+				"requests": 1,
+				"denied": 0,
+				"durationMs": 24.426790999998047,
+				"preflight": 1,
+				"preflightMs": 4.557708000000275,
+				"authorize": 1,
+				"authorizeMs": 2.3401250000024447
+			}
+		},
+		"tools": {
+			"read_context": 1
+		},
+		"denials": 13,
+		"gateOffRuns": 0,
+		"terminalCommits": 1,
+		"lostResult": true,
+		"passed": true
+	},
+	"models": 1,
+	"modelOpens": 1,
+	"statuses": [
+		{
+			"stage": "gate-off",
+			"status": "blocked",
+			"attempts": 3,
+			"fence": 3
+		},
+		{
+			"stage": "gate-event",
+			"status": "blocked",
+			"attempts": 3,
+			"fence": 3
+		},
+		{
+			"stage": "gate-race",
+			"status": "blocked",
+			"attempts": 3,
+			"fence": 3
+		},
+		{
+			"stage": "gate-terminal",
+			"status": "completed",
+			"attempts": 2,
+			"fence": 2
+		}
+	],
+	"tick": {
+		"statusBeforeScheduleCleanup": "blocked",
+		"attempts": 3
+	},
+	"limits": [
+		"Actual installed registered HTTP/SQLite/native Docker + Hosted SQL/MCP; synthetic model, no live team changes"
+	]
+}
