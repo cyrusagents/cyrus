@@ -31,6 +31,10 @@ try {
 	fixture.get("/api/config", async (request) => {
 		assert.equal(request.url, "/api/config");
 		assert.equal(request.headers.authorization, "Bearer f1-pairing-code");
+		assert.equal(
+			request.headers["x-cyrus-config-capabilities"],
+			"self-host-port-v1",
+		);
 		authRequests++;
 		return {
 			success: true,
@@ -38,6 +42,7 @@ try {
 				apiKey: "f1-runtime-key",
 				cloudflareToken: "f1-tunnel-token",
 				teamId: team,
+				serverPort: 19119,
 			},
 		};
 	});
@@ -114,6 +119,7 @@ try {
 		worker: {
 			startEdgeWorker: async () => {
 				assert.equal(process.env.CYRUS_APP_URL, `${preview}/`);
+				assert.equal(process.env.CYRUS_SERVER_PORT, "19119");
 				runtimeServer = Fastify({ forceCloseConnections: true });
 				registerConfiguredAutomations(runtimeServer, directory, () =>
 					app.config.load(),
@@ -165,6 +171,7 @@ try {
 		launchCount,
 		previewOrigin: preview,
 		registeredWorkspacePreserved: true,
+		hostedListenerPortPreserved: true,
 		authHeaderOnly: true,
 		credentialFreeLogs: true,
 		privateCredentials: true,

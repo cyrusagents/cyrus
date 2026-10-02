@@ -25,7 +25,10 @@ describe("pairing credential transport", () => {
 		expect(fetcher).toHaveBeenCalledWith(
 			"https://cyrus-preview-cyhost-1321.vercel.app/api/config",
 			{
-				headers: { Authorization: "Bearer fixture-auth-code" },
+				headers: {
+					Authorization: "Bearer fixture-auth-code",
+					"X-Cyrus-Config-Capabilities": "self-host-port-v1",
+				},
 				redirect: "error",
 				signal: expect.any(AbortSignal),
 			},

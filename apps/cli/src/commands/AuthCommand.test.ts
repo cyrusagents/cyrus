@@ -61,7 +61,10 @@ it("pairs and starts on the same preview origin, persists it privately and never
 	expect(fetcher).toHaveBeenCalledWith(
 		"https://cyrus-preview-cyhost-1321.vercel.app/api/config",
 		expect.objectContaining({
-			headers: { Authorization: "Bearer private-fixture-code" },
+			headers: {
+				Authorization: "Bearer private-fixture-code",
+				"X-Cyrus-Config-Capabilities": "self-host-port-v1",
+			},
 			redirect: "error",
 		}),
 	);
