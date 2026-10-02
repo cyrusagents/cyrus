@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ## [0.2.74-cypack1546.0] - 2026-10-02
 
+Prepared scoped internal npm pilot; publication remains held on audit and rollout-gate review. (CYPACK-1546, [#1522](https://github.com/cyrusagents/cyrus/pull/1522))
+
 ### Changed
 
 - Reduce redundant customer automation lifecycle round trips when the hosted gateway explicitly provides current action authorization; schedule watchdog checks from the latest actual authority request instead of immediately repeating it on a fixed timer. Preserve action checks, renewal, revocation and ordered result receipts, with the original lifecycle path for older servers and checkpoints. Automatic context preparation can separately omit one redundant preflight when the receiver checks current authority at the read itself; recovery and post-read checks remain. Customer automations can explicitly send scoped Slack replies only under separately negotiated customer permission; mentions and completed results never grant send authority. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))

@@ -6,6 +6,8 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [0.2.74-cypack1546.0] - 2026-10-02
 
+Coordinated internal test-channel release metadata; canonical OIDC and npm installation gates remain required. (CYPACK-1546, [#1522](https://github.com/cyrusagents/cyrus/pull/1522))
+
 ### Changed
 
 - Added negotiated work-details native/Hosted SQL recovery coverage alongside focused registered PM and contained customer disclosure drives, including private activity receipts, referenced submission ACK recovery, policy-epoch isolation, revoked/queued ownership and confirmed dedicated Codex shutdown. Removed the superseded standalone customer-runtime service, CLI/bootstrap exceptions and obsolete public API; retained shared containment and bounded transport helpers under the registered runtime with active regression coverage. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
