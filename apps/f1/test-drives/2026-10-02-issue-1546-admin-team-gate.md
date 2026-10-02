@@ -66,8 +66,8 @@ not edit the Hosted checkout. Existing evidence directories are not overwritten.
 This is not live signed ingress, a production team activation, or an installed
 trusted-PM gate test. Hosted separately tests PM HTTP/SQL gate denial and receipt
 semantics; the installed normal PM F1 passed its existing revocation/recovery
-cases. An installed PM scenario withdrawing this exact team marker remains a
-separate evidence gap. In-flight ordinary PM provider operations are not claimed
+cases. The subsequent `2026-10-02-issue-1546-pm-team-gate.md` report records the
+separate installed PM scenario for this exact team marker. In-flight ordinary PM provider operations are not claimed
 to be synchronously retractable.
 
 The bundle is unpublished test evidence. Canonical OIDC npm publication remains

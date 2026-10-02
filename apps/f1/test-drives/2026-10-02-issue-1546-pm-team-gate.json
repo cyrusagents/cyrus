@@ -1,0 +1,267 @@
+{
+	"passed": true,
+	"driverSha": "8a32ffe29dd504de8520c94d78b9e7c86b6c443c",
+	"hostedSha": "ebf27fd91a14eec19e56d28ce2ccfb4302891ad9",
+	"runtimeSha": "23811dfadc78bf12549319435c4f94a81b79705b",
+	"tests": 4,
+	"assertions": 310,
+	"durationSeconds": 62.75,
+	"cases": [
+		{
+			"passed": true,
+			"gateMode": "initial-off",
+			"normalRunnerOpens": 0,
+			"nativeStarts": 0,
+			"toolCalls": 0,
+			"nativeCompletions": 0,
+			"resultTransmissions": 0,
+			"occurrenceId": "f21e3292c372b833fd3d42656107822b40dfe06a3d4ae8220bb4c1f9e584415b",
+			"attempts": 3,
+			"limits": [
+				"Controlled app-server/model/provider; actual registered HTTP, Runtime SQLite, normal runner, Hosted SQL and receipt paths"
+			],
+			"hostedSha": "ebf27fd91a14eec19e56d28ce2ccfb4302891ad9",
+			"runtimeSha": "23811dfadc78bf12549319435c4f94a81b79705b",
+			"sql": {
+				"admissions": 3,
+				"delivered": 0,
+				"progress": 0,
+				"denied": 3,
+				"transmissions": 0,
+				"configReads": 3,
+				"afterTerminal": null,
+				"deliveryAttempts": []
+			},
+			"noCustomerFanout": true
+		},
+		{
+			"passed": true,
+			"gateMode": "queued-withdrawal",
+			"normalRunnerOpens": 1,
+			"nativeStarts": 0,
+			"toolCalls": 0,
+			"nativeCompletions": 0,
+			"resultTransmissions": 0,
+			"occurrenceId": "16d2e0a2207109a7d18bb80e61d0810ce60b5a95cb7f994db805d2959a3c2b51",
+			"attempts": 3,
+			"limits": [
+				"Controlled app-server/model/provider; actual registered HTTP, Runtime SQLite, normal runner, Hosted SQL and receipt paths"
+			],
+			"hostedSha": "ebf27fd91a14eec19e56d28ce2ccfb4302891ad9",
+			"runtimeSha": "23811dfadc78bf12549319435c4f94a81b79705b",
+			"sql": {
+				"admissions": 10,
+				"delivered": 3,
+				"progress": 1,
+				"denied": 3,
+				"transmissions": 0,
+				"configReads": 10,
+				"afterTerminal": null,
+				"deliveryAttempts": [
+					{
+						"fence": 1,
+						"kind": "session",
+						"sequence": 1,
+						"itemDigest": "a0cbad5c4f757d16214aeb0fdd2194b03be5033a5476c0b2271e9c276196f171",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "lifecycle",
+						"sequence": 2,
+						"itemDigest": "1f7c7ef473ca5403c7b42de5796b24e3dc8b95a81868d4f9e509fcb520125ad9",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "session",
+						"sequence": 1,
+						"itemDigest": "a0cbad5c4f757d16214aeb0fdd2194b03be5033a5476c0b2271e9c276196f171",
+						"status": 200,
+						"afterTerminal": false
+					}
+				]
+			},
+			"noCustomerFanout": true
+		},
+		{
+			"passed": true,
+			"gateMode": "active-withdrawal",
+			"normalRunnerOpens": 1,
+			"nativeStarts": 1,
+			"toolCalls": 1,
+			"nativeCompletions": 0,
+			"resultTransmissions": 0,
+			"occurrenceId": "71628b607cd21b1efed3e20e118784e3ed5334ea3b382d416e63febf7a45051d",
+			"attempts": 3,
+			"limits": [
+				"Controlled app-server/model/provider; actual registered HTTP, Runtime SQLite, normal runner, Hosted SQL and receipt paths"
+			],
+			"hostedSha": "ebf27fd91a14eec19e56d28ce2ccfb4302891ad9",
+			"runtimeSha": "23811dfadc78bf12549319435c4f94a81b79705b",
+			"sql": {
+				"admissions": 12,
+				"delivered": 4,
+				"progress": 1,
+				"denied": 3,
+				"transmissions": 0,
+				"configReads": 12,
+				"afterTerminal": null,
+				"deliveryAttempts": [
+					{
+						"fence": 1,
+						"kind": "session",
+						"sequence": 1,
+						"itemDigest": "90bf1d5fbdef438a8bc927fecd6dccb559c8a8b88289e9ca43a0add9bec81c50",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "lifecycle",
+						"sequence": 2,
+						"itemDigest": "c7c5d8f0f8508adc142876775d1a25acce09d2c94b11707559b0b1b68cb0dc3c",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "session",
+						"sequence": 1,
+						"itemDigest": "90bf1d5fbdef438a8bc927fecd6dccb559c8a8b88289e9ca43a0add9bec81c50",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "lifecycle",
+						"sequence": 3,
+						"itemDigest": "f892eae5de3ee38037ecaeabd73e5288025783aa81da118e6901aa3c094bfc28",
+						"status": 200,
+						"afterTerminal": false
+					}
+				]
+			},
+			"noCustomerFanout": true
+		},
+		{
+			"passed": true,
+			"gateMode": "terminal-recovery",
+			"normalRunnerOpens": 1,
+			"nativeStarts": 1,
+			"toolCalls": 1,
+			"nativeCompletions": 1,
+			"resultTransmissions": 2,
+			"occurrenceId": "7d985d354e90f4293e274dc544762beb21d88591b5a11bb8dbba1fa3645bcc67",
+			"attempts": 2,
+			"limits": [
+				"Controlled app-server/model/provider; actual registered HTTP, Runtime SQLite, normal runner, Hosted SQL and receipt paths"
+			],
+			"hostedSha": "ebf27fd91a14eec19e56d28ce2ccfb4302891ad9",
+			"runtimeSha": "23811dfadc78bf12549319435c4f94a81b79705b",
+			"sql": {
+				"admissions": 21,
+				"delivered": 10,
+				"progress": 1,
+				"denied": 0,
+				"transmissions": 2,
+				"configReads": 15,
+				"afterTerminal": {
+					"progress": 1,
+					"delivered": 9,
+					"configReads": 15,
+					"journal": {
+						"status": "complete",
+						"last_sequence": "8",
+						"receipts": 8
+					}
+				},
+				"deliveryAttempts": [
+					{
+						"fence": 1,
+						"kind": "session",
+						"sequence": 1,
+						"itemDigest": "4e7c453234156599c2c19cda5ec780fb43417c4e3d87bb16b527f3981a5bd8da",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "lifecycle",
+						"sequence": 2,
+						"itemDigest": "0ce583bc9fd62583a45574eefc8603b29c5062cc0b2d9101a372f3ff42c82823",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "session",
+						"sequence": 1,
+						"itemDigest": "4e7c453234156599c2c19cda5ec780fb43417c4e3d87bb16b527f3981a5bd8da",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "lifecycle",
+						"sequence": 3,
+						"itemDigest": "38dc2d06f068dfa8df4eeaa888fc934fce9a892bfd11cde3aa8eb613ea923579",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "activity",
+						"sequence": 4,
+						"itemDigest": "4246f434ccbd99ed8edf908af66b3a109f644d572a52123e8b869f198ada6434",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "activity",
+						"sequence": 5,
+						"itemDigest": "58bf50a5893240c1cbceffb4e6518c4758d4a73d3052d5589090f083c9d72e79",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "activity",
+						"sequence": 6,
+						"itemDigest": "43afa681a22f83246fabbb586a25e4cd30cab4592d6d03da4d9ad6b242a06fc1",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "activity",
+						"sequence": 7,
+						"itemDigest": "fd16b687a352f83045597a7e2cc31d517bdae34228540bca5fff2e7eb9e791dd",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 1,
+						"kind": "lifecycle",
+						"sequence": 8,
+						"itemDigest": "722541536261123ce4ee2a6e62d81d5b1c1e895b0cf626a63d655237d1e93f47",
+						"status": 200,
+						"afterTerminal": false
+					},
+					{
+						"fence": 2,
+						"kind": "session",
+						"sequence": 1,
+						"itemDigest": "4e7c453234156599c2c19cda5ec780fb43417c4e3d87bb16b527f3981a5bd8da",
+						"status": 200,
+						"afterTerminal": true
+					}
+				]
+			},
+			"noCustomerFanout": true
+		}
+	]
+}

@@ -58,7 +58,9 @@ commit. Model/provider transport and source outbox construction remain fixtures;
 this does not claim live signed ingress or a real team's activation.
 
 Existing normal PM F1 covers queued-start authority, private activities, revoked
-execution and receipt recovery. The separate Hosted production PM adapter/SQL
-fixture must also prove the team gate. Results and exact candidate hashes belong
-in the corresponding verification report; this contract alone is not evidence
-that an untested Hosted implementation is safe.
+execution and receipt recovery. The installed `apps/f1/trusted-pm/hosted-gate.mjs` drive reuses the Hosted
+production PM adapter/SQL fixture for initial OFF, semaphore-queued withdrawal,
+active withdrawal and exact terminal reconciliation. Its immutable session receipt
+replay must preserve the journal and cannot reopen model/tools/progress. Results
+and exact candidate hashes are recorded in the corresponding verification reports;
+this contract alone is not evidence that an untested implementation is safe.
