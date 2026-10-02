@@ -62,6 +62,9 @@ const loseWriteAck = process.env.CYRUS_NATIVE_JOIN_LOSE_WRITE_ACK !== "0";
 const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
 const workRejection = process.env.CYRUS_NATIVE_JOIN_WORK_REJECTION === "1";
 const workDetails = process.env.CYRUS_NATIVE_JOIN_WORK_DETAILS === "1";
+const rolloutGate = process.env.CYRUS_NATIVE_JOIN_ROLLOUT_GATE === "1";
+let holdDispatch = false,
+	modelOpens = 0;
 let lostWorkDetailsAck = false;
 const requireMcpTiming = process.env.CYRUS_NATIVE_JOIN_MCP_TIMING === "1";
 let mcpTimingEvidence;
@@ -757,6 +760,11 @@ const model = new ContainedCodexAutomationModel(
 		);
 	},
 );
+const openModel = model.open.bind(model);
+model.open = async (...args) => {
+	modelOpens++;
+	return openModel(...args);
+};
 const ledger = new AutomationLedger(
 	join(directory, "ledger"),
 	fixture.workspaceId,
@@ -813,6 +821,7 @@ const runtime = new AutomationRuntime({
 		model: "gpt-5.5",
 		adapter: "codex-app-server-contained-v1",
 		reason: null,
+		controlReason: holdDispatch ? "Fixture queue barrier" : null,
 	}),
 	pollMilliseconds: 50,
 	tools: (authority, credential, signal) =>
@@ -861,6 +870,7 @@ async function complete(
 		revision: event.definition.revision,
 		eventId: event.eventId,
 		input: event.input,
+		trigger: event.trigger ?? "instruction",
 	});
 	assert.equal(created.occurrenceId, event.occurrenceId);
 	const deadline = Date.now() + 100000;
@@ -1215,7 +1225,137 @@ async function runExistingScenarios() {
 	);
 }
 try {
-	if (workDetails) {
+	if (rolloutGate) {
+		// Durable admission queue via actual registered HTTP. The hold is local
+		// readiness only; the production Hosted SQL decides current eligibility.
+		holdDispatch = true;
+		const queued = await control({
+			op: "event",
+			fixture: "gate-off",
+			input: "Queued before owning-team withdrawal",
+		});
+		await request("definitions", {
+			contractVersion: 1,
+			definition: queued.definition,
+		});
+		await request("occurrences", {
+			contractVersion: 1,
+			automationId: queued.definition.id,
+			revision: queued.definition.revision,
+			eventId: queued.eventId,
+			input: queued.input,
+		});
+		assert.equal(
+			ledger.status(queued.definition.id).occurrences[0].status,
+			"queued",
+		);
+		await control({ op: "gate", enabled: false });
+		holdDispatch = false;
+		await complete("gate-off", "gate-off", queued, true);
+		const sourceEvent = await control({
+			op: "event",
+			fixture: "gate-event",
+			trigger: "event",
+			input: JSON.stringify({
+				signal: {
+					version: 1,
+					kind: "slack.message",
+					provenance: {
+						source: "slack",
+						channelId: "C_BOUND",
+						senderId: "U_BOUND",
+						timestamp: "1790703000.001",
+						threadTimestamp: "1790703000.001",
+						eventId: "controlled-gate-event",
+						selectedTrigger: "slack.message",
+					},
+					intent: "observe_channel_message",
+					content: {
+						trust: "untrusted_external",
+						data: { text: "Controlled admitted source signal" },
+					},
+				},
+			}),
+		});
+		await complete("gate-event", "gate-event", sourceEvent, true);
+		assert.equal(modelOpens, 0);
+		assert.equal(models, 0);
+		// The stale registered definition generates a real local due tick;
+		// it still must pass Hosted admission before any model opens.
+		const tick = await control({
+			op: "gate-tick-definition",
+			fixture: "gate-tick",
+		});
+		await request("definitions", {
+			contractVersion: 1,
+			definition: tick.definition,
+		});
+		const deadline = Date.now() + 30000;
+		let tickOccurrence;
+		while (Date.now() < deadline) {
+			await runtime.wake();
+			tickOccurrence = ledger
+				.status(tick.definition.id)
+				.occurrences.find((o) => o.trigger === "tick");
+			if (tickOccurrence?.status === "blocked") break;
+			await new Promise((r) => setTimeout(r, 100));
+		}
+		assert.equal(tickOccurrence?.status, "blocked");
+		// Disable only this disposable local schedule before the later ON cases;
+		// a slow test must not accidentally admit the following minute's tick.
+		await request("definitions", {
+			contractVersion: 1,
+			definition: {
+				...tick.definition,
+				revision: tick.definition.revision + 1,
+				state: "paused",
+			},
+		});
+		assert.equal(modelOpens, 0);
+		assert.equal(models, 0);
+		await control({ op: "gate", enabled: true });
+		await control({ op: "gate-after-admit" });
+		await complete("gate-race", "gate-race", undefined, true);
+		assert.equal(modelOpens, 0);
+		assert.equal(models, 0);
+		await control({ op: "gate", enabled: true });
+		await control({ op: "arm-result-loss", fixture: "gate-terminal" });
+		await complete("gate-terminal", "gate-terminal");
+		assert.equal(modelOpens, 1);
+		assert.equal(models, 1);
+		const hosted = await control({ op: "gate-evidence" });
+		assert.equal(hosted.lostResult, true);
+		assert.ok(hosted.reconciliations >= 1);
+		assert.ok(hosted.denials >= 10);
+		assert.equal(hosted.results, 2);
+		assert.equal(hosted.terminalCommits, 1);
+		assert.ok(
+			Object.keys(toolCounts).every((name) => name === "read_context"),
+			"No write tool executes during gate scenarios",
+		);
+		await writeFile(
+			join(directory, "summary.json"),
+			JSON.stringify(
+				{
+					passed: true,
+					runtimeSha: manifest.cyrusLocalTestArtifact.sourceSha,
+					hosted,
+					models,
+					modelOpens,
+					statuses,
+					tick: {
+						statusBeforeScheduleCleanup: tickOccurrence.status,
+						attempts: tickOccurrence.attempts,
+					},
+					limits: [
+						"Actual installed registered HTTP/SQLite/native Docker + Hosted SQL/MCP; synthetic model, no live team changes",
+					],
+				},
+				null,
+				2,
+			),
+		);
+	} else if (workDetails) {
 		await complete("work-create");
 		await complete("work-details-set");
 		assert.equal(lostWorkDetailsAck, true);
