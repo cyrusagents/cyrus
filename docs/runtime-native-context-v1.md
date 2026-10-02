@@ -38,6 +38,32 @@ Source-free MCP uses `mcp.grantId === nativeContext.bindingId`. With a provider 
 included in the private checkpoint scope; changed bindings/permissions fail recovery.
 Credentials stay outside model context, native files and checkpoints.
 
+## Optional waiting details (E65)
+
+On both authorize and renew, a session-delivery-capable runtime advertises
+`X-Cyrus-Native-Work-Details: 1` alongside `X-Cyrus-Native-Context: 1`.
+Hosted may acknowledge `nativeContext.workDetails: 'waiting-v1'` on the first
+admission. Unknown versions reject. The entire native-context envelope remains
+part of checkpoint identity: adding/removing this ACK during renewal fails closed.
+Old admissions and terminal receipt reconciliation retain their original envelope;
+a new runtime must not upgrade an existing grant implicitly.
+
+Only with that ACK, `track_work` **updates** (required current work `reference`)
+accept optional `waiting_reason` (1..1000), `waiting_on` (1..200), and
+`next_action` (1..1000). Each accepts a nonempty already-trimmed string or `null`.
+Omission preserves the existing value; null clears it. At least one update field
+must be present. Creation remains strictly `{objective}`. Strings are validated,
+not silently normalized, preserving exact immutable operation payloads.
+
+Negotiated `read_context.work[]` may return the same optional snake_case fields,
+as bounded non-null strings. Missing values are omitted, not synthesized. Without
+the ACK, the original strict tool and read schemas remain in force. These details
+reach the native transcript through validated context; they grant no scheduling,
+provider, worker, source or terminal-proof authority. Existing current references,
+provenance checks, receipt identities and proof requirements remain unchanged.
+
+Contract: Hosted `98371685` / `c7c6da9c`, Runtime ACK `591b1c06`.
+
 ## Strict tool arguments and structured results
 
 | Tool | Arguments | Permission |

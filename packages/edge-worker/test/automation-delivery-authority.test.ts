@@ -541,6 +541,7 @@ it.each([
 		expect(h.get("X-Cyrus-Lifecycle-Authority")).toBe(enabled ? "1" : null);
 		expect(h.get("X-Cyrus-Context-Read-Authority")).toBe(enabled ? "1" : null);
 		expect(h.get("X-Cyrus-Slack-Messages")).toBe(enabled ? "1" : null);
+		expect(h.get("X-Cyrus-Native-Work-Details")).toBe(enabled ? "1" : null);
 		return new Response("{}");
 	});
 	vi.stubGlobal("fetch", fetcher);
@@ -549,8 +550,9 @@ it.each([
 		() => ({ apiKey: "fixture", workspaceId: "w" }),
 		enabled,
 	);
-	await gateway.call("authorize", {}, new AbortController().signal);
-	expect(fetcher).toHaveBeenCalledTimes(1);
+	for (const phase of ["admit", "renew"])
+		await gateway.call("authorize", { phase }, new AbortController().signal);
+	expect(fetcher).toHaveBeenCalledTimes(2);
 });
 
 it("uses fresh authoritative lifecycle handlers only with exact negotiation", async () => {
@@ -913,4 +915,35 @@ it("denies expired local authority before a negotiated context call", async () =
 	await f.create().wake();
 	expect(f.context.reads).toBe(0);
 	expect(f.state.models).toBe(0);
+});
+
+it.each([
+	false,
+	true,
+])("pins work-details negotiation across current renewal (initial=%s)", async (initial) => {
+	const f = await contextReadFixture("current-call-v1");
+	const original = f.options.gateway.call;
+	let negotiated = initial;
+	f.options.gateway.call = async (endpoint, body) => {
+		const value = await original(endpoint, body);
+		if (endpoint !== "authorize") return value;
+		return {
+			...value,
+			nativeContext: {
+				contractVersion: 1,
+				bindingId: "g",
+				scopeRef: "s",
+				permissions: ["read", "work"],
+				...(negotiated ? { workDetails: "waiting-v1" } : {}),
+			},
+		};
+	};
+	f.state.credentialTtl = 1000;
+	f.state.onModel = async () => {
+		negotiated = !initial;
+	};
+	await f.create().wake();
+	expect(f.state.models).toBe(1);
+	expect(f.state.results).toBe(0);
+	expect(f.ledger.status("d").occurrences[0]?.status).not.toBe("completed");
 });

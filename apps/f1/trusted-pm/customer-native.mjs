@@ -30,6 +30,7 @@ const { scopedToolSchemas, executionAuthority } = await load("contract");
 const { sessionDeliveryDigest } = await import(
 	pathToFileURL(join(edge, "sinks/session-delivery.js"))
 );
+const workDetails = process.env.CYRUS_F1_WORK_DETAILS === "1";
 const home = await mkdtemp(join(tmpdir(), "cyrus-customer-policy-native-"));
 const originalFetch = globalThis.fetch;
 const definition = {
@@ -41,8 +42,9 @@ const definition = {
 	revision: 1,
 	state: "enabled",
 	role: "coordinator",
-	instruction:
-		"Read permitted sources and submit the engineering request one way. Do not send messages.",
+	instruction: workDetails
+		? "Update waiting details on existing work. Do not send messages or schedule execution."
+		: "Read permitted sources and submit the engineering request one way. Do not send messages.",
 	schedule: null,
 	target: { harness: "codex", model: "gpt-5.5" },
 };
@@ -57,7 +59,13 @@ const context = {
 	contractVersion: 1,
 	bindingId: grant.id,
 	scopeRef: definition.scopeRef,
-	permissions: ["read"],
+	permissions: workDetails ? ["read", "work"] : ["read"],
+	...(workDetails ? { workDetails: "waiting-v1" } : {}),
+};
+const work = {
+	reference: randomUUID(),
+	objective: "Inspect reproduction",
+	status: "active",
 };
 let policy = {
 		version: 1,
@@ -128,8 +136,32 @@ app.all("/mcp", async (request, reply) => {
 								snapshotRevision: "current",
 								entries: [],
 								nextCursor: null,
+								...(workDetails ? { work: [{ ...work }] } : {}),
 							},
 						};
+					if (name === "track_work") {
+						assert.equal(args.reference, work.reference);
+						const key = extra._meta.idempotencyKey;
+						if (effects.has(key))
+							assert.equal(effects.get(key).payload, JSON.stringify(args));
+						else {
+							for (const [field, value] of Object.entries(args)) {
+								if (field === "reference") continue;
+								if (value === null) delete work[field];
+								else work[field] = value;
+							}
+							effects.set(key, {
+								payload: JSON.stringify(args),
+								receipt: {
+									bindingId: context.bindingId,
+									scopeRef: context.scopeRef,
+									status: "applied",
+									receiptId: randomUUID(),
+								},
+							});
+						}
+						return { content: [], structuredContent: effects.get(key).receipt };
+					}
 					if (name === "submit_engineering_request") {
 						const key = extra._meta.idempotencyKey;
 						if (effects.has(key))
@@ -212,7 +244,8 @@ globalThis.fetch = async (url, init) => {
 	if (
 		lostWrite &&
 		effects.size === 1 &&
-		body?.params?.name === "submit_engineering_request"
+		body?.params?.name ===
+			(workDetails ? "track_work" : "submit_engineering_request")
 	) {
 		lostWrite = false;
 		await response.body?.cancel();
@@ -223,6 +256,12 @@ globalThis.fetch = async (url, init) => {
 const model = await nativeOracle(
 	{
 		inspectRequest(request) {
+			if (workDetails) {
+				const tool = request.tools.find((t) => t.name === "track_work");
+				assert.ok(tool);
+				for (const name of ["waiting_reason", "waiting_on", "next_action"])
+					assert.ok(JSON.stringify(tool.parameters).includes(name));
+			}
 			assert.ok(!JSON.stringify(request).includes("PRIVATE_PM_FINDING"));
 			assert.ok(
 				!request.tools.some((t) =>
@@ -237,6 +276,55 @@ const model = await nativeOracle(
 		},
 		next(messages) {
 			const step = modelSteps++;
+			if (workDetails) {
+				if (step === 0)
+					return {
+						type: "tool",
+						call: {
+							name: "track_work",
+							arguments: {
+								reference: work.reference,
+								status: "waiting",
+								waiting_reason: "Need reproduction",
+								waiting_on: "Customer",
+								next_action: "Inspect supplied reproduction",
+							},
+						},
+					};
+				if (step === 1) {
+					assert.ok(
+						JSON.stringify(messages).includes("Need reproduction"),
+						"Fresh recovery context contains saved waiting details",
+					);
+					return {
+						type: "tool",
+						call: {
+							name: "track_work",
+							arguments: {
+								reference: work.reference,
+								status: "active",
+								waiting_reason: null,
+								waiting_on: null,
+							},
+						},
+					};
+				}
+				if (step === 2)
+					return {
+						type: "tool",
+						call: { name: "read_context", arguments: {} },
+					};
+				const last = messages.at(-1);
+				assert.ok(
+					JSON.stringify(last).includes("Inspect supplied reproduction"),
+				);
+				assert.ok(!JSON.stringify(last).includes("waiting_reason"));
+				assert.ok(!JSON.stringify(last).includes("waiting_on"));
+				return {
+					type: "result",
+					text: "Waiting details updated; no schedule created.",
+				};
+			}
 			if (step === 0)
 				return { type: "tool", call: { name: "list_issues", arguments: {} } };
 			if (step === 1)
@@ -321,7 +409,7 @@ const options = {
 				const a = {
 					authority: {
 						contractVersion: 1,
-						definition: { ...definition, grants: [grant] },
+						definition: { ...definition, grants: workDetails ? [] : [grant] },
 						occurrenceId: body.occurrence.id,
 						input: body.occurrence.input,
 						attemptId: body.attemptId,
@@ -330,7 +418,7 @@ const options = {
 						phase: results.has(body.occurrence.id) ? "reconcile" : "execute",
 					},
 					customerPolicy: policy,
-					oneWayEngineering: true,
+					...(!workDetails ? { oneWayEngineering: true } : {}),
 					nativeContext: context,
 					mcp: {
 						token: "synthetic-scoped-token-for-policy-fixture-only",
@@ -385,12 +473,16 @@ try {
 		JSON.stringify({ status: ledger.status(definition.id), modelSteps }),
 	);
 	assert.equal(results.size, 0);
-	assert.equal(modelSteps, 4);
+	assert.equal(modelSteps, workDetails ? 1 : 4);
 	clock += 11000;
 	await run();
-	assert.equal(effects.size, 1);
+	assert.equal(
+		effects.size,
+		workDetails ? 2 : 1,
+		JSON.stringify({ status: ledger.status(definition.id), modelSteps }),
+	);
 	assert.equal(results.size, 1);
-	assert.equal(modelSteps, 5);
+	assert.equal(modelSteps, workDetails ? 4 : 5);
 	policy = { ...policy, epoch: randomUUID() };
 	clock += 11000;
 	await run();
@@ -399,17 +491,27 @@ try {
 			.status,
 		"completed",
 	);
-	assert.equal(modelSteps, 5);
+	assert.equal(modelSteps, workDetails ? 4 : 5);
 	assert.equal(resultTransmissions, 2);
 	const summary = {
 		passed: true,
 		modelSteps,
-		oneWaySubmissions: effects.size,
+		...(workDetails
+			? {
+					workUpdates: effects.size,
+					omittedPreservedAndNullCleared: true,
+					freshWorkDetailsTranscript: true,
+				}
+			: { oneWaySubmissions: effects.size }),
 		resultCommits: results.size,
 		resultTransmissions,
 		privateActivityReceipts: receipts.size,
-		strictRestrictedAndEmailRead: true,
-		lostReferencedSubmissionAck: true,
+		...(workDetails
+			? { lostWorkUpdateAck: true }
+			: {
+					strictRestrictedAndEmailRead: true,
+					lostReferencedSubmissionAck: true,
+				}),
 		freshTranscript: true,
 		changedEpochTerminalRecovery: true,
 		limits: [

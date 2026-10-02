@@ -18,6 +18,7 @@ import {
 	nativeContextCalls,
 	nativeContextRejection,
 	nativeContextResult,
+	nativeContextSchema,
 } from "../src/automations/NativeContext.js";
 import { ScopedAutomationMcpClient } from "../src/automations/ScopedMcpClient.js";
 
@@ -712,4 +713,110 @@ it.each([
 			operationKey: "key",
 		}),
 	).toThrow("Unsupported tool rejection");
+});
+
+it("waiting details require the exact negotiated envelope and update-only fields", () => {
+	const legacy = authority();
+	const a = {
+		...legacy,
+		nativeContext: { ...context, workDetails: "waiting-v1" as const },
+	};
+	const reference = randomUUID();
+	for (const [field, max] of [
+		["waiting_reason", 1000],
+		["waiting_on", 200],
+		["next_action", 1000],
+	] as const) {
+		for (const value of [null, "x", "x".repeat(max)]) {
+			const call = {
+				name: "track_work",
+				arguments: { reference, [field]: value },
+			};
+			expect(() => authorizeTool(a, call)).not.toThrow();
+			expect(() => authorizeTool(legacy, call)).toThrow();
+			for (const role of ["investigator", "engineering"] as const)
+				expect(() =>
+					authorizeTool({ ...a, definition: { ...a.definition, role } }, call),
+				).toThrow();
+		}
+		for (const value of ["", " ", " padded", "padded ", "x".repeat(max + 1), 1])
+			expect(() =>
+				authorizeTool(a, {
+					name: "track_work",
+					arguments: { reference, [field]: value },
+				}),
+			).toThrow();
+		expect(() =>
+			authorizeTool(a, {
+				name: "track_work",
+				arguments: { objective: "Create", [field]: "x" },
+			}),
+		).toThrow();
+	}
+	expect(() =>
+		authorizeTool(a, {
+			name: "track_work",
+			arguments: { reference, next_action: "x", next_check_at: "tomorrow" },
+		}),
+	).toThrow();
+	expect(() =>
+		authorizeTool(a, { name: "track_work", arguments: { reference } }),
+	).toThrow();
+	expect(checkpointKey(a)).not.toBe(checkpointKey(legacy));
+	expect(() =>
+		nativeContextSchema.parse({ ...context, workDetails: "unknown" }),
+	).toThrow();
+	const schema = scopedToolSchemas(legacy).find(
+		(s) => s.shape.name.value === "track_work",
+	)!;
+	expect(
+		schema.safeParse({
+			name: "track_work",
+			arguments: { reference, waiting_on: null },
+		}).success,
+	).toBe(false);
+});
+
+it("waiting details read output is bounded, negotiated and preserved exactly for the native transcript", () => {
+	const negotiated = { ...context, workDetails: "waiting-v1" as const };
+	const work = {
+		reference: randomUUID(),
+		objective: "Investigate",
+		status: "waiting",
+		waiting_reason: "Need reproduction",
+		waiting_on: "Customer",
+		next_action: "Inspect supplied reproduction",
+	};
+	const page = {
+		bindingId: context.bindingId,
+		scopeRef: context.scopeRef,
+		snapshotRevision: "r1",
+		entries: [],
+		work: [work],
+		nextCursor: null,
+	};
+	expect(nativeContextResult(negotiated, "read_context", page)).toEqual({
+		items: [{ text: JSON.stringify({ snapshotRevision: "r1", work: [work] }) }],
+		nextCursor: null,
+	});
+	expect(() => nativeContextResult(context, "read_context", page)).toThrow();
+	for (const change of [
+		{ waiting_on: null },
+		{ waiting_on: "" },
+		{ waiting_on: "x".repeat(201) },
+		{ waiting_reason: "x".repeat(1001) },
+		{ next_action: "x".repeat(1001) },
+		{ next_check_at: "tomorrow" },
+	])
+		expect(() =>
+			nativeContextResult(negotiated, "read_context", {
+				...page,
+				work: [{ ...work, ...change }],
+			}),
+		).toThrow();
+	const { waiting_on, waiting_reason, next_action, ...oldWork } = work;
+	const oldPage = { ...page, work: [oldWork] };
+	expect(nativeContextResult(negotiated, "read_context", oldPage)).toEqual(
+		nativeContextResult(context, "read_context", oldPage),
+	);
 });

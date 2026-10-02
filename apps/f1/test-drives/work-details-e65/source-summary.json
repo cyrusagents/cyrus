@@ -1,0 +1,17 @@
+{
+	"passed": true,
+	"modelSteps": 4,
+	"workUpdates": 2,
+	"omittedPreservedAndNullCleared": true,
+	"freshWorkDetailsTranscript": true,
+	"resultCommits": 1,
+	"resultTransmissions": 2,
+	"privateActivityReceipts": 16,
+	"lostWorkUpdateAck": true,
+	"freshTranscript": true,
+	"changedEpochTerminalRecovery": true,
+	"limits": [
+		"Actual isolated native Codex, MCP SDK HTTP, runtime and private SQLite",
+		"Controlled model/Hosted/provider authority; no actual Hosted SQL or live-provider claim"
+	]
+}

@@ -10,6 +10,7 @@ export const nativeContextSchema = z
 		contractVersion: z.literal(1),
 		bindingId: id,
 		scopeRef: id,
+		workDetails: z.literal("waiting-v1").optional(),
 		permissions: z
 			.array(z.enum(["read", "remember", "apply_approved", "work"]))
 			.min(1)
@@ -41,6 +42,62 @@ const describedReferences = z
 			.strict(),
 	)
 	.max(25);
+// Do not normalize immutable write payloads: the sender must supply trimmed text.
+const detailText = (max: number) =>
+	z
+		.string()
+		.min(1)
+		.max(max)
+		.refine((v) => v === v.trim());
+const workDetailsFields = {
+	waiting_reason: detailText(1000),
+	waiting_on: detailText(200),
+	next_action: detailText(1000),
+};
+const workUpdate = z
+	.object({
+		reference: z.string().uuid(),
+		objective: z.string().min(1).max(500).optional(),
+		status: workStatusSchema.optional(),
+		outcome_reference: z.string().uuid().optional(),
+	})
+	.strict();
+const hasWorkChange = (value: Record<string, unknown>) =>
+	Object.entries(value).some(
+		([key, value]) => key !== "reference" && value !== undefined,
+	);
+const workCreate = z.object({ objective: z.string().min(1).max(500) }).strict();
+export const legacyTrackWorkCall = z
+	.object({
+		name: z.literal("track_work"),
+		arguments: z.union([workCreate, workUpdate.refine(hasWorkChange)]),
+	})
+	.strict();
+const waitingTrackWorkCall = z
+	.object({
+		name: z.literal("track_work"),
+		arguments: z.union([
+			workCreate,
+			workUpdate
+				.extend({
+					waiting_reason: workDetailsFields.waiting_reason
+						.nullable()
+						.optional(),
+					waiting_on: workDetailsFields.waiting_on.nullable().optional(),
+					next_action: workDetailsFields.next_action.nullable().optional(),
+				})
+				.strict()
+				.refine(hasWorkChange),
+		]),
+	})
+	.strict();
+const workRead = z
+	.object({
+		reference: z.string().uuid(),
+		objective: z.string().min(1).max(500),
+		status: workStatusSchema,
+	})
+	.strict();
 // Includes the retired call shape solely so old checkpoints remain readable.
 // permittedToolNames/authorizeTool never expose or execute it.
 export const nativeContextCalls = [
@@ -74,28 +131,7 @@ export const nativeContextCalls = [
 			arguments: z.object({ reference: z.string().uuid() }).strict(),
 		})
 		.strict(),
-	z
-		.object({
-			name: z.literal("track_work"),
-			arguments: z.union([
-				z.object({ objective: z.string().min(1).max(500) }).strict(),
-				z
-					.object({
-						reference: z.string().uuid(),
-						objective: z.string().min(1).max(500).optional(),
-						status: workStatusSchema.optional(),
-						outcome_reference: z.string().uuid().optional(),
-					})
-					.strict()
-					.refine(
-						(v) =>
-							v.objective !== undefined ||
-							v.status !== undefined ||
-							v.outcome_reference !== undefined,
-					),
-			]),
-		})
-		.strict(),
+	waitingTrackWorkCall,
 ] as const;
 export const nativeContextPageSchema = z
 	.object({
@@ -115,18 +151,7 @@ export const nativeContextPageSchema = z
 			)
 			.max(25),
 		inputEvidence: describedReferences.optional(),
-		work: z
-			.array(
-				z
-					.object({
-						reference: z.string().uuid(),
-						objective: z.string().min(1).max(500),
-						status: workStatusSchema,
-					})
-					.strict(),
-			)
-			.max(25)
-			.optional(),
+		work: z.array(workRead).max(25).optional(),
 		outcomes: describedReferences.optional(),
 		nextCursor: z.string().uuid().nullable(),
 		approvedActions: z
@@ -135,6 +160,22 @@ export const nativeContextPageSchema = z
 					.object({
 						reference: z.string().uuid(),
 						description: z.string().max(1000),
+					})
+					.strict(),
+			)
+			.max(25)
+			.optional(),
+	})
+	.strict();
+const waitingContextPageSchema = nativeContextPageSchema
+	.extend({
+		work: z
+			.array(
+				workRead
+					.extend({
+						waiting_reason: workDetailsFields.waiting_reason.optional(),
+						waiting_on: workDetailsFields.waiting_on.optional(),
+						next_action: workDetailsFields.next_action.optional(),
 					})
 					.strict(),
 			)
@@ -174,7 +215,10 @@ export function nativeContextResult(
 		throw new Error("Native context response exceeds bound");
 	const parsed =
 		name === "read_context"
-			? nativeContextPageSchema.parse(raw)
+			? (context.workDetails === "waiting-v1"
+					? waitingContextPageSchema
+					: nativeContextPageSchema
+				).parse(raw)
 			: nativeContextReceiptSchema.parse(raw);
 	if (
 		parsed.bindingId !== context.bindingId ||

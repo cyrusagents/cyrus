@@ -26,7 +26,6 @@ import type { SupervisorTiming } from "./HostedTiming.js";
 import { beginLatency, measureLatency } from "./Latency.js";
 import {
 	isNativeContextTool,
-	nativeContextPageSchema,
 	nativeContextRejection,
 	nativeContextResult,
 } from "./NativeContext.js";
@@ -434,12 +433,8 @@ export class ScopedAutomationMcpClient implements ScopedAutomationTools {
 						call.name,
 						result.structuredContent,
 					);
-					if (call.name === "read_context") {
-						const page = nativeContextPageSchema.parse(
-							result.structuredContent,
-						);
-						if (page.nextCursor) this.contextCursors.add(page.nextCursor);
-					}
+					if (call.name === "read_context" && output.nextCursor)
+						this.contextCursors.add(output.nextCursor);
 					return output;
 				}
 				if (call.name === "reply" && authority.slackMessages)

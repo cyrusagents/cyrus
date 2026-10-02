@@ -16,6 +16,7 @@ import {
 } from "./Engineering.js";
 import {
 	isNativeContextTool,
+	legacyTrackWorkCall,
 	type NativeContext,
 	nativeContextCalls,
 	nativeContextSchema,
@@ -520,7 +521,12 @@ export function scopedToolDescription(
 		case "apply_approved_action":
 			return "Retired compatibility shape; this operation is unavailable.";
 		case "track_work":
-			return "Create work with an objective, or update only a work reference issued by current read_context. Use only a current outcome reference for verified/confirmed/closed transitions; the server requires matching proof and customer confirmation for confirmed. Only an applied receipt means changed; never replay legacy pending actions under another identity.";
+			return (
+				"Create work with an objective, or update only a work reference issued by current read_context. Use only a current outcome reference for verified/confirmed/closed transitions; the server requires matching proof and customer confirmation for confirmed. Only an applied receipt means changed; never replay legacy pending actions under another identity." +
+				(authority.nativeContext?.workDetails === "waiting-v1"
+					? " Updates may include waiting_reason, waiting_on and next_action: omit to preserve, null to clear, or supply bounded nonempty trimmed text. These details do not schedule future execution. Creation accepts only objective."
+					: "")
+			);
 		case "read_messages":
 			return isSlackChannel(authority)
 				? "Read bounded history from the admitted Slack channel. Use only its returned opaque cursor for pagination and thread references with read_thread. Re-read history after reconnect or reference expiry."
@@ -558,6 +564,11 @@ export function scopedToolSchemas(authority: AutomationAuthority) {
 	return toolCallSchema.options
 		.filter((schema) => names.includes(schema.shape.name.value))
 		.map((schema) => {
+			if (
+				schema.shape.name.value === "track_work" &&
+				authority.nativeContext?.workDetails !== "waiting-v1"
+			)
+				return legacyTrackWorkCall;
 			if (schema.shape.name.value === "reply" && !isSlackChannel(authority))
 				return z
 					.object({
