@@ -1249,9 +1249,6 @@ try {
 			ledger.status(queued.definition.id).occurrences[0].status,
 			"queued",
 		);
-		await control({ op: "gate", enabled: false });
-		holdDispatch = false;
-		await complete("gate-off", "gate-off", queued, true);
 		const sourceEvent = await control({
 			op: "event",
 			fixture: "gate-event",
@@ -1277,15 +1274,32 @@ try {
 				},
 			}),
 		});
-		await complete("gate-event", "gate-event", sourceEvent, true);
-		assert.equal(modelOpens, 0);
-		assert.equal(models, 0);
-		// The stale registered definition generates a real local due tick;
-		// it still must pass Hosted admission before any model opens.
+		// Persist admitted input while ON; the outbox itself correctly rejects
+		// new inserts after withdrawal. Only execution is released while OFF.
+		await request("definitions", {
+			contractVersion: 1,
+			definition: sourceEvent.definition,
+		});
+		await request("occurrences", {
+			contractVersion: 1,
+			automationId: sourceEvent.definition.id,
+			revision: sourceEvent.definition.revision,
+			eventId: sourceEvent.eventId,
+			input: sourceEvent.input,
+			trigger: sourceEvent.trigger,
+		});
 		const tick = await control({
 			op: "gate-tick-definition",
 			fixture: "gate-tick",
 		});
+		await control({ op: "gate", enabled: false });
+		holdDispatch = false;
+		await complete("gate-off", "gate-off", queued, true);
+		await complete("gate-event", "gate-event", sourceEvent, true);
+		assert.equal(modelOpens, 0);
+		assert.equal(models, 0);
+		// A stale definition admitted before withdrawal generates a real due
+		// local tick; Hosted must deny it before any model opens.
 		await request("definitions", {
 			contractVersion: 1,
 			definition: tick.definition,
