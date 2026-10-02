@@ -56,6 +56,7 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 		}
 	}
 	const combined = process.env.CYRUS_NATIVE_JOIN_COMBINED === "1";
+	const workDetails = process.env.CYRUS_NATIVE_JOIN_WORK_DETAILS === "1";
 	const slackMessages = process.env.CYRUS_NATIVE_JOIN_SLACK_MESSAGES === "1";
 	assert.ok(!slackMessages || combined);
 	const slackPosted = [];
@@ -315,7 +316,11 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			}
 			assert.equal(p.p_native_context, true);
 			const [{ v: native }] =
-				await sql`select customer_native_admit(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_credential_hash},${p.p_request}::jsonb,${p.p_token_hash}) v`;
+				await sql`select customer_native_admit(${p.p_workspace}::uuid,${p.p_instance}::uuid,${p.p_credential_hash},${{ ...p.p_request, nativeWorkDetails: p.p_native_work_details === true }}::jsonb,${p.p_token_hash}) v`;
+			if (workDetails) {
+				assert.equal(p.p_native_work_details, true);
+				assert.equal(native.nativeContext.workDetails, "waiting-v1");
+			}
 			const key = p.p_request.occurrenceId;
 			if (originalSources.has(key))
 				assert.deepEqual(
@@ -712,6 +717,14 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			lostResult = false;
 			resultLossFixture = f;
 			return {};
+		}
+		if (body.op === "work-details") {
+			assert.ok(workDetails);
+			const rows =
+				await sql`select objective,status,outcome,next_check_at from customer_threads where customer_id=${f.customer}`;
+			const [effects] =
+				await sql`select count(*)::int n from customer_native_operations o join customer_native_grants g on g.id=o.grant_id where g.binding_id=${f.id}::uuid and o.tool='track_work'`;
+			return { rows, effects: effects.n, ...evidence, passed: true };
 		}
 		if (body.op === "facts")
 			return {

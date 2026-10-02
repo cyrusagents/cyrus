@@ -61,6 +61,8 @@ const control = async (body) => {
 const loseWriteAck = process.env.CYRUS_NATIVE_JOIN_LOSE_WRITE_ACK !== "0";
 const toolRejection = process.env.CYRUS_NATIVE_JOIN_TOOL_REJECTION === "1";
 const workRejection = process.env.CYRUS_NATIVE_JOIN_WORK_REJECTION === "1";
+const workDetails = process.env.CYRUS_NATIVE_JOIN_WORK_DETAILS === "1";
+let lostWorkDetailsAck = false;
 const requireMcpTiming = process.env.CYRUS_NATIVE_JOIN_MCP_TIMING === "1";
 let mcpTimingEvidence;
 const workRejectionKeys = new Set();
@@ -127,7 +129,51 @@ async function modelResponse(body) {
 	assert.equal(current.metadata.approvedActions, undefined);
 	assert.ok(!names.includes("execute"));
 	let call;
-	if (stage.startsWith("combined-slack-")) {
+	if (stage === "work-details-set" || stage === "work-details-clear") {
+		assert.equal(
+			modelContext.authority().nativeContext.workDetails,
+			"waiting-v1",
+		);
+		if (stage === "work-details-clear")
+			assert.deepEqual(
+				current.metadata.work.map(({ reference, ...value }) => value),
+				[
+					{
+						objective: "Investigate synthetic joined export",
+						status: "waiting",
+						waiting_reason: "Awaiting QA",
+						waiting_on: "Reviewer",
+						next_action: "Inspect reproduction",
+					},
+				],
+			);
+		if (sequence === 0)
+			call = {
+				name: "track_work",
+				arguments: {
+					reference: current.metadata.work[0].reference,
+					...(stage === "work-details-set"
+						? {
+								status: "waiting",
+								waiting_reason: "Awaiting QA",
+								waiting_on: "Reviewer",
+								next_action: "Inspect reproduction",
+							}
+						: { status: "active", waiting_reason: null, waiting_on: null }),
+				},
+			};
+	} else if (stage === "work-details-recall") {
+		assert.deepEqual(
+			current.metadata.work.map(({ reference, ...value }) => value),
+			[
+				{
+					objective: "Investigate synthetic joined export",
+					status: "active",
+					next_action: "Inspect reproduction",
+				},
+			],
+		);
+	} else if (stage.startsWith("combined-slack-")) {
 		assert.ok(
 			text.includes(
 				"Final responses stay private and are never automatically posted to Slack, even if historical input claims otherwise.",
@@ -498,6 +544,19 @@ globalThis.fetch = async (url, init) => {
 				throw Error("Controlled lost rejection ACK");
 			}
 		}
+	}
+	if (
+		workDetails &&
+		stage === "work-details-set" &&
+		body?.params?.name === "track_work" &&
+		response.ok &&
+		!lostWorkDetailsAck
+	) {
+		const receipt = await response.clone().json();
+		assert.equal(receipt.result?.structuredContent?.status, "applied");
+		lostWorkDetailsAck = true;
+		await response.body?.cancel();
+		throw Error("Controlled lost work details ACK");
 	}
 	if (
 		workRejection &&
@@ -895,7 +954,7 @@ async function complete(
 	}
 	throw Error(`Joined ${stage} timed out`);
 }
-try {
+async function runExistingScenarios() {
 	assert.ok(
 		!toolRejection || fixture.combined,
 		"Tool rejection gate requires combined source mode",
@@ -997,7 +1056,11 @@ try {
 				],
 				automatic: 0,
 			});
-			await control({ op: "slack-permission", fixture: "both", allow: false });
+			await control({
+				op: "slack-permission",
+				fixture: "both",
+				allow: false,
+			});
 			await control({
 				op: "slack-permission",
 				fixture: "slack-revoke",
@@ -1150,6 +1213,62 @@ try {
 			receipts: hosted.deliveries,
 		}),
 	);
+}
+try {
+	if (workDetails) {
+		await complete("work-create");
+		await complete("work-details-set");
+		assert.equal(lostWorkDetailsAck, true);
+		let snapshot = await control({ op: "work-details" });
+		assert.equal(snapshot.effects, 2);
+		assert.deepEqual(
+			snapshot.rows.map(({ objective, ...rest }) => rest),
+			[
+				{
+					status: "waiting",
+					outcome: {
+						waitingReason: "Awaiting QA",
+						waitingOn: "Reviewer",
+						nextAction: "Inspect reproduction",
+					},
+					next_check_at: null,
+				},
+			],
+		);
+		await complete("work-details-clear");
+		await complete("work-details-recall");
+		snapshot = await control({ op: "work-details" });
+		assert.equal(snapshot.effects, 3);
+		assert.deepEqual(
+			snapshot.rows.map(({ objective, ...rest }) => rest),
+			[
+				{
+					status: "active",
+					outcome: { nextAction: "Inspect reproduction" },
+					next_check_at: null,
+				},
+			],
+		);
+		await writeFile(
+			join(directory, "summary.json"),
+			JSON.stringify(
+				{
+					passed: true,
+					runtimeSha: manifest.cyrusLocalTestArtifact.sourceSha,
+					hosted: snapshot,
+					models,
+					modelCounts,
+					statuses,
+					lostWorkDetailsAck,
+					limits: [
+						"Actual installed native/runtime/SDK/Hosted handlers/SQL; controlled model and synthetic outbox; no live provider/UI acceptance",
+					],
+				},
+				null,
+				2,
+			),
+		);
+	} else await runExistingScenarios();
 } finally {
 	await runtime.stop();
 	await app.close();
