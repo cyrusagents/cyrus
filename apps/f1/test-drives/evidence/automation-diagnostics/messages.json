@@ -1,0 +1,61 @@
+{
+	"target": {
+		"harness": "claude",
+		"model": "claude-fixture"
+	},
+	"activityReceipts": 106,
+	"readSets": {
+		"contentReads": 4,
+		"rotationRelist": true
+	},
+	"engineering": {
+		"assignments": 0,
+		"publications": 0,
+		"calls": 0,
+		"lostAckRecovered": false
+	},
+	"delegation": {
+		"children": 2,
+		"calls": 5,
+		"lostAckRecovered": true
+	},
+	"passed": true,
+	"counts": {
+		"sessionDeliveries": 110,
+		"initialize": 21,
+		"list": 81,
+		"tools": 22,
+		"models": 40,
+		"progress": 18,
+		"resultTransmissions": 17,
+		"resultCommits": 16,
+		"denied": 5
+	},
+	"assertions": [
+		"instruction through registered HTTP routes",
+		"pre-checkpoint authority denial persists safe phase/status after three attempts and is visible only through authenticated runtime status",
+		"customer read-set list/two reads through one current SDK session; forced lease renewal invalidates references and model re-lists before reading",
+		"source-free contained model reply with zero grants, no MCP initialization and durable normalized response/result",
+		"model-facing direct/ticket delegation through SDK MCP, stable payload identity across lost ACK/new attempt/repeated native calls, exactly one child per request",
+		"direct and assigned-ticket child descriptors, parent linkage and separate durable activity journals",
+		"negotiated durable normalized session activities, lost activity ACK, terminal flush before result and receipt-only reconnect",
+		"admitted Slack/Linear event idle wake, active-turn queue, duplicate/out-of-order delivery and restart retention",
+		"event pause denial and cross-customer context separation",
+		"actual scheduled tick",
+		"non-customer automation",
+		"durable result ACK recovery after pause and restart with model unavailable",
+		"no model/tool/progress reopening",
+		"real MCP SDK initialize/list/call/reconnect",
+		"open-session expiry/revocation",
+		"supervisor key rejected at MCP",
+		"forged authority and live copied instance denied",
+		"strict fixed-resource arguments",
+		"private checkpoints without credentials"
+	],
+	"limitations": [
+		"Hosted authority/provider/model transports are controlled fixtures; real hosted connected gate still required",
+		"No live provider or model calls; actual signature/subscription/mapping proof is Hosted-owned",
+		"Customer read sets use controlled session references; live association/mapping validation remains Hosted-owned",
+		"Engineering requires the opt-in immutable native image; not exercised by Messages-only drive"
+	]
+}

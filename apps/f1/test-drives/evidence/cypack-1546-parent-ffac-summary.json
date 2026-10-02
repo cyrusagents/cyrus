@@ -1,0 +1,43 @@
+{
+	"runtime": {
+		"passed": true,
+		"node": "v26.5.0",
+		"registeredEntryPoint": true,
+		"automaticLostAckRecovery": true,
+		"completed": 3,
+		"parentOccurrences": 2,
+		"parentModelSteps": 2,
+		"productionDispatcher": {
+			"productionDispatcher": true,
+			"occurrenceAckLost": true,
+			"duplicateDispatchDeduplicated": true,
+			"foreignCustomerDenied": true,
+			"withdrawnSponsorDenied": true,
+			"pausedCustomerDenied": true,
+			"publications": 1,
+			"done": true,
+			"parentEventCount": 2
+		},
+		"modelSteps": 4,
+		"resultTransmissions": 4,
+		"commandExitCodes": [1, 0],
+		"image": "sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f",
+		"elapsedMs": 46018
+	},
+	"native": {
+		"opens": 4,
+		"requests": 6,
+		"childRequests": 0,
+		"closes": 4,
+		"noPrivateParentInChildInput": true
+	},
+	"dispatches": 168,
+	"wakes": 4,
+	"deliveries": 29,
+	"hostedSha": "ffac422c251be13ba73be126a2381e2356f071ac",
+	"runtimeSha": "397813003cccc9e1f936feff3e96987e1b507229",
+	"limits": [
+		"Production dispatch/callback/SQL/installed native real; registered-target routing and Workflow wake transport controlled",
+		"GitHub transport/model synthetic; no live provider/UI proof"
+	]
+}

@@ -150,3 +150,43 @@ describe("translateAppServerItem", () => {
 		});
 	});
 });
+
+it("maps actual contained app-server dynamic tool start/result instead of dropping them", () => {
+	const start = {
+		type: "dynamicToolCall",
+		id: "call_fixture",
+		namespace: null,
+		tool: "get_issue",
+		arguments: {},
+		status: "inProgress",
+		contentItems: null,
+		success: null,
+		durationMs: null,
+	};
+	expect(translateAppServerItem(start)).toEqual({
+		type: "dynamic_tool_call",
+		id: "call_fixture",
+		tool: "get_issue",
+		arguments: {},
+		status: "in_progress",
+		text: "",
+	});
+	expect(
+		translateAppServerItem({
+			...start,
+			status: "completed",
+			contentItems: [{ type: "inputText", text: "Scoped issue content" }],
+			success: true,
+		}),
+	).toEqual({
+		type: "dynamic_tool_call",
+		id: "call_fixture",
+		tool: "get_issue",
+		arguments: {},
+		status: "completed",
+		text: "Scoped issue content",
+	});
+	expect(
+		translateAppServerItem({ ...start, status: "completed", success: false }),
+	).toMatchObject({ status: "failed" });
+});

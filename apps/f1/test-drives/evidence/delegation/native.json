@@ -1,0 +1,49 @@
+{
+	"target": {
+		"harness": "codex",
+		"model": "gpt-5.5"
+	},
+	"containedImage": "sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f",
+	"activityReceipts": 91,
+	"delegation": {
+		"children": 2,
+		"calls": 5,
+		"lostAckRecovered": true
+	},
+	"passed": true,
+	"directory": "/tmp/cyrus-automation-f1-XALOaQ",
+	"counts": {
+		"sessionDeliveries": 95,
+		"initialize": 18,
+		"list": 18,
+		"tools": 15,
+		"models": 29,
+		"progress": 15,
+		"resultTransmissions": 14,
+		"resultCommits": 13,
+		"denied": 5
+	},
+	"assertions": [
+		"instruction through registered HTTP routes",
+		"model-facing direct/ticket delegation through SDK MCP, stable payload identity across lost ACK/new attempt/repeated native calls, exactly one child per request",
+		"direct and assigned-ticket child descriptors, parent linkage and separate durable activity journals",
+		"negotiated durable normalized session activities, lost activity ACK, terminal flush before result and receipt-only reconnect",
+		"admitted Slack/Linear event idle wake, active-turn queue, duplicate/out-of-order delivery and restart retention",
+		"event pause denial and cross-customer context separation",
+		"actual scheduled tick",
+		"non-customer automation",
+		"durable result ACK recovery after pause and restart with model unavailable",
+		"no model/tool/progress reopening",
+		"real MCP SDK initialize/list/call/reconnect",
+		"open-session expiry/revocation",
+		"supervisor key rejected at MCP",
+		"forged authority and live copied instance denied",
+		"strict fixed-resource arguments",
+		"private checkpoints without credentials"
+	],
+	"limitations": [
+		"Hosted authority/provider/model transports are controlled fixtures; real hosted connected gate still required",
+		"No live provider or model calls; actual signature/subscription/mapping proof is Hosted-owned",
+		"Single-bound Linear/Slack tools only; engineering lifecycle integration pending"
+	]
+}

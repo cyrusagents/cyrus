@@ -1,3 +1,11 @@
+export { translateAppServerItem } from "./backend/appServerEvents.js";
+export { CodexLoginBroker } from "./backend/CodexLoginBroker.js";
+export {
+	type ContainedCodexConfig,
+	ContainedCodexProcess,
+	type ContainedModelRequest,
+	type ContainedModelResponse,
+} from "./backend/ContainedCodexProcess.js";
 export type {
 	NormalizedCodexEvent,
 	NormalizedCodexItem,

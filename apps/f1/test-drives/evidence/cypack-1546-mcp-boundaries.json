@@ -1,0 +1,58 @@
+{
+	"runtimeSha": "75438a10deb245e172bf07b7435ad321d9b7fa7a",
+	"hostedSha": "198b3b48ecafeeaa89328865678eabdbffa76b58",
+	"passed": true,
+	"modelRequests": 26,
+	"resultTransmissions": 13,
+	"activityDeliveries": 121,
+	"mcpPreflights": 305,
+	"mcpAuthorizations": 317,
+	"mcpPhases": {
+		"initialize": {
+			"requests": 13,
+			"denied": 0,
+			"durationMs": 179.61445699998012,
+			"preflight": 13,
+			"preflightMs": 42.058081999985916,
+			"authorize": 13,
+			"authorizeMs": 38.24116699999968
+		},
+		"notifications/initialized": {
+			"requests": 13,
+			"denied": 0,
+			"durationMs": 94.06670599998142,
+			"preflight": 13,
+			"preflightMs": 39.92129000000659,
+			"authorize": 13,
+			"authorizeMs": 42.17587800000592
+		},
+		"GET": {
+			"requests": 13,
+			"denied": 13,
+			"durationMs": 57.086456999985785,
+			"preflight": 0,
+			"preflightMs": 0,
+			"authorize": 13,
+			"authorizeMs": 55.98233400000527
+		},
+		"tools/list": {
+			"requests": 251,
+			"denied": 1,
+			"durationMs": 2253.4892110000915,
+			"preflight": 251,
+			"preflightMs": 1070.1466200000173,
+			"authorize": 250,
+			"authorizeMs": 962.1368670000024
+		},
+		"tools/call": {
+			"requests": 28,
+			"denied": 0,
+			"durationMs": 477.69912300004034,
+			"preflight": 28,
+			"preflightMs": 133.6567889999883,
+			"authorize": 28,
+			"authorizeMs": 114.57799899998827
+		}
+	},
+	"limitations": "Actual SDK/handler/SQL/native; provider checks, model and event transport controlled. No live speed measurement."
+}

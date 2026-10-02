@@ -1,0 +1,66 @@
+{
+	"target": {
+		"harness": "codex",
+		"model": "gpt-5.5"
+	},
+	"containedImage": "sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f",
+	"activityReceipts": 136,
+	"readSets": {
+		"contentReads": 4,
+		"slowModelTurns": 2,
+		"sessionRenewals": 10
+	},
+	"engineering": {
+		"assignments": 1,
+		"publications": 1,
+		"calls": 2,
+		"lostAckRecovered": true
+	},
+	"delegation": {
+		"children": 2,
+		"calls": 5,
+		"lostAckRecovered": true
+	},
+	"passed": true,
+	"directory": "/tmp/cyrus-automation-f1-8BWES7",
+	"counts": {
+		"sessionDeliveries": 141,
+		"initialize": 23,
+		"list": 125,
+		"tools": 23,
+		"models": 45,
+		"progress": 21,
+		"resultTransmissions": 19,
+		"resultCommits": 18,
+		"denied": 5
+	},
+	"assertions": [
+		"reviewed assignment-only engineering: real isolated failing test, retained edit, model-directed repair/passing rerun, one immutable publication receipt across lost ACK and native reconnect",
+		"instruction through registered HTTP routes",
+		"authenticated idempotent operator recovery preserves original occurrence, denies widening/active/completed work, exhausts a revoked three-attempt cycle, then completes only after current authority admits a new explicit cycle",
+		"pre-checkpoint authority denial persists safe phase/status after three attempts and is visible only through authenticated runtime status",
+		"customer read-set list/two reads through one current SDK session; two 25-second model turns each outlast the 20-second lease while negotiated renewal preserves exact references",
+		"source-free contained model reply with zero grants, no MCP initialization and durable normalized response/result",
+		"model-facing direct/ticket delegation through SDK MCP, stable payload identity across lost ACK/new attempt/repeated native calls, exactly one child per request",
+		"direct and assigned-ticket child descriptors, parent linkage and separate durable activity journals",
+		"negotiated durable normalized session activities, lost activity ACK, terminal flush before result and receipt-only reconnect",
+		"admitted Slack/Linear event idle wake, active-turn queue, duplicate/out-of-order delivery and restart retention",
+		"event pause denial and cross-customer context separation",
+		"actual scheduled tick",
+		"non-customer automation",
+		"durable result ACK recovery after pause and restart with model unavailable",
+		"no model/tool/progress reopening",
+		"real MCP SDK initialize/list/call/reconnect",
+		"open-session expiry/revocation",
+		"supervisor key rejected at MCP",
+		"forged authority and live copied instance denied",
+		"strict fixed-resource arguments",
+		"private checkpoints without credentials"
+	],
+	"limitations": [
+		"Hosted authority/provider/model transports are controlled fixtures; real hosted connected gate still required",
+		"No live provider or model calls; actual signature/subscription/mapping proof is Hosted-owned",
+		"Customer read sets use controlled session references; live association/mapping validation remains Hosted-owned",
+		"Engineering publication receipt is a controlled MCP fixture, not a live GitHub write or hosted SQL proof"
+	]
+}

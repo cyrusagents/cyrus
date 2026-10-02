@@ -1,0 +1,28 @@
+{
+	"passed": true,
+	"sourceSha": "dd0a6cafb6051d138d38cf88b5160b2dff37562d",
+	"installedPrefix": "/tmp/cypack-1546-automation-dd0a-installed",
+	"capabilities": {
+		"contractVersion": 1,
+		"available": true,
+		"reason": null,
+		"workspaceId": "installed-fixture-workspace",
+		"target": {
+			"harness": "claude",
+			"model": "claude-fixture",
+			"adapter": "anthropic-messages-contained-v1"
+		},
+		"capabilities": {
+			"automations": true,
+			"scheduledTicks": true,
+			"scopedMcp": true,
+			"currentAuthorityResume": true,
+			"resultReconciliation": true,
+			"nativeTools": false,
+			"sharedMemory": false,
+			"engineering": false
+		},
+		"minimumPublishedVersion": null
+	},
+	"externalRequests": 0
+}

@@ -44,6 +44,14 @@ export type NormalizedCodexItem =
 			status: "in_progress" | "completed" | "failed";
 	  }
 	| {
+			type: "dynamic_tool_call";
+			id: string;
+			tool: string;
+			arguments: unknown;
+			text: string;
+			status: "in_progress" | "completed" | "failed";
+	  }
+	| {
 			type: "web_search";
 			id: string;
 			query: string;

@@ -1,0 +1,15 @@
+{
+	"hostedSha": "d07dc874c068c89847cf81e3cf90ca53654f5e20",
+	"runtimeSha": "f91a723197bb0dbae90cc82a55995ae08e225f33",
+	"image": "sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f",
+	"combinedSources": false,
+	"workDetails": true,
+	"slackMessages": false,
+	"requireMcpTiming": false,
+	"requireContextReadAuthority": false,
+	"requireLifecycleAuthority": false,
+	"workRejectionScenario": false,
+	"toolRejectionScenario": false,
+	"lostWriteAckScenario": true,
+	"fixture": "Actual handlers/SQL/native Docker; synthetic model/provider checks and event outbox"
+}

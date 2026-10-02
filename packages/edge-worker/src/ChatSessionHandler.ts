@@ -27,6 +27,8 @@ export type ChatPlatformName = "slack" | "linear" | "github" | "zulip";
 
 export interface ChatPlatformAdapter<TEvent> {
 	readonly platformName: ChatPlatformName;
+	/** Fresh platform eligibility, including when a queued event is redispatched. */
+	canHandleEvent?(event: TEvent): Promise<boolean>;
 
 	/** Extract the user's task text from the raw event */
 	extractTaskInstructions(event: TEvent): string;
@@ -196,6 +198,11 @@ export class ChatSessionHandler<TEvent> {
 		this.deps.onWebhookStart();
 
 		try {
+			if (
+				this.adapter.canHandleEvent &&
+				!(await this.adapter.canHandleEvent(event))
+			)
+				return;
 			this.logger.info(
 				`Processing ${this.adapter.platformName} webhook: ${this.adapter.getEventId(event)}`,
 			);
@@ -227,14 +234,18 @@ export class ChatSessionHandler<TEvent> {
 						this.logger.info(
 							`Injecting follow-up prompt into running session ${existingSessionId} (thread ${threadKey})`,
 						);
-						this.enqueueReply(existingSessionId, event);
-						existingRunner.addStreamMessage(
-							await this.withThreadCatchup(
-								existingSession,
-								event,
-								taskInstructions,
-							),
+						const prompt = await this.withThreadCatchup(
+							existingSession,
+							event,
+							taskInstructions,
 						);
+						if (
+							this.adapter.canHandleEvent &&
+							!(await this.adapter.canHandleEvent(event))
+						)
+							return;
+						this.enqueueReply(existingSessionId, event);
+						existingRunner.addStreamMessage(prompt);
 					} else {
 						// Runner can't accept mid-turn input (e.g. exec Codex). Queue the
 						// follow-up so it's delivered as a fresh turn once this one ends,
@@ -376,6 +387,11 @@ export class ChatSessionHandler<TEvent> {
 			// completion here, because with warm sessions the streaming prompt
 			// stays open and the start() promise doesn't resolve until the
 			// whole session ends.
+			if (
+				this.adapter.canHandleEvent &&
+				!(await this.adapter.canHandleEvent(event))
+			)
+				return;
 			this.enqueueReply(sessionId, event);
 			const startPromise =
 				runner.supportsStreamingInput && runner.startStreaming
@@ -565,6 +581,11 @@ export class ChatSessionHandler<TEvent> {
 		// (see handleAgentMessage). We must not await turn completion here —
 		// warm sessions hold the streaming prompt open across turns so the
 		// start() promise only resolves when the whole session ends.
+		if (
+			this.adapter.canHandleEvent &&
+			!(await this.adapter.canHandleEvent(event))
+		)
+			return;
 		this.enqueueReply(sessionId, event);
 		const startPromise =
 			runner.supportsStreamingInput && runner.startStreaming

@@ -1,0 +1,8 @@
+{
+	"hostedSha": "3b5b437f782d96ef7aab9338d3de688874bd1b5f",
+	"runtimeSha": "04e941be8b5176e7f54fa1174179b8be78f78fc3",
+	"image": "sha256:35ffa8e695666695f047cf527138b9b27f2e1c29d44673f9eb705a0e4010be4f",
+	"combinedSources": true,
+	"lostWriteAckScenario": true,
+	"fixture": "Actual handlers/SQL/native Docker; synthetic model/provider checks and event outbox"
+}

@@ -1,0 +1,28 @@
+{
+	"passed": true,
+	"sourceSha": "e4de0e6707ab82d5ef8ec56509e6abe947b884c0",
+	"installedPrefix": "/tmp/cypack-1546-automation-e4de-installed",
+	"capabilities": {
+		"contractVersion": 1,
+		"available": true,
+		"reason": null,
+		"workspaceId": "installed-fixture-workspace",
+		"target": {
+			"harness": "claude",
+			"model": "claude-fixture",
+			"adapter": "anthropic-messages-contained-v1"
+		},
+		"capabilities": {
+			"automations": true,
+			"scheduledTicks": true,
+			"scopedMcp": true,
+			"currentAuthorityResume": true,
+			"resultReconciliation": true,
+			"nativeTools": false,
+			"sharedMemory": false,
+			"engineering": false
+		},
+		"minimumPublishedVersion": null
+	},
+	"externalRequests": 0
+}

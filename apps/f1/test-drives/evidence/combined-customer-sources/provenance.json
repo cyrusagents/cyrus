@@ -1,0 +1,9 @@
+{
+	"runtimeSha": "4733183c20d259e2b7f383c9e447d8bf565276f3",
+	"driverSha": "a65cf368d1dca55b4441167f7d901bd607a401b4",
+	"hostedSha": "e0785a1d07989757dbc2306984ba523a89d26532",
+	"bundleSha256": "9cc84e26363c159c4e4a99de3d85ee990a479ad221bb3f7fb6dacd758ca11347",
+	"passed": true,
+	"modelProviderTransport": "synthetic",
+	"liveAcceptance": false
+}

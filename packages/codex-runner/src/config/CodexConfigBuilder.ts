@@ -104,7 +104,7 @@ export class CodexConfigBuilder {
 	private buildEnvOverride(
 		codexHome: string,
 	): Record<string, string> | undefined {
-		if (!this.config.codexHome) {
+		if (!this.config.codexHome && !this.config.additionalEnv) {
 			return undefined;
 		}
 		const env: Record<string, string> = {};
@@ -113,7 +113,8 @@ export class CodexConfigBuilder {
 				env[key] = value;
 			}
 		}
-		env.CODEX_HOME = codexHome;
+		if (this.config.codexHome) env.CODEX_HOME = codexHome;
+		Object.assign(env, this.config.additionalEnv ?? {});
 		return env;
 	}
 

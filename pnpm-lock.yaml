@@ -8,7 +8,6 @@ overrides:
   '@opentelemetry/core': '>=2.8.0'
   uuid: '>=11.1.1'
   body-parser: '>=2.3.0'
-  brace-expansion: '>=5.0.9'
   js-yaml: '>=5.2.2'
   shell-quote: '>=1.9.0'
   simple-git: '>=3.36.0'
@@ -305,6 +304,9 @@ importers:
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.31.0
+        version: 1.31.0(zod@4.3.6)
       '@ngrok/ngrok':
         specifier: ^1.5.1
         version: 1.7.0
@@ -4394,7 +4396,7 @@ snapshots:
 
   make-dir@4.0.0:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.5
 
   math-intrinsics@1.1.0: {}
 

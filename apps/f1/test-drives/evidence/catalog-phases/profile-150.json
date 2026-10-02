@@ -1,0 +1,1500 @@
+{
+	"sourceSha": "397813003cccc9e1f936feff3e96987e1b507229",
+	"driverSha256": "8e8f40a022230f8b9e07c92d3a80739edf01fa637f85088b1e03926e7c9d2940",
+	"passed": true,
+	"latencyReadSet": true,
+	"latencyMcpMilliseconds": 150,
+	"retentionRecovered": false,
+	"traces": [
+		{
+			"attempt": 1,
+			"version": 1,
+			"retention": "process-memory",
+			"elapsedMs": 3241.312,
+			"finished": true,
+			"droppedSpans": 0,
+			"spans": [
+				{
+					"stage": "dispatch.received",
+					"startMs": 0,
+					"durationMs": 0
+				},
+				{
+					"stage": "dispatch.enqueue",
+					"startMs": 0.552,
+					"durationMs": 1.144
+				},
+				{
+					"stage": "queue.wait",
+					"startMs": 1.698,
+					"durationMs": 0.016
+				},
+				{
+					"stage": "ledger.claim",
+					"startMs": 1.714,
+					"durationMs": 0.539
+				},
+				{
+					"stage": "attempt",
+					"startMs": 2.392,
+					"durationMs": 3238.886
+				},
+				{
+					"stage": "authorize.admit",
+					"startMs": 3.091,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 50.596
+				},
+				{
+					"stage": "ledger.bindCheckpoint",
+					"startMs": 210.695,
+					"durationMs": 0.768
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 211.629,
+					"durationMs": 503.222
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 211.916,
+					"durationMs": 0.01
+				},
+				{
+					"stage": "mcp.initialize",
+					"startMs": 215.362,
+					"durationMs": 339.438
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 554.821,
+					"durationMs": 159.465
+				},
+				{
+					"stage": "checkpoint.load",
+					"startMs": 714.875,
+					"durationMs": 0.334
+				},
+				{
+					"stage": "session.create",
+					"startMs": 733.37,
+					"durationMs": 51.039
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 734.918,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 47.553
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 786.812,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.286
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 787.024,
+					"durationMs": 157.888
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 787.083,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 787.087,
+					"durationMs": 156.749
+				},
+				{
+					"stage": "progress",
+					"startMs": 944.931,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 52.253
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 997.204,
+					"durationMs": 162.441
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 997.314,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 997.322,
+					"durationMs": 161.563
+				},
+				{
+					"stage": "model.next",
+					"startMs": 1159.723,
+					"durationMs": 1527.704
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1160.804,
+					"durationMs": 165.406
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1160.911,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 1160.916,
+					"durationMs": 164.692
+				},
+				{
+					"stage": "container.initialize",
+					"startMs": 1326.308,
+					"durationMs": 359.389
+				},
+				{
+					"stage": "native.thread",
+					"startMs": 1685.724,
+					"durationMs": 30.774
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 1717.673,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.248
+				},
+				{
+					"stage": "native.turnStart",
+					"startMs": 1717.923,
+					"durationMs": 3.982
+				},
+				{
+					"stage": "native.started",
+					"startMs": 1730.263,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1734.187,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1734.203,
+					"durationMs": 0
+				},
+				{
+					"stage": "model.request",
+					"startMs": 1749.093,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1749.114,
+					"durationMs": 156.148
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1749.4,
+					"durationMs": 0.027
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 1749.43,
+					"durationMs": 155.281
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 1905.325,
+					"durationMs": 40.344
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1946.079,
+					"durationMs": 154.998
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1946.269,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 1946.274,
+					"durationMs": 153.961
+				},
+				{
+					"stage": "credential.read",
+					"startMs": 2101.135,
+					"durationMs": 0.528
+				},
+				{
+					"stage": "provider.headers",
+					"startMs": 2101.665,
+					"durationMs": 86.268
+				},
+				{
+					"stage": "provider.body",
+					"startMs": 2187.94,
+					"durationMs": 121.957
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2309.923,
+					"durationMs": 156.622
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2309.994,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2309.999,
+					"durationMs": 155.892
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 2473.36,
+					"durationMs": 0.007
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 2473.383,
+					"durationMs": 0.001
+				},
+				{
+					"stage": "native.completed",
+					"startMs": 2477.549,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2477.625,
+					"durationMs": 155.942
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2477.733,
+					"durationMs": 0.018
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2477.755,
+					"durationMs": 154.804
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 2633.587,
+					"durationMs": 53.087
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2687.602,
+					"durationMs": 157.81
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2687.66,
+					"durationMs": 0.009
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2687.672,
+					"durationMs": 156.986
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2860.395,
+					"durationMs": 45.729
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2860.453,
+					"durationMs": 0.006
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 2861.028,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.056
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2907.203,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.389,
+					"failed": true
+				},
+				{
+					"stage": "session.finalFlush",
+					"startMs": 2908.01,
+					"durationMs": 132.24
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2951.332,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.153
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2995.4,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.065
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 3040.26,
+					"durationMs": 48.643
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 3040.262,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 3040.692,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 46.789
+				},
+				{
+					"stage": "result",
+					"startMs": 3089.086,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 51.146
+				},
+				{
+					"stage": "cleanup",
+					"startMs": 3155.945,
+					"durationMs": 84.667
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 3240.378,
+					"durationMs": 0.004
+				}
+			]
+		},
+		{
+			"attempt": 1,
+			"version": 1,
+			"retention": "process-memory",
+			"elapsedMs": 2840.177,
+			"finished": true,
+			"droppedSpans": 0,
+			"spans": [
+				{
+					"stage": "dispatch.received",
+					"startMs": 0,
+					"durationMs": 0
+				},
+				{
+					"stage": "dispatch.enqueue",
+					"startMs": 1.121,
+					"durationMs": 5.785
+				},
+				{
+					"stage": "queue.wait",
+					"startMs": 6.911,
+					"durationMs": 0.008
+				},
+				{
+					"stage": "ledger.claim",
+					"startMs": 6.919,
+					"durationMs": 0.605
+				},
+				{
+					"stage": "attempt",
+					"startMs": 7.544,
+					"durationMs": 2832.626
+				},
+				{
+					"stage": "authorize.admit",
+					"startMs": 7.698,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.639
+				},
+				{
+					"stage": "ledger.bindCheckpoint",
+					"startMs": 53.21,
+					"durationMs": 0.487
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 53.752,
+					"durationMs": 467.641
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 53.819,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.initialize",
+					"startMs": 54.073,
+					"durationMs": 310.306
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 364.384,
+					"durationMs": 156.344
+				},
+				{
+					"stage": "checkpoint.load",
+					"startMs": 521.402,
+					"durationMs": 0.414
+				},
+				{
+					"stage": "session.create",
+					"startMs": 537.162,
+					"durationMs": 48.117
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 537.74,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 45.598
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 586.699,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 54.529
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 586.913,
+					"durationMs": 154.15
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 586.975,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 586.979,
+					"durationMs": 153.026
+				},
+				{
+					"stage": "progress",
+					"startMs": 741.083,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.66
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 785.76,
+					"durationMs": 154.451
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 785.861,
+					"durationMs": 0.007
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 785.872,
+					"durationMs": 153.627
+				},
+				{
+					"stage": "model.next",
+					"startMs": 940.233,
+					"durationMs": 1365.637
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 940.706,
+					"durationMs": 154.815
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 940.768,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 940.774,
+					"durationMs": 154.122
+				},
+				{
+					"stage": "container.initialize",
+					"startMs": 1095.575,
+					"durationMs": 224.725
+				},
+				{
+					"stage": "native.thread",
+					"startMs": 1320.326,
+					"durationMs": 19.9
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 1341.192,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.869
+				},
+				{
+					"stage": "native.turnStart",
+					"startMs": 1341.402,
+					"durationMs": 3.996
+				},
+				{
+					"stage": "native.started",
+					"startMs": 1351.066,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1354.668,
+					"durationMs": 0.098
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1354.974,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "model.request",
+					"startMs": 1366.565,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1366.582,
+					"durationMs": 156.248
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1366.675,
+					"durationMs": 0.019
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 1366.697,
+					"durationMs": 155.126
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 1522.857,
+					"durationMs": 46.333
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1569.318,
+					"durationMs": 157.076
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1569.375,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 1569.379,
+					"durationMs": 155.985
+				},
+				{
+					"stage": "credential.read",
+					"startMs": 1726.419,
+					"durationMs": 0.473
+				},
+				{
+					"stage": "provider.headers",
+					"startMs": 1726.9,
+					"durationMs": 82.483
+				},
+				{
+					"stage": "provider.body",
+					"startMs": 1809.39,
+					"durationMs": 121.266
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1930.67,
+					"durationMs": 156.751
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1930.725,
+					"durationMs": 0.006
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 1930.733,
+					"durationMs": 154.984
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 2093.127,
+					"durationMs": 0.006
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 2093.143,
+					"durationMs": 0
+				},
+				{
+					"stage": "native.completed",
+					"startMs": 2096.987,
+					"durationMs": 0.007
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2097.021,
+					"durationMs": 156.287
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2097.21,
+					"durationMs": 0.028
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2097.245,
+					"durationMs": 155.043
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 2253.322,
+					"durationMs": 51.496
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2305.906,
+					"durationMs": 156.753
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2305.97,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2305.978,
+					"durationMs": 155.732
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2476.932,
+					"durationMs": 46.583
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2476.938,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 2477.386,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.527
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2524.232,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.074
+				},
+				{
+					"stage": "session.finalFlush",
+					"startMs": 2524.98,
+					"durationMs": 91.194
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2570.252,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.319
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2616.185,
+					"durationMs": 45.959
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2616.191,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 2616.792,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.58
+				},
+				{
+					"stage": "result",
+					"startMs": 2662.299,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.815
+				},
+				{
+					"stage": "cleanup",
+					"startMs": 2722.819,
+					"durationMs": 116.583
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2839.308,
+					"durationMs": 0.004
+				}
+			]
+		}
+	],
+	"counts": {
+		"sessionDeliveries": 11,
+		"initialize": 2,
+		"list": 18,
+		"tools": 0,
+		"models": 2,
+		"progress": 2,
+		"resultTransmissions": 2,
+		"resultCommits": 2,
+		"denied": 0
+	},
+	"limits": [
+		"Controlled Hosted and model/provider transports; actual native container, runtime, SQLite and status route",
+		"No historical44s attribution or live runtime/customer access",
+		"40ms Hosted,80ms provider headers,120ms provider body injection; read-set profile adds150ms per MCP HTTP request"
+	],
+	"checks": [
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 415,
+					"column": 19
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 117,
+					"column": 32
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 109,
+					"column": 9
+				}
+			],
+			"durationMs": 502.4000000000001,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 514,
+					"column": 23
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 117,
+					"column": 21
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 109,
+					"column": 9
+				}
+			],
+			"durationMs": 156.7637920000002,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 522,
+					"column": 23
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 117,
+					"column": 21
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 109,
+					"column": 9
+				}
+			],
+			"durationMs": 161.57833400000027,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 566,
+					"column": 63
+				},
+				{
+					"file": "ContainedCodexModel",
+					"line": 62,
+					"column": 32
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 581,
+					"column": 63
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 581,
+					"column": 34
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 580,
+					"column": 62
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 117,
+					"column": 21
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 109,
+					"column": 9
+				}
+			],
+			"durationMs": 164.70291700000007,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 566,
+					"column": 63
+				},
+				{
+					"file": "ContainedCodexModel",
+					"line": 82,
+					"column": 44
+				}
+			],
+			"durationMs": 155.31641600000012,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 566,
+					"column": 63
+				},
+				{
+					"file": "CodexLoginBroker",
+					"line": 191,
+					"column": 31
+				},
+				{
+					"file": "CodexLoginBroker",
+					"line": 207,
+					"column": 34
+				},
+				{
+					"file": "ContainedCodexModel",
+					"line": 85,
+					"column": 37
+				}
+			],
+			"durationMs": 153.97362500000008,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 566,
+					"column": 63
+				},
+				{
+					"file": "CodexLoginBroker",
+					"line": 239,
+					"column": 27
+				}
+			],
+			"durationMs": 155.9039160000002,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 566,
+					"column": 63
+				},
+				{
+					"file": "ContainedCodexModel",
+					"line": 197,
+					"column": 28
+				},
+				{
+					"file": "ContainedCodexModel",
+					"line": 137,
+					"column": 52
+				}
+			],
+			"durationMs": 154.83600000000024,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 585,
+					"column": 27
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 117,
+					"column": 21
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 109,
+					"column": 9
+				}
+			],
+			"durationMs": 157.00633300000027,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 415,
+					"column": 19
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 117,
+					"column": 32
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 109,
+					"column": 9
+				}
+			],
+			"durationMs": 466.9144159999996,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 514,
+					"column": 23
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 117,
+					"column": 21
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 109,
+					"column": 9
+				}
+			],
+			"durationMs": 153.03904200000034,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 522,
+					"column": 23
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 117,
+					"column": 21
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 109,
+					"column": 9
+				}
+			],
+			"durationMs": 153.64929099999972,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 566,
+					"column": 63
+				},
+				{
+					"file": "ContainedCodexModel",
+					"line": 62,
+					"column": 32
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 581,
+					"column": 63
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 581,
+					"column": 34
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 580,
+					"column": 62
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 117,
+					"column": 21
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 109,
+					"column": 9
+				}
+			],
+			"durationMs": 154.13354100000015,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 566,
+					"column": 63
+				},
+				{
+					"file": "ContainedCodexModel",
+					"line": 82,
+					"column": 44
+				}
+			],
+			"durationMs": 155.15637499999957,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 566,
+					"column": 63
+				},
+				{
+					"file": "CodexLoginBroker",
+					"line": 191,
+					"column": 31
+				},
+				{
+					"file": "CodexLoginBroker",
+					"line": 207,
+					"column": 34
+				},
+				{
+					"file": "ContainedCodexModel",
+					"line": 85,
+					"column": 37
+				}
+			],
+			"durationMs": 155.99841600000036,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 566,
+					"column": 63
+				},
+				{
+					"file": "CodexLoginBroker",
+					"line": 239,
+					"column": 27
+				}
+			],
+			"durationMs": 154.9981660000003,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 566,
+					"column": 63
+				},
+				{
+					"file": "ContainedCodexModel",
+					"line": 197,
+					"column": 28
+				},
+				{
+					"file": "ContainedCodexModel",
+					"line": 137,
+					"column": 52
+				}
+			],
+			"durationMs": 155.10908400000062,
+			"failed": false
+		},
+		{
+			"frames": [
+				{
+					"file": "AutomationRuntime",
+					"line": 369,
+					"column": 33
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 399,
+					"column": 24
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 585,
+					"column": 27
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 117,
+					"column": 21
+				},
+				{
+					"file": "AutomationRuntime",
+					"line": 109,
+					"column": 9
+				}
+			],
+			"durationMs": 155.75079199999982,
+			"failed": false
+		}
+	]
+}

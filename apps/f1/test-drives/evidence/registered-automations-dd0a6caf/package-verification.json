@@ -1,0 +1,9 @@
+{
+	"passed": true,
+	"sourceSha": "dd0a6cafb6051d138d38cf88b5160b2dff37562d",
+	"version": "0.2.72-cypack1546.dd0a6cafb605",
+	"packages": 17,
+	"installedCopies": 17,
+	"provenanceField": "cyrusLocalTestArtifact",
+	"registryPublication": false
+}

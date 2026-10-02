@@ -31,6 +31,8 @@ export interface CodexRunnerConfig extends AgentRunnerConfig {
 	 * Defaults to process `CODEX_HOME`, then `~/.codex`.
 	 */
 	codexHome?: string;
+	/** Own a separate normal app-server process whose shutdown can be awaited. */
+	dedicatedProcess?: boolean;
 	/**
 	 * Override Codex reasoning effort.
 	 * If omitted, CodexRunner applies a safe default for known model constraints.

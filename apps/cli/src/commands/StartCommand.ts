@@ -1,5 +1,6 @@
 import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
 import type { EdgeConfig } from "cyrus-core";
+import { ensureRuntimeBootstrap } from "../services/RuntimeBootstrap.js";
 import { BaseCommand } from "./ICommand.js";
 
 /**
@@ -8,6 +9,7 @@ import { BaseCommand } from "./ICommand.js";
 export class StartCommand extends BaseCommand {
 	async execute(_args: string[]): Promise<void> {
 		try {
+			await ensureRuntimeBootstrap(this.app.cyrusHome);
 			// Load edge configuration
 			const edgeConfig = this.app.config.load();
 			const repositories = edgeConfig.repositories || [];

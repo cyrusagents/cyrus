@@ -18,7 +18,7 @@
 		"prompts"
 	],
 	"scripts": {
-		"build": "tsgo && npm run copy-prompts",
+		"build": "rm -rf dist && tsgo && npm run copy-prompts",
 		"copy-prompts": "cp label-prompt-template.md dist/ && cp -r prompts dist/ && rm -rf dist/cyrus-skills-plugin && cp -rL cyrus-skills-plugin dist/cyrus-skills-plugin",
 		"dev": "tsgo --watch",
 		"test": "vitest",
@@ -30,6 +30,7 @@
 	"dependencies": {
 		"@anthropic-ai/claude-agent-sdk": "0.3.281",
 		"@linear/sdk": "^64.0.0",
+		"@modelcontextprotocol/sdk": "^1.31.0",
 		"@ngrok/ngrok": "^1.5.1",
 		"chokidar": "^4.0.3",
 		"cyrus-claude-runner": "workspace:*",

@@ -1,0 +1,1040 @@
+{
+	"passed": true,
+	"latencyReadSet": false,
+	"traces": [
+		{
+			"attempt": 1,
+			"version": 1,
+			"retention": "process-memory",
+			"elapsedMs": 2514.408,
+			"finished": true,
+			"droppedSpans": 0,
+			"spans": [
+				{
+					"stage": "dispatch.received",
+					"startMs": 0,
+					"durationMs": 0
+				},
+				{
+					"stage": "dispatch.enqueue",
+					"startMs": 0.508,
+					"durationMs": 80.677
+				},
+				{
+					"stage": "queue.wait",
+					"startMs": 81.195,
+					"durationMs": 0.026
+				},
+				{
+					"stage": "ledger.claim",
+					"startMs": 81.221,
+					"durationMs": 0.698
+				},
+				{
+					"stage": "attempt",
+					"startMs": 82.059,
+					"durationMs": 2432.33
+				},
+				{
+					"stage": "authorize.admit",
+					"startMs": 82.773,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 50.498
+				},
+				{
+					"stage": "ledger.bindCheckpoint",
+					"startMs": 135.96,
+					"durationMs": 0.609
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 136.724,
+					"durationMs": 315.22
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 136.777,
+					"durationMs": 0.009
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 137.269,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 313.42
+				},
+				{
+					"stage": "checkpoint.load",
+					"startMs": 451.961,
+					"durationMs": 0.46
+				},
+				{
+					"stage": "session.create",
+					"startMs": 470.551,
+					"durationMs": 49.553
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 473.026,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.715
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 523.193,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 143.922
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 523.492,
+					"durationMs": 142.932
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 523.495,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 523.974,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 141.56
+				},
+				{
+					"stage": "progress",
+					"startMs": 666.438,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.456
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 709.902,
+					"durationMs": 45.337
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 709.906,
+					"durationMs": 0.001
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 710.609,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.864
+				},
+				{
+					"stage": "model.next",
+					"startMs": 755.306,
+					"durationMs": 1270.885
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 756.155,
+					"durationMs": 109.519
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 756.159,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 756.848,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 108.099
+				},
+				{
+					"stage": "container.initialize",
+					"startMs": 865.769,
+					"durationMs": 516.862
+				},
+				{
+					"stage": "native.thread",
+					"startMs": 1382.696,
+					"durationMs": 24.084
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 1408.084,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 64.053
+				},
+				{
+					"stage": "native.turnStart",
+					"startMs": 1408.339,
+					"durationMs": 8.999
+				},
+				{
+					"stage": "native.started",
+					"startMs": 1429.735,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1467.638,
+					"durationMs": 0.006
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1467.684,
+					"durationMs": 0.001
+				},
+				{
+					"stage": "model.request",
+					"startMs": 1477.616,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1477.633,
+					"durationMs": 54.421
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1477.636,
+					"durationMs": 0.031
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 1478.299,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 49.915
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 1532.114,
+					"durationMs": 78.685
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1611.165,
+					"durationMs": 44.117
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1611.169,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 1611.713,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 42.809
+				},
+				{
+					"stage": "credential.read",
+					"startMs": 1655.339,
+					"durationMs": 0.399
+				},
+				{
+					"stage": "provider.headers",
+					"startMs": 1655.74,
+					"durationMs": 90.236
+				},
+				{
+					"stage": "provider.body",
+					"startMs": 1745.992,
+					"durationMs": 122.798
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1868.807,
+					"durationMs": 48.945
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1868.811,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 1869.615,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 47.383
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1925.608,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1925.616,
+					"durationMs": 0
+				},
+				{
+					"stage": "native.completed",
+					"startMs": 1928.192,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1928.258,
+					"durationMs": 43.648
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1928.261,
+					"durationMs": 0.017
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 1928.838,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 42.314
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 1971.916,
+					"durationMs": 53.337
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2026.357,
+					"durationMs": 45.154
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2026.362,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 2027.084,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.09
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2085.621,
+					"durationMs": 43.519
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2085.628,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 2086.303,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 42.074
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2130.144,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 45.863,
+					"failed": true
+				},
+				{
+					"stage": "session.finalFlush",
+					"startMs": 2130.852,
+					"durationMs": 135.316
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2176.442,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.229
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2221.681,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.654
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2266.176,
+					"durationMs": 59.401
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2266.178,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 2266.591,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 58.169
+				},
+				{
+					"stage": "result",
+					"startMs": 2325.759,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 49.885
+				},
+				{
+					"stage": "cleanup",
+					"startMs": 2398.119,
+					"durationMs": 115.408
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2512.776,
+					"durationMs": 0.006
+				}
+			]
+		},
+		{
+			"attempt": 1,
+			"version": 1,
+			"retention": "process-memory",
+			"elapsedMs": 1641.59,
+			"finished": true,
+			"droppedSpans": 0,
+			"spans": [
+				{
+					"stage": "dispatch.received",
+					"startMs": 0,
+					"durationMs": 0
+				},
+				{
+					"stage": "dispatch.enqueue",
+					"startMs": 0.773,
+					"durationMs": 1.414
+				},
+				{
+					"stage": "queue.wait",
+					"startMs": 2.192,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "ledger.claim",
+					"startMs": 2.196,
+					"durationMs": 0.616
+				},
+				{
+					"stage": "attempt",
+					"startMs": 2.832,
+					"durationMs": 1638.752
+				},
+				{
+					"stage": "authorize.admit",
+					"startMs": 2.974,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 90.543
+				},
+				{
+					"stage": "ledger.bindCheckpoint",
+					"startMs": 94.27,
+					"durationMs": 0.562
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 94.894,
+					"durationMs": 45.6
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 94.896,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 95.306,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.399
+				},
+				{
+					"stage": "checkpoint.load",
+					"startMs": 140.502,
+					"durationMs": 0.32
+				},
+				{
+					"stage": "session.create",
+					"startMs": 155.77,
+					"durationMs": 46.859
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 156.374,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.953
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 204.154,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 47.004
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 204.406,
+					"durationMs": 48.396
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 204.408,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 204.958,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 47.217
+				},
+				{
+					"stage": "progress",
+					"startMs": 252.812,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 75.791
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 328.611,
+					"durationMs": 46.12
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 328.614,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 329.275,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.61
+				},
+				{
+					"stage": "model.next",
+					"startMs": 374.751,
+					"durationMs": 871.113
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 375.356,
+					"durationMs": 67.731
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 375.359,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 375.882,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 66.439
+				},
+				{
+					"stage": "container.initialize",
+					"startMs": 443.148,
+					"durationMs": 248.602
+				},
+				{
+					"stage": "native.thread",
+					"startMs": 691.769,
+					"durationMs": 16.045
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 708.748,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 53.087
+				},
+				{
+					"stage": "native.turnStart",
+					"startMs": 708.972,
+					"durationMs": 2.576
+				},
+				{
+					"stage": "native.started",
+					"startMs": 716.086,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 719.077,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 719.266,
+					"durationMs": 0.006
+				},
+				{
+					"stage": "model.request",
+					"startMs": 726.839,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 726.852,
+					"durationMs": 45.15
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 726.854,
+					"durationMs": 0.022
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 727.48,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.837
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 772.014,
+					"durationMs": 34.484
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 806.637,
+					"durationMs": 45.059
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 806.641,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 807.366,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.514
+				},
+				{
+					"stage": "credential.read",
+					"startMs": 851.711,
+					"durationMs": 3.665
+				},
+				{
+					"stage": "provider.headers",
+					"startMs": 855.385,
+					"durationMs": 111.97
+				},
+				{
+					"stage": "provider.body",
+					"startMs": 967.362,
+					"durationMs": 122.621
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1089.997,
+					"durationMs": 44.643
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1090.001,
+					"durationMs": 0.009
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 1090.815,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.054
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1142.596,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1142.603,
+					"durationMs": 0
+				},
+				{
+					"stage": "native.completed",
+					"startMs": 1148.867,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1148.887,
+					"durationMs": 46.527
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1148.889,
+					"durationMs": 0.015
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 1149.548,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.627
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 1195.427,
+					"durationMs": 49.712
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1245.886,
+					"durationMs": 47.196
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1245.889,
+					"durationMs": 0.001
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 1246.4,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 45.88
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1306.172,
+					"durationMs": 43.878
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1306.177,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 1306.62,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 42.678
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 1350.724,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.54
+				},
+				{
+					"stage": "session.finalFlush",
+					"startMs": 1351.385,
+					"durationMs": 88.633
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 1395.212,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.949
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1440.028,
+					"durationMs": 45.756
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1440.032,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 1440.484,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.994
+				},
+				{
+					"stage": "result",
+					"startMs": 1485.973,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 46.244
+				},
+				{
+					"stage": "cleanup",
+					"startMs": 1546.323,
+					"durationMs": 94.589
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1640.841,
+					"durationMs": 0.005
+				}
+			]
+		}
+	],
+	"counts": {
+		"sessionDeliveries": 11,
+		"initialize": 0,
+		"list": 0,
+		"tools": 0,
+		"models": 2,
+		"progress": 2,
+		"resultTransmissions": 2,
+		"resultCommits": 2,
+		"denied": 0
+	},
+	"limits": [
+		"Controlled Hosted and model/provider transports; actual native container, runtime, SQLite and status route",
+		"No historical44s attribution or live runtime/customer access",
+		"40ms Hosted,80ms provider headers,120ms provider body injection; read-set profile adds150ms per MCP HTTP request"
+	]
+}

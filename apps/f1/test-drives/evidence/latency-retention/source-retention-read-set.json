@@ -1,0 +1,907 @@
+{
+	"passed": true,
+	"latencyReadSet": true,
+	"retentionRecovered": true,
+	"traces": [
+		{
+			"attempt": 1,
+			"version": 1,
+			"retention": "process-memory",
+			"elapsedMs": 3189.905,
+			"finished": true,
+			"droppedSpans": 0,
+			"spans": [
+				{
+					"stage": "dispatch.received",
+					"startMs": 0,
+					"durationMs": 0
+				},
+				{
+					"stage": "dispatch.enqueue",
+					"startMs": 0.594,
+					"durationMs": 1.299
+				},
+				{
+					"stage": "queue.wait",
+					"startMs": 1.896,
+					"durationMs": 0.017
+				},
+				{
+					"stage": "ledger.claim",
+					"startMs": 1.913,
+					"durationMs": 0.696
+				},
+				{
+					"stage": "attempt",
+					"startMs": 2.729,
+					"durationMs": 3187.131
+				},
+				{
+					"stage": "authorize.admit",
+					"startMs": 3.432,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 49.594
+				},
+				{
+					"stage": "ledger.bindCheckpoint",
+					"startMs": 55.959,
+					"durationMs": 0.768
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 56.885,
+					"durationMs": 513.966
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 56.931,
+					"durationMs": 0.009
+				},
+				{
+					"stage": "mcp.initialize",
+					"startMs": 59.327,
+					"durationMs": 335.272
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 394.617,
+					"durationMs": 174.288
+				},
+				{
+					"stage": "checkpoint.load",
+					"startMs": 570.889,
+					"durationMs": 0.458
+				},
+				{
+					"stage": "session.create",
+					"startMs": 589.601,
+					"durationMs": 46.024
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 591.111,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.65
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 637.857,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 45.446
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 638.081,
+					"durationMs": 154.68
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 638.086,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 638.091,
+					"durationMs": 153.996
+				},
+				{
+					"stage": "progress",
+					"startMs": 792.785,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 41.578
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 834.376,
+					"durationMs": 155.639
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 834.386,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 834.39,
+					"durationMs": 154.506
+				},
+				{
+					"stage": "model.next",
+					"startMs": 990.099,
+					"durationMs": 1609.395
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 991.05,
+					"durationMs": 158.992
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 991.062,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 991.066,
+					"durationMs": 158.408
+				},
+				{
+					"stage": "container.initialize",
+					"startMs": 1150.137,
+					"durationMs": 397.231
+				},
+				{
+					"stage": "native.thread",
+					"startMs": 1547.393,
+					"durationMs": 24.414
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 1574.568,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.46
+				},
+				{
+					"stage": "native.turnStart",
+					"startMs": 1574.808,
+					"durationMs": 9.311
+				},
+				{
+					"stage": "native.started",
+					"startMs": 1600.1,
+					"durationMs": 0.007
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1612.524,
+					"durationMs": 0.006
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1612.625,
+					"durationMs": 0.001
+				},
+				{
+					"stage": "model.request",
+					"startMs": 1627.733,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1627.751,
+					"durationMs": 155.412
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1627.761,
+					"durationMs": 0.025
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 1627.789,
+					"durationMs": 154.731
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 1783.22,
+					"durationMs": 51.311
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1834.942,
+					"durationMs": 173.584
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1834.951,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 1834.956,
+					"durationMs": 173.02
+				},
+				{
+					"stage": "credential.read",
+					"startMs": 2008.581,
+					"durationMs": 0.591
+				},
+				{
+					"stage": "provider.headers",
+					"startMs": 2009.178,
+					"durationMs": 84.317
+				},
+				{
+					"stage": "provider.body",
+					"startMs": 2093.503,
+					"durationMs": 121.632
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2215.17,
+					"durationMs": 156.567
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2215.189,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2215.196,
+					"durationMs": 155.875
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 2385.173,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 2385.184,
+					"durationMs": 0
+				},
+				{
+					"stage": "native.completed",
+					"startMs": 2387.223,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2387.302,
+					"durationMs": 156.211
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2387.315,
+					"durationMs": 0.018
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2387.336,
+					"durationMs": 155.56
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 2543.525,
+					"durationMs": 54.528
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2599.674,
+					"durationMs": 158.093
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2599.686,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2599.693,
+					"durationMs": 156.883
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2773.878,
+					"durationMs": 45.799
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2773.935,
+					"durationMs": 0.006
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 2774.509,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.367
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2820.627,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.893,
+					"failed": true
+				},
+				{
+					"stage": "session.finalFlush",
+					"startMs": 2821.435,
+					"durationMs": 135.066
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2864.894,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.724
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2910.308,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 45.37
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2956.51,
+					"durationMs": 43.83
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2956.515,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 2956.968,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 42.502
+				},
+				{
+					"stage": "result",
+					"startMs": 3000.519,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.644
+				},
+				{
+					"stage": "cleanup",
+					"startMs": 3059.686,
+					"durationMs": 129.384
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 3187.983,
+					"durationMs": 0.005
+				}
+			]
+		},
+		{
+			"attempt": 1,
+			"version": 1,
+			"retention": "process-memory",
+			"elapsedMs": 2961.167,
+			"finished": true,
+			"droppedSpans": 0,
+			"spans": [
+				{
+					"stage": "dispatch.received",
+					"startMs": 0,
+					"durationMs": 0
+				},
+				{
+					"stage": "dispatch.enqueue",
+					"startMs": 0.399,
+					"durationMs": 0.705
+				},
+				{
+					"stage": "queue.wait",
+					"startMs": 1.106,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "ledger.claim",
+					"startMs": 1.111,
+					"durationMs": 0.522
+				},
+				{
+					"stage": "attempt",
+					"startMs": 1.65,
+					"durationMs": 2959.509
+				},
+				{
+					"stage": "authorize.admit",
+					"startMs": 3.216,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 42.628
+				},
+				{
+					"stage": "ledger.bindCheckpoint",
+					"startMs": 47.043,
+					"durationMs": 1.02
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 48.123,
+					"durationMs": 469.888
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 48.135,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.initialize",
+					"startMs": 48.402,
+					"durationMs": 314.174
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 362.585,
+					"durationMs": 154.699
+				},
+				{
+					"stage": "checkpoint.load",
+					"startMs": 518.018,
+					"durationMs": 0.169
+				},
+				{
+					"stage": "session.create",
+					"startMs": 535.266,
+					"durationMs": 45.633
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 535.97,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.617
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 582.378,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 48.018
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 582.593,
+					"durationMs": 154.969
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 582.598,
+					"durationMs": 0.001
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 582.602,
+					"durationMs": 153.631
+				},
+				{
+					"stage": "progress",
+					"startMs": 737.581,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 43.968
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 781.562,
+					"durationMs": 163.29
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 781.569,
+					"durationMs": 0.001
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 781.573,
+					"durationMs": 162.114
+				},
+				{
+					"stage": "model.next",
+					"startMs": 944.881,
+					"durationMs": 1480.794
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 945.847,
+					"durationMs": 154.281
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 945.859,
+					"durationMs": 0.005
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 945.869,
+					"durationMs": 153.242
+				},
+				{
+					"stage": "container.initialize",
+					"startMs": 1100.193,
+					"durationMs": 313.1
+				},
+				{
+					"stage": "native.thread",
+					"startMs": 1413.312,
+					"durationMs": 16.322
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 1430.541,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 48.741
+				},
+				{
+					"stage": "native.turnStart",
+					"startMs": 1430.806,
+					"durationMs": 2.943
+				},
+				{
+					"stage": "native.started",
+					"startMs": 1444.698,
+					"durationMs": 0.006
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1451.63,
+					"durationMs": 0.007
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 1451.658,
+					"durationMs": 0.001
+				},
+				{
+					"stage": "model.request",
+					"startMs": 1475.451,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1475.481,
+					"durationMs": 157.616
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1475.487,
+					"durationMs": 0.014
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 1475.506,
+					"durationMs": 156.914
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 1633.118,
+					"durationMs": 40.685
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 1673.957,
+					"durationMs": 155.043
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 1673.965,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 1673.97,
+					"durationMs": 154.255
+				},
+				{
+					"stage": "credential.read",
+					"startMs": 1829.025,
+					"durationMs": 0.344
+				},
+				{
+					"stage": "provider.headers",
+					"startMs": 1829.38,
+					"durationMs": 85.023
+				},
+				{
+					"stage": "provider.body",
+					"startMs": 1914.415,
+					"durationMs": 123.453
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2037.897,
+					"durationMs": 168.762
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2037.912,
+					"durationMs": 0.007
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2037.924,
+					"durationMs": 168.202
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 2213.565,
+					"durationMs": 0.004
+				},
+				{
+					"stage": "native.activity",
+					"startMs": 2213.572,
+					"durationMs": 0
+				},
+				{
+					"stage": "native.completed",
+					"startMs": 2217.268,
+					"durationMs": 0.007
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2217.295,
+					"durationMs": 154.287
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2217.305,
+					"durationMs": 0.017
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2217.326,
+					"durationMs": 153.575
+				},
+				{
+					"stage": "native.snapshot",
+					"startMs": 2371.593,
+					"durationMs": 52.339
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2425.712,
+					"durationMs": 158.947
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2425.722,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "mcp.catalog",
+					"startMs": 2425.731,
+					"durationMs": 157.958
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2600.481,
+					"durationMs": 47.123
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2600.488,
+					"durationMs": 0.003
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 2600.896,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 45.75
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2648.3,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 44.049
+				},
+				{
+					"stage": "session.finalFlush",
+					"startMs": 2649.168,
+					"durationMs": 92.763
+				},
+				{
+					"stage": "session.delivery",
+					"startMs": 2693.872,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 46.393
+				},
+				{
+					"stage": "authority.check",
+					"startMs": 2741.943,
+					"durationMs": 47.496
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2741.948,
+					"durationMs": 0.002
+				},
+				{
+					"stage": "authorize.renew",
+					"startMs": 2742.475,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 45.774
+				},
+				{
+					"stage": "result",
+					"startMs": 2789.65,
+					"hosted": {
+						"cyrus_auth": {
+							"durationMs": 0.25
+						},
+						"cyrus_total": {
+							"durationMs": 1
+						}
+					},
+					"durationMs": 46.147
+				},
+				{
+					"stage": "cleanup",
+					"startMs": 2846.941,
+					"durationMs": 113.552
+				},
+				{
+					"stage": "mcp.queue",
+					"startMs": 2960.345,
+					"durationMs": 0.008
+				}
+			]
+		}
+	],
+	"counts": {
+		"sessionDeliveries": 11,
+		"initialize": 2,
+		"list": 18,
+		"tools": 0,
+		"models": 2,
+		"progress": 2,
+		"resultTransmissions": 2,
+		"resultCommits": 2,
+		"denied": 0
+	},
+	"limits": [
+		"Controlled Hosted and model/provider transports; actual native container, runtime, SQLite and status route",
+		"No historical44s attribution or live runtime/customer access",
+		"40ms Hosted,80ms provider headers,120ms provider body injection; read-set profile adds150ms per MCP HTTP request"
+	]
+}

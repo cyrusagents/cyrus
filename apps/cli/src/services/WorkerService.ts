@@ -6,7 +6,7 @@ import type {
 	RepositoryConfig,
 } from "cyrus-core";
 import type { GitService, SharedApplicationServer } from "cyrus-edge-worker";
-import { EdgeWorker } from "cyrus-edge-worker";
+import { EdgeWorker, registerConfiguredAutomations } from "cyrus-edge-worker";
 import { SlackEventTransport } from "cyrus-slack-event-transport";
 import { DEFAULT_SERVER_PORT, parsePort } from "../config/constants.js";
 import type { Workspace } from "../config/types.js";
@@ -121,6 +121,11 @@ export class WorkerService {
 			() => process.env.CYRUS_API_KEY || "",
 		);
 		configUpdater.register();
+		registerConfiguredAutomations(
+			this.setupWaitingServer.getFastifyInstance(),
+			this.cyrusHome,
+			() => this.configService.load(),
+		);
 
 		this.logger.info("✅ Config updater registered");
 		this.logger.info(

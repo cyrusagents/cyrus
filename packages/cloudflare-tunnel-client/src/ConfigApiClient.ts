@@ -9,7 +9,10 @@ export const DEFAULT_CYRUS_APP_URL = "https://app.atcyrus.com";
  * @returns The Cyrus app base URL (e.g., "https://app.atcyrus.com")
  */
 export function getCyrusAppUrl(): string {
-	return process.env.CYRUS_APP_URL || DEFAULT_CYRUS_APP_URL;
+	return (process.env.CYRUS_APP_URL || DEFAULT_CYRUS_APP_URL).replace(
+		/\/+$/,
+		"",
+	);
 }
 
 /**
@@ -20,6 +23,7 @@ export interface ConfigApiResponse {
 	config?: {
 		cloudflareToken: string;
 		apiKey: string;
+		teamId?: string;
 		/** Optional hosted-managed listener port; absent preserves legacy behavior. */
 		serverPort?: number;
 	};
@@ -59,16 +63,20 @@ export class ConfigApiClient {
 			}
 
 			// Call config API with auth key
-			const url = `${ConfigApiClient.getConfigApiUrl()}?auth_key=${encodeURIComponent(authKey)}`;
-			const response = await fetch(url, {
-				headers: { "X-Cyrus-Config-Capabilities": "self-host-port-v1" },
+			const response = await fetch(ConfigApiClient.getConfigApiUrl(), {
+				headers: {
+					Authorization: `Bearer ${authKey}`,
+					"X-Cyrus-Config-Capabilities": "self-host-port-v1",
+				},
+				redirect: "error",
+				signal: AbortSignal.timeout(15_000),
 			});
 
 			if (!response.ok) {
-				const errorText = await response.text();
+				await response.body?.cancel();
 				return {
 					success: false,
-					error: `Config API request failed: ${response.status} ${response.statusText} - ${errorText}`,
+					error: `Config API request failed (${response.status})`,
 				};
 			}
 
@@ -78,7 +86,7 @@ export class ConfigApiClient {
 			if (!data.success || !data.config) {
 				return {
 					success: false,
-					error: data.error || "Invalid response format from config API",
+					error: "Invalid response format from config API",
 				};
 			}
 
@@ -96,17 +104,24 @@ export class ConfigApiClient {
 				};
 			}
 
-			return data;
-		} catch (error) {
-			if (error instanceof Error) {
+			if (
+				data.config.teamId !== undefined &&
+				(typeof data.config.teamId !== "string" ||
+					!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+						data.config.teamId,
+					))
+			) {
 				return {
 					success: false,
-					error: `Failed to retrieve config: ${error.message}`,
+					error: "Invalid workspace identity in config response",
 				};
 			}
+			return data;
+		} catch {
 			return {
 				success: false,
-				error: "Failed to retrieve config: Unknown error",
+				error:
+					"Failed to retrieve config; verify the configured origin and connection",
 			};
 		}
 	}
