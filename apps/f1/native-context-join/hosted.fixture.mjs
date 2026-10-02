@@ -57,6 +57,12 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 	}
 	const combined = process.env.CYRUS_NATIVE_JOIN_COMBINED === "1";
 	const workDetails = process.env.CYRUS_NATIVE_JOIN_WORK_DETAILS === "1";
+	const rolloutGate = process.env.CYRUS_NATIVE_JOIN_ROLLOUT_GATE === "1";
+	let revokeAfterAdmit = false;
+	const [{ present: teamGateSchema }] =
+		await sql`select exists(select 1 from information_schema.columns where table_schema='public' and table_name='teams' and column_name='is_admin_team') present`;
+	if (rolloutGate)
+		assert.equal(teamGateSchema, true, "Frozen Hosted gate schema required");
 	const slackMessages = process.env.CYRUS_NATIVE_JOIN_SLACK_MESSAGES === "1";
 	assert.ok(!slackMessages || combined);
 	const slackPosted = [];
@@ -125,6 +131,8 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 						? { provider, channelId: "C123", scope: "channel" }
 						: { provider, channelId: "C123", threadTs: "1790703000.001" };
 		await sql`insert into teams(id) values(${w}) on conflict do nothing`;
+		if (teamGateSchema)
+			await sql`update teams set is_admin_team=true where id=${w}`;
 		await sql`insert into auth.users(id) values(${user})`;
 		await sql`insert into customer_agents(id,workspace_id,name) values(${customer},${w},'Automation fixture')`;
 		if (connection) {
@@ -219,6 +227,25 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			)
 		: undefined;
 	const lifecycleFixtures = new Map();
+	if (rolloutGate)
+		for (const name of [
+			"gate-off",
+			"gate-event",
+			"gate-race",
+			"gate-terminal",
+			"gate-tick",
+		])
+			lifecycleFixtures.set(
+				name,
+				await fixture(
+					"conversation",
+					false,
+					"Reply briefly.",
+					false,
+					60,
+					main.w,
+				),
+			);
 	if (requireLifecycleAuthority)
 		for (const operation of ["progress", "result"])
 			lifecycleFixtures.set(
@@ -670,23 +697,74 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 			);
 		},
 	});
-	async function event(f, input, eventId = crypto.randomUUID()) {
+	async function event(
+		f,
+		input,
+		eventId = crypto.randomUUID(),
+		trigger = "instruction",
+	) {
 		const revision = f.request.definition.revision;
 		await sql`insert into customer_events(id,workspace_id,customer_id,provider_event_id,topic,object_type,external_id,occurred_at,payload,routing) values(${eventId},${f.w},${f.customer},${eventId},'operator.message','customer',${f.customer},now(),'{}','matched') on conflict do nothing`;
 		const occurrenceId = occurrenceDigest([
 			f.w,
 			f.id,
 			revision,
-			"instruction",
+			trigger,
 			eventId,
 		]);
-		await sql`insert into customer_automation_outbox(binding_id,revision,event_id,occurrence_id,input) values(${f.id},${revision},${eventId},${occurrenceId},${input}) on conflict do nothing`;
-		return { definition: f.request.definition, eventId, input, occurrenceId };
+		await sql`insert into customer_automation_outbox(binding_id,revision,event_id,occurrence_id,input,trigger) values(${f.id},${revision},${eventId},${occurrenceId},${input},${trigger}) on conflict do nothing`;
+		return {
+			definition: f.request.definition,
+			eventId,
+			input,
+			occurrenceId,
+			trigger,
+		};
 	}
 	async function control(body) {
 		const f = fixtures.get(body.fixture ?? "main");
 		assert.ok(f);
-		if (body.op === "event") return event(f, body.input);
+		if (body.op === "event")
+			return event(f, body.input, undefined, body.trigger);
+		if (rolloutGate && body.op === "gate") {
+			assert.equal(typeof body.enabled, "boolean");
+			await sql`update teams set is_admin_team=${body.enabled} where id=${f.w}`;
+			return {};
+		}
+		if (rolloutGate && body.op === "gate-after-admit") {
+			revokeAfterAdmit = true;
+			return {};
+		}
+		if (rolloutGate && body.op === "gate-tick-definition") {
+			assert.equal(f, lifecycleFixtures.get("gate-tick"));
+			f.request.definition.revision++;
+			f.request.definition.schedule = {
+				intervalSeconds: 60,
+				anchorAt: new Date(Date.now() + 1000).toISOString(),
+				timezone: "UTC",
+			};
+			await sql`update customer_automation_bindings set revision=${f.request.definition.revision},definition=${f.request.definition}::jsonb where id=${f.id}`;
+			return { definition: f.request.definition };
+		}
+		if (rolloutGate && body.op === "gate-evidence") {
+			const [running] =
+				await sql`select count(*)::int n from customer_automation_admissions where binding_id in (${lifecycleFixtures.get("gate-off").id},${lifecycleFixtures.get("gate-event").id},${lifecycleFixtures.get("gate-tick").id})`;
+			assert.equal(
+				running.n,
+				0,
+				"OFF admissions cannot create customer executions",
+			);
+			const [terminal] =
+				await sql`select count(*)::int n from customer_automation_admissions where binding_id=${lifecycleFixtures.get("gate-terminal").id} and completed_at is not null`;
+			assert.equal(terminal.n, 1);
+			return {
+				...evidence,
+				gateOffRuns: running.n,
+				terminalCommits: terminal.n,
+				lostResult,
+				passed: true,
+			};
+		}
 		if (body.op === "slack-permission") {
 			assert.ok(slackMessages && (f === both || f === slackRevoked));
 			await sql`update customer_agents set policy=policy||${{ "slack.send": body.allow ? "automatic" : "disabled" }}::jsonb where id=${f.customer}`;
@@ -950,6 +1028,15 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 						pauseBoundary = undefined;
 					}
 					const response = await callback(req, operation);
+					if (
+						rolloutGate &&
+						revokeAfterAdmit &&
+						operation === "authorize" &&
+						response.ok
+					) {
+						revokeAfterAdmit = false;
+						await sql`update teams set is_admin_team=false where id=${main.w}`;
+					}
 					if (pausedHere) {
 						assert.equal(
 							response.status,
@@ -966,7 +1053,9 @@ test("installed contained runtime joins published native SQL/HTTP/MCP", async ()
 						!lostResult
 					) {
 						lostResult = true;
-						if (resultLossFixture === both)
+						if (rolloutGate)
+							await sql`update teams set is_admin_team=false where id=${main.w}`;
+						else if (resultLossFixture === both)
 							await control({ op: "withdraw-secondary", fixture: "both" });
 						else
 							await sql`update customer_agents set policy='{"memory":"disabled","thread":"disabled"}',revision=revision+1,generation=generation+1,paused=true where id=${main.customer}`;

@@ -176,3 +176,11 @@ dispatch, and zero memory/external-write effects under the controlled model.
 See [the exact installed proof](../test-drives/cypack-1546-direct-successor.md).
 This mode requires the immutable Hosted continuation contract including
 `parentRevision`; it does not fabricate a successor outbox or authorize live tests.
+
+Owning-team rollout gate: `CYRUS_NATIVE_JOIN_ROLLOUT_GATE=1` selects the bounded
+instruction/event/tick/current-MCP/terminal-receipt journey instead of the larger
+context scenario list. The exact Hosted source must include its existing-team
+gate migration. Positive fixture teams explicitly opt in through
+`teams.is_admin_team`; the driver withdraws only those disposable fixture teams.
+It never changes a paired team's settings. Retain model/provider/outbox fixture
+limitations; actual PM production-adapter coverage is the separate Hosted join.
