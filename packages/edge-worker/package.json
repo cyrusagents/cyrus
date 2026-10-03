@@ -51,7 +51,7 @@
 		"fastify-mcp": "^2.1.0",
 		"file-type": "^21.3.2",
 		"ignore": "^7.0.5",
-		"node-forge": "^1.4.0",
+		"node-forge": "https://codeload.github.com/digitalbazaar/forge/tar.gz/ceba34402e329f0365134f23fe19898756527d65",
 		"zod": "4.3.6"
 	},
 	"devDependencies": {
