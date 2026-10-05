@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Changed
+- Added SDK permission-mode initialization probes, result-metadata regression coverage, and a runtime compatibility review for the Anthropic SDK refresh. ([CYPACK-1559](https://linear.app/ceedar/issue/CYPACK-1559), [#1525](https://github.com/cyrusagents/cyrus/pull/1525))
+
 ## [0.2.73] - 2026-09-29
 
 ### Changed

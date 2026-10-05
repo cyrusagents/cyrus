@@ -97,6 +97,38 @@ describe("ClaudeRunner", () => {
 		});
 	});
 
+	describe("SDK 0.3.287 result metadata", () => {
+		it.each([
+			{ detachedToolCall: true },
+			{ structuredContentOmitted: true },
+		])("forwards optional tool result metadata unchanged: %j", async (metadata) => {
+			const message: SDKMessage = {
+				type: "user",
+				session_id: "result-metadata-session",
+				parent_tool_use_id: null,
+				message: {
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-1",
+							content: "SDK text result",
+						},
+					],
+				},
+				tool_use_result: metadata,
+			};
+			mockQuery.mockImplementation(async function* () {
+				yield message;
+			});
+			const onMessage = vi.fn();
+			runner.on("message", onMessage);
+			await runner.start("Read the tool result");
+			expect(onMessage).toHaveBeenCalledWith(message);
+			expect(onMessage.mock.calls[0]?.[0]).toBe(message);
+		});
+	});
+
 	describe("start()", () => {
 		it("should start Claude session with basic prompt", async () => {
 			// Mock successful query
@@ -129,6 +161,7 @@ describe("ClaudeRunner", () => {
 					cwd: "/tmp/test",
 					systemPrompt: { type: "preset", preset: "claude_code" },
 					settingSources: ["user", "project", "local"],
+					permissionMode: "default",
 					env: expect.objectContaining({
 						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
 						CLAUDE_CODE_ENABLE_TASKS: "true",
@@ -191,6 +224,7 @@ describe("ClaudeRunner", () => {
 					cwd: "/tmp/test",
 					systemPrompt: { type: "preset", preset: "claude_code" },
 					settingSources: ["user", "project", "local"],
+					permissionMode: "default",
 					env: expect.objectContaining({
 						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
 						CLAUDE_CODE_ENABLE_TASKS: "true",
@@ -230,6 +264,7 @@ describe("ClaudeRunner", () => {
 					cwd: "/tmp/test",
 					systemPrompt: "You are a helpful assistant",
 					settingSources: ["user", "project", "local"],
+					permissionMode: "default",
 					env: expect.objectContaining({
 						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
 						CLAUDE_CODE_ENABLE_TASKS: "true",
