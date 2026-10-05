@@ -112,6 +112,43 @@ describe("AgentSessionManager - concurrent message handling", () => {
 		} as unknown as SDKUserMessage;
 	}
 
+	it.each([
+		[
+			"WebFetch",
+			{ url: "https://example.com" },
+			{ detachedToolCall: true },
+			"https://example.com",
+		],
+		[
+			"WebSearch",
+			{ query: "SDK docs" },
+			{ detachedToolCall: true },
+			"Query: SDK docs",
+		],
+		[
+			"mcp__test__large_result",
+			{ id: "test" },
+			{ structuredContentOmitted: true },
+			"id: test",
+		],
+	] as const)("renders %s text without depending on optional SDK result metadata", async (name, input, metadata, parameter) => {
+		const id = "toolu_metadata";
+		const use = buildToolUse(id, "unused");
+		use.message.content = [{ type: "tool_use", id, name, input }];
+		const result = buildToolResult(id, []);
+		result.tool_use_result = metadata;
+		result.message.content = [
+			{ type: "tool_result", tool_use_id: id, content: "SDK result text" },
+		];
+		await manager.handleClaudeMessage(sessionId, use);
+		await manager.handleClaudeMessage(sessionId, result);
+		expect(postActivitySpy).toHaveBeenLastCalledWith(
+			sessionId,
+			{ type: "action", action: name, parameter, result: "SDK result text" },
+			{},
+		);
+	});
+
 	it("keeps action=ToolSearch when tool_use and tool_result arrive back-to-back without awaits", async () => {
 		// Simulate the real EdgeWorker onMessage callback: fire-and-forget the
 		// async handleClaudeMessage calls. Without per-session serialization,
