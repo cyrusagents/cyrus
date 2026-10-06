@@ -70,6 +70,10 @@ export interface RepositoryContext {
 export interface CyrusAgentSession {
 	/** Unique session identifier (was linearAgentActivitySessionId in v2.0) */
 	id: string;
+	/** Cyrus-owned parent relationship, independent of optional issue associations. */
+	parentSessionId?: string;
+	/** Explicit activity destination for Cyrus-owned sessions; never a harness resume ID. */
+	activitySinkBinding?: { sinkId: string; sessionId: string };
 	/** External session ID from the issue tracker (e.g., Linear's AgentSession ID) */
 	externalSessionId?: string;
 	type: AgentSessionType.CommentThread;

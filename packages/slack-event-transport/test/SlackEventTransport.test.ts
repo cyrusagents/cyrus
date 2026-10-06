@@ -1,6 +1,12 @@
 import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isInternalSlackChannel } from "../src/SlackChannelPolicy.js";
 import { SlackEventTransport } from "../src/SlackEventTransport.js";
+
+vi.mock("../src/SlackChannelPolicy.js", () => ({
+	isInternalSlackChannel: vi.fn(async () => true),
+}));
+
 import type { SlackEventTransportConfig } from "../src/types.js";
 import {
 	testEventEnvelope,
@@ -72,7 +78,47 @@ describe("SlackEventTransport", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(isInternalSlackChannel).mockResolvedValue(true);
 		mockFastify = createMockFastify();
+	});
+
+	it.each([
+		"proxy",
+		"direct",
+	] as const)("denies Connect/unknown in %s mode before either consumer or dedup", async (mode) => {
+		const transport = new SlackEventTransport({
+			fastifyServer: mockFastify as any,
+			verificationMode: mode,
+			secret: testSecret,
+		});
+		transport.register();
+		const event = vi.fn(),
+			message = vi.fn();
+		transport.on("event", event).on("message", message);
+		const signature = signSlackRequest(
+			JSON.stringify(testEventEnvelope),
+			testSecret,
+		);
+		const headers =
+			mode === "proxy"
+				? { authorization: `Bearer ${testSecret}` }
+				: {
+						"x-slack-signature": signature.signature,
+						"x-slack-request-timestamp": signature.timestamp,
+					};
+		vi.mocked(isInternalSlackChannel).mockResolvedValue(false);
+		await mockFastify.routes["/slack-webhook"]!(
+			createMockRequest(testEventEnvelope, headers),
+			createMockReply(),
+		);
+		expect(event).not.toHaveBeenCalled();
+		expect(message).not.toHaveBeenCalled();
+		vi.mocked(isInternalSlackChannel).mockResolvedValue(true);
+		await mockFastify.routes["/slack-webhook"]!(
+			createMockRequest(testEventEnvelope, headers),
+			createMockReply(),
+		);
+		expect(event).toHaveBeenCalledTimes(1);
 	});
 
 	afterEach(() => {

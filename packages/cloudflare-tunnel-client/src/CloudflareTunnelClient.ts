@@ -1,7 +1,8 @@
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
-import { bin, install, Tunnel } from "cloudflared";
+import { bin, ConfigHandler, install, Tunnel } from "cloudflared";
+import { inspectManagedRouting, type TunnelRoutingStatus } from "./routing.js";
 import type { CloudflareTunnelClientEvents } from "./types.js";
 
 export declare interface CloudflareTunnelClient {
@@ -26,6 +27,7 @@ export class CloudflareTunnelClient extends EventEmitter {
 	private connectionCount = 0;
 	private cloudflareToken: string;
 	private localPort: number;
+	private routing: TunnelRoutingStatus;
 
 	constructor(
 		cloudflareToken: string,
@@ -35,6 +37,7 @@ export class CloudflareTunnelClient extends EventEmitter {
 		super();
 		this.cloudflareToken = cloudflareToken;
 		this.localPort = localPort;
+		this.routing = { state: "unverified", expectedPort: localPort };
 
 		// Set up onReady callback if provided
 		if (onReady) {
@@ -52,10 +55,23 @@ export class CloudflareTunnelClient extends EventEmitter {
 				await install(bin);
 			}
 
-			console.log(`Starting tunnel to localhost:${this.localPort}`);
+			console.log(
+				`Starting managed tunnel; local server port ${this.localPort}. Cloudflare ingress selects the origin; connector connectivity does not verify routing.`,
+			);
 
 			// Create tunnel with token-based authentication (no URL needed for remotely-managed tunnels)
 			const tunnel = Tunnel.withToken(this.cloudflareToken);
+			this.tunnelProcess = tunnel.process;
+			const config = new ConfigHandler<unknown>(tunnel);
+			config.on("config", ({ config: managed }) => {
+				this.routing = inspectManagedRouting(managed, this.localPort);
+				this.emit("routing", this.getRoutingStatus());
+			});
+			config.on("error", () => {
+				// Parser errors can include the managed config, including credentials.
+				this.routing = { state: "unverified", expectedPort: this.localPort };
+				this.emit("routing", this.getRoutingStatus());
+			});
 
 			// Listen for URL event (from ConfigHandler for token-based tunnels)
 			tunnel.on("url", (url: string) => {
@@ -95,6 +111,7 @@ export class CloudflareTunnelClient extends EventEmitter {
 			// Listen for exit event
 			tunnel.on("exit", (code: number | null) => {
 				this.connected = false;
+				this.routing = { state: "unverified", expectedPort: this.localPort };
 				this.connectionCount = 0; // Reset count on disconnect for fresh reconnection logs
 				this.emit("disconnect", `Tunnel process exited with code ${code}`);
 			});
@@ -138,6 +155,11 @@ export class CloudflareTunnelClient extends EventEmitter {
 		return this.connected;
 	}
 
+	/** Managed configuration observation, separate from connection readiness. */
+	getRoutingStatus(): TunnelRoutingStatus {
+		return { ...this.routing };
+	}
+
 	/**
 	 * Disconnect and cleanup
 	 */
@@ -148,6 +170,7 @@ export class CloudflareTunnelClient extends EventEmitter {
 		}
 
 		this.connected = false;
+		this.routing = { state: "unverified", expectedPort: this.localPort };
 		this.connectionCount = 0; // Reset count on disconnect for fresh reconnection logs
 		this.emit("disconnect", "Client disconnected");
 	}

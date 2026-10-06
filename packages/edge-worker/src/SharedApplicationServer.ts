@@ -169,8 +169,22 @@ export class SharedApplicationServer {
 				);
 
 				if (connectionCount === requiredConnections) {
-					this.logger.info("Cloudflare tunnel fully connected and ready");
+					this.logger.info(
+						"Cloudflare connector connections established; managed origin routing requires separate verification",
+					);
 					resolve();
+				}
+			});
+
+			this.tunnelClient.on("routing", (status) => {
+				if (status.state === "mismatch") {
+					this.logger.warn(
+						`Cloudflare managed ingress does not match local HTTP port ${status.expectedPort}; reconcile this runtime's tunnel before configuration delivery`,
+					);
+				} else {
+					this.logger.info(
+						`Cloudflare managed ingress: ${status.state} (local port ${status.expectedPort}); authenticated end-to-end identity verification is still required`,
+					);
 				}
 			});
 

@@ -1,4 +1,5 @@
-import type { AgentActivityContent } from "cyrus-core";
+import type { AgentActivityContent, IssueContext } from "cyrus-core";
+import type { SessionLifecycleUpdate } from "./session-delivery.js";
 
 /**
  * String literal type for activity signals.
@@ -67,3 +68,33 @@ export interface IActivitySink {
 	 */
 	createAgentSession(issueId: string): Promise<string>;
 }
+
+/** Supervisor-admitted identity. These fields do not themselves grant execution authority. */
+export interface CyrusSessionDescriptor {
+	id: string;
+	parentSessionId?: string;
+	/** Opaque current-authority reference; contains no credentials. */
+	scopeRef: string;
+	role: "coordinator" | "investigator" | "engineering";
+	issueContext?: IssueContext;
+	externalSessionId?: string;
+}
+
+/**
+ * A Cyrus-owned session sink uses the existing activity ontology without requiring
+ * a Linear issue or session. The implementation must authorize the descriptor and
+ * parent relationship against its bound execution scope, then durably acknowledge
+ * creation. Repeated creation of an identical descriptor is idempotent; changed
+ * identity is rejected. No execution entry point may treat this as authorization.
+ */
+export interface ICyrusSessionSink
+	extends Pick<IActivitySink, "id" | "postActivity"> {
+	createCyrusSession(session: CyrusSessionDescriptor): Promise<void>;
+	/** Shared lifecycle/status channel, separate from assistant activity content. */
+	updateCyrusSession?(
+		sessionId: string,
+		update: SessionLifecycleUpdate,
+	): Promise<void>;
+}
+
+export type SessionActivitySink = IActivitySink | ICyrusSessionSink;

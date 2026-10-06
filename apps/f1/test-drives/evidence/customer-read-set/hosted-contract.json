@@ -1,0 +1,8 @@
+{
+	"passed": true,
+	"hostedSource": "0e37517391a930c83ff42a24f80b332b1ee82c10",
+	"runtimeSource": "working tree based on f4a5bcbd",
+	"validSchemaAgreements": 13,
+	"denialAgreements": 78,
+	"limitation": "Pure contract interoperability; renewal lifecycle and installed runtime join still required"
+}

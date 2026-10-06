@@ -7,13 +7,13 @@ import {
 	type RepositoryConfig,
 } from "cyrus-core";
 import { GitService, SharedApplicationServer } from "cyrus-edge-worker";
-import dotenv from "dotenv";
 import { DEFAULT_SERVER_PORT, parsePort } from "./config/constants.js";
 import { ConfigService } from "./services/ConfigService.js";
 import { Logger } from "./services/Logger.js";
 import { WorkerService } from "./services/WorkerService.js";
 import { getDefaultReposDir } from "./utils/getDefaultReposDir.js";
 import { getDefaultWorktreesDir } from "./utils/getDefaultWorktreesDir.js";
+import { loadRuntimeEnv } from "./utils/loadRuntimeEnv.js";
 
 /**
  * Main application context providing access to services
@@ -75,7 +75,7 @@ export class Application {
 	 */
 	private loadEnvFile(): void {
 		if (existsSync(this.envFilePath)) {
-			dotenv.config({ path: this.envFilePath, override: true });
+			loadRuntimeEnv(this.envFilePath);
 			this.logger.info(
 				`🔧 Loaded environment variables from ${this.envFilePath}`,
 			);

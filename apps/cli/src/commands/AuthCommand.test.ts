@@ -1,75 +1,82 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import type { Application } from "../Application.js";
-
-const { getConfig, start } = vi.hoisted(() => ({
-	getConfig: vi.fn(),
-	start: vi.fn(),
-}));
-vi.mock("cyrus-cloudflare-tunnel-client", async (original) => ({
-	...(await original<object>()),
-	ConfigApiClient: {
-		getConfig,
-		isValid: (r: { success: boolean }) => r.success,
-	},
-}));
-vi.mock("./StartCommand.js", () => ({
-	StartCommand: class {
-		execute = start;
-	},
-}));
-
 import { AuthCommand } from "./AuthCommand.js";
 
-const homes: string[] = [];
+let directory: string | undefined;
 afterEach(() => {
-	for (const home of homes.splice(0))
-		rmSync(home, { recursive: true, force: true });
-	vi.unstubAllEnvs();
+	if (directory) rmSync(directory, { recursive: true, force: true });
 	vi.restoreAllMocks();
-	vi.clearAllMocks();
+	vi.unstubAllEnvs();
+	vi.unstubAllGlobals();
 });
 
-describe("auth listener port persistence", () => {
-	it.each([
-		19119,
-		undefined,
-	])("writes and reloads hosted port %s before starting", async (serverPort) => {
-		const home = mkdtempSync(join(tmpdir(), "cyrus-auth-port-"));
-		homes.push(home);
-		for (const name of [
-			"CLOUDFLARE_TOKEN",
-			"CYRUS_API_KEY",
-			"CYRUS_SETUP_PENDING",
-			"CYRUS_SERVER_PORT",
-		])
-			vi.stubEnv(name, undefined);
-		vi.spyOn(console, "log").mockImplementation(() => {});
-		getConfig.mockResolvedValue({
+it("pairs and starts on the same preview origin, persists it privately and never logs credentials", async () => {
+	directory = mkdtempSync(join(tmpdir(), "cyrus-auth-preview-"));
+	const envPath = join(directory, ".env");
+	writeFileSync(envPath, "previous fixture configuration", { mode: 0o644 });
+	vi.stubEnv("CYRUS_APP_URL", "https://cyrus-preview-cyhost-1321.vercel.app/");
+	for (const name of [
+		"CLOUDFLARE_TOKEN",
+		"CYRUS_API_KEY",
+		"CYRUS_SETUP_PENDING",
+	])
+		vi.stubEnv(name, undefined);
+	const fetcher = vi.fn().mockResolvedValue(
+		Response.json({
 			success: true,
 			config: {
-				cloudflareToken: "fixture-tunnel",
-				apiKey: "fixture-api",
-				serverPort,
+				cloudflareToken: "private-fixture-tunnel",
+				apiKey: "private-fixture-key",
 			},
-		});
-		start.mockImplementation(async () => {
-			expect(process.env.CYRUS_SERVER_PORT).toBe(
-				serverPort === undefined ? undefined : "19119",
-			);
-			expect(process.env.CYRUS_SETUP_PENDING).toBe("true");
-		});
-		const app = {
-			cyrusHome: home,
-			logger: { success: vi.fn(), error: vi.fn(), divider: vi.fn() },
-		} as unknown as Application;
-		await new AuthCommand(app).execute(["fixture-auth"]);
-		expect(start).toHaveBeenCalledOnce();
-		const env = readFileSync(join(home, ".env"), "utf8");
-		if (serverPort === undefined)
-			expect(env).not.toContain("CYRUS_SERVER_PORT");
-		else expect(env).toContain("CYRUS_SERVER_PORT=19119\n");
-	});
+		}),
+	);
+	vi.stubGlobal("fetch", fetcher);
+	const log = vi.fn();
+	vi.spyOn(console, "log").mockImplementation(log);
+	vi.spyOn(console, "error").mockImplementation(log);
+	const starts: string[] = [];
+	const app = {
+		cyrusHome: directory,
+		version: "test",
+		config: { load: () => ({ repositories: [] }) },
+		logger: { success: log, error: log, divider: log, raw: log, info: log },
+		worker: {
+			startEdgeWorker: async () => {
+				starts.push(process.env.CYRUS_APP_URL!);
+			},
+			getServerPort: () => 3456,
+		},
+		setupSignalHandlers: vi.fn(),
+	} as unknown as Application;
+	await new AuthCommand(app).execute(["private-fixture-code"]);
+	expect(fetcher).toHaveBeenCalledWith(
+		"https://cyrus-preview-cyhost-1321.vercel.app/api/config",
+		expect.objectContaining({
+			headers: {
+				Authorization: "Bearer private-fixture-code",
+				"X-Cyrus-Config-Capabilities": "self-host-port-v1",
+			},
+			redirect: "error",
+		}),
+	);
+	expect(starts).toEqual(["https://cyrus-preview-cyhost-1321.vercel.app/"]);
+	expect(readFileSync(envPath, "utf8")).toContain(
+		"CYRUS_APP_URL=https://cyrus-preview-cyhost-1321.vercel.app\n",
+	);
+	expect(statSync(envPath).mode & 0o777).toBe(0o600);
+	for (const secret of [
+		"private-fixture-code",
+		"private-fixture-key",
+		"private-fixture-tunnel",
+	])
+		expect(JSON.stringify(log.mock.calls)).not.toContain(secret);
 });

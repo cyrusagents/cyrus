@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import type { TranslationContext } from "cyrus-core";
 import { createLogger, type ILogger } from "cyrus-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { isInternalSlackChannel } from "./SlackChannelPolicy.js";
 import { SlackMessageTranslator } from "./SlackMessageTranslator.js";
 import type {
 	SlackEventEnvelope,
@@ -198,7 +199,7 @@ export class SlackEventTransport extends EventEmitter {
 			// Direct mode: Slack delivers events straight to us with no upstream
 			// gate, so the runtime must self-gate plain messages on its in-memory
 			// thread bindings.
-			this.processAndEmitEvent(request, reply, false);
+			await this.processAndEmitEvent(request, reply, false);
 		} catch (error) {
 			const err = new Error("Slack signature verification failed");
 			if (error instanceof Error) {
@@ -258,7 +259,7 @@ export class SlackEventTransport extends EventEmitter {
 			// Proxy mode: CYHOST already verified this event against its
 			// persistent thread bindings before forwarding, so a `message` event
 			// reaching us is trusted to (re)start a session for its thread.
-			this.processAndEmitEvent(request, reply, true);
+			await this.processAndEmitEvent(request, reply, true);
 		} catch (error) {
 			const err = new Error("Proxy webhook processing failed");
 			if (error instanceof Error) {
@@ -272,11 +273,11 @@ export class SlackEventTransport extends EventEmitter {
 	/**
 	 * Process the webhook request and emit the appropriate event
 	 */
-	private processAndEmitEvent(
+	private async processAndEmitEvent(
 		request: FastifyRequest,
 		reply: FastifyReply,
 		upstreamGated: boolean,
-	): void {
+	): Promise<void> {
 		const envelope = request.body as SlackEventEnvelope;
 
 		// Handle Slack URL verification challenge
@@ -335,7 +336,20 @@ export class SlackEventTransport extends EventEmitter {
 		// message that mentions the bot. De-duplicate on (channel, ts) so the
 		// thread only gets prompted once. The first event to arrive wins; both
 		// carry identical text.
-		const dedupKey = `${event.channel}:${event.ts}`;
+		// Verified signatures/Bearer auth and upstream thread bindings do not
+		// authorize Connect traffic for the ordinary agent. Hosted is its sole
+		// consumer. Do this before either event stream, reactions or dedup state.
+		if (
+			!(await isInternalSlackChannel(
+				this.getSlackBotToken(),
+				envelope.team_id,
+				event.channel,
+			))
+		) {
+			reply.code(200).send({ success: true, ignored: true });
+			return;
+		}
+		const dedupKey = `${envelope.team_id}:${event.channel}:${event.ts}`;
 		if (this.isDuplicateMessage(dedupKey)) {
 			this.logger.debug(
 				`Ignoring duplicate Slack event for ${dedupKey} (already processed)`,

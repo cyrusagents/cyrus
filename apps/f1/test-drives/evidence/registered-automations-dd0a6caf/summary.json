@@ -1,0 +1,32 @@
+{
+	"passed": true,
+	"directory": "/tmp/cyrus-automation-f1-vezkp1",
+	"counts": {
+		"initialize": 6,
+		"list": 6,
+		"tools": 6,
+		"models": 8,
+		"progress": 4,
+		"resultTransmissions": 5,
+		"resultCommits": 4,
+		"denied": 5
+	},
+	"assertions": [
+		"instruction through registered HTTP routes",
+		"actual scheduled tick",
+		"non-customer automation",
+		"durable result ACK recovery after restart",
+		"no model/tool/progress reopening",
+		"real MCP SDK initialize/list/call/reconnect",
+		"open-session expiry/revocation",
+		"supervisor key rejected at MCP",
+		"forged authority and live copied instance denied",
+		"strict fixed-resource arguments",
+		"private checkpoints without credentials"
+	],
+	"limitations": [
+		"Hosted authority/provider/model transports are controlled fixtures; real hosted connected gate still required",
+		"No live provider or model calls",
+		"Single-bound Linear/Slack tools only; engineering lifecycle integration pending"
+	]
+}

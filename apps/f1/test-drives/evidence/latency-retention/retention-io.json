@@ -1,0 +1,12 @@
+{
+	"schema": 1,
+	"controlled": true,
+	"spanCount": 69,
+	"writes": 70,
+	"retained": 64,
+	"saveMedianMs": 3.900749999999988,
+	"saveP95Ms": 12.659416000000022,
+	"saveMaxMs": 233.56525000000005,
+	"oneStatusReadMs": 3.277082999999948,
+	"limit": "Local disk profile, not live runtime latency; save outside attempt span."
+}

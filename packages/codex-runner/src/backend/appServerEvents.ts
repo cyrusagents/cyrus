@@ -119,6 +119,26 @@ export function translateAppServerItem(
 				status: normalizeRunStatus(item.status),
 			};
 		}
+		case "dynamicToolCall":
+			return {
+				type: "dynamic_tool_call",
+				id,
+				tool: str(item.tool),
+				arguments: item.arguments,
+				text: Array.isArray(item.contentItems)
+					? item.contentItems
+							.filter(
+								(part) =>
+									part &&
+									part.type === "inputText" &&
+									typeof part.text === "string",
+							)
+							.map((part) => part.text)
+							.join("\n")
+					: "",
+				status:
+					item.success === false ? "failed" : normalizeRunStatus(item.status),
+			};
 		case "webSearch":
 			return {
 				type: "web_search",

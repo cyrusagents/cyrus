@@ -1,0 +1,51 @@
+{
+	"hostedSha": "8995bb5a2534b83b60ab00362e94f1cdd92dc9c8",
+	"runtimeSha": "d66ed0a86d0d925fe88469a142da93f640aee416",
+	"tests": 87,
+	"assertions": 933,
+	"durationSeconds": 25.76,
+	"totalCompleted": 3,
+	"totalModelRequests": 9,
+	"totalResultTransmissions": 4,
+	"proof": {
+		"runtime": {
+			"passed": true,
+			"queuedNextTurn": false,
+			"childContextIsolated": true,
+			"completed": 2,
+			"pausedReceiptRecovered": false,
+			"modelSteps": 8,
+			"resultTransmissions": 3,
+			"continuation": {
+				"productionDispatcher": true,
+				"outboxCount": 1,
+				"replyCount": 1,
+				"dispatches": 3,
+				"nativeReads": 1,
+				"nativeWrites": 0,
+				"memoryEffects": 0,
+				"externalReplies": 0,
+				"workIdentityPreserved": true,
+				"modelSteps": 1,
+				"providerRequests": 1,
+				"freshContext": true,
+				"exactOriginalConstraints": true,
+				"fullNativePrompt": true
+			},
+			"automaticLostAckRecovery": true,
+			"registeredEntryPoint": true,
+			"unauthorizedRoutesDenied": 4,
+			"duplicateInstructionDeduplicated": true,
+			"elapsedMs": 15963
+		},
+		"native": {
+			"opens": 3,
+			"requests": 9,
+			"childRequests": 3,
+			"closes": 3,
+			"noPrivateParentInChildInput": true,
+			"delegationDescriptionRequests": 5
+		}
+	},
+	"limits": "Actual production child-result dispatch + SQL/HTTP/MCP/native container; controlled model, providers, initial/child outbox delivery and dispatch trigger. No live intent or speed claim."
+}

@@ -1,0 +1,23 @@
+{
+	"passed": true,
+	"runtimeSource": "e4de0e6707ab82d5ef8ec56509e6abe947b884c0",
+	"hostedSources": {
+		"mcp-server.ts": "f60bab4398d1f8bb9138a8b74749fba4fa1681bf1e5b066ff2464b8b8d6b7ee6",
+		"mcp-provider.ts": "38af7f28d9130a96e703654df173718b4f93a3a9b559793fb671f3dab0e34f38",
+		"mcp-contract.ts": "78909ae6fa4e1fba19748a77aa824d8639ceb1ba27da7079259cdbefe44ea0f5"
+	},
+	"providerCalls": 2,
+	"initializations": 2,
+	"assertions": [
+		"actual hosted MCP SDK handler and provider response validator",
+		"read before and after credential rotation",
+		"stable grant identity matches runtime binding",
+		"new session after rotation",
+		"revoked existing session denied without provider access"
+	],
+	"limitations": [
+		"Hosted worktree sources not yet immutable",
+		"Admission/session storage controlled in memory, not SQL or complete automation integration",
+		"Provider response synthetic; no live effects"
+	]
+}

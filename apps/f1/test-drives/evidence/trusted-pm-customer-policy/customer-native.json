@@ -1,0 +1,16 @@
+{
+	"passed": true,
+	"modelSteps": 5,
+	"oneWaySubmissions": 1,
+	"resultCommits": 1,
+	"resultTransmissions": 2,
+	"privateActivityReceipts": 18,
+	"strictRestrictedAndEmailRead": true,
+	"lostReferencedSubmissionAck": true,
+	"freshTranscript": true,
+	"changedEpochTerminalRecovery": true,
+	"limits": [
+		"Actual isolated native Codex, MCP SDK HTTP, runtime and private SQLite",
+		"Controlled model/Hosted/provider authority; no actual Hosted SQL or live-provider claim"
+	]
+}

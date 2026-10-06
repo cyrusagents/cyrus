@@ -2,6 +2,7 @@ import type { IAgentRunner, ILogger } from "cyrus-core";
 import { createLogger } from "cyrus-core";
 import {
 	buildPromptText,
+	isInternalSlackChannel,
 	SlackMessageService,
 	SlackReactionService,
 	type SlackThreadMessage,
@@ -85,17 +86,25 @@ export class SlackChatAdapter
 		this.logger = logger ?? createLogger({ component: "SlackChatAdapter" });
 	}
 
-	/**
-	 * Get the Slack bot token, falling back to process.env if the event doesn't carry one.
-	 *
-	 * The event's slackBotToken is set at webhook-reception time by SlackEventTransport.
-	 * During startup transitions (e.g. switching from cloud to self-host), the token may
-	 * not yet be in process.env when the event is created but may arrive shortly after
-	 * via an async env update. This fallback ensures the token is picked up even if
-	 * it was loaded into process.env after the event was created.
-	 */
-	private getSlackBotToken(event: SlackWebhookEvent): string | undefined {
-		return event.slackBotToken ?? process.env.SLACK_BOT_TOKEN;
+	/** Capture only the current account credential, never a queued event's token. */
+	private async authorizedToken(
+		event: SlackWebhookEvent,
+	): Promise<string | undefined> {
+		const token = process.env.SLACK_BOT_TOKEN;
+		if (
+			!token ||
+			!(await isInternalSlackChannel(
+				token,
+				event.teamId,
+				event.payload.channel,
+			))
+		)
+			return undefined;
+		return process.env.SLACK_BOT_TOKEN === token ? token : undefined;
+	}
+
+	async canHandleEvent(event: SlackWebhookEvent): Promise<boolean> {
+		return Boolean(await this.authorizedToken(event));
 	}
 
 	private async getSelfBotId(token: string): Promise<string | undefined> {
@@ -253,17 +262,11 @@ Supported mrkdwn syntax:
 		event: SlackWebhookEvent,
 		sinceTs?: string,
 	): Promise<string | null> {
+		const token = await this.authorizedToken(event);
+		if (!token) return null;
 		// Only fetch context for threaded messages
 		if (!event.payload.thread_ts) {
 			return "";
-		}
-
-		const token = this.getSlackBotToken(event);
-		if (!token) {
-			this.logger.warn(
-				"Cannot fetch Slack thread context: no slackBotToken available",
-			);
-			return null;
 		}
 
 		try {
@@ -327,6 +330,8 @@ Supported mrkdwn syntax:
 		runner: IAgentRunner,
 	): Promise<void> {
 		try {
+			const token = await this.authorizedToken(event);
+			if (!token) return;
 			// Get the last assistant message from the runner as the summary
 			const messages = runner.getMessages();
 			const lastAssistantMessage = [...messages]
@@ -366,12 +371,6 @@ Supported mrkdwn syntax:
 				return;
 			}
 
-			const token = this.getSlackBotToken(event);
-			if (!token) {
-				this.logger.warn("Cannot post Slack reply: no slackBotToken available");
-				return;
-			}
-
 			// Thread the reply under the original message
 			const threadTs = event.payload.thread_ts || event.payload.ts;
 
@@ -394,13 +393,8 @@ Supported mrkdwn syntax:
 	}
 
 	async acknowledgeReceipt(event: SlackWebhookEvent): Promise<void> {
-		const token = this.getSlackBotToken(event);
-		if (!token) {
-			this.logger.warn(
-				"Cannot add Slack reaction: no slackBotToken available (SLACK_BOT_TOKEN env var not set)",
-			);
-			return;
-		}
+		const token = await this.authorizedToken(event);
+		if (!token) return;
 
 		await new SlackReactionService().addReaction({
 			token,
@@ -416,13 +410,8 @@ Supported mrkdwn syntax:
 	 * was posted, so users can tell a silently-skipped message was still seen.
 	 */
 	async acknowledgeProcessed(event: SlackWebhookEvent): Promise<void> {
-		const token = this.getSlackBotToken(event);
-		if (!token) {
-			this.logger.warn(
-				"Cannot update Slack reaction: no slackBotToken available (SLACK_BOT_TOKEN env var not set)",
-			);
-			return;
-		}
+		const token = await this.authorizedToken(event);
+		if (!token) return;
 
 		const reactionService = new SlackReactionService();
 		const target = {
@@ -436,14 +425,13 @@ Supported mrkdwn syntax:
 		// transition. (Slack has no atomic swap; if the add fails the message
 		// is briefly indicator-less, which beats showing both.)
 		await reactionService.removeReaction({ ...target, name: RECEIPT_REACTION });
+		if ((await this.authorizedToken(event)) !== token) return;
 		await reactionService.addReaction({ ...target, name: PROCESSED_REACTION });
 	}
 
 	async notifyBusy(event: SlackWebhookEvent): Promise<void> {
-		const token = this.getSlackBotToken(event);
-		if (!token) {
-			return;
-		}
+		const token = await this.authorizedToken(event);
+		if (!token) return;
 
 		const threadTs = event.payload.thread_ts || event.payload.ts;
 

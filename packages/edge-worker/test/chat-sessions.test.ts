@@ -7,7 +7,15 @@ import {
 	SlackReactionService,
 	type SlackWebhookEvent,
 } from "cyrus-slack-event-transport";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+beforeEach(() => vi.stubEnv("SLACK_BOT_TOKEN", "xoxb-test"));
+afterEach(() => vi.unstubAllEnvs());
+vi.mock("cyrus-slack-event-transport", async (importOriginal) => ({
+	...(await importOriginal<typeof import("cyrus-slack-event-transport")>()),
+	isInternalSlackChannel: vi.fn(async () => true),
+}));
+
 import type { ChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
 import { LiveChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
 import type { ChatPlatformAdapter } from "../src/ChatSessionHandler.js";

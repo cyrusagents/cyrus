@@ -1,0 +1,12 @@
+(node:84826) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+file:///Users/agentops/.cyrus/worktrees/CYPACK-1546/apps/f1/automation-drive.mjs:45
+		if (Date.now() > end) throw new Error("F1 condition timed out");
+		                            ^
+
+Error: F1 condition timed out
+    at until (file:///Users/agentops/.cyrus/worktrees/CYPACK-1546/apps/f1/automation-drive.mjs:45:31)
+    at async runAutomationDrive (file:///Users/agentops/.cyrus/worktrees/CYPACK-1546/apps/f1/automation-drive.mjs:1288:4)
+    at async file:///Users/agentops/.cyrus/worktrees/CYPACK-1546/[eval1]:1:103
+
+Node.js v22.17.1

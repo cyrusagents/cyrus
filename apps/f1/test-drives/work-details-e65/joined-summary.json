@@ -1,0 +1,117 @@
+{
+	"passed": true,
+	"runtimeSha": "f91a723197bb0dbae90cc82a55995ae08e225f33",
+	"hosted": {
+		"rows": [
+			{
+				"objective": "Investigate synthetic joined export",
+				"status": "active",
+				"outcome": {
+					"nextAction": "Inspect reproduction"
+				},
+				"next_check_at": null
+			}
+		],
+		"effects": 3,
+		"hostedSha": "d07dc874c068c89847cf81e3cf90ca53654f5e20",
+		"runtimeSha": "f91a723197bb0dbae90cc82a55995ae08e225f33",
+		"admissions": 13,
+		"renewals": 8,
+		"reconciliations": 0,
+		"deliveries": 40,
+		"results": 4,
+		"interruptions": 1,
+		"mcpPreflights": 85,
+		"mcpAuthorizations": 90,
+		"mcpPhases": {
+			"initialize": {
+				"requests": 5,
+				"denied": 0,
+				"durationMs": 99.94875099999945,
+				"preflight": 5,
+				"preflightMs": 19.753291999999874,
+				"authorize": 5,
+				"authorizeMs": 18.018499000000702
+			},
+			"notifications/initialized": {
+				"requests": 5,
+				"denied": 0,
+				"durationMs": 32.33724799999936,
+				"preflight": 5,
+				"preflightMs": 14.636249999999109,
+				"authorize": 5,
+				"authorizeMs": 10.475040999999692
+			},
+			"GET": {
+				"requests": 5,
+				"denied": 5,
+				"durationMs": 9.882373000002644,
+				"preflight": 0,
+				"preflightMs": 0,
+				"authorize": 5,
+				"authorizeMs": 9.494500000001153
+			},
+			"tools/list": {
+				"requests": 66,
+				"denied": 0,
+				"durationMs": 644.3931269999975,
+				"preflight": 66,
+				"preflightMs": 313.8678780000091,
+				"authorize": 66,
+				"authorizeMs": 264.15541400000257
+			},
+			"tools/call": {
+				"requests": 9,
+				"denied": 0,
+				"durationMs": 184.935999000003,
+				"preflight": 9,
+				"preflightMs": 37.97149999999965,
+				"authorize": 9,
+				"authorizeMs": 22.11845699999958
+			}
+		},
+		"tools": {
+			"read_context": 5,
+			"track_work": 4
+		},
+		"denials": 5,
+		"passed": true
+	},
+	"models": 7,
+	"modelCounts": {
+		"work-create": 2,
+		"work-details-set": 2,
+		"work-details-clear": 2,
+		"work-details-recall": 1
+	},
+	"statuses": [
+		{
+			"stage": "work-create",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		},
+		{
+			"stage": "work-details-set",
+			"status": "completed",
+			"attempts": 2,
+			"fence": 2
+		},
+		{
+			"stage": "work-details-clear",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		},
+		{
+			"stage": "work-details-recall",
+			"status": "completed",
+			"attempts": 1,
+			"fence": 1
+		}
+	],
+	"lostWorkDetailsAck": true,
+	"limits": [
+		"Actual installed native/runtime/SDK/Hosted handlers/SQL; controlled model and synthetic outbox; no live provider/UI acceptance"
+	]
+}

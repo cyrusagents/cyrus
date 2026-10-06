@@ -154,6 +154,8 @@ import { ActivityPoster } from "./ActivityPoster.js";
 import { AgentSessionManager } from "./AgentSessionManager.js";
 import { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
 import { AttachmentService } from "./AttachmentService.js";
+import { registerConfiguredAutomations } from "./automations/register.js";
+import { TrustedPmRunnerAdapter } from "./automations/TrustedPmModel.js";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import { LiveChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 import type { ChatSessionHandlerDeps } from "./ChatSessionHandler.js";
@@ -904,6 +906,37 @@ export class EdgeWorker extends EventEmitter {
 
 		// Register config update routes
 		this.configUpdater.register();
+		registerConfiguredAutomations(
+			this.sharedApplicationServer.getFastifyInstance(),
+			this.cyrusHome,
+			() => this.config,
+			new TrustedPmRunnerAdapter({
+				home: this.cyrusHome,
+				workspaceId: () => process.env.CYRUS_TEAM_ID || "",
+				repositories: () => Array.from(this.repositories.values()),
+				harness: () => this.runnerSelectionService.getDefaultRunner(),
+				model: () =>
+					this.getDefaultModelForRunner(
+						this.runnerSelectionService.getDefaultRunner(),
+					),
+				hasLinearWorkspace: (id) => !!this.config.linearWorkspaces?.[id],
+				ensureLinearTokenFresh: (id) => this.ensureLinearTokenFresh(id),
+				builder: this.runnerConfigBuilder,
+				allowedTools: (repositories) =>
+					this.buildAllowedTools(repositories, undefined),
+				disallowedTools: (repositories) =>
+					Array.from(
+						new Set(
+							repositories.flatMap((repository) =>
+								this.buildDisallowedTools(repository, undefined),
+							),
+						),
+					),
+				mcpConfigPaths: () => this.config.linearMcpConfigs,
+				createRunner: (type, config, beforeStart) =>
+					this.createRunnerForType(type, config, beforeStart),
+			}),
+		);
 
 		this.logger.info("✅ Config updater registered");
 		this.logger.info(
@@ -5659,10 +5692,12 @@ ${taskSection}`;
 	private createRunnerForType(
 		runnerType: RunnerType,
 		config: AgentRunnerConfig,
+		beforeStart?: () => Promise<void>,
 	): IAgentRunner {
 		return capRunnerStarts(
 			this.buildRunnerForType(runnerType, config),
 			this.runnerSlots,
+			beforeStart,
 		);
 	}
 

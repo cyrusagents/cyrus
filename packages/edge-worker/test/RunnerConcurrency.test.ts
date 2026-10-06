@@ -252,3 +252,24 @@ describe("capRunnerStarts", () => {
 		expect(addStreamMessage).toHaveBeenCalledWith("follow-up");
 	});
 });
+
+it("rechecks fenced authority after a queued slot and never starts revoked work", async () => {
+	const semaphore = new SessionSemaphore(1);
+	await semaphore.acquire();
+	const fake = fakeRunner(false);
+	let allowed = true;
+	const guard = vi.fn(async () => {
+		if (!allowed) throw Error("Revoked queued owner");
+	});
+	const runner = capRunnerStarts(fake.runner, semaphore, guard);
+	const pending = runner.start("private PM request");
+	const denied = expect(pending).rejects.toThrow("Revoked queued owner");
+	await settled();
+	expect(guard).not.toHaveBeenCalled();
+	allowed = false;
+	semaphore.release();
+	await denied;
+	expect(guard).toHaveBeenCalledOnce();
+	expect(fake.started).not.toHaveBeenCalled();
+	expect(semaphore.active).toBe(0);
+});

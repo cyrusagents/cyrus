@@ -1,6 +1,15 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+	closeSync,
+	constants,
+	existsSync,
+	fchmodSync,
+	mkdirSync,
+	openSync,
+	writeFileSync,
+} from "node:fs";
 import { resolve } from "node:path";
 import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
+import { loadRuntimeEnv } from "../utils/loadRuntimeEnv.js";
 import { BaseCommand } from "./ICommand.js";
 
 /**
@@ -60,16 +69,31 @@ export class AuthCommand extends BaseCommand {
 # Generated on ${new Date().toISOString()}
 CLOUDFLARE_TOKEN=${configResponse.config!.cloudflareToken}
 CYRUS_API_KEY=${configResponse.config!.apiKey}
-CYRUS_SETUP_PENDING=true
+CYRUS_APP_URL=${getCyrusAppUrl()}
+${configResponse.config!.teamId ? `CYRUS_TEAM_ID=${configResponse.config!.teamId}\n` : ""}CYRUS_SETUP_PENDING=true
 ${configResponse.config!.serverPort === undefined ? "" : `CYRUS_SERVER_PORT=${configResponse.config!.serverPort}\n`}
 `;
 
-			writeFileSync(envPath, envContent, "utf-8");
+			const envFile = openSync(
+				envPath,
+				constants.O_CREAT |
+					constants.O_WRONLY |
+					constants.O_TRUNC |
+					constants.O_NOFOLLOW,
+				0o600,
+			);
+			try {
+				fchmodSync(envFile, 0o600);
+				writeFileSync(envFile, envContent, "utf-8");
+			} finally {
+				closeSync(envFile);
+			}
 			this.logSuccess(`Credentials saved to ${envPath}`);
 
+			// Never carry an old workspace into a newly paired credential.
+			delete process.env.CYRUS_TEAM_ID;
 			// Reload environment variables to pick up CYRUS_SETUP_PENDING
-			const dotenv = await import("dotenv");
-			dotenv.config({ path: envPath, override: true });
+			loadRuntimeEnv(envPath);
 
 			console.log("\n✨ Setup complete! Starting Cyrus...");
 			this.logDivider();

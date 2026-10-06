@@ -35,7 +35,9 @@ import {
 import type {
 	ActivityPostOptions,
 	ActivitySignal,
-	IActivitySink,
+	CyrusSessionDescriptor,
+	ICyrusSessionSink,
+	SessionActivitySink,
 } from "./sinks/index.js";
 
 /**
@@ -68,7 +70,7 @@ export declare interface AgentSessionManager {
  */
 export class AgentSessionManager extends EventEmitter {
 	private logger: ILogger;
-	private activitySinks: Map<string, IActivitySink> = new Map(); // Per-session activity sinks
+	private activitySinks: Map<string, SessionActivitySink> = new Map(); // Per-session activity sinks
 	private sessions: Map<string, CyrusAgentSession> = new Map();
 	private entries: Map<string, CyrusAgentSessionEntry[]> = new Map(); // Stores a list of session entries per each session by its id
 	private activeTasksBySession: Map<string, string> = new Map(); // Maps session ID to active Task tool use ID
@@ -116,15 +118,123 @@ export class AgentSessionManager extends EventEmitter {
 	 * Register an activity sink for a specific session.
 	 * This associates the session with the correct issue tracker for activity posting.
 	 */
-	setActivitySink(sessionId: string, sink: IActivitySink): void {
+	setActivitySink(sessionId: string, sink: SessionActivitySink): void {
+		const binding = this.sessions.get(sessionId)?.activitySinkBinding;
+		if (
+			binding &&
+			(binding.sinkId !== sink.id || !("createCyrusSession" in sink))
+		) {
+			throw new Error("Activity sink does not match persisted session binding");
+		}
 		this.activitySinks.set(sessionId, sink);
 	}
 
 	/**
 	 * Get the activity sink for a session.
 	 */
-	private getActivitySink(sessionId: string): IActivitySink | undefined {
-		return this.activitySinks.get(sessionId);
+	private getActivitySink(sessionId: string): SessionActivitySink | undefined {
+		const sink = this.activitySinks.get(sessionId);
+		const binding = this.sessions.get(sessionId)?.activitySinkBinding;
+		if (
+			binding &&
+			(!sink || binding.sinkId !== sink.id || !("createCyrusSession" in sink))
+		) {
+			return undefined;
+		}
+		return sink;
+	}
+
+	private activityDestination(session: CyrusAgentSession): string | undefined {
+		return session.activitySinkBinding?.sessionId ?? session.externalSessionId;
+	}
+
+	private failOwnedDelivery(sessionId: string): void {
+		const session = this.sessions.get(sessionId);
+		if (!session?.activitySinkBinding) return;
+		session.status = AgentSessionStatus.Error;
+		if (!this.stopRequestedSessions.has(sessionId)) {
+			this.stopRequestedSessions.add(sessionId);
+			session.agentRunner?.stop();
+		}
+	}
+
+	private async emitOwnedLifecycle(sessionId: string): Promise<void> {
+		const session = this.sessions.get(sessionId);
+		if (!session?.activitySinkBinding) return;
+		const sink = this.getActivitySink(sessionId);
+		if (!sink || !("createCyrusSession" in sink)) {
+			this.failOwnedDelivery(sessionId);
+			throw new Error(
+				"Cyrus-owned session sink must be rebound before delivery",
+			);
+		}
+		if (!sink.updateCyrusSession) return;
+		const native = (
+			[
+				["claude", session.claudeSessionId],
+				["codex", session.codexSessionId],
+				["gemini", session.geminiSessionId],
+				["cursor", session.cursorSessionId],
+				["opencode", session.opencodeSessionId],
+			] as const
+		).find(([, id]) => !!id);
+		try {
+			await sink.updateCyrusSession(session.id, {
+				status: session.status,
+				...(native && { harness: { type: native[0], sessionId: native[1]! } }),
+			});
+		} catch {
+			this.failOwnedDelivery(sessionId);
+			throw new Error("Durable session lifecycle could not be accepted");
+		}
+	}
+
+	/**
+	 * Track an already-admitted Cyrus session. This is supervisor plumbing, not a
+	 * launch/delegation authorization API. The scope-bound sink must persist and
+	 * authorize creation before the session becomes available to a runner.
+	 */
+	async createOwnedSession(
+		descriptor: CyrusSessionDescriptor,
+		workspace: Workspace,
+		sink: ICyrusSessionSink,
+		repositories: RepositoryContext[] = [],
+	): Promise<CyrusAgentSession> {
+		// Keep admission and local identity tied to the same immutable snapshot.
+		descriptor = structuredClone(descriptor);
+		if (!descriptor.id || this.sessions.has(descriptor.id)) {
+			throw new Error("Session identity is missing or already tracked");
+		}
+		if (descriptor.parentSessionId) {
+			const parent = this.sessions.get(descriptor.parentSessionId);
+			if (!parent || this.getActivitySink(parent.id)?.id !== sink.id) {
+				throw new Error("Parent session must be tracked by the same sink");
+			}
+		}
+		await sink.createCyrusSession(descriptor);
+		// A concurrent creation must not replace a tracked session or its runner.
+		if (this.sessions.has(descriptor.id)) {
+			throw new Error("Session identity is already tracked");
+		}
+		const session: CyrusAgentSession = {
+			id: descriptor.id,
+			parentSessionId: descriptor.parentSessionId,
+			activitySinkBinding: { sinkId: sink.id, sessionId: descriptor.id },
+			externalSessionId: descriptor.externalSessionId,
+			issueContext: descriptor.issueContext,
+			issueId: descriptor.issueContext?.issueId,
+			type: AgentSessionType.CommentThread,
+			context: AgentSessionType.CommentThread,
+			status: AgentSessionStatus.Active,
+			createdAt: Date.now(),
+			updatedAt: Date.now(),
+			workspace,
+			repositories,
+		};
+		this.sessions.set(session.id, session);
+		this.entries.set(session.id, []);
+		this.setActivitySink(session.id, sink);
+		return session;
 	}
 
 	/**
@@ -385,6 +495,7 @@ export class AgentSessionManager extends EventEmitter {
 
 		if (wasStopRequested) {
 			log.info(`Session was stopped by user`);
+			await this.emitOwnedLifecycle(sessionId);
 			return;
 		}
 
@@ -411,13 +522,24 @@ export class AgentSessionManager extends EventEmitter {
 			}
 		}
 
+		if (pendingWork && session.activitySinkBinding)
+			session.status = AgentSessionStatus.Active;
+		await this.emitOwnedLifecycle(sessionId);
+
 		// Handle child session completion. A session held open for pending
 		// work is not done yet: the wakeup or background task will stream more
 		// messages in, ending in another result. Resuming the parent now would
 		// hand it a non-final result and resume it again later, so defer the
 		// callback to the result that actually ends the session.
-		const parentSessionId = this.getParentSessionId?.(sessionId);
-		if (parentSessionId && this.resumeParentSession) {
+		const parentSessionId =
+			session.parentSessionId ?? this.getParentSessionId?.(sessionId);
+		// Owned children return through their durable, authorized sink relationship.
+		// Never invoke the legacy parent callback, which can launch an unscoped runner.
+		if (
+			parentSessionId &&
+			this.resumeParentSession &&
+			!session.activitySinkBinding
+		) {
 			if (pendingWork) {
 				log.info(
 					`Child session has pending work; deferring parent ${parentSessionId} resume until the session finishes`,
@@ -466,11 +588,13 @@ export class AgentSessionManager extends EventEmitter {
 		resultMessage: SDKResultMessage,
 	): Promise<void> {
 		const log = this.sessionLog(sessionId);
-		if (!this.getParentSessionId || !this.resumeParentSession) {
+		if (!this.resumeParentSession) {
 			return;
 		}
 
-		const parentAgentSessionId = this.getParentSessionId(sessionId);
+		const parentAgentSessionId =
+			this.sessions.get(sessionId)?.parentSessionId ??
+			this.getParentSessionId?.(sessionId);
 
 		if (!parentAgentSessionId) {
 			log.error(`No parent session ID found for child session`);
@@ -536,11 +660,18 @@ export class AgentSessionManager extends EventEmitter {
 		message: SDKMessage,
 	): Promise<void> {
 		const log = this.sessionLog(sessionId);
+		if (
+			this.sessions.get(sessionId)?.activitySinkBinding &&
+			this.stopRequestedSessions.has(sessionId) &&
+			message.type !== "result"
+		)
+			return;
 		try {
 			switch (message.type) {
 				case "system":
 					if (message.subtype === "init") {
 						this.updateAgentSessionWithRunnerSessionId(sessionId, message);
+						await this.emitOwnedLifecycle(sessionId);
 
 						// Post model notification
 						const systemMessage = message as SDKSystemMessage;
@@ -625,9 +756,12 @@ export class AgentSessionManager extends EventEmitter {
 					log.warn(`Unknown message type: ${(message as any).type}`);
 			}
 		} catch (error) {
-			log.error(`Error handling message:`, error);
+			if (this.sessions.get(sessionId)?.activitySinkBinding)
+				log.error("Owned session message could not be durably processed");
+			else log.error(`Error handling message:`, error);
 			// Mark session as error state
 			await this.updateSessionStatus(sessionId, AgentSessionStatus.Error);
+			this.failOwnedDelivery(sessionId);
 		}
 	}
 
@@ -1301,7 +1435,8 @@ export class AgentSessionManager extends EventEmitter {
 			}
 
 			// Ensure we have an external session ID for activity posting
-			if (!session.externalSessionId) {
+			const destination = this.activityDestination(session);
+			if (!destination) {
 				log.debug(
 					`Skipping activity sync - no external session ID (platform: ${session.issueContext?.trackerId || "unknown"})`,
 				);
@@ -1315,6 +1450,8 @@ export class AgentSessionManager extends EventEmitter {
 
 			const activitySink = this.getActivitySink(sessionId);
 			if (!activitySink) {
+				if (session.activitySinkBinding)
+					throw new Error("Cyrus-owned session sink is not bound");
 				log.debug(
 					`Skipping activity sync - no activity sink registered for session`,
 				);
@@ -1322,7 +1459,7 @@ export class AgentSessionManager extends EventEmitter {
 			}
 
 			const result = await activitySink.postActivity(
-				session.externalSessionId,
+				destination,
 				content,
 				options,
 			);
@@ -1340,6 +1477,10 @@ export class AgentSessionManager extends EventEmitter {
 				}
 			}
 		} catch (error) {
+			if (this.sessions.get(sessionId)?.activitySinkBinding) {
+				this.failOwnedDelivery(sessionId);
+				throw new Error("Durable session activity could not be accepted");
+			}
 			log.error(`Failed to sync entry to activity sink:`, error);
 		}
 	}
@@ -1523,7 +1664,8 @@ export class AgentSessionManager extends EventEmitter {
 		const log = this.sessionLog(sessionId);
 		const session = this.sessions.get(sessionId);
 
-		if (!session?.externalSessionId) {
+		const destination = session && this.activityDestination(session);
+		if (!destination) {
 			log.debug(
 				`Skipping ${label} - no external session ID (platform: ${session?.issueContext?.trackerId || "unknown"})`,
 			);
@@ -1544,6 +1686,8 @@ export class AgentSessionManager extends EventEmitter {
 
 			const activitySink = this.getActivitySink(sessionId);
 			if (!activitySink) {
+				if (session?.activitySinkBinding)
+					throw new Error("Cyrus-owned session sink is not bound");
 				log.debug(
 					`Skipping ${label} - no activity sink registered for session`,
 				);
@@ -1551,7 +1695,7 @@ export class AgentSessionManager extends EventEmitter {
 			}
 
 			const result = await activitySink.postActivity(
-				session.externalSessionId,
+				destination,
 				input.content,
 				options,
 			);
@@ -1560,9 +1704,17 @@ export class AgentSessionManager extends EventEmitter {
 				log.debug(`Created ${label} activity ${result.activityId}`);
 				return result.activityId;
 			}
-			log.debug(`Created ${label}`);
+			log.debug(
+				session?.activitySinkBinding
+					? `Accepted ${label} for durable delivery`
+					: `Created ${label}`,
+			);
 			return null;
 		} catch (error) {
+			if (session?.activitySinkBinding) {
+				this.failOwnedDelivery(sessionId);
+				throw new Error("Durable session activity could not be accepted");
+			}
 			log.error(`Error creating ${label}:`, error);
 			return null;
 		}
@@ -1691,7 +1843,7 @@ export class AgentSessionManager extends EventEmitter {
 	/**
 	 * Serialize Agent Session state for persistence
 	 */
-	serializeState(): {
+	serializeState(activitySinkId?: string): {
 		sessions: Record<string, SerializedCyrusAgentSession>;
 		entries: Record<string, SerializedCyrusAgentSessionEntry[]>;
 	} {
@@ -1700,13 +1852,28 @@ export class AgentSessionManager extends EventEmitter {
 
 		// Serialize sessions
 		for (const [sessionId, session] of this.sessions.entries()) {
+			// Scoped sessions must not enter the legacy platform-wide state file.
+			if (
+				activitySinkId
+					? session.activitySinkBinding?.sinkId !== activitySinkId
+					: !!session.activitySinkBinding
+			)
+				continue;
 			// Exclude agentRunner from serialization as it's not serializable
 			const { agentRunner: _agentRunner, ...serializableSession } = session;
+			if (session.activitySinkBinding) delete serializableSession.metadata;
 			sessions[sessionId] = serializableSession;
 		}
 
 		// Serialize entries
 		for (const [sessionId, sessionEntries] of this.entries.entries()) {
+			if (!sessions[sessionId]) continue;
+			// The private outbox owns normalized/redacted display persistence. Raw
+			// tool inputs and SDK entries must not create a second transcript copy.
+			if (sessions[sessionId].activitySinkBinding) {
+				entries[sessionId] = [];
+				continue;
+			}
 			entries[sessionId] = sessionEntries.map((entry) => ({
 				...entry,
 			}));
@@ -1721,10 +1888,21 @@ export class AgentSessionManager extends EventEmitter {
 	restoreState(
 		serializedSessions: Record<string, SerializedCyrusAgentSession>,
 		serializedEntries: Record<string, SerializedCyrusAgentSessionEntry[]>,
+		activitySinkId?: string,
 	): void {
+		for (const [id, session] of Object.entries(serializedSessions)) {
+			if (
+				id !== session.id ||
+				(activitySinkId
+					? session.activitySinkBinding?.sinkId !== activitySinkId
+					: !!session.activitySinkBinding)
+			)
+				throw new Error("Session checkpoint scope mismatch");
+		}
 		// Clear existing state
 		this.sessions.clear();
 		this.entries.clear();
+		this.activitySinks.clear();
 
 		// Restore sessions (migrate old sessions without repositories field)
 		for (const [sessionId, sessionData] of Object.entries(serializedSessions)) {
@@ -1737,6 +1915,11 @@ export class AgentSessionManager extends EventEmitter {
 
 		// Restore entries
 		for (const [sessionId, entriesData] of Object.entries(serializedEntries)) {
+			if (!this.sessions.has(sessionId)) continue;
+			if (this.sessions.get(sessionId)?.activitySinkBinding) {
+				this.entries.set(sessionId, []);
+				continue;
+			}
 			const sessionEntries: CyrusAgentSessionEntry[] = entriesData.map(
 				(entryData) => ({
 					...entryData,

@@ -443,6 +443,19 @@ export class CodexEventMapper {
 					isError: false,
 				};
 			}
+			case "dynamic_tool_call": {
+				return {
+					toolUseId: item.id,
+					toolName: item.tool,
+					toolInput: asRecord(item.arguments) || { arguments: item.arguments },
+					result:
+						item.text ||
+						(item.status === "failed"
+							? "Tool call failed"
+							: "Tool call completed"),
+					isError: item.status === "failed",
+				};
+			}
 			case "mcp_tool_call": {
 				return {
 					toolUseId: item.id,

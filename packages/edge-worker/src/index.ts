@@ -16,6 +16,7 @@ export type {
 	AskUserQuestionHandlerDeps,
 } from "./AskUserQuestionHandler.js";
 export { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
+export { registerConfiguredAutomations } from "./automations/register.js";
 export type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 export { LiveChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 export type {
@@ -49,9 +50,19 @@ export type {
 	ActivityPostOptions,
 	ActivityPostResult,
 	ActivitySignal,
+	CyrusSessionDescriptor,
 	IActivitySink,
+	ICyrusSessionSink,
+	SessionActivitySink,
 } from "./sinks/index.js";
-export { LinearActivitySink } from "./sinks/index.js";
+export {
+	DurableCyrusSessionSink,
+	HttpSessionDeliveryTransport,
+	LinearActivitySink,
+	SessionActivityJournal,
+	type SessionDeliveryTransport,
+} from "./sinks/index.js";
+export * from "./sinks/session-delivery.js";
 export type { PromptType } from "./ToolPermissionResolver.js";
 export { ToolPermissionResolver } from "./ToolPermissionResolver.js";
 export type { EdgeWorkerEvents } from "./types.js";

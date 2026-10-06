@@ -1,0 +1,138 @@
+{
+	"passed": true,
+	"sourceWithdrawal": true,
+	"originalRevision": 1,
+	"removedRevision": 2,
+	"currentRevision": 3,
+	"originalOccurrenceCancelled": true,
+	"originalAttempts": 1,
+	"staleRetryStatus": 409,
+	"staleRetryAfterReconnectStatus": 409,
+	"newOccurrence": true,
+	"currentAttempts": 1,
+	"providerReads": 2,
+	"results": 1,
+	"evidence": {
+		"version": 1,
+		"mode": "source-withdrawal",
+		"currentTarget": {
+			"occurrenceId": "6a49022c3e0ca75eed65b1d00262a73fe17bba29da40f9e351f4cdc9fd028947",
+			"revision": 3
+		},
+		"phase": "complete",
+		"occurrenceId": "b671b8d7cffc17f9cdc547f9468515facada307c3509294386c23bac3d35c1c5",
+		"expiresInMs": null,
+		"events": [
+			{
+				"type": "armed",
+				"at": "2026-09-30T11:52:00.965Z"
+			},
+			{
+				"type": "ready",
+				"at": "2026-09-30T11:52:01.489Z",
+				"attemptId": "aa1c08f9-e80d-4a85-80b8-189b261a0691",
+				"fence": 1,
+				"remainingMs": 59545
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T11:52:01.515Z",
+				"label": "removed-list",
+				"method": "tools/list",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 401,
+				"mcpCode": null,
+				"denied": true,
+				"requestAt": "2026-09-30T11:52:01.512Z",
+				"responseAt": "2026-09-30T11:52:01.514Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T11:52:01.517Z",
+				"label": "removed-read",
+				"method": "tools/call",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 401,
+				"mcpCode": null,
+				"denied": true,
+				"requestAt": "2026-09-30T11:52:01.515Z",
+				"responseAt": "2026-09-30T11:52:01.517Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "removed-proven",
+				"at": "2026-09-30T11:52:01.517Z",
+				"confirmedAt": "2026-09-30T11:52:01.511Z"
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T11:52:01.521Z",
+				"label": "reconnected-old-credential",
+				"method": "tools/call",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 401,
+				"mcpCode": null,
+				"denied": true,
+				"requestAt": "2026-09-30T11:52:01.519Z",
+				"responseAt": "2026-09-30T11:52:01.521Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "reconnected-proven",
+				"at": "2026-09-30T11:52:01.521Z",
+				"confirmedAt": "2026-09-30T11:52:01.519Z"
+			},
+			{
+				"type": "current-occurrence-armed",
+				"at": "2026-09-30T11:52:01.522Z",
+				"occurrenceId": "6a49022c3e0ca75eed65b1d00262a73fe17bba29da40f9e351f4cdc9fd028947",
+				"revision": 3
+			},
+			{
+				"type": "new-session",
+				"at": "2026-09-30T11:52:01.576Z",
+				"attemptChanged": true,
+				"fenceIncreased": false,
+				"newOccurrence": true,
+				"sessionChanged": true
+			},
+			{
+				"type": "probe",
+				"at": "2026-09-30T11:52:01.580Z",
+				"label": "new-session-old-reference",
+				"method": "tools/call",
+				"httpObserved": true,
+				"requestCount": 1,
+				"httpStatus": 200,
+				"mcpCode": -32600,
+				"denied": true,
+				"requestAt": "2026-09-30T11:52:01.577Z",
+				"responseAt": "2026-09-30T11:52:01.579Z",
+				"unexpiredAtRequest": true,
+				"unexpiredAtResponse": true,
+				"outcome": "denied"
+			},
+			{
+				"type": "stale-reference-denied",
+				"at": "2026-09-30T11:52:01.580Z"
+			},
+			{
+				"type": "current-read-succeeded",
+				"at": "2026-09-30T11:52:01.755Z"
+			}
+		]
+	},
+	"limitations": [
+		"Actual installed/source runtime, SQLite and SDK. Controlled mapping/Hosted/model/provider, not live SQL or UI proof."
+	]
+}

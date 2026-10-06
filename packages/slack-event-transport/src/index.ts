@@ -1,3 +1,4 @@
+export { isInternalSlackChannel } from "./SlackChannelPolicy.js";
 export { SlackEventTransport } from "./SlackEventTransport.js";
 export type {
 	SlackFetchThreadParams,
