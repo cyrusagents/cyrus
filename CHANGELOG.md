@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.74-cypack1546.0] - 2026-10-02
+
+Prepared scoped internal npm test-channel pilot; publication requires independent candidate review and the canonical workflow checks. (CYPACK-1546, [#1522](https://github.com/cyrusagents/cyrus/pull/1522))
+
 ### Changed
 
 - Reduce redundant customer automation lifecycle round trips when the hosted gateway explicitly provides current action authorization; schedule watchdog checks from the latest actual authority request instead of immediately repeating it on a fixed timer. Preserve action checks, renewal, revocation and ordered result receipts, with the original lifecycle path for older servers and checkpoints. Automatic context preparation can separately omit one redundant preflight when the receiver checks current authority at the read itself; recovery and post-read checks remain. Customer automations can explicitly send scoped Slack replies only under separately negotiated customer permission; mentions and completed results never grant send authority. ([CYPACK-1546](https://linear.app/ceedar/issue/CYPACK-1546), [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
@@ -18,6 +22,26 @@ All notable changes to this project will be documented in this file.
 ### Security
 - Refresh compatible proxy-address and source-map dependencies for newly disclosed IP-spoofing and event-loop denial-of-service advisories; preserve zero-advisory test-channel release checks. (CYPACK-1546, [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
 - Patched high-severity RSA signature-forgery and brace-pattern stack-exhaustion advisories in the Cyrus CLI dependency graph, restoring a zero-advisory audit. ([CYPACK-1558](https://linear.app/ceedar/issue/CYPACK-1558/address-open-security-patches-for-cyrus-cli), [#1524](https://github.com/cyrusagents/cyrus/pull/1524))
+
+### Packages
+
+- `cyrus-cloudflare-tunnel-client@0.2.74-cypack1546.0`
+- `cyrus-mcp-tools@0.2.74-cypack1546.0`
+- `cyrus-core@0.2.74-cypack1546.0`
+- `cyrus-claude-runner@0.2.74-cypack1546.0`
+- `cyrus-config-updater@0.2.74-cypack1546.0`
+- `cyrus-linear-event-transport@0.2.74-cypack1546.0`
+- `cyrus-github-event-transport@0.2.74-cypack1546.0`
+- `cyrus-gitlab-event-transport@0.2.74-cypack1546.0`
+- `cyrus-slack-event-transport@0.2.74-cypack1546.0`
+- `cyrus-zulip-event-transport@0.2.74-cypack1546.0`
+- `cyrus-simple-agent-runner@0.2.74-cypack1546.0`
+- `cyrus-opencode-runner@0.2.74-cypack1546.0`
+- `cyrus-codex-runner@0.2.74-cypack1546.0`
+- `cyrus-cursor-runner@0.2.74-cypack1546.0`
+- `cyrus-gemini-runner@0.2.74-cypack1546.0`
+- `cyrus-edge-worker@0.2.74-cypack1546.0`
+- `cyrus-ai@0.2.74-cypack1546.0`
 
 ## [0.2.73] - 2026-09-30
 
