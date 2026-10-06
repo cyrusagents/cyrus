@@ -1,7 +1,7 @@
-# Anthropic runtime compatibility: CYPACK-1559
+# Anthropic runtime compatibility: CYPACK-1565
 
-This review covers Agent SDK **0.3.281 → 0.3.289**, its bundled Claude Code
-**2.1.282–2.1.289**, and Anthropic API SDK **0.128.0 → 0.131.0**.
+This review covers Agent SDK **0.3.281 → 0.3.291**, its bundled Claude Code
+**2.1.282–2.1.291**, and Anthropic API SDK **0.128.0 → 0.131.0**.
 Upstream references: [Agent SDK changelog](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md)
 and [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md).
 
@@ -37,26 +37,22 @@ turn; dummy credentials deliberately make this **not** an authentication test.
 | Code 2.1.282, 2.1.283, 2.1.285 managed sandbox precedence/validation | Applies on managed hosts: project exclusions cannot escape an enforced sandbox; malformed nested managed values fail closed; project settings cannot widen managed network/filesystem policy. Keep forwarding Cyrus sandbox settings and accept stricter effective administrator policy. Tool deny rules remain in force independently. No policy-weakening compatibility shim. |
 | SDK 0.3.287 detached WebFetch/WebSearch | A priority `now` interruption can yield `tool_use_result: { detachedToolCall: true }`, with the real result later. Cyrus currently queues ordinary streaming user messages without priority `now`, so it does not request this path. Runner events retain this optional metadata unchanged; activities read the message's text content, not a presumed structured web result. Any future priority-now API must handle delayed completion explicitly. |
 | SDK 0.3.287 large MCP structured results | Above 1,048,576 serialized JSON characters, `structuredContent` is omitted and `structuredContentOmitted` is set, except SDK-server/MCP Apps tools. Cyrus does not depend on this optional metadata: activity content comes from `message.content` tool-result text. Preserve the marker in raw runner events and do not reconstruct missing data or retry the MCP operation (which could duplicate side effects). |
+| SDK 0.3.290 WebFetch paging | The optional `offset` input is backward-compatible. Cyrus passes the built-in tool through unchanged, so long pages can be continued without runner changes. |
+| SDK 0.3.290 wildcard permission matching | The fix strengthens upstream matching for aliased tools and wildcard/input-scoped deny or ask rules. Cyrus keeps forwarding its allowed/disallowed rules and benefits without a compatibility shim. Existing exact tool patterns remain valid. |
+| SDK 0.3.290 resumed-turn and streaming metadata | Additional `user_message_uuid`, `user_message_uuids`, and `resume_reason` fields remain optional in Cyrus's normalized message contract. The corrected partial-message termination and duplicate-replay behavior requires no runner adaptation. |
 
-No new built-in tools require recategorization. The dependency update itself
+No new built-in tools require recategorization. The mandatory live extraction
 retains the 30-tool catalog and its existing read/write grouping.
 
 ## Hosted companion
 
-[cyrus-hosted#1121](https://github.com/cyrusagents/cyrus-hosted/pull/1121), head
-`1dfb6f276151e073209f99c4170534108c5f74a0`, pins `cyrus-core@0.2.74-test.4` and
-Anthropic API SDK 0.131.0. That published core includes SDK 0.3.289 and the same
-platform tool constants; **core does not bundle ClaudeRunner**. The permission
-fix is in the separately deployed Cyrus runner, so core does not require another
-prerelease for this change.
+The companion cyrus-hosted update pins the test release produced from this
+branch and Anthropic API SDK 0.131.0. The published core contains SDK 0.3.291
+and the same platform tool constants; **core does not bundle ClaudeRunner**.
+The permission fix ships with the separately deployed Cyrus runner.
 
-The companion SQL removes `TaskOutput` only from exact previous defaults for
-Linear, Slack, and GitHub. Actual SQL execution in isolated PGlite/Postgres
-fixtures verified untouched defaults, already-current defaults, custom lists,
-reordered lists, empty arrays, NULLs, mixed-platform rows, and idempotence against
-the installed core constants. Existing platform columns intentionally have no
-SQL default (see the May 21 platform-tools migration); new teams use NULL and
-fall back to core. No production database migration was run.
-
-See the [follow-up validation report](../../apps/f1/test-drives/2026-10-05-cypack-1559-runtime-review.md)
-for test results and the live authentication gate.
+Because the extracted 30-tool catalog is unchanged from SDK 0.3.289, hosted
+does not need another tool-default migration for 0.3.291. The companion keeps
+the prior exact-default migration that removes retired `TaskOutput` values from
+Linear, Slack, and GitHub lists while leaving customized lists and `NULL`
+fallbacks untouched.

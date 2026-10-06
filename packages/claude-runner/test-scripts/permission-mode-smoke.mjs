@@ -98,7 +98,7 @@ for (const [name, env, userMode, projectMode, localMode] of cases) {
 		});
 		assert.ok(init, `${name}: missing init`);
 		assert.equal(init.permissionMode, "default", name);
-		assert.equal(init.claude_code_version, "2.1.289", name);
+		assert.equal(init.claude_code_version, "2.1.291", name);
 		console.log(
 			`PASS ${name}: permissionMode=${init.permissionMode}, Claude Code ${init.claude_code_version}`,
 		);

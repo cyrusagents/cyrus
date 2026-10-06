@@ -82,6 +82,6 @@ Do not count initialization as fulfilling that acceptance criterion.
 Rerun the F1 scenario with valid auth on the pushed head and record the actual
 Read/Bash results and final response. Background timeout behavior, managed host
 policy enforcement, deferred remote MCP invocation, and detached web calls have
-an explicit [compatibility decision](../../../docs/compatibility/anthropic-sdk-0.3.289.md)
+an explicit [compatibility decision](../../../docs/compatibility/anthropic-sdk-0.3.291.md)
 but have not all been exercised live by this drive. The test report does not
 claim the entire review is satisfied while the authentication gate remains open.
