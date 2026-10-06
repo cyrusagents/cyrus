@@ -5,6 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Changed
+- Recorded a fresh SDK 0.3.291 F1 authentication failure, exact same-account reconnect instructions, and coordinated core/runner artifact identities; authenticated runtime acceptance remains open. ([#1529](https://github.com/cyrusagents/cyrus/pull/1529), [cyrus-hosted#1129](https://github.com/cyrusagents/cyrus-hosted/pull/1129))
 - Added SDK permission-mode initialization probes, result-metadata regression coverage, and a runtime compatibility review for the Anthropic SDK refresh. ([CYPACK-1565](https://linear.app/ceedar/issue/CYPACK-1565), [#1529](https://github.com/cyrusagents/cyrus/pull/1529))
 
 ## [0.2.73] - 2026-09-29

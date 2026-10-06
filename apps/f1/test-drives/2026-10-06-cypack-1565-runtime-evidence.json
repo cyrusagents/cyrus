@@ -1,0 +1,97 @@
+{
+	"testedCommit": "217f2a87e18c441d946ea442c40948bf7ed53801",
+	"capturedAt": "2026-10-06T16:10:34Z",
+	"outcome": "BLOCKED_AUTH",
+	"agentSdkVersion": "0.3.291",
+	"apiSdkVersion": "0.131.0",
+	"init": {
+		"type": "system",
+		"subtype": "init",
+		"session_id": "767824dd-5e47-4fa2-9dd0-bf366984b0d8",
+		"claude_code_version": "2.1.291",
+		"permissionMode": "default",
+		"model": "claude-sonnet-5-5",
+		"apiKeySource": "none",
+		"cwd": "/private/tmp/cyrus-f1-1791303030107/worktrees/DEF-1"
+	},
+	"toolUse": [],
+	"toolResults": [],
+	"result": {
+		"type": "result",
+		"subtype": "success",
+		"is_error": true,
+		"api_error_status": 401,
+		"terminal_reason": "api_error",
+		"result": "Failed to authenticate. API Error: 401 OAuth access token has expired. Re-authenticate to continue.",
+		"num_turns": 1,
+		"duration_ms": 2116,
+		"duration_api_ms": 0,
+		"total_cost_usd": 0,
+		"usage": {
+			"output_tokens_details": {
+				"thinking_tokens": 0
+			},
+			"input_tokens": 0,
+			"cache_creation_input_tokens": 0,
+			"cache_read_input_tokens": 0,
+			"output_tokens": 0,
+			"server_tool_use": {
+				"web_search_requests": 0,
+				"web_fetch_requests": 0
+			},
+			"service_tier": "standard",
+			"cache_creation": {
+				"ephemeral_1h_input_tokens": 0,
+				"ephemeral_5m_input_tokens": 0
+			},
+			"inference_geo": "",
+			"iterations": [],
+			"speed": "standard",
+			"fallback_credit": null
+		}
+	},
+	"activitiesAfterStop": {
+		"session": {
+			"sessionId": "session-1",
+			"issueId": "issue-1",
+			"status": "complete",
+			"createdAt": 1791303031103,
+			"updatedAt": 1791303071954
+		},
+		"activities": [
+			{
+				"id": "activity-1",
+				"type": "thought",
+				"content": "I've received your request and I'm starting to work on it. Let me analyze the issue and prepare my approach.",
+				"createdAt": 1791303031105
+			},
+			{
+				"id": "activity-2",
+				"type": "thought",
+				"content": "**Routing** (Label routing)\n- **F1 Test Repository** \u2192 `main` (default)",
+				"createdAt": 1791303031182
+			},
+			{
+				"id": "activity-3",
+				"type": "thought",
+				"content": "Using model: claude/claude-sonnet-5-5",
+				"createdAt": 1791303032416
+			},
+			{
+				"id": "activity-4",
+				"type": "error",
+				"content": "Failed to authenticate. API Error: 401 OAuth access token has expired. Re-authenticate to continue.",
+				"createdAt": 1791303034491
+			},
+			{
+				"id": "activity-5",
+				"type": "response",
+				"content": "I've stopped working on Verify SDK permission policy with real tools.\n\n**Stop Signal:** Received from user\n**Action Taken:** Session terminated",
+				"createdAt": 1791303071955
+			}
+		],
+		"totalCount": 5,
+		"hasMore": false
+	},
+	"note": "Session status complete and the final response activity were caused by stop-session. They are not a completed model response."
+}

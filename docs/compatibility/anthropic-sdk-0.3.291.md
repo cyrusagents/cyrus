@@ -46,6 +46,13 @@ retains the 30-tool catalog and its existing read/write grouping.
 
 ## Hosted companion
 
+Final artifact identities and the remaining live acceptance gate are recorded in
+the [2026-10-06 F1 report](../../apps/f1/test-drives/2026-10-06-cypack-1565-runtime-acceptance.md).
+The new 0.3.291 drive confirms `permissionMode=default` but still fails with an
+expired OAuth token before any tool executes. Its exact same-account reconnect
+instructions must be completed before a successful final-head rerun can close
+the runtime gate shared with [cyrus-hosted#1129](https://github.com/cyrusagents/cyrus-hosted/pull/1129).
+
 The companion cyrus-hosted update pins the test release produced from this
 branch and Anthropic API SDK 0.131.0. The published core contains SDK 0.3.291
 and the same platform tool constants; **core does not bundle ClaudeRunner**.
