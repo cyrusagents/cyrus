@@ -20,6 +20,7 @@ Prepared scoped internal npm test-channel pilot; publication requires independen
 - Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. (CYHOST-909)
 
 ### Security
+- Refresh compatible proxy-address and source-map dependencies for newly disclosed IP-spoofing and event-loop denial-of-service advisories; preserve zero-advisory test-channel release checks. (CYPACK-1546, [#1507](https://github.com/cyrusagents/cyrus/pull/1507))
 - Patched high-severity RSA signature-forgery and brace-pattern stack-exhaustion advisories in the Cyrus CLI dependency graph, restoring a zero-advisory audit. ([CYPACK-1558](https://linear.app/ceedar/issue/CYPACK-1558/address-open-security-patches-for-cyrus-cli), [#1524](https://github.com/cyrusagents/cyrus/pull/1524))
 
 ### Packages
