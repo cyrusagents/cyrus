@@ -211,17 +211,68 @@ exit 0
 		);
 	});
 
-	it("falls back to CYRUS_GH_TOKEN outside a repo", () => {
+	it("resolves API owner placeholders from GH_REPO before cwd, without changing arguments", () => {
+		saveTokens([{ organization: "Retained", token: "ghs_retained" }]);
+		const cwd = makeRepo("other", "https://github.com/Removed/repo.git");
+		for (const args of [
+			["api", "repos/{owner}/{repo}"],
+			["api", "--method", "GET", "/repos/{owner}/{repo}/branches/{branch}"],
+			["api", "https://api.github.com/repos/{owner}/{repo}"],
+		]) {
+			const result = runGhCyrus(args, {
+				cwd,
+				env: { GH_REPO: "Retained/repo", CYRUS_GH_TOKEN: "stale" },
+			});
+			expect(result.status).toBe(0);
+			expect(result.stdout).toContain("GH_TOKEN=ghs_retained");
+			expect(result.stdout).toContain(`ARGS=${args.join(" ")}`);
+		}
+	});
+	it("resolves API owner placeholders from cwd when GH_REPO is absent", () => {
+		saveTokens([{ organization: "Retained", token: "ghs_retained" }]);
+		const cwd = makeRepo("retained", "https://github.com/Retained/repo.git");
+		const result = runGhCyrus(["api", "repos/{owner}/{repo}"], {
+			cwd,
+			env: { GH_REPO: undefined },
+		});
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain("GH_TOKEN=ghs_retained");
+	});
+	it("uses explicit repository context before GH_REPO for API placeholders", () => {
+		saveTokens([{ organization: "Retained", token: "ghs_retained" }]);
+		const result = runGhCyrus(
+			["api", "repos/{owner}/{repo}", "--repo", "Retained/repo"],
+			{ env: { GH_REPO: "Removed/repo" } },
+		);
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain("GH_TOKEN=ghs_retained");
+	});
+	it("does not borrow a token for an unresolved placeholder or explicit removed owner", () => {
+		saveTokens([{ organization: "Retained", token: "ghs_retained" }]);
+		for (const [endpoint, repo] of [
+			["repos/{owner}/{repo}", undefined],
+			["repos/{owner}/{repo}", "Removed/repo"],
+			["repos/Removed/{repo}", "Retained/repo"],
+		]) {
+			const result = runGhCyrus(["api", endpoint!], {
+				env: { GH_REPO: repo, CYRUS_GH_TOKEN: "ghs_retained" },
+			});
+			expect(result.status).toBe(1);
+			expect(result.stdout).toBe("");
+		}
+	});
+
+	it("uses a currently valid CYRUS_GH_TOKEN hint outside a repo", () => {
 		saveTokens([
 			{ organization: "OrgA", token: "ghs_org_a" },
 			{ organization: "OrgB", token: "ghs_org_b" },
 		]);
 
 		const { stdout } = runGhCyrus(["api", "/user"], {
-			env: { CYRUS_GH_TOKEN: "ghs_session_token" },
+			env: { CYRUS_GH_TOKEN: "ghs_org_a" },
 		});
 
-		expect(stdout).toContain("GH_TOKEN=ghs_session_token");
+		expect(stdout).toContain("GH_TOKEN=ghs_org_a");
 	});
 
 	it("falls back to the single valid token when nothing else matches", () => {
@@ -232,18 +283,18 @@ exit 0
 		expect(stdout).toContain("GH_TOKEN=ghs_only");
 	});
 
-	it("strips customer tokens and sets nothing when unresolvable", () => {
+	it("refuses managed commands when no credential can be resolved", () => {
 		saveTokens([
 			{ organization: "OrgA", token: "ghs_org_a" },
 			{ organization: "OrgB", token: "ghs_org_b" },
 		]);
 
 		// Two tokens, no repo context, no CYRUS_GH_TOKEN → no resolution;
-		// gh would use its own stored auth (hosts.yml).
-		const { stdout } = runGhCyrus(["api", "/user"]);
+		// The managed resolver must not launch gh with its stored auth.
+		const { stdout, status } = runGhCyrus(["api", "/user"]);
 
-		expect(stdout).toContain("GH_TOKEN=<unset>");
-		expect(stdout).toContain("GITHUB_TOKEN=<unset>");
+		expect(stdout).toBe("");
+		expect(status).toBe(1);
 	});
 
 	it("always strips GITHUB_TOKEN even when a token resolves", () => {
@@ -276,6 +327,6 @@ exit 0
 		const { stdout, status } = runGhCyrus(["auth", "status"]);
 
 		expect(status).toBe(0);
-		expect(stdout).toContain("GH_TOKEN=<unset>");
+		expect(stdout).toContain("GH_TOKEN=customer_gh_token");
 	});
 });

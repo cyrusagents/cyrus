@@ -25,6 +25,17 @@ function bundledScriptPath(scriptName: string): string {
 	return join(here, "..", "..", "scripts", scriptName);
 }
 
+/** Install shared policy before either consumer; retain enrollment on deletion. */
+function ensureManagedAuthPolicy(cyrusHome: string): void {
+	const scripts = join(cyrusHome, "scripts");
+	mkdirSync(scripts, { recursive: true });
+	writeFileSync(join(cyrusHome, "github-auth-managed"), "1\n", { mode: 0o600 });
+	copyFileSync(
+		bundledScriptPath("managed-github-auth.cjs"),
+		join(scripts, "managed-github-auth.cjs"),
+	);
+}
+
 /**
  * Install the per-invocation gh token resolver to
  * `<cyrusHome>/scripts/gh-cyrus.cjs`. The droplet's `~/.local/bin/gh`
@@ -34,6 +45,7 @@ function bundledScriptPath(scriptName: string): string {
  * GitHub orgs. Idempotent.
  */
 export function ensureGhTokenResolver(cyrusHome: string): string {
+	ensureManagedAuthPolicy(cyrusHome);
 	const scriptDir = join(cyrusHome, "scripts");
 	const scriptDest = join(scriptDir, "gh-cyrus.cjs");
 	mkdirSync(scriptDir, { recursive: true });
@@ -59,6 +71,7 @@ export function ensureGhTokenResolver(cyrusHome: string): string {
  * Returns the absolute path of the installed helper script.
  */
 export function ensureGitHubCredentialHelper(cyrusHome: string): string {
+	ensureManagedAuthPolicy(cyrusHome);
 	const scriptDir = join(cyrusHome, "scripts");
 	const scriptDest = join(scriptDir, "git-credential-cyrus.cjs");
 
@@ -101,8 +114,8 @@ export function ensureGitHubCredentialHelper(cyrusHome: string): string {
  * provisioned from older images keep their baked wrapper until rebuilt;
  * since the wrapper lives in the cyrus user's home, rewrite it here on
  * token pushes — making per-org gh independent of the image rollout.
- * No-op when no wrapper exists (self-host), it already execs the
- * resolver, or it has an unrecognized shape.
+ * No-op when no wrapper exists (self-host), it already has the managed
+ * fence, or it has an unrecognized shape.
  */
 export function ensureGhWrapperSupportsCyrusToken(
 	homeDir: string = homedir(),
@@ -113,45 +126,29 @@ export function ensureGhWrapperSupportsCyrusToken(
 	const current = readFileSync(wrapperPath, "utf8");
 	// Only rewrite the known droplet wrapper shapes (the original
 	// strip-everything wrapper and the interim CYRUS_GH_TOKEN one), and
-	// only when they predate the resolver.
-	if (current.includes("gh-cyrus.cjs") || !current.includes("/usr/bin/gh")) {
+	// upgrade the first-generation resolver wrapper too.
+	if (
+		current.includes("Cyrus managed auth v2") ||
+		!current.includes("/usr/bin/gh")
+	) {
 		return false;
 	}
 
 	const updated = `#!/usr/bin/env bash
-# Cyrus-managed gh wrapper. The resolver picks the GitHub App installation
-# token for the org each command targets (multi-org support); without it,
-# strip injected tokens so gh falls back to its own stored auth.
-RESOLVER="$HOME/.cyrus/scripts/gh-cyrus.cjs"
+# Cyrus managed auth v2: no cached-auth fallback if the resolver is unavailable.
+CYRUS_AUTH_HOME="\${CYRUS_HOME:-$HOME/.cyrus}"
+RESOLVER="$CYRUS_AUTH_HOME/scripts/gh-cyrus.cjs"
 if [ -f "$RESOLVER" ]; then
   exec node "$RESOLVER" "$@"
 fi
-if [ -n "\${CYRUS_GH_TOKEN:-}" ]; then
-  exec env -u GITHUB_TOKEN GH_TOKEN="$CYRUS_GH_TOKEN" /usr/bin/gh "$@"
+if [ -e "$CYRUS_AUTH_HOME/github-tokens.json" ] || [ -e "$CYRUS_AUTH_HOME/github-auth-managed" ]; then
+  echo "gh-cyrus: managed credential resolver unavailable" >&2
+  exit 1
 fi
-exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
+exec /usr/bin/gh "$@"
 `;
 	writeFileSync(wrapperPath, updated, { mode: 0o755 });
 	return true;
-}
-
-/**
- * Authenticate the `gh` CLI with a pushed installation token.
- *
- * The droplet-local token refresh service used to run `gh auth login` every
- * 20 minutes; with refresh moved to cyrus-hosted, this keeps bare `gh`
- * usage (outside sessions, and sessions on droplet images whose gh wrapper
- * strips GH_TOKEN) authenticated. Multi-org correctness comes from the
- * per-session GH_TOKEN env var; this default uses the first token, which is
- * exact for single-installation teams. Refreshed on every token push.
- *
- * Non-fatal by design — self-host machines may not have `gh` installed.
- */
-export function configureGhCliAuth(token: string): void {
-	execFileSync("gh", ["auth", "login", "--with-token"], {
-		input: token,
-		stdio: ["pipe", "ignore", "ignore"],
-	});
 }
 
 /**
@@ -160,8 +157,8 @@ export function configureGhCliAuth(token: string): void {
  * Persists the per-installation tokens to `<cyrusHome>/github-tokens.json`
  * (atomically, mode 0600), ensures the git credential helper is installed
  * so concurrent git operations against different GitHub orgs each
- * authenticate with the right token, and refreshes the `gh` CLI's stored
- * auth with the first pushed token.
+ * authenticate with the right token. gh uses per-invocation resolution; no
+ * installation token is persisted into native gh hosts/keyring storage.
  *
  * @param rawPayload - Unvalidated payload from the request
  * @param cyrusHome - Path to the Cyrus home directory
@@ -208,42 +205,13 @@ export async function handleGitHubTokens(
 
 	try {
 		ensureGhTokenResolver(cyrusHome);
-	} catch (error) {
-		// Non-fatal: gh falls back to CYRUS_GH_TOKEN / hosts.yml auth.
-		console.warn(
-			"[githubTokens] gh token resolver install failed:",
-			error instanceof Error ? error.message : String(error),
-		);
-	}
-
-	try {
-		// cyrusHome is <home>/.cyrus on droplets, so the wrapper lives at
-		// <parent of cyrusHome>/.local/bin/gh. Using the parent (rather than
-		// os.homedir()) keeps this no-op for custom cyrus-home layouts and
-		// hermetic in tests.
 		ensureGhWrapperSupportsCyrusToken(dirname(cyrusHome));
-	} catch (error) {
-		// Non-fatal: the wrapper rewrite is a droplet-only nicety.
-		console.warn(
-			"[githubTokens] gh wrapper self-heal failed:",
-			error instanceof Error ? error.message : String(error),
-		);
-	}
-
-	let ghAuthConfigured = false;
-	const firstToken = payload.tokens[0]?.token;
-	if (firstToken) {
-		try {
-			configureGhCliAuth(firstToken);
-			ghAuthConfigured = true;
-		} catch (error) {
-			// Non-fatal: gh may not be installed (self-host), and git auth via
-			// the credential helper is unaffected.
-			console.warn(
-				"[githubTokens] gh CLI auth refresh failed:",
-				error instanceof Error ? error.message : String(error),
-			);
-		}
+	} catch {
+		// Delivery is not complete when the authentication fence cannot be installed.
+		return {
+			success: false,
+			error: "Failed to configure managed gh authentication",
+		};
 	}
 
 	return {
@@ -251,7 +219,8 @@ export async function handleGitHubTokens(
 		message: "GitHub installation tokens updated successfully",
 		data: {
 			tokensCount: payload.tokens.length,
-			ghAuthConfigured,
+			ghAuthConfigured: false,
+			ghResolverInstalled: true,
 		},
 	};
 }
