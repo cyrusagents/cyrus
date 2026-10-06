@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const root = resolve(import.meta.dirname, "../..");
 const workflow = readFileSync(
@@ -28,6 +28,7 @@ const names = execFileSync(
 	.map((line) => line.split("\t")[1]);
 const directories: string[] = [];
 afterEach(() => {
+	vi.unstubAllEnvs();
 	for (const directory of directories.splice(0))
 		rmSync(directory, { recursive: true, force: true });
 });
@@ -56,6 +57,7 @@ type Scenario = {
 	existingGitTag?: boolean;
 	dryRun?: boolean;
 	nonMain?: boolean;
+	candidateSha?: string;
 	tick?: number;
 };
 function step(name: string) {
@@ -109,6 +111,10 @@ function runScenario(config: Scenario = {}) {
 	}
 	const env = {
 		...process.env,
+		// These scenarios exercise the stable workflow, even when the enclosing
+		// job is building a test-channel candidate. Do not inherit its request.
+		RELEASE_MODE: "stable",
+		CANDIDATE_SHA: config.candidateSha ?? "",
 		PATH: `${directory}/bin:${process.env.PATH}`,
 		FAKE_RELEASE_ROOT: directory,
 		FAKE_CLOCK_TICK: String(config.tick || 10000),
@@ -176,6 +182,19 @@ function runScenario(config: Scenario = {}) {
 }
 
 describe("release workflow executable registry gate", () => {
+	it("isolates stable scenarios from the enclosing test-channel request", () => {
+		vi.stubEnv("RELEASE_MODE", "test");
+		vi.stubEnv("CANDIDATE_SHA", "a".repeat(40));
+		const run = runScenario({ dryRun: true });
+		expect(run.status, run.output).toBe(0);
+		expect(run.output.match(/Dry run would publish/g)).toHaveLength(
+			names.length,
+		);
+		expect(run.publishes).toEqual([]);
+		expect(run.tags).toEqual([]);
+		expect(run.releases).toEqual([]);
+	});
+
 	it("uploads all artifacts in dependency order before shared polling, then tags once all are verified", () => {
 		const run = runScenario({
 			delays: names.map((_, index) => ((index % 3) + 1) * 10000),
@@ -251,6 +270,7 @@ describe("release workflow executable registry gate", () => {
 		{ existing: [0], wrongTag: 0 },
 		{ existingGitTag: true },
 		{ nonMain: true },
+		{ candidateSha: "a".repeat(40) },
 	])("rejects existing mismatches or non-main before any upload: %j", (config) => {
 		const run = runScenario(config);
 		expect(run.status, run.output).not.toBe(0);
