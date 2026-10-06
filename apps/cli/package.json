@@ -61,7 +61,6 @@
 	"devDependencies": {
 		"@types/node": "^20.0.0",
 		"@vitest/ui": "^4.1.11",
-		"nodemon": "^3.1.14",
 		"@typescript/native-preview": "7.0.0-dev.20260707.2",
 		"vitest": "^4.1.11"
 	}
