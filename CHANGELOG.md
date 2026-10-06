@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Faster session startup: Cyrus's own tools (session and feedback management, file uploads, issue relations, and docs search) now load immediately at the start of a session instead of being deferred behind an on-demand tool search. Previously the large Linear tool catalog could push the session over an internal limit that silently deferred *every* tool, adding a noticeable stall — sometimes close to a minute of Linear round-trips — before Cyrus could act on the issue. The essentials Cyrus needs are now available up front, while the full Linear toolset remains available on demand. ([#1369](https://github.com/cyrusagents/cyrus/pull/1369))
+
 ### Fixed
 - Codex sessions can use `gpt-6.1-sol` with ChatGPT accounts now that the bundled CLI and SDK have been updated to 0.159.2. ([#1512](https://github.com/cyrusagents/cyrus/issues/1512), [#1514](https://github.com/cyrusagents/cyrus/pull/1514))
 - Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. (CYHOST-909)
