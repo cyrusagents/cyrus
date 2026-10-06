@@ -5,13 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- Updated Claude sessions to [Claude Code 2.1.289](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03289), preserving Cyrus tool approvals across provider, telemetry, and settings changes. Background shell commands now default to a 30-minute limit (maximum two hours). See the [runtime compatibility notes](docs/compatibility/anthropic-sdk-0.3.289.md) for MCP discovery, managed settings, and result handling. ([CYPACK-1559](https://linear.app/ceedar/issue/CYPACK-1559/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1525](https://github.com/cyrusagents/cyrus/pull/1525), [cyrus-hosted#1121](https://github.com/cyrusagents/cyrus-hosted/pull/1121))
+- Updated Claude sessions to [Claude Code 2.1.291](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03291), preserving Cyrus tool approvals across provider, telemetry, and settings changes. Background shell commands now default to a 30-minute limit (maximum two hours), long WebFetch pages can be continued from an offset, and interrupted turns carry more reliable replay and resume metadata. See the [runtime compatibility notes](docs/compatibility/anthropic-sdk-0.3.291.md) for MCP discovery, managed settings, permissions, and result handling. ([CYPACK-1565](https://linear.app/ceedar/issue/CYPACK-1565/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1529](https://github.com/cyrusagents/cyrus/pull/1529), [cyrus-hosted#1129](https://github.com/cyrusagents/cyrus-hosted/pull/1129))
 
 ### Fixed
 - Codex sessions can use `gpt-6.1-sol` with ChatGPT accounts now that the bundled CLI and SDK have been updated to 0.159.2. ([#1512](https://github.com/cyrusagents/cyrus/issues/1512), [#1514](https://github.com/cyrusagents/cyrus/pull/1514))
 - Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. (CYHOST-909)
 
 ### Security
+- Patched newly disclosed IP trust-boundary and source-map denial-of-service advisories in transitive dependencies, keeping the CLI audit at zero known vulnerabilities. ([CYPACK-1565](https://linear.app/ceedar/issue/CYPACK-1565), [#1529](https://github.com/cyrusagents/cyrus/pull/1529))
 - Patched high-severity RSA signature-forgery and brace-pattern stack-exhaustion advisories in the Cyrus CLI dependency graph, restoring a zero-advisory audit. ([CYPACK-1558](https://linear.app/ceedar/issue/CYPACK-1558/address-open-security-patches-for-cyrus-cli), [#1524](https://github.com/cyrusagents/cyrus/pull/1524))
 
 ## [0.2.73] - 2026-09-30
