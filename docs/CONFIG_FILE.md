@@ -211,6 +211,8 @@ Routes Linear issues with specific labels to this repository. This is useful whe
 
 Example: `["backend", "api"]` - Only process issues that have the "backend" or "api" label
 
+When the repository also sets `teamKeys`, its routing labels only match issues from those teams, so two teams can each route a label with the same name to their own repository. A repository without `teamKeys` matches its routing labels across the whole workspace.
+
 ---
 
 ## Routing Priority Order
