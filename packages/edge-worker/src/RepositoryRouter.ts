@@ -231,6 +231,7 @@ export class RepositoryRouter {
 			issueId,
 			workspaceRepos,
 			workspaceId,
+			teamKey,
 		);
 		if (labelMatchedRepos.length > 0) {
 			this.logger.info(
@@ -327,17 +328,26 @@ export class RepositoryRouter {
 	}
 
 	/**
-	 * Find all repositories matching routing labels
+	 * Find all repositories matching routing labels.
+	 * Repositories with teamKeys only match issues from those teams; repositories
+	 * without teamKeys match labels across the whole workspace.
 	 */
 	private async findRepositoriesByLabels(
 		issueId: string | undefined,
 		repos: RepositoryConfig[],
 		workspaceId: string,
+		teamKey?: string,
 	): Promise<RepositoryConfig[]> {
 		if (!issueId) return [];
 
 		const reposWithRoutingLabels = repos.filter(
-			(repo) => repo.routingLabels && repo.routingLabels.length > 0,
+			(repo) =>
+				repo.routingLabels &&
+				repo.routingLabels.length > 0 &&
+				(!teamKey ||
+					!repo.teamKeys ||
+					repo.teamKeys.length === 0 ||
+					repo.teamKeys.includes(teamKey)),
 		);
 
 		if (reposWithRoutingLabels.length === 0) return [];

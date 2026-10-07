@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Moved the Cyrus Inbox plugin package to a separately maintained private repository. The CLI, runtime and `post_message_to_codex` tool are unchanged. ([#1558](https://github.com/cyrusagents/cyrus/pull/1558))
 
+### Fixed
+- Label routing now respects a repository's `teamKeys`. An issue labeled `Design` in one Linear team no longer routes to another team's repository that routes its own `Design` label, and no longer starts a multi-repository session against both. Repositories without `teamKeys` keep matching their routing labels across the whole workspace. ([#1393](https://github.com/cyrusagents/cyrus/issues/1393))
+
 ### Security
 - Updated Fastify to `5.12.7` across the CLI dependency graph, fixing a header-schema validation bypass and restoring a zero-advisory audit. ([CYPACK-1597](https://linear.app/ceedar/issue/CYPACK-1597/address-open-security-patches-for-cyrus-cli), [#1555](https://github.com/cyrusagents/cyrus/pull/1555))
 
