@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. (CYHOST-909)
 
 ### Security
+- Patched critical proxy trust-subnet spoofing and high-severity source-map denial-of-service advisories in the Cyrus CLI dependency graph, restoring a zero-advisory audit. ([CYPACK-1567](https://linear.app/ceedar/issue/CYPACK-1567/address-open-security-patches-for-cyrus-cli), [#1531](https://github.com/cyrusagents/cyrus/pull/1531))
 - Patched high-severity RSA signature-forgery and brace-pattern stack-exhaustion advisories in the Cyrus CLI dependency graph, restoring a zero-advisory audit. ([CYPACK-1558](https://linear.app/ceedar/issue/CYPACK-1558/address-open-security-patches-for-cyrus-cli), [#1524](https://github.com/cyrusagents/cyrus/pull/1524))
 
 ## [0.2.73] - 2026-09-30
