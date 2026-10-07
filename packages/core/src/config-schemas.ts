@@ -400,6 +400,11 @@ export const EdgeConfigSchema = z.object({
 	/** Default Codex model to use across all repositories (e.g., "gpt-6-astra", "gpt-5.5", "gpt-5.3-codex") */
 	codexDefaultModel: z.string().optional(),
 
+	/** Codex command sandbox mode. Defaults to workspace-write; full host access is opt-in. */
+	codexSandboxMode: z
+		.enum(["read-only", "workspace-write", "danger-full-access"])
+		.optional(),
+
 	/** Default Cursor model to use across all repositories (e.g., "composer-2", "gpt-5.4") */
 	cursorDefaultModel: z.string().optional(),
 

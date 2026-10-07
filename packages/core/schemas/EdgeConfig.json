@@ -552,6 +552,10 @@
 		"codexDefaultModel": {
 			"type": "string"
 		},
+		"codexSandboxMode": {
+			"type": "string",
+			"enum": ["read-only", "workspace-write", "danger-full-access"]
+		},
 		"cursorDefaultModel": {
 			"type": "string"
 		},

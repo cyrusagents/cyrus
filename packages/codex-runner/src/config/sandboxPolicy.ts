@@ -45,9 +45,9 @@ function uniqueAbsolute(paths: string[]): string[] {
 /**
  * Resolve the per-thread sandbox decision.
  *
- * - No `sandboxSettings` → `workspace-mode` (the coarse Codex mode with broad
- *   reads — unchanged default behavior).
- * - `sandboxSettings` present → a granular permission `profile` that restricts
+ * - Explicit read-only/full-access modes or no `sandboxSettings` use the
+ *   corresponding native Codex mode.
+ * - Workspace-write with `sandboxSettings` uses a granular `profile` that restricts
  *   reads to an allow-list (worktree + platform defaults + explicit reads) and
  *   writes to the worktree + explicit writable roots.
  */
@@ -56,7 +56,9 @@ export function resolveCodexSandbox(
 ): ResolvedCodexSandbox {
 	const { mode, workingDirectory, writableRoots, networkAccess } = input;
 
-	if (!input.sandboxSettings) {
+	// Explicit native modes take precedence over generated filesystem profiles.
+	// A root-writable profile still applies OS sandbox restrictions on macOS.
+	if (!input.sandboxSettings || mode !== "workspace-write") {
 		return {
 			kind: "workspace-mode",
 			mode,
@@ -79,22 +81,14 @@ export function resolveCodexSandbox(
 		(p) => p !== cwd && !writableAbs.includes(p),
 	);
 
-	// Danger-full-access keeps broad access; read-only forbids writes; the
-	// default (workspace-write) makes the worktree writable.
-	const dangerFull = mode === "danger-full-access";
-	const workspaceAccess: CodexFileSystemAccess =
-		mode === "read-only" ? "read" : "write";
-
-	const filesystem: Record<string, CodexFileSystemAccess> = dangerFull
-		? { ":root": "write" }
-		: {
-				":minimal": "read",
-				":workspace_roots": workspaceAccess,
-				":tmpdir": "write",
-				":slash_tmp": "write",
-				...Object.fromEntries(writableAbs.map((p) => [p, "write" as const])),
-				...Object.fromEntries(readableAbs.map((p) => [p, "read" as const])),
-			};
+	const filesystem: Record<string, CodexFileSystemAccess> = {
+		":minimal": "read",
+		":workspace_roots": "write",
+		":tmpdir": "write",
+		":slash_tmp": "write",
+		...Object.fromEntries(writableAbs.map((p) => [p, "write" as const])),
+		...Object.fromEntries(readableAbs.map((p) => [p, "read" as const])),
+	};
 
 	return {
 		kind: "profile",

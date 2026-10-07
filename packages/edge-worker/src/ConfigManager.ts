@@ -37,6 +37,7 @@ const RELOAD_MERGED_KEYS = [
 	"claudeDefaultFallbackModel",
 	"geminiDefaultModel",
 	"codexDefaultModel",
+	"codexSandboxMode",
 	"cursorDefaultModel",
 	"cursorDefaultFallbackModel",
 	"opencodeDefaultModel",
@@ -318,6 +319,8 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.geminiDefaultModel || this.config.geminiDefaultModel,
 				codexDefaultModel:
 					parsedConfig.codexDefaultModel || this.config.codexDefaultModel,
+				// Removing an explicit mode restores the runner's sandboxed default.
+				codexSandboxMode: parsedConfig.codexSandboxMode,
 				cursorDefaultModel:
 					parsedConfig.cursorDefaultModel || this.config.cursorDefaultModel,
 				cursorDefaultFallbackModel:

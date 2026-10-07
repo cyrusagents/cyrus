@@ -10,6 +10,24 @@ const baseRepository = {
 };
 
 describe("EdgeConfigSchema", () => {
+	it("validates Codex sandbox modes without opting existing configs into full access", () => {
+		expect(
+			EdgeConfigSchema.parse({ repositories: [] }).codexSandboxMode,
+		).toBeUndefined();
+		for (const mode of ["read-only", "workspace-write", "danger-full-access"]) {
+			expect(
+				EdgeConfigSchema.parse({ repositories: [], codexSandboxMode: mode })
+					.codexSandboxMode,
+			).toBe(mode);
+		}
+		expect(
+			EdgeConfigSchema.safeParse({
+				repositories: [],
+				codexSandboxMode: "disabled",
+			}).success,
+		).toBe(false);
+	});
+
 	it("accepts strict MCP configuration as a top-level boolean", () => {
 		const enabled = EdgeConfigSchema.parse({
 			repositories: [baseRepository],
