@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Changed
+- Refreshed the mandatory Claude tool extraction against SDK 0.3.292 (30 tools, no catalog changes), added permission-mode regression coverage, published `cyrus-claude-runner@0.2.74-test.2` and `cyrus-core@0.2.74-test.7` under the npm `test` tag, and recorded the focused F1 initialization pass plus its expired-OAuth execution blocker. ([CYPACK-1566](https://linear.app/ceedar/issue/CYPACK-1566), [#1530](https://github.com/cyrusagents/cyrus/pull/1530), [cyrus-hosted#1145](https://github.com/cyrusagents/cyrus-hosted/pull/1145))
+
 ## [0.2.73] - 2026-09-29
 
 ### Changed

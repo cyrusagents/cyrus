@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Updated Claude sessions to [Claude Code 2.1.292](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03292), preserving Cyrus's existing tool-approval behavior while adding richer subagent, background-task, messaging, and notification metadata. Background shell commands now default to a 30-minute limit (maximum two hours), long WebFetch pages can continue from an offset, and interrupted turns carry more reliable replay and resume metadata. ([CYPACK-1566](https://linear.app/ceedar/issue/CYPACK-1566/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1530](https://github.com/cyrusagents/cyrus/pull/1530), [cyrus-hosted#1145](https://github.com/cyrusagents/cyrus-hosted/pull/1145))
+
 ### Fixed
 - Codex sessions can use `gpt-6.1-sol` with ChatGPT accounts now that the bundled CLI and SDK have been updated to 0.159.2. ([#1512](https://github.com/cyrusagents/cyrus/issues/1512), [#1514](https://github.com/cyrusagents/cyrus/pull/1514))
 - Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. (CYHOST-909)
