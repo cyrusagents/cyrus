@@ -80,6 +80,7 @@ function makeSystemInit(): SDKMessage {
 function installMockQuery(mockQuery: ReturnType<typeof vi.mocked<any>>) {
 	const state: {
 		queryOptions: any;
+		emit: (message: SDKMessage) => void;
 		endTurn: (
 			crons: (typeof SESSION_CRON)[],
 			resultText: string,
@@ -90,6 +91,7 @@ function installMockQuery(mockQuery: ReturnType<typeof vi.mocked<any>>) {
 		) => Promise<void>;
 	} = {
 		queryOptions: null,
+		emit: () => {},
 		endTurn: async () => {},
 		endTurnWithWork: async () => {},
 	};
@@ -100,6 +102,10 @@ function installMockQuery(mockQuery: ReturnType<typeof vi.mocked<any>>) {
 		const emitted: SDKMessage[] = [makeSystemInit()];
 		let notify: (() => void) | null = null;
 		let inputDone = false;
+		state.emit = (message) => {
+			emitted.push(message);
+			notify?.();
+		};
 
 		// Consume the streaming input like the CLI does; flag EOF.
 		(async () => {
@@ -297,6 +303,41 @@ describe("ClaudeRunner pending-work lifecycle (CYPACK-1310)", () => {
 		expect(runner.hasPendingWork()).toBe(true);
 		expect(runner.getPendingWork().backgroundTasks).toEqual([BG_TASK]);
 		expect(runner.isRunning()).toBe(true);
+
+		// SDK 0.3.292 reports the update and notification before the changed
+		// snapshot. None of these informational frames may end the stream.
+		const taskEvents = [
+			{
+				type: "system",
+				subtype: "task_updated",
+				task_id: "task-1",
+				patch: { status: "completed" },
+			},
+			{
+				type: "system",
+				subtype: "task_notification",
+				task_id: "task-1",
+				status: "completed",
+				output_file: "/tmp/task-1",
+				summary: "done",
+			},
+			{ type: "system", subtype: "background_tasks_changed", tasks: [] },
+		].map(
+			(event) =>
+				({
+					...event,
+					session_id: "claude-session-1",
+					uuid: "00000000-0000-4000-8000-000000000001",
+				}) as SDKMessage,
+		);
+		const seen: SDKMessage[] = [];
+		runner.on("message", (message) => seen.push(message));
+		const eventsReceived = waitForMessageCount(runner, taskEvents.length);
+		for (const event of taskEvents) state.emit(event);
+		await eventsReceived;
+		expect(seen).toEqual(taskEvents);
+		expect(runner.isRunning()).toBe(true);
+		expect(runner.hasPendingWork()).toBe(true);
 
 		// The task settles → its notification wakes a turn that ends with no
 		// pending work → prompt completes → session finishes.

@@ -82,6 +82,7 @@ describe("Cyrus permission policy", () => {
 				{
 					signal: new AbortController().signal,
 					toolUseID: "permission-test",
+					suppressAlwaysAllowRule: true,
 				},
 			),
 		).resolves.toEqual({
@@ -92,5 +93,50 @@ describe("Cyrus permission policy", () => {
 		expect(JSON.parse(readFileSync(settingsPath, "utf8"))).toEqual({
 			permissions: { defaultMode: "auto" },
 		});
+	});
+});
+
+// Synthetic SDK contract fixtures, not recordings of authenticated model turns.
+describe("SDK 0.3.292 result envelopes", () => {
+	it.each([
+		{ detachedToolCall: true },
+		{
+			content: [{ type: "text", text: "MCP response" }],
+			structuredContentOmitted: true,
+		},
+		{
+			content: [{ type: "text", text: "MCP error" }],
+			_meta: { source: "connector" },
+		},
+	])("preserves the tool result envelope %j", async (toolUseResult) => {
+		const root = mkdtempSync(join(tmpdir(), "cyrus-sdk-envelope-"));
+		roots.push(root);
+		const message = {
+			type: "user" as const,
+			session_id: "sdk-envelope-test",
+			parent_tool_use_id: null,
+			message: {
+				role: "user" as const,
+				content: [
+					{
+						type: "tool_result" as const,
+						tool_use_id: "tool-1",
+						content: "Visible result",
+					},
+				],
+			},
+			tool_use_result: toolUseResult,
+		};
+		vi.mocked(query).mockImplementation(async function* () {
+			yield message;
+		} as unknown as typeof query);
+		const onMessage = vi.fn();
+		const runner = new ClaudeRunner({
+			workingDirectory: root,
+			cyrusHome: root,
+			onMessage,
+		});
+		await runner.start("Check envelope");
+		expect(onMessage).toHaveBeenCalledExactlyOnceWith(message);
 	});
 });
