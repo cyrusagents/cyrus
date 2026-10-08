@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Changed
+- Refreshed the mandatory Claude tool extraction against SDK 0.3.293 (30 tools, no catalog changes), added permission-mode and lifecycle regression coverage, published `cyrus-core@0.2.74-test.8` under the npm `test` tag without moving `latest`, and pinned Hosted to the verified artifact. ([CYPACK-1569](https://linear.app/ceedar/issue/CYPACK-1569), [#1534](https://github.com/cyrusagents/cyrus/pull/1534), [cyrus-hosted#1158](https://github.com/cyrusagents/cyrus-hosted/pull/1158))
+
 ## [0.2.73] - 2026-09-29
 
 ### Changed
