@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- Add the explicit-destination `post_message_to_codex` tool and reusable Cyrus Inbox plugin for authorized dot/Cloud Work subscriptions, with stable message keys and honest queue receipts. ([CYHOST-1356](https://linear.app/ceedar/issue/CYHOST-1356))
+- Add the explicit-destination `post_message_to_codex` tool and reusable Cyrus Inbox plugin for authorized dot/Cloud Work subscriptions, with stable message keys and honest queue receipts. ([CYHOST-1356](https://linear.app/ceedar/issue/CYHOST-1356), [#1535](https://github.com/cyrusagents/cyrus/pull/1535))
 
 ### Fixed
 - Codex sessions can use `gpt-6.1-sol` with ChatGPT accounts now that the bundled CLI and SDK have been updated to 0.159.2. ([#1512](https://github.com/cyrusagents/cyrus/issues/1512), [#1514](https://github.com/cyrusagents/cyrus/pull/1514))
