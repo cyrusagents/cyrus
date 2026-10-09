@@ -135,6 +135,7 @@ import {
 } from "cyrus-linear-event-transport";
 import {
 	type CyrusToolsOptions,
+	createCodexMessagePublisher,
 	createCyrusToolsServer,
 	createFetchFailureModesClient,
 	type FailureModesHttpClient,
@@ -6227,8 +6228,15 @@ ${taskSection}`;
 
 	private createCyrusToolsOptions(parentSessionId?: string): CyrusToolsOptions {
 		const failureModesClient = this.getFailureModesClient();
+		const publisherKey = process.env.CYRUS_API_KEY?.trim();
 		const options: CyrusToolsOptions = {
 			parentSessionId,
+			postMessageToCodex: publisherKey
+				? createCodexMessagePublisher({
+						baseUrl: getCyrusAppUrl(),
+						apiKey: publisherKey,
+					})
+				: undefined,
 			onSessionCreated: (childSessionId: string, parentId: string) => {
 				this.handleChildSessionMapping(childSessionId, parentId);
 			},
