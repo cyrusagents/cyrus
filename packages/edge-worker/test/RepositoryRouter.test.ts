@@ -1809,7 +1809,8 @@ describe("RepositoryRouter", () => {
 				let webhook = env
 					.webhook()
 					.inWorkspace("default-workspace")
-					.forIssue("issue-1", "TEST-1")
+					.forIssue("issue-1", "FULL-1")
+					.inTeam("FULL")
 					.build();
 				let result = await env.router.determineRepositoryForWebhook(webhook, [
 					fullRepo,
@@ -2043,6 +2044,99 @@ describe("RepositoryRouter", () => {
 				// Then: Label routing wins; team routing skipped
 				expectRouting(result).shouldSelectRepositoriesVia(
 					[labelRepo],
+					"label-based",
+				);
+			});
+
+			it("should only match label repos scoped to the issue's team", async () => {
+				// Given: Two teams each route their own "Design" label to a different repo
+				const vegRepo = env
+					.repository("veg-design", "VEG Design")
+					.inWorkspace("default-workspace")
+					.withTeams("VEG")
+					.withLabels("Design")
+					.build();
+				const colRepo = env
+					.repository("col-design", "COL Design")
+					.inWorkspace("default-workspace")
+					.withTeams("COL")
+					.withLabels("Design")
+					.build();
+
+				env.issueHasLabels("issue-1", "Design");
+
+				const webhook = env
+					.webhook()
+					.inWorkspace("default-workspace")
+					.forIssue("issue-1", "COL-1")
+					.inTeam("COL")
+					.build();
+
+				// When
+				const result = await env.router.determineRepositoryForWebhook(webhook, [
+					vegRepo,
+					colRepo,
+				]);
+
+				// Then: Only the COL entry matches
+				expectRouting(result).shouldSelectRepositoriesVia(
+					[colRepo],
+					"label-based",
+				);
+			});
+
+			it("should not label-route an issue to a repo scoped to another team", async () => {
+				// Given: Only VEG routes the "Design" label
+				const vegRepo = env
+					.repository("veg-design", "VEG Design")
+					.inWorkspace("default-workspace")
+					.withTeams("VEG")
+					.withLabels("Design")
+					.build();
+
+				env.issueHasLabels("issue-1", "Design");
+
+				const webhook = env
+					.webhook()
+					.inWorkspace("default-workspace")
+					.forIssue("issue-1", "COL-1")
+					.inTeam("COL")
+					.build();
+
+				// When
+				const result = await env.router.determineRepositoryForWebhook(webhook, [
+					vegRepo,
+				]);
+
+				// Then: The VEG entry is not selected for a COL issue
+				expectRouting(result).shouldNeedSelectionWithRepos(1);
+			});
+
+			it("should keep workspace-wide label routing for repos without team keys", async () => {
+				// Given: A repo routing the "Design" label with no team scope
+				const designRepo = env
+					.repository("design", "Design")
+					.inWorkspace("default-workspace")
+					.withLabels("Design")
+					.build();
+
+				env.issueHasLabels("issue-1", "Design");
+
+				const webhook = env
+					.webhook()
+					.inWorkspace("default-workspace")
+					.forIssue("issue-1", "COL-1")
+					.inTeam("COL")
+					.build();
+
+				// When
+				const result = await env.router.determineRepositoryForWebhook(webhook, [
+					designRepo,
+				]);
+
+				// Then: Label routing still applies across teams
+				expectRouting(result).shouldSelectRepositoriesVia(
+					[designRepo],
 					"label-based",
 				);
 			});
