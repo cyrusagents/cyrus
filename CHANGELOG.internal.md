@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Changed
+- Preserved the established Claude permission boundary after Agent SDK 0.3.286 changed omitted `permissionMode` semantics, with regression coverage across first-party and third-party provider configurations, updated background-task ordering, and MCP result envelopes. Recorded the real 0.3.295 F1 initialization evidence and its existing expired-OAuth runtime blocker. ([CYPACK-1571](https://linear.app/ceedar/issue/CYPACK-1571/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1536](https://github.com/cyrusagents/cyrus/pull/1536))
+
 ## [0.2.73] - 2026-09-29
 
 ### Changed

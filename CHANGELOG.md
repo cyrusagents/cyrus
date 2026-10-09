@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Add the explicit-destination `post_message_to_codex` tool and reusable Cyrus Inbox plugin for authorized dot/Cloud Work subscriptions, with stable message keys and honest queue receipts. ([CYHOST-1356](https://linear.app/ceedar/issue/CYHOST-1356), [#1535](https://github.com/cyrusagents/cyrus/pull/1535))
 
+### Changed
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.281` to [`0.3.295`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03295), bringing Claude sessions to parity with Claude Code 2.1.295 while preserving Cyrus's explicit manual-approval behavior across provider and settings configurations. The accumulated update improves background-agent lifecycle metadata, MCP result handling and limits, interrupted-turn replay, partial responses, streamed citations, and rate-limit details. Updated `@anthropic-ai/sdk` from `^0.128.0` to [`^0.132.1`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v0.132.1), adding newer model/tooling types and client fixes. The refreshed Claude registry remains at 30 tools. ([CYPACK-1571](https://linear.app/ceedar/issue/CYPACK-1571/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1536](https://github.com/cyrusagents/cyrus/pull/1536), [cyrus-hosted#1181](https://github.com/cyrusagents/cyrus-hosted/pull/1181))
+
 ### Fixed
 - Codex sessions can use `gpt-6.1-sol` with ChatGPT accounts now that the bundled CLI and SDK have been updated to 0.159.2. ([#1512](https://github.com/cyrusagents/cyrus/issues/1512), [#1514](https://github.com/cyrusagents/cyrus/pull/1514))
 - Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. (CYHOST-909)
