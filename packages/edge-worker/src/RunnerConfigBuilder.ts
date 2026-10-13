@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { join, relative } from "node:path";
 import type {
 	HookCallbackMatcher,
 	HookEvent,
@@ -19,6 +20,7 @@ import type {
 	RepositoryConfig,
 	RunnerType,
 } from "cyrus-core";
+import { resolvePath } from "cyrus-core";
 import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
 import { appendBrowserUseAddendum } from "./prompts/browserUsePromptAddendum.js";
@@ -113,6 +115,8 @@ export interface ChatRunnerConfigInput {
 	opencodeGlobalStateScope?: OpenCodeConfigOverrides["stateScope"];
 	/** Existing runner type to preserve when resuming a completed chat session */
 	runnerType?: RunnerType;
+	/** Operator-configured read-only roots outside the workspace. */
+	additionalReadableDirectories?: readonly string[];
 	logger: ILogger;
 	onMessage: (message: SDKMessage) => void | Promise<void>;
 	onError: (error: Error) => void;
@@ -175,6 +179,8 @@ export interface IssueRunnerConfigInput {
 	sandboxSettings?: SandboxSettings;
 	/** CA cert path for MITM TLS termination — passed via child process env */
 	egressCaCertPath?: string;
+	/** Operator-configured read-only roots outside the workspace. */
+	additionalReadableDirectories?: readonly string[];
 	/**
 	 * GitHub App installation token matched to the session repository's org
 	 * (from the cyrus-hosted-pushed token store). When set, it's exposed to
@@ -186,6 +192,34 @@ export interface IssueRunnerConfigInput {
 	 * `gh auth login` the github-tokens push handler performs.
 	 */
 	githubToken?: string;
+}
+
+/**
+ * Resolve operator-configured readable directories to absolute paths.
+ *
+ * Drops the home directory itself and its ancestors: granting either would
+ * lift the home-directory read restrictions wholesale (SSH keys, cloud
+ * credentials, …) instead of for one narrow path.
+ */
+export function resolveAdditionalReadableDirectories(
+	directories: readonly string[] | undefined,
+	log: ILogger,
+): string[] {
+	const home = homedir();
+	const resolved = new Set<string>();
+	for (const directory of directories ?? []) {
+		// `resolvePath` only expands a `~/` prefix; treat a bare `~` as home too
+		// so it is caught below instead of resolving against the cwd.
+		const path = directory === "~" ? home : resolvePath(directory);
+		if (!relative(path, home).startsWith("..")) {
+			log.warn(
+				`Ignoring sandbox.additionalReadableDirectories entry "${directory}": it covers the entire home directory`,
+			);
+			continue;
+		}
+		resolved.add(path);
+	}
+	return [...resolved];
 }
 
 export function resolveIssueMcpConfigPath(
@@ -295,15 +329,28 @@ export class RunnerConfigBuilder {
 			`${input.platformName}-memory`,
 		);
 
+		// Only Claude restricts reads to `allowedDirectories`; other runners
+		// treat it as read-write roots, so read-only grants must not reach them.
+		const readableDirectories =
+			runnerType === "claude"
+				? resolveAdditionalReadableDirectories(
+						input.additionalReadableDirectories,
+						input.logger,
+					)
+				: [];
+
 		return {
 			runnerType,
 			workingDirectory: input.workspacePath,
 			allowedTools,
 			disallowedTools: [] as string[],
 			allowedDirectories: [
-				input.workspacePath,
-				autoMemoryDirectory,
-				...repositoryPaths,
+				...new Set([
+					input.workspacePath,
+					autoMemoryDirectory,
+					...repositoryPaths,
+					...readableDirectories,
+				]),
 			],
 			workspaceName: input.workspaceName,
 			cyrusHome: input.cyrusHome,
@@ -449,11 +496,25 @@ export class RunnerConfigBuilder {
 			input.session.workspace.repoPaths ?? {},
 		).filter((p): p is string => typeof p === "string" && p !== cwd);
 
+		// Operator-configured read-only grants. Applied only where a runner
+		// restricts reads: Claude's home-directory deny rules and sandbox
+		// allowRead, and the Codex sandbox allowRead. Codex, Cursor, and
+		// OpenCode treat `allowedDirectories` as read-write roots, so the grants
+		// must not flow through it for those runners.
+		const readableDirectories = resolveAdditionalReadableDirectories(
+			input.additionalReadableDirectories,
+			log,
+		);
+		const allowedDirectories =
+			runnerType === "claude"
+				? [...new Set([...input.allowedDirectories, ...readableDirectories])]
+				: input.allowedDirectories;
+
 		const config: AgentRunnerConfig & Record<string, unknown> = {
 			workingDirectory: cwd,
 			allowedTools: input.allowedTools,
 			disallowedTools: input.disallowedTools,
-			allowedDirectories: input.allowedDirectories,
+			allowedDirectories,
 			...(additionalDirectories.length > 0 && { additionalDirectories }),
 			workspaceName: input.session.issue?.identifier || input.session.issueId,
 			cyrusHome: input.cyrusHome,
@@ -487,7 +548,7 @@ export class RunnerConfigBuilder {
 			// - Pass CA cert path via env for MITM TLS termination
 			...(runnerType === "claude" &&
 				input.sandboxSettings &&
-				this.buildSandboxConfig(input)),
+				this.buildSandboxConfig(input, allowedDirectories)),
 			// AskUserQuestion callback - only for Claude runner
 			...(runnerType === "claude" &&
 				input.createAskUserQuestionCallback && {
@@ -546,7 +607,11 @@ export class RunnerConfigBuilder {
 		if (runnerType === "codex" && input.sandboxSettings) {
 			config.sandboxSettings = {
 				allowWrite: [input.session.workspace.path],
-				allowRead: [input.session.workspace.path, ...input.allowedDirectories],
+				allowRead: [
+					input.session.workspace.path,
+					...input.allowedDirectories,
+					...readableDirectories,
+				],
 			};
 		}
 
@@ -586,6 +651,7 @@ export class RunnerConfigBuilder {
 	 */
 	private buildSandboxConfig(
 		input: IssueRunnerConfigInput,
+		allowedDirectories: string[],
 	): Record<string, unknown> {
 		const result: Record<string, unknown> = {};
 
@@ -603,9 +669,10 @@ export class RunnerConfigBuilder {
 					...input.sandboxSettings.filesystem,
 					// "." resolves to the cwd of the primary folder Claude is working in.
 					// See: https://code.claude.com/docs/en/settings#sandbox-path-prefixes
-					// allowedDirectories contains the attachments dir, repo paths, and git
-					// metadata dirs — all of which need OS-level read access alongside the worktree.
-					allowRead: [".", ...input.allowedDirectories],
+					// allowedDirectories contains the attachments dir, repo paths, git
+					// metadata dirs, and operator-configured readable directories — all
+					// of which need OS-level read access alongside the worktree.
+					allowRead: [".", ...allowedDirectories],
 					denyRead: ["~/"],
 					// Restrict subprocess writes to the session worktree only
 					allowWrite: [input.session.workspace.path],

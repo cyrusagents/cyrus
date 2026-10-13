@@ -1018,6 +1018,13 @@
 				"systemWideCert": {
 					"type": "boolean"
 				},
+				"additionalReadableDirectories": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
 				"logRequests": {
 					"type": "boolean"
 				}
