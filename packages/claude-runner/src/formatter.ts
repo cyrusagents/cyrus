@@ -1,3 +1,5 @@
+import { labelGitCommand } from "./git-command-labels.js";
+
 /**
  * Message Formatter Interface
  *
@@ -204,6 +206,12 @@ export class ClaudeMessageFormatter implements IMessageFormatter {
 			switch (toolName) {
 				case "Bash":
 				case "↪ Bash": {
+					// Semantic git/forge rows show the branch or PR title as the
+					// parameter (the raw command still appears in the result).
+					const gitLabel = labelGitCommand(toolInput.command);
+					if (gitLabel?.parameter) {
+						return gitLabel.parameter;
+					}
 					// Show command only - description goes in action field via formatToolActionName
 					return toolInput.command || JSON.stringify(toolInput);
 				}
@@ -390,6 +398,19 @@ export class ClaudeMessageFormatter implements IMessageFormatter {
 	): string {
 		// Handle Bash tool with description
 		if (toolName === "Bash" || toolName === "↪ Bash") {
+			// Semantic git/forge rows: pushes and PR creation render as
+			// "Git Push" / "Create PR" — matching how Linear's own coding
+			// agent labels these steps in the session timeline.
+			const gitLabel = labelGitCommand(
+				toolInput && typeof toolInput === "object"
+					? toolInput.command
+					: undefined,
+			);
+			if (gitLabel) {
+				const prefix = toolName === "↪ Bash" ? "↪ " : "";
+				const name = `${prefix}${gitLabel.action}`;
+				return isError ? `${name} (Error)` : name;
+			}
 			// Check if toolInput has a description field
 			if (
 				toolInput &&

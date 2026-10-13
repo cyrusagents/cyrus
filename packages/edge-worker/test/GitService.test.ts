@@ -511,6 +511,331 @@ describe("GitService", () => {
 			expect(result.path).toBe("/home/user/.cyrus/worktrees/ENG-97");
 			expect(result.isGitWorktree).toBe(false);
 		});
+
+		it("adopts a remote-only branch by tracking origin/<branch>", async () => {
+			const issue = makeIssue();
+			const repository = makeRepository();
+
+			const commands: string[] = [];
+			mockExecSync.mockImplementation((cmd: any) => {
+				const cmdStr = String(cmd);
+				commands.push(cmdStr);
+				if (cmdStr === "git rev-parse --git-dir") {
+					return Buffer.from(".git\n");
+				}
+				if (cmdStr === "git worktree list --porcelain") {
+					return "";
+				}
+				if (
+					cmdStr.includes(
+						'git rev-parse --verify "cyrustester/eng-97-fix-shader"',
+					)
+				) {
+					// Branch does NOT exist locally
+					throw new Error("fatal: Needed a single revision");
+				}
+				if (
+					cmdStr.includes(
+						'git ls-remote --heads origin "cyrustester/eng-97-fix-shader"',
+					)
+				) {
+					// ...but it exists on the remote (externally pushed PR branch)
+					return Buffer.from(
+						"abc123\trefs/heads/cyrustester/eng-97-fix-shader\n",
+					);
+				}
+				return Buffer.from("");
+			});
+
+			const result = await gitService.createGitWorktree(issue, [repository]);
+
+			expect(result.path).toBe("/home/user/.cyrus/worktrees/ENG-97");
+			expect(commands).toContain(
+				'git worktree add --track -b "cyrustester/eng-97-fix-shader" "/home/user/.cyrus/worktrees/ENG-97" "origin/cyrustester/eng-97-fix-shader"',
+			);
+			expect(mockLogger.info).toHaveBeenCalledWith(
+				expect.stringContaining("exists on remote, creating worktree tracking"),
+			);
+		});
+
+		it("creates a fresh branch from base when the branch exists neither locally nor remotely", async () => {
+			const issue = makeIssue();
+			const repository = makeRepository();
+
+			const commands: string[] = [];
+			mockExecSync.mockImplementation((cmd: any) => {
+				const cmdStr = String(cmd);
+				commands.push(cmdStr);
+				if (cmdStr === "git rev-parse --git-dir") {
+					return Buffer.from(".git\n");
+				}
+				if (cmdStr === "git worktree list --porcelain") {
+					return "";
+				}
+				if (
+					cmdStr.includes(
+						'git rev-parse --verify "cyrustester/eng-97-fix-shader"',
+					)
+				) {
+					throw new Error("fatal: Needed a single revision");
+				}
+				if (
+					cmdStr.includes(
+						'git ls-remote --heads origin "cyrustester/eng-97-fix-shader"',
+					)
+				) {
+					// Not on the remote either
+					return Buffer.from("");
+				}
+				if (cmdStr.includes('git ls-remote --heads origin "main"')) {
+					return Buffer.from("def456\trefs/heads/main\n");
+				}
+				return Buffer.from("");
+			});
+
+			const result = await gitService.createGitWorktree(issue, [repository]);
+
+			expect(result.path).toBe("/home/user/.cyrus/worktrees/ENG-97");
+			expect(commands).toContain(
+				'git worktree add --track -b "cyrustester/eng-97-fix-shader" "/home/user/.cyrus/worktrees/ENG-97" "origin/main"',
+			);
+		});
+	});
+
+	describe("createGitWorktree - referenced PR branch adoption", () => {
+		const mockGitEnvironment = () => {
+			const commands: string[] = [];
+			mockExecSync.mockImplementation((cmd: any) => {
+				const cmdStr = String(cmd);
+				commands.push(cmdStr);
+				if (cmdStr === "git rev-parse --git-dir") {
+					return Buffer.from(".git\n");
+				}
+				if (cmdStr === "git remote get-url origin") {
+					return Buffer.from("git@github.com:acme/widgets.git\n");
+				}
+				if (cmdStr === "git worktree list --porcelain") {
+					return "";
+				}
+				if (cmdStr.includes("git rev-parse --verify")) {
+					// No branches exist locally
+					throw new Error("fatal: Needed a single revision");
+				}
+				if (cmdStr.includes("git ls-remote --heads origin")) {
+					// Branches exist on the remote (both PR head and fallbacks)
+					return Buffer.from("abc123\trefs/heads/whatever\n");
+				}
+				return Buffer.from("");
+			});
+			return commands;
+		};
+
+		const mockPrFetch = (
+			pr: any,
+			opts: { status?: number; reject?: boolean } = {},
+		) => {
+			const fetchMock = opts.reject
+				? vi.fn().mockRejectedValue(new Error("network down"))
+				: vi.fn().mockResolvedValue({
+						ok: (opts.status ?? 200) < 400,
+						status: opts.status ?? 200,
+						json: () => Promise.resolve(pr),
+					});
+			vi.stubGlobal("fetch", fetchMock);
+			return fetchMock;
+		};
+
+		afterEach(() => {
+			vi.unstubAllGlobals();
+		});
+
+		const openPr = {
+			state: "open",
+			head: { ref: "feat/pi-provider", repo: { full_name: "acme/widgets" } },
+		};
+
+		it("adopts the head branch of an open PR embedded in the description", async () => {
+			const issue = makeIssue({
+				description:
+					'Fix it.\n\n<pull-request id="x" href="https://linear.app/x/review/y">acme/widgets#254</pull-request>',
+			});
+			const repository = makeRepository();
+			const commands = mockGitEnvironment();
+			const fetchMock = mockPrFetch(openPr);
+
+			await gitService.createGitWorktree(issue, [repository]);
+
+			expect(fetchMock).toHaveBeenCalledWith(
+				"https://api.github.com/repos/acme/widgets/pulls/254",
+				expect.anything(),
+			);
+			expect(commands).toContain(
+				'git worktree add --track -b "feat/pi-provider" "/home/user/.cyrus/worktrees/ENG-97" "origin/feat/pi-provider"',
+			);
+		});
+
+		it("adopts the head branch of a PR referenced as a markdown link (Linear synced-PR embed)", async () => {
+			const issue = makeIssue({
+				description:
+					"Fix it.\n\n[acme/widgets#254](https://linear.app/acme/review/feat-pi-provider-abc123)",
+			});
+			const repository = makeRepository();
+			const commands = mockGitEnvironment();
+			const fetchMock = mockPrFetch(openPr);
+
+			await gitService.createGitWorktree(issue, [repository]);
+
+			expect(fetchMock).toHaveBeenCalledWith(
+				"https://api.github.com/repos/acme/widgets/pulls/254",
+				expect.anything(),
+			);
+			expect(commands).toContain(
+				'git worktree add --track -b "feat/pi-provider" "/home/user/.cyrus/worktrees/ENG-97" "origin/feat/pi-provider"',
+			);
+		});
+
+		it("prefers a description PR reference over an attached PR", async () => {
+			const issue = makeIssue({
+				description: "[acme/widgets#254](https://linear.app/acme/review/x)",
+				attachments: () =>
+					Promise.resolve({
+						nodes: [{ url: "https://github.com/acme/widgets/pull/296" }],
+					}),
+			});
+			const repository = makeRepository();
+			const commands = mockGitEnvironment();
+			const fetchMock = vi.fn().mockImplementation((url: string) =>
+				Promise.resolve({
+					ok: true,
+					status: 200,
+					json: () =>
+						Promise.resolve(
+							url.endsWith("/254")
+								? openPr
+								: {
+										state: "open",
+										head: {
+											ref: "wrong-branch",
+											repo: { full_name: "acme/widgets" },
+										},
+									},
+						),
+				}),
+			);
+			vi.stubGlobal("fetch", fetchMock);
+
+			await gitService.createGitWorktree(issue, [repository]);
+
+			expect(fetchMock).toHaveBeenCalledWith(
+				"https://api.github.com/repos/acme/widgets/pulls/254",
+				expect.anything(),
+			);
+			expect(commands).toContain(
+				'git worktree add --track -b "feat/pi-provider" "/home/user/.cyrus/worktrees/ENG-97" "origin/feat/pi-provider"',
+			);
+		});
+
+		it("adopts the head branch of a PR referenced via issue attachment URL", async () => {
+			const issue = makeIssue({
+				attachments: () =>
+					Promise.resolve({
+						nodes: [{ url: "https://github.com/acme/widgets/pull/254" }],
+					}),
+			});
+			const repository = makeRepository();
+			const commands = mockGitEnvironment();
+			mockPrFetch(openPr);
+
+			await gitService.createGitWorktree(issue, [repository]);
+
+			expect(commands).toContain(
+				'git worktree add --track -b "feat/pi-provider" "/home/user/.cyrus/worktrees/ENG-97" "origin/feat/pi-provider"',
+			);
+		});
+
+		it("falls back to the issue branch name when the referenced PR is closed", async () => {
+			const issue = makeIssue({
+				description:
+					'<pull-request id="x" href="https://linear.app/x/review/y">acme/widgets#254</pull-request>',
+			});
+			const repository = makeRepository();
+			const commands = mockGitEnvironment();
+			mockPrFetch({ ...openPr, state: "closed" });
+
+			await gitService.createGitWorktree(issue, [repository]);
+
+			expect(
+				commands.some((c) =>
+					c.includes(
+						'git worktree add --track -b "cyrustester/eng-97-fix-shader"',
+					),
+				),
+			).toBe(true);
+		});
+
+		it("does not adopt a cross-fork PR's branch", async () => {
+			const issue = makeIssue({
+				description:
+					'<pull-request id="x" href="https://linear.app/x/review/y">acme/widgets#254</pull-request>',
+			});
+			const repository = makeRepository();
+			const commands = mockGitEnvironment();
+			mockPrFetch({
+				state: "open",
+				head: { ref: "feat/pi-provider", repo: { full_name: "fork/widgets" } },
+			});
+
+			await gitService.createGitWorktree(issue, [repository]);
+
+			expect(
+				commands.some((c) =>
+					c.includes(
+						'git worktree add --track -b "cyrustester/eng-97-fix-shader"',
+					),
+				),
+			).toBe(true);
+		});
+
+		it("ignores PR references for a different repository", async () => {
+			const issue = makeIssue({
+				description:
+					'<pull-request id="x" href="https://linear.app/x/review/y">other/repo#254</pull-request>',
+			});
+			const repository = makeRepository();
+			const commands = mockGitEnvironment();
+			const fetchMock = mockPrFetch(openPr);
+
+			await gitService.createGitWorktree(issue, [repository]);
+
+			expect(fetchMock).not.toHaveBeenCalled();
+			expect(
+				commands.some((c) =>
+					c.includes(
+						'git worktree add --track -b "cyrustester/eng-97-fix-shader"',
+					),
+				),
+			).toBe(true);
+		});
+
+		it("falls back to the issue branch name when the PR lookup fails", async () => {
+			const issue = makeIssue({
+				description:
+					'<pull-request id="x" href="https://linear.app/x/review/y">acme/widgets#254</pull-request>',
+			});
+			const repository = makeRepository();
+			const commands = mockGitEnvironment();
+			mockPrFetch(null, { reject: true });
+
+			await gitService.createGitWorktree(issue, [repository]);
+
+			expect(
+				commands.some((c) =>
+					c.includes(
+						'git worktree add --track -b "cyrustester/eng-97-fix-shader"',
+					),
+				),
+			).toBe(true);
+		});
 	});
 
 	describe("createGitWorktree - repo setup hook discovery", () => {

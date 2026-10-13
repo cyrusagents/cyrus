@@ -689,6 +689,145 @@ export class GitService {
 	 *
 	 * @param workspacePathOverride - Override the workspace path (used for N-repo subdirectories)
 	 */
+	/**
+	 * Resolve the owner/repo slug for a repository, from its configured
+	 * githubUrl or the origin remote of its local checkout.
+	 */
+	private resolveOwnerRepoSlug(repository: RepositoryConfig): string | null {
+		const slugFrom = (url: string): string | null => {
+			const match = url.match(
+				/github\.com[/:]([\w.-]+\/[\w.-]+?)(?:\.git)?(?:[/#?].*)?$/i,
+			);
+			return match?.[1] ?? null;
+		};
+		if (repository.githubUrl) {
+			const slug = slugFrom(repository.githubUrl);
+			if (slug) return slug;
+		}
+		try {
+			const remoteUrl = execSync("git remote get-url origin", {
+				cwd: repository.repositoryPath,
+				stdio: "pipe",
+			})
+				.toString()
+				.trim();
+			return slugFrom(remoteUrl);
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * If the issue references an open GitHub pull request on this repository —
+	 * via an attachment or a PR embed/URL in the description — return that
+	 * PR's head branch so the session works directly on the existing PR
+	 * instead of a fresh branch. Returns null when there is no usable
+	 * reference (different repo, closed PR, cross-fork PR, gh unavailable).
+	 */
+	private async resolveAttachedPullRequestBranch(
+		issue: Issue,
+		repository: RepositoryConfig,
+	): Promise<string | null> {
+		const ownerRepo = this.resolveOwnerRepoSlug(repository);
+		if (!ownerRepo) return null;
+
+		// Collect candidate PR numbers referencing this repository. Description
+		// references come first: they are user-stated intent, while attachments
+		// accumulate automatically (e.g. Cyrus attaches every PR it creates).
+		const prNumbers: string[] = [];
+		const addCandidate = (
+			slug: string | undefined,
+			num: string | undefined,
+		) => {
+			if (!slug || !num) return;
+			if (slug.toLowerCase() !== ownerRepo.toLowerCase()) return;
+			if (!prNumbers.includes(num)) prNumbers.push(num);
+		};
+
+		const description = issue.description ?? "";
+		// GitHub PR URLs pasted into the description
+		for (const match of description.matchAll(
+			/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)/gi,
+		)) {
+			addCandidate(match[1], match[2]);
+		}
+		// owner/repo#123 references. This is also how Linear's API renders a
+		// synced-PR embed in issue markdown: [owner/repo#123](https://linear.app/...)
+		for (const match of description.matchAll(
+			/(?:^|[^\w/])([\w.-]+\/[\w.-]+)#(\d+)\b/g,
+		)) {
+			addCandidate(match[1], match[2]);
+		}
+
+		try {
+			const attachments = await issue.attachments?.();
+			for (const attachment of attachments?.nodes ?? []) {
+				const match = attachment.url?.match(
+					/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)/i,
+				);
+				addCandidate(match?.[1], match?.[2]);
+			}
+		} catch (error) {
+			this.logger.debug(
+				`Failed to fetch attachments for ${issue.identifier}: ${(error as Error).message}`,
+			);
+		}
+
+		// Look the PRs up via the GitHub REST API: works unauthenticated for
+		// public repos, and uses GH_TOKEN / GITHUB_TOKEN when present (needed
+		// for private repos).
+		const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+		const headers: Record<string, string> = {
+			Accept: "application/vnd.github+json",
+			"User-Agent": "cyrus-agent",
+			...(token ? { Authorization: `Bearer ${token}` } : {}),
+		};
+
+		for (const prNumber of prNumbers) {
+			try {
+				const response = await fetch(
+					`https://api.github.com/repos/${ownerRepo}/pulls/${prNumber}`,
+					{ headers, signal: AbortSignal.timeout(10_000) },
+				);
+				if (!response.ok) {
+					this.logger.warn(
+						`Could not look up PR ${ownerRepo}#${prNumber} for ${issue.identifier}: HTTP ${response.status}`,
+					);
+					continue;
+				}
+				const pr = (await response.json()) as {
+					state?: string;
+					head?: { ref?: string; repo?: { full_name?: string } };
+				};
+				if (pr.state !== "open") {
+					this.logger.info(
+						`PR ${ownerRepo}#${prNumber} referenced on ${issue.identifier} is ${pr.state}, not adopting its branch`,
+					);
+					continue;
+				}
+				if (
+					pr.head?.repo?.full_name?.toLowerCase() !== ownerRepo.toLowerCase()
+				) {
+					this.logger.warn(
+						`PR ${ownerRepo}#${prNumber} referenced on ${issue.identifier} is from a fork, not adopting its branch`,
+					);
+					continue;
+				}
+				if (pr.head?.ref) {
+					this.logger.info(
+						`Issue ${issue.identifier} references open PR ${ownerRepo}#${prNumber}, using its head branch '${pr.head.ref}'`,
+					);
+					return pr.head.ref;
+				}
+			} catch (error) {
+				this.logger.warn(
+					`Could not look up PR ${ownerRepo}#${prNumber} for ${issue.identifier}: ${(error as Error).message}`,
+				);
+			}
+		}
+		return null;
+	}
+
 	private async createSingleRepoWorktree(
 		issue: Issue,
 		repository: RepositoryConfig,
@@ -723,14 +862,24 @@ export class GitService {
 				throw new Error("Not a git repository");
 			}
 
-			// Use Linear's preferred branch name, or generate one if not available
+			// A pull request referenced on the issue (attachment or description
+			// embed) wins over Linear's generated branch name: the session
+			// works directly on the existing PR's branch. The head ref is used
+			// verbatim — it must match the remote branch exactly.
+			const attachedPrBranch = await this.resolveAttachedPullRequestBranch(
+				issue,
+				repository,
+			);
+
+			// Otherwise use Linear's preferred branch name, or generate one
 			const rawBranchName =
 				issue.branchName ||
 				`${issue.identifier}-${issue.title
 					?.toLowerCase()
 					.replace(/\s+/g, "-")
 					.substring(0, 30)}`;
-			const branchName = this.sanitizeBranchName(rawBranchName);
+			const branchName =
+				attachedPrBranch ?? this.sanitizeBranchName(rawBranchName);
 			const workspacePath =
 				workspacePathOverride ??
 				join(repository.workspaceBaseDir, issue.identifier);
@@ -842,9 +991,34 @@ export class GitService {
 				hasRemote = false;
 			}
 
+			// If the branch doesn't exist locally, it may still exist on the
+			// remote (e.g. a PR branch pushed outside Cyrus). Adopt it rather
+			// than shadowing it with a fresh branch cut from the base branch.
+			let adoptRemoteBranch = false;
+			if (createBranch && hasRemote) {
+				try {
+					const remoteOutput = execSync(
+						`git ls-remote --heads origin "${branchName}"`,
+						{
+							cwd: repository.repositoryPath,
+							stdio: "pipe",
+						},
+					);
+					adoptRemoteBranch =
+						remoteOutput !== null && remoteOutput.toString().trim().length > 0;
+				} catch {
+					// ls-remote failed; fall through to normal branch creation
+				}
+			}
+
 			// Create the worktree - use determined base branch
 			let worktreeCmd: string;
-			if (createBranch) {
+			if (adoptRemoteBranch) {
+				this.logger.info(
+					`Branch '${branchName}' exists on remote, creating worktree tracking origin/${branchName}`,
+				);
+				worktreeCmd = `git worktree add --track -b "${branchName}" "${workspacePath}" "origin/${branchName}"`;
+			} else if (createBranch) {
 				if (hasRemote) {
 					// Check if the base branch exists remotely
 					let useRemoteBranch = false;
