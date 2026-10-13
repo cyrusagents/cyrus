@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, relative } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import type {
 	HookCallbackMatcher,
 	HookEvent,
@@ -194,26 +195,59 @@ export interface IssueRunnerConfigInput {
 	githubToken?: string;
 }
 
+/** Whether `path` is `root` itself or lies beneath it. */
+function isWithin(root: string, path: string): boolean {
+	const rel = relative(root, path);
+	return rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel);
+}
+
+/** Lexical and symlink-resolved forms of `path` (the latter if it exists). */
+function pathForms(path: string): string[] {
+	try {
+		return [...new Set([path, realpathSync(path)])];
+	} catch {
+		return [path];
+	}
+}
+
 /**
  * Resolve operator-configured readable directories to absolute paths.
  *
- * Drops the home directory itself and its ancestors: granting either would
- * lift the home-directory read restrictions wholesale (SSH keys, cloud
- * credentials, …) instead of for one narrow path.
+ * Drops entries that contain the home directory or the Cyrus home: granting
+ * either would lift the home-directory read restrictions wholesale (SSH keys,
+ * cloud credentials, Cyrus's own tokens and other sessions' workspaces)
+ * instead of for one narrow path. Symlinks are followed for this check, so a
+ * link pointing at home is caught too.
  */
 export function resolveAdditionalReadableDirectories(
 	directories: readonly string[] | undefined,
 	log: ILogger,
+	cyrusHome?: string,
 ): string[] {
 	const home = homedir();
+	const protectedRoots = [
+		{ forms: pathForms(home), label: "the entire home directory" },
+		...(cyrusHome
+			? [
+					{
+						forms: pathForms(resolvePath(cyrusHome)),
+						label: "the Cyrus home directory (credentials and session data)",
+					},
+				]
+			: []),
+	];
 	const resolved = new Set<string>();
 	for (const directory of directories ?? []) {
 		// `resolvePath` only expands a `~/` prefix; treat a bare `~` as home too
 		// so it is caught below instead of resolving against the cwd.
 		const path = directory === "~" ? home : resolvePath(directory);
-		if (!relative(path, home).startsWith("..")) {
+		const entryForms = pathForms(path);
+		const covered = protectedRoots.find(({ forms }) =>
+			forms.some((root) => entryForms.some((entry) => isWithin(entry, root))),
+		);
+		if (covered) {
 			log.warn(
-				`Ignoring sandbox.additionalReadableDirectories entry "${directory}": it covers the entire home directory`,
+				`Ignoring sandbox.additionalReadableDirectories entry "${directory}": it covers ${covered.label}`,
 			);
 			continue;
 		}
@@ -336,6 +370,7 @@ export class RunnerConfigBuilder {
 				? resolveAdditionalReadableDirectories(
 						input.additionalReadableDirectories,
 						input.logger,
+						input.cyrusHome,
 					)
 				: [];
 
@@ -498,13 +533,20 @@ export class RunnerConfigBuilder {
 
 		// Operator-configured read-only grants. Applied only where a runner
 		// restricts reads: Claude's home-directory deny rules and sandbox
-		// allowRead, and the Codex sandbox allowRead. Codex, Cursor, and
-		// OpenCode treat `allowedDirectories` as read-write roots, so the grants
-		// must not flow through it for those runners.
-		const readableDirectories = resolveAdditionalReadableDirectories(
-			input.additionalReadableDirectories,
-			log,
-		);
+		// allowRead, and the Codex sandbox allowRead. Codex, Cursor, OpenCode, and
+		// Gemini treat `allowedDirectories` as read-write roots, so the grants
+		// must not flow through it for those runners. Entries are resolved (and
+		// warned about) only when they will actually be applied.
+		const appliesReadableDirectories =
+			runnerType === "claude" ||
+			(runnerType === "codex" && !!input.sandboxSettings);
+		const readableDirectories = appliesReadableDirectories
+			? resolveAdditionalReadableDirectories(
+					input.additionalReadableDirectories,
+					log,
+					input.cyrusHome,
+				)
+			: [];
 		const allowedDirectories =
 			runnerType === "claude"
 				? [...new Set([...input.allowedDirectories, ...readableDirectories])]

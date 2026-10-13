@@ -379,8 +379,15 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.stripeCustomerId ?? this.config.stripeCustomerId,
 				global_setup_script:
 					parsedConfig.global_setup_script ?? this.config.global_setup_script,
-				// Sandbox / egress proxy config
-				sandbox: parsedConfig.sandbox ?? this.config.sandbox,
+				// Sandbox / egress proxy config. A file without a `sandbox` block
+				// keeps the running proxy settings, but read grants are never
+				// carried forward: removing the block must revoke them.
+				sandbox:
+					parsedConfig.sandbox ??
+					(this.config.sandbox && {
+						...this.config.sandbox,
+						additionalReadableDirectories: undefined,
+					}),
 			};
 
 			// Basic validation

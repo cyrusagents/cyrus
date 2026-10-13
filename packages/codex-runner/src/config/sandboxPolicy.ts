@@ -1,4 +1,4 @@
-import { isAbsolute } from "node:path";
+import { isAbsolute, relative } from "node:path";
 import type { SandboxMode } from "@openai/codex-sdk";
 import type {
 	CodexFileSystemAccess,
@@ -42,6 +42,12 @@ function uniqueAbsolute(paths: string[]): string[] {
 	return [...new Set(paths.filter((p) => p && isAbsolute(p)))];
 }
 
+/** Whether `path` is `root` itself or lies beneath it. */
+function isWithin(root: string, path: string): boolean {
+	const rel = relative(root, path);
+	return rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel);
+}
+
 /**
  * Resolve the per-thread sandbox decision.
  *
@@ -74,9 +80,12 @@ export function resolveCodexSandbox(
 	const writableAbs = uniqueAbsolute([...writableRoots, ...allowWrite]).filter(
 		(p) => p !== cwd,
 	);
-	// Readable-only roots: explicit reads not already writable / the worktree.
+	// Readable-only roots: explicit reads not already covered by the worktree or
+	// a writable root. A read entry nested inside a writable root is dropped so
+	// it can never downgrade that subtree to read-only.
+	const coveringRoots = [...(cwd ? [cwd] : []), ...writableAbs];
 	const readableAbs = uniqueAbsolute(allowRead).filter(
-		(p) => p !== cwd && !writableAbs.includes(p),
+		(p) => !coveringRoots.some((root) => isWithin(root, p)),
 	);
 
 	// Danger-full-access keeps broad access; read-only forbids writes; the

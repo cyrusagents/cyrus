@@ -1,4 +1,5 @@
-import { homedir } from "node:os";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type {
 	CyrusAgentSession,
@@ -49,6 +50,7 @@ function buildIssueConfig(
 	runnerType: RunnerType,
 	additionalReadableDirectories?: string[],
 	sandboxSettings?: Record<string, unknown>,
+	logger: ILogger = makeLogger(),
 ) {
 	const { config } = makeBuilder(runnerType).buildIssueConfig({
 		session: {
@@ -69,7 +71,7 @@ function buildIssueConfig(
 		disallowedTools: [],
 		cyrusHome: "/tmp/cyrus-home",
 		linearWorkspaceId: "ws-1",
-		logger: makeLogger(),
+		logger,
 		onMessage: () => {},
 		onError: () => {},
 		requireLinearWorkspaceId: () => "ws-1",
@@ -125,6 +127,43 @@ describe("resolveAdditionalReadableDirectories", () => {
 		).toEqual([toolState]);
 		expect(log.warn).toHaveBeenCalledTimes(5);
 	});
+
+	it("drops ~/.. and keeps siblings that only share a name prefix with home", () => {
+		const log = makeLogger();
+		expect(
+			resolveAdditionalReadableDirectories(
+				["~/..", `${homedir()}-shared`],
+				log,
+			),
+		).toEqual([`${homedir()}-shared`]);
+		expect(log.warn).toHaveBeenCalledTimes(1);
+	});
+
+	it("drops a symlink that points at the home directory", () => {
+		const dir = mkdtempSync(join(tmpdir(), "cyrus-readable-"));
+		try {
+			const link = join(dir, "home-link");
+			symlinkSync(homedir(), link);
+			const log = makeLogger();
+			expect(resolveAdditionalReadableDirectories([link], log)).toEqual([]);
+			expect(log.warn).toHaveBeenCalledTimes(1);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("drops entries that cover the Cyrus home but keeps paths inside it", () => {
+		const cyrusHome = join(homedir(), ".cyrus");
+		const log = makeLogger();
+		expect(
+			resolveAdditionalReadableDirectories(
+				["~/.cyrus", "~/.cyrus/skills"],
+				log,
+				cyrusHome,
+			),
+		).toEqual([join(cyrusHome, "skills")]);
+		expect(log.warn).toHaveBeenCalledTimes(1);
+	});
 });
 
 describe("RunnerConfigBuilder additional readable directories", () => {
@@ -162,10 +201,21 @@ describe("RunnerConfigBuilder additional readable directories", () => {
 		"codex",
 		"cursor",
 		"opencode",
+		"gemini",
 	] as const)("keeps readable directories out of %s read-write roots", (runnerType) => {
 		expect(
 			buildIssueConfig(runnerType, ["~/.tool-state"]).allowedDirectories,
 		).toEqual(["/ws/root", "/repos/repo-a"]);
+	});
+
+	it.each([
+		"cursor",
+		"opencode",
+		"gemini",
+	] as const)("does not resolve or warn about entries for %s sessions", (runnerType) => {
+		const log = makeLogger();
+		buildIssueConfig(runnerType, ["~"], undefined, log);
+		expect(log.warn).not.toHaveBeenCalled();
 	});
 
 	it("does not change allowedDirectories when the setting is absent", () => {
