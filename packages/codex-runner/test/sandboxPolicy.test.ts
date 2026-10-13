@@ -50,6 +50,33 @@ describe("resolveCodexSandbox", () => {
 		});
 	});
 
+	it("drops read entries nested inside the worktree or a writable root", () => {
+		expect(
+			resolveCodexSandbox({
+				mode: "workspace-write",
+				workingDirectory: "/repo/a",
+				writableRoots: ["/repo/b"],
+				networkAccess: true,
+				sandboxSettings: {
+					allowRead: ["/repo/a/docs", "/repo/b/sub", "/repo/bc", "/srv/docs"],
+				},
+			}),
+		).toEqual({
+			kind: "profile",
+			profileId: CYRUS_SANDBOX_PROFILE_ID,
+			networkAccess: true,
+			filesystem: {
+				":minimal": "read",
+				":workspace_roots": "write",
+				":tmpdir": "write",
+				":slash_tmp": "write",
+				"/repo/b": "write",
+				"/repo/bc": "read", // sibling with a shared prefix, not nested
+				"/srv/docs": "read",
+			},
+		});
+	});
+
 	it("maps read-only mode to a read-only worktree in the profile", () => {
 		expect(
 			resolveCodexSandbox({

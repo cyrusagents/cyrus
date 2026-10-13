@@ -429,6 +429,27 @@ Controls network egress for agent sessions. When enabled, all Bash-spawned subpr
 
 When `networkPolicy.allow` is specified (or expanded from a preset), all domains not in the list are blocked (deny-all). Domains with `transform` rules get TLS termination for header injection; all others pass through as CONNECT tunnels.
 
+### `sandbox.additionalReadableDirectories` (array of strings)
+
+Claude sessions are denied reads in the Cyrus user's home directory outside the session worktree, attachments, and repository paths (when the worktree lives under the home directory, as it does in a default `~/.cyrus` install). Sandboxed Codex sessions are read-restricted the same way. List directories the agent should be able to read anyway — shared docs, a team's skill or runbook checkout, generated references — to grant read-only access to just those paths. This applies to issue and chat sessions and does not require enabling the network egress proxy (`sandbox.enabled`). No extra directories are readable by default.
+
+```json
+{
+  "sandbox": {
+    "additionalReadableDirectories": [
+      "~/.shared-docs",
+      "/srv/team-runbooks"
+    ]
+  }
+}
+```
+
+`~/` expands to the Cyrus user's home directory. Absolute paths are used directly; relative paths resolve against the Cyrus process's working directory, not an issue worktree. Environment variables such as `$HOME` are not expanded. Entries that cover the whole home directory (`~`, or any of its parents) or the Cyrus home directory (`~/.cyrus`, which holds your tokens and every session's workspace) are ignored with a warning. Symlinks are followed for this check. Directories inside them, such as `~/.cyrus/skills`, are allowed. Nothing else is screened, so choose the narrowest directory the agent needs and never list credential stores such as `~/.ssh` or `~/.aws`.
+
+The grant is read-only. Claude issue sessions get it in tool permissions and, when the sandbox is enabled, in the OS-level sandbox read list. Claude chat sessions get it in tool permissions only, because chat sessions have no OS-level sandbox. Codex sessions get it in the sandbox read list when the sandbox is enabled (they are not otherwise read-restricted). An entry inside a directory Codex can already write to stays writable. Cursor already allows filesystem-wide reads. Gemini and OpenCode only accept read-write directory grants, so the setting is not applied to them.
+
+Changes are picked up when a new runner is created; an already-running turn keeps its current permissions. Set the list to `[]`, remove the key, or remove the whole `sandbox` block to revoke the grants for subsequent runners.
+
 ### CA Certificate Trust
 
 The egress proxy generates a CA certificate at `~/.cyrus/certs/cyrus-egress-ca.pem` for TLS interception of domains with transform rules. This cert is stable across restarts — once trusted, it stays trusted.

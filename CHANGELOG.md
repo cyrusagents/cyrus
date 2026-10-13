@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Configure `sandbox.additionalReadableDirectories` to let agent sessions read specific directories outside their worktree, such as shared docs or a team's skill checkout, without patching Cyrus. Read-only, applies to Claude issue and chat sessions (and sandboxed Codex sessions), and grants nothing by default. ([#1539](https://github.com/cyrusagents/cyrus/pull/1539))
 - Add the explicit-destination `post_message_to_codex` tool and reusable Cyrus Inbox plugin for authorized dot/Cloud Work subscriptions, with stable message keys and honest queue receipts. ([CYHOST-1356](https://linear.app/ceedar/issue/CYHOST-1356), [#1535](https://github.com/cyrusagents/cyrus/pull/1535))
 
 ### Fixed

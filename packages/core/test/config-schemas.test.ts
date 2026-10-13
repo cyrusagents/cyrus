@@ -10,6 +10,33 @@ const baseRepository = {
 };
 
 describe("EdgeConfigSchema", () => {
+	it("accepts readable directories independently of the network sandbox", () => {
+		const config = EdgeConfigSchema.parse({
+			repositories: [baseRepository],
+			sandbox: {
+				enabled: false,
+				additionalReadableDirectories: ["~/.shared-docs", "/srv/shared"],
+			},
+		});
+		expect(config.sandbox?.additionalReadableDirectories).toEqual([
+			"~/.shared-docs",
+			"/srv/shared",
+		]);
+	});
+
+	it.each([
+		"",
+		"  ",
+		42,
+	])("rejects invalid readable directories: %j", (directory) => {
+		expect(
+			EdgeConfigSchema.safeParse({
+				repositories: [baseRepository],
+				sandbox: { additionalReadableDirectories: [directory] },
+			}).success,
+		).toBe(false);
+	});
+
 	it("accepts strict MCP configuration as a top-level boolean", () => {
 		const enabled = EdgeConfigSchema.parse({
 			repositories: [baseRepository],

@@ -92,4 +92,32 @@ describe("ConfigManager", () => {
 			false,
 		);
 	});
+	it("revokes readable directories when the sandbox block is removed", async () => {
+		tempDir = await mkdtemp(join(tmpdir(), "cyrus-config-manager-"));
+		const configPath = join(tempDir, "config.json");
+		const initialConfig: EdgeWorkerConfig = {
+			repositories: [repo],
+			sandbox: {
+				enabled: false,
+				additionalReadableDirectories: ["/srv/shared-docs"],
+			},
+		};
+		const manager = new ConfigManager(
+			initialConfig,
+			logger,
+			configPath,
+			new Map([[repo.id, repo]]),
+		);
+		const onConfigChanged = vi.fn();
+		manager.on("configChanged", onConfigChanged);
+
+		await writeFile(configPath, JSON.stringify({ repositories: [repo] }));
+		await (manager as any).handleConfigChange();
+
+		expect(onConfigChanged).toHaveBeenCalledOnce();
+		expect(onConfigChanged.mock.calls[0][0].newConfig.sandbox).toEqual({
+			enabled: false,
+			additionalReadableDirectories: undefined,
+		});
+	});
 });

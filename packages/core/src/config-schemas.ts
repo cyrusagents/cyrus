@@ -280,6 +280,15 @@ export const SandboxConfigSchema = z.object({
 	systemWideCert: z.boolean().optional(),
 
 	/**
+	 * Extra directories agent sessions may read outside their workspace.
+	 * Lifts the home-directory read restrictions for these paths only; it
+	 * grants no write access. Applies independently of the network egress
+	 * proxy's enabled setting. Supports absolute paths, ~ expansion, and
+	 * paths relative to the Cyrus cwd.
+	 */
+	additionalReadableDirectories: z.array(z.string().trim().min(1)).optional(),
+
+	/**
 	 * Log all proxied requests (method, URL, domain, status).
 	 * @default true
 	 */

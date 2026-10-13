@@ -1141,6 +1141,8 @@ export class EdgeWorker extends EventEmitter {
 			},
 			getPlatformMcpConfigOverrides,
 			getStrictMcpConfig: () => this.config.strictMcpConfig,
+			getAdditionalReadableDirectories: () =>
+				this.config.sandbox?.additionalReadableDirectories,
 			ensureLinearTokenFresh: (linearWorkspaceId) =>
 				this.ensureLinearTokenFresh(linearWorkspaceId),
 			resolveSkillsConfig: async ({ repository, repositoryPaths }) => {
@@ -6932,6 +6934,8 @@ ${input.userComment}
 			skills: allowedSkillNames,
 			sandboxSettings: this.sdkSandboxSettings ?? undefined,
 			egressCaCertPath: this.egressCaCertPath ?? undefined,
+			additionalReadableDirectories:
+				this.config.sandbox?.additionalReadableDirectories,
 			onMessage: (message: SDKMessage) => {
 				this.handleClaudeMessage(sessionId, message, repository.id);
 			},
