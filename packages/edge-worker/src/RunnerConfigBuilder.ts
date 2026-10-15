@@ -182,8 +182,8 @@ export interface IssueRunnerConfigInput {
 	 * it to `GH_TOKEN` inside the gh process. We deliberately do NOT set
 	 * `GH_TOKEN` itself: customers set their own `GH_TOKEN` (e.g. for
 	 * private npm registries on GitHub Packages) and clobbering it would
-	 * break their installs. Bare `gh` with no env var is covered by the
-	 * `gh auth login` the github-tokens push handler performs.
+	 * break their installs. The managed gh resolver re-reads the store on
+	 * every invocation; this snapshot cannot authorize a removed token.
 	 */
 	githubToken?: string;
 }

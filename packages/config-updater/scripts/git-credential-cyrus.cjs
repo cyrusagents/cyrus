@@ -2,7 +2,7 @@
 /**
  * git-credential-cyrus — git credential helper for multi-org GitHub access.
  *
- * Self-contained Node script (no dependencies). Installed by Cyrus at
+ * Node script using the bundled managed-github-auth.cjs policy. Installed at
  * `<cyrusHome>/scripts/git-credential-cyrus.cjs` and wired into git via:
  *
  *   git config --global credential."https://github.com".useHttpPath true
@@ -12,15 +12,13 @@
  * For `get` operations against github.com it looks up the org (first path
  * segment) in `<cyrusHome>/github-tokens.json` — the per-installation
  * GitHub App tokens pushed by cyrus-hosted — and prints credentials for a
- * case-insensitive org match. If no org matches but exactly one non-expired
- * token exists, that token is used. Otherwise it prints nothing and exits 0
- * so git falls through to other helpers / prompts.
+ * case-insensitive org match. Managed misses return quit=true to stop later
+ * helpers/keyrings/prompts. Only an absent, never-enrolled store permits
+ * unmanaged credential fallback.
  */
 "use strict";
 
 const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
 
 function main() {
 	// Only the `get` operation produces credentials; `store`/`erase` are no-ops.
@@ -46,39 +44,25 @@ function main() {
 	// With credential.useHttpPath=true git sends e.g. path=owner/repo.git
 	const org = (attrs.path || "").split("/")[0] || "";
 
-	const cyrusHome = process.env.CYRUS_HOME || path.join(os.homedir(), ".cyrus");
-	const tokensFile = path.join(cyrusHome, "github-tokens.json");
-
-	let tokens = [];
+	let auth;
+	let resolveManagedToken;
 	try {
-		const parsed = JSON.parse(fs.readFileSync(tokensFile, "utf8"));
-		if (Array.isArray(parsed.tokens)) tokens = parsed.tokens;
+		const policy = require("./managed-github-auth.cjs");
+		auth = policy.loadManagedAuth();
+		resolveManagedToken = policy.resolveManagedToken;
 	} catch {
+		process.stdout.write("quit=true\n");
+		return;
+	}
+	if (!auth.managed) return;
+	const token = resolveManagedToken(auth.tokens, org);
+	if (!token) {
+		// An empty response would permit later keyring helpers and askpass prompts.
+		process.stdout.write("quit=true\n");
 		return;
 	}
 
-	const now = Date.now();
-	const valid = tokens.filter((t) => {
-		if (!t || typeof t.token !== "string" || t.token.length === 0) return false;
-		const expiresAt = Date.parse(t.expiresAt);
-		return !Number.isNaN(expiresAt) && expiresAt > now;
-	});
-
-	let match;
-	if (org) {
-		const lowered = org.toLowerCase();
-		match = valid.find(
-			(t) =>
-				typeof t.organization === "string" &&
-				t.organization.toLowerCase() === lowered,
-		);
-	}
-	if (!match && valid.length === 1) {
-		match = valid[0];
-	}
-	if (!match) return;
-
-	process.stdout.write(`username=x-access-token\npassword=${match.token}\n`);
+	process.stdout.write(`username=x-access-token\npassword=${token}\n`);
 }
 
 main();
