@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Changed
+- Rebuild the Claude runner before packing and verify installed release query options to prevent stale artifacts from dropping the manual-approval policy. Published `cyrus-claude-runner@0.2.74-test.7` and `cyrus-core@0.2.74-test.14` to the npm `test` channel for Hosted integration without moving either package's `latest` tag. The F1 runtime path confirmed routing, 30-tool option assembly, manual mode, activity pagination, and clean shutdown, but authenticated Read/Bash acceptance remains blocked by the existing revoked Claude login. ([CYPACK-1579](https://linear.app/ceedar/issue/CYPACK-1579), [#1542](https://github.com/cyrusagents/cyrus/pull/1542), [cyrus-hosted#1190](https://github.com/cyrusagents/cyrus-hosted/pull/1190))
+
 ## [0.2.73] - 2026-09-29
 
 ### Changed
