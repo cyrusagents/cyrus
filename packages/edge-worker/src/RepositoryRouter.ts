@@ -729,12 +729,17 @@ export class RepositoryRouter {
 		// Remove from pending map
 		this.pendingSelections.delete(agentSessionId);
 
+		// Linear turns a pasted URL reply into a markdown link: [url](<url>)
+		const reply = selectedRepositoryName
+			.trim()
+			.replace(/^\[([^\]]+)\]\(<?[^)>]*>?\)$/, "$1");
+
 		// Find selected repository by GitHub/GitLab URL or name
 		const selectedRepo = pendingData.workspaceRepos.find(
 			(repo) =>
-				repo.githubUrl === selectedRepositoryName ||
-				repo.gitlabUrl === selectedRepositoryName ||
-				repo.name === selectedRepositoryName,
+				repo.githubUrl === reply ||
+				repo.gitlabUrl === reply ||
+				repo.name === reply,
 		);
 
 		// Fallback to first repository if not found

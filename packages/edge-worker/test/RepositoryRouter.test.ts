@@ -1601,6 +1601,31 @@ describe("RepositoryRouter", () => {
 				expect(result).toBe(repo2);
 			});
 
+			it("should match a reply that Linear rewrote as a markdown link", async () => {
+				// Given: Two repositories identified by GitHub URL
+				const repo1 = env
+					.repository("repo-1", "Frontend")
+					.withGithubUrl("https://github.com/org/frontend")
+					.build();
+
+				const repo2 = env
+					.repository("repo-2", "Backend")
+					.withGithubUrl("https://github.com/org/backend")
+					.build();
+
+				const webhook = env.webhook().withSession("session-1").build();
+				await env.router.elicitUserRepositorySelection(webhook, [repo1, repo2]);
+
+				// When: Linear autolinks the pasted URL as [url](<url>)
+				const result = await env.router.selectRepositoryFromResponse(
+					"session-1",
+					"[https://github.com/org/backend](<https://github.com/org/backend>)",
+				);
+
+				// Then: Should return backend repository, not the first one
+				expect(result).toBe(repo2);
+			});
+
 			it("should find and return repository matching name selection", async () => {
 				// Given: User selecting repository by name
 				const repo1 = env.repository("repo-1", "Frontend Repo").build();
