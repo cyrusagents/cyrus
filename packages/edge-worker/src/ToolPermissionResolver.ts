@@ -81,10 +81,13 @@ export class ToolPermissionResolver {
 	 * user-configured MCP tool entries the caller threads through (used by
 	 * `RunnerConfigBuilder` when a repo declares custom MCP server tools).
 	 *
-	 * @param mcpConfigKeys - Built-in MCP server names. Folded in as
-	 *   `mcp__<key>` prefixes only if not already present in the explicit
-	 *   list — the defaults already include the standard prefixes, so this
-	 *   is purely additive for non-standard servers.
+	 * @param mcpConfigKeys - Built-in MCP server names, folded in as
+	 *   `mcp__<key>` prefixes **only when no explicit `slackAllowedTools`
+	 *   is configured**. The built-in defaults already carry the standard
+	 *   prefixes, so this only keeps non-standard servers reachable on the
+	 *   default path. An operator-supplied list is authoritative and nothing
+	 *   is folded in - otherwise omitting a server, or narrowing it to
+	 *   `mcp__<key>__<tool>`, would be silently undone.
 	 * @param userMcpTools - User-configured MCP tool entries from repository
 	 *   `allowedTools` (already `mcp__*` prefixed).
 	 */
@@ -92,14 +95,22 @@ export class ToolPermissionResolver {
 		mcpConfigKeys?: string[],
 		userMcpTools?: string[],
 	): string[] {
-		const baseChatTools =
-			this.config.slackAllowedTools && this.config.slackAllowedTools.length > 0
-				? this.config.slackAllowedTools
-				: [...SLACK_DEFAULT_ALLOWED_TOOLS];
+		const hasOperatorOverride =
+			!!this.config.slackAllowedTools &&
+			this.config.slackAllowedTools.length > 0;
 
-		const mcpToolPermissions = (mcpConfigKeys ?? []).map(
-			(server) => `mcp__${server}`,
-		);
+		const baseChatTools = hasOperatorOverride
+			? (this.config.slackAllowedTools as string[])
+			: [...SLACK_DEFAULT_ALLOWED_TOOLS];
+
+		// An explicit `slackAllowedTools` is authoritative: a server the
+		// operator left out stays out, and a per-tool entry
+		// (`mcp__server__tool`) is not widened back to the whole server.
+		// Auto-adding `mcp__<server>` is a convenience for the built-in
+		// defaults only, so non-standard servers stay reachable there.
+		const mcpToolPermissions = hasOperatorOverride
+			? []
+			: (mcpConfigKeys ?? []).map((server) => `mcp__${server}`);
 
 		return Array.from(
 			new Set([

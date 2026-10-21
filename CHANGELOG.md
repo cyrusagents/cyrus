@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- A custom Slack tool allow-list is now respected exactly as written. Previously, every connected MCP server was silently re-granted in full, so leaving a server out of the list — or narrowing it to a single tool — had no effect, and a Slack bot meant to be read-only could still reach implementation, GitHub and database tools.
+
 ### Added
 
 - Slack-started engineering now checks every GitHub issue in the selected repository before creating one, automatically reuses exact open matches, and asks before reusing closed or similar issues.
