@@ -56,6 +56,12 @@ export interface CodexRunnerConfig extends AgentRunnerConfig {
 	 * coarse default mode. Paths must be absolute.
 	 */
 	sandboxSettings?: CyrusSandboxFilesystem;
+	/**
+	 * Extra absolute paths made writable on top of the worktree (operator
+	 * whitelist, e.g. `~/.supabase`). Applied in both the default
+	 * workspace-write mode and the granular `sandboxSettings` profile.
+	 */
+	writableRoots?: string[];
 }
 
 /**

@@ -13,3 +13,8 @@ export {
 	type ResolveSessionFromCwd,
 	registerLogFailureModeTool,
 } from "./tools/cyrus-tools/log-failure-mode.js";
+
+export {
+	type CodexMessagePublisher,
+	createCodexMessagePublisher,
+} from "./tools/cyrus-tools/post-message-to-codex.js";

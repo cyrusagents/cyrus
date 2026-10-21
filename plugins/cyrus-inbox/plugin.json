@@ -1,0 +1,16 @@
+{
+	"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+	"name": "cyrus-inbox",
+	"version": "0.1.0",
+	"description": "Connect a personal Cyrus inbox and deliberately monitor its messages in a dot or Cloud Work chat.",
+	"author": { "name": "Cyrus" },
+	"extensions": {
+		"com.openai": {
+			"interface": {
+				"displayName": "Cyrus Inbox",
+				"shortDescription": "Messages from your Cyrus",
+				"defaultPrompt": "Connect my Cyrus inbox and help me choose how to handle its messages."
+			}
+		}
+	}
+}

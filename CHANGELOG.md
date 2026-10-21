@@ -7,9 +7,74 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Added the operator-configurable `codexSandboxMode` for issue and chat sessions, retaining `workspace-write` by default and supporting opt-in native read-only or full host access without browser-specific integrations. ([#1521](https://github.com/cyrusagents/cyrus/pull/1521))
 
+## [0.2.74] - 2026-10-20
+
+### Added
+- Codex sessions, and Claude sessions with the sandbox enabled, can now write to extra whitelisted paths (e.g. `~/.supabase`) while staying sandboxed — list them in `sandbox.writablePaths` in `config.json` and/or the `CYRUS_SANDBOX_WRITABLE_PATHS` env var. ([CYPACK-1591](https://linear.app/ceedar/issue/CYPACK-1591/need-to-enable-whitelisted-sandbox-paths-for-codex-harness), [#1547](https://github.com/cyrusagents/cyrus/pull/1547))
+- Add the explicit-destination `post_message_to_codex` tool and reusable Cyrus Inbox plugin for authorized dot/Cloud Work subscriptions, with stable message keys and honest queue receipts. ([CYHOST-1356](https://linear.app/ceedar/issue/CYHOST-1356), [#1535](https://github.com/cyrusagents/cyrus/pull/1535))
+
 ### Fixed
 - Codex sessions can use `gpt-6.1-sol` with ChatGPT accounts now that the bundled CLI and SDK have been updated to 0.159.2. ([#1512](https://github.com/cyrusagents/cyrus/issues/1512), [#1514](https://github.com/cyrusagents/cyrus/pull/1514))
-- Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. (CYHOST-909)
+- Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. ([CYHOST-909](https://linear.app/ceedar/issue/CYHOST-909), [#1519](https://github.com/cyrusagents/cyrus/pull/1519))
+
+### Security
+- Updated the MCP SDK to prevent cross-origin redirects from forwarding credentials and to isolate experimental tasks by session. Patched the test tooling's Windows editor-launch vulnerability before publication. ([CYPACK-1592](https://linear.app/ceedar/issue/CYPACK-1592/run-a-release), [#1550](https://github.com/cyrusagents/cyrus/pull/1550))
+- Refreshed Axios's compatible `follow-redirects` dependency to `1.16.1`, fixing two credential-disclosure advisories without adding an override. ([CYPACK-1592](https://linear.app/ceedar/issue/CYPACK-1592/run-a-release), [#1548](https://github.com/cyrusagents/cyrus/pull/1548))
+- Patched critical proxy trust-subnet spoofing and high-severity source-map denial-of-service advisories in the Cyrus CLI dependency graph, restoring a zero-advisory audit. ([CYPACK-1567](https://linear.app/ceedar/issue/CYPACK-1567/address-open-security-patches-for-cyrus-cli), [#1531](https://github.com/cyrusagents/cyrus/pull/1531))
+- Patched high-severity RSA signature-forgery and brace-pattern stack-exhaustion advisories in the Cyrus CLI dependency graph, restoring a zero-advisory audit. ([CYPACK-1558](https://linear.app/ceedar/issue/CYPACK-1558/address-open-security-patches-for-cyrus-cli), [#1524](https://github.com/cyrusagents/cyrus/pull/1524))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.74
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.74
+
+#### cyrus-core
+- cyrus-core@0.2.74
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.74
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.74
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.74
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.74
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.74
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.74
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.74
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.74
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.74
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.74
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.74
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.74
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.74
+
+#### cyrus-ai
+- cyrus-ai@0.2.74 ([CYPACK-1592](https://linear.app/ceedar/issue/CYPACK-1592/run-a-release), [#1548](https://github.com/cyrusagents/cyrus/pull/1548))
 
 ## [0.2.73] - 2026-09-30
 

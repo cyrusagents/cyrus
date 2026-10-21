@@ -135,6 +135,7 @@ import {
 } from "cyrus-linear-event-transport";
 import {
 	type CyrusToolsOptions,
+	createCodexMessagePublisher,
 	createCyrusToolsServer,
 	createFetchFailureModesClient,
 	type FailureModesHttpClient,
@@ -188,6 +189,7 @@ import {
 	SkillsPluginResolver,
 } from "./SkillsPluginResolver.js";
 import { SlackChatAdapter } from "./SlackChatAdapter.js";
+import { resolveSandboxWritablePaths } from "./sandboxWritablePaths.js";
 import type { IActivitySink } from "./sinks/IActivitySink.js";
 import { LinearActivitySink } from "./sinks/LinearActivitySink.js";
 import { ToolPermissionResolver } from "./ToolPermissionResolver.js";
@@ -6230,8 +6232,15 @@ ${taskSection}`;
 
 	private createCyrusToolsOptions(parentSessionId?: string): CyrusToolsOptions {
 		const failureModesClient = this.getFailureModesClient();
+		const publisherKey = process.env.CYRUS_API_KEY?.trim();
 		const options: CyrusToolsOptions = {
 			parentSessionId,
+			postMessageToCodex: publisherKey
+				? createCodexMessagePublisher({
+						baseUrl: getCyrusAppUrl(),
+						apiKey: publisherKey,
+					})
+				: undefined,
 			onSessionCreated: (childSessionId: string, parentId: string) => {
 				this.handleChildSessionMapping(childSessionId, parentId);
 			},
@@ -6927,6 +6936,9 @@ ${input.userComment}
 			skills: allowedSkillNames,
 			sandboxSettings: this.sdkSandboxSettings ?? undefined,
 			egressCaCertPath: this.egressCaCertPath ?? undefined,
+			sandboxWritablePaths: resolveSandboxWritablePaths(
+				this.config.sandbox?.writablePaths,
+			),
 			onMessage: (message: SDKMessage) => {
 				this.handleClaudeMessage(sessionId, message, repository.id);
 			},

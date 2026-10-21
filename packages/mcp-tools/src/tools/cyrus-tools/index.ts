@@ -13,6 +13,10 @@ import {
 	type ResolveSessionFromCwd,
 	registerLogFailureModeTool,
 } from "./log-failure-mode.js";
+import {
+	type CodexMessagePublisher,
+	registerPostMessageToCodexTool,
+} from "./post-message-to-codex.js";
 
 /**
  * Detect MIME type based on file extension
@@ -81,6 +85,8 @@ function getMimeType(filename: string): string {
  * Options for creating Cyrus tools with session management capabilities
  */
 export interface CyrusToolsOptions {
+	/** Runtime-authenticated Hosted publisher; absent without a control plane. */
+	postMessageToCodex?: CodexMessagePublisher;
 	/**
 	 * Callback to register a child-to-parent session mapping
 	 * Called when a new agent session is created
@@ -123,6 +129,8 @@ export function createCyrusToolsServer(
 		version: "1.0.0",
 	});
 	registerGetAgentSessionContentsTool(server, linearClient);
+	if (options.postMessageToCodex)
+		registerPostMessageToCodexTool(server, options.postMessageToCodex);
 
 	server.registerTool(
 		"linear_upload_file",
