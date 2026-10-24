@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.281` to [`0.3.310`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03310), bringing Claude sessions to parity with Claude Code 2.1.310 while preserving explicit manual approvals under the SDK's current permission-mode semantics. Updated `@anthropic-ai/sdk` from `^0.128.0` to latest [`^1.3.0`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.3.0), adding Claude Tag endpoints and SDK 1.x compatibility coverage for Cyrus's API-key consumers, background-agent work events, and partial-error result envelopes. The refreshed Claude allowance registry remains at 30 tools. ([CYPACK-1598](https://linear.app/ceedar/issue/CYPACK-1598/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [cyrus#1557](https://github.com/cyrusagents/cyrus/pull/1557), [cyrus-hosted#1220](https://github.com/cyrusagents/cyrus-hosted/pull/1220))
+
 ### Security
+- Restored a zero-advisory dependency graph after the SDK refresh by updating Zod to `4.6.7`, Express to `5.3.0`, Cursor SDK to `1.0.40`, and the Fastify AJV compiler's `fast-uri` resolutions to patched release lines. ([CYPACK-1598](https://linear.app/ceedar/issue/CYPACK-1598/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [cyrus#1557](https://github.com/cyrusagents/cyrus/pull/1557))
 - Updated Fastify to `5.12.7` across the CLI dependency graph, fixing a header-schema validation bypass and restoring a zero-advisory audit. ([CYPACK-1597](https://linear.app/ceedar/issue/CYPACK-1597/address-open-security-patches-for-cyrus-cli), [#1555](https://github.com/cyrusagents/cyrus/pull/1555))
 
 ## [0.2.74] - 2026-10-21

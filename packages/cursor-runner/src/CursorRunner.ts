@@ -492,9 +492,9 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 				apiKey,
 				...(normalizedModel ? { model: { id: normalizedModel } } : {}),
 				local: {
-					// `cwd` is passed as a string[] per Cyrus convention; the SDK
-					// types accept `string | string[]`.
-					cwd: [workspace],
+					// Cursor SDK 1.0.40 uses `cwd` for the primary workspace and
+					// reserves `dirs` for additional multi-root workspaces.
+					cwd: workspace,
 					settingSources: ["project" as const],
 					// SDK ≥1.0.11 auto-discovers the bundled `cursorsandbox`
 					// helper from the platform-specific optionalDependency

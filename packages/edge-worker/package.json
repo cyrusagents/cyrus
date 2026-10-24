@@ -28,7 +28,7 @@
 		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.3.281",
+		"@anthropic-ai/claude-agent-sdk": "0.3.310",
 		"@linear/sdk": "^64.0.0",
 		"@ngrok/ngrok": "^1.5.1",
 		"chokidar": "^4.0.3",
@@ -52,7 +52,7 @@
 		"file-type": "^21.3.2",
 		"ignore": "^7.0.5",
 		"node-forge": "https://codeload.github.com/digitalbazaar/forge/tar.gz/ceba34402e329f0365134f23fe19898756527d65",
-		"zod": "4.3.6"
+		"zod": "^4.6.7"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",

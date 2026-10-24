@@ -15,7 +15,6 @@ overrides:
   # Keep the security floor within the 2.x API used by the current telemetry SDKs.
   '@opentelemetry/core': '>=2.8.0 <3'
   uuid: '>=11.1.1'
-  body-parser: '>=2.3.0'
   js-yaml: '>=5.2.2'
   shell-quote: '>=1.9.0'
   simple-git: '>=3.36.0'
@@ -33,3 +32,6 @@ overrides:
   # Current direct owners already allow these patched releases but have no compatible bump to refresh the stale locks.
   proxy-addr@<2.0.8: '>=2.0.8'
   source-map-js@<1.2.2: '>=1.2.2'
+  # Fastify is already current but its AJV compiler ranges still admit vulnerable fast-uri releases.
+  fast-uri@>=3.0.0 <4.0.0: '>=3.1.9 <4'
+  fast-uri@>=4.0.0 <5.0.0: '>=4.2.3 <5'

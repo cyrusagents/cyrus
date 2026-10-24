@@ -7,7 +7,6 @@ settings:
 overrides:
   '@opentelemetry/core': '>=2.8.0 <3'
   uuid: '>=11.1.1'
-  body-parser: '>=2.3.0'
   js-yaml: '>=5.2.2'
   shell-quote: '>=1.9.0'
   simple-git: '>=3.36.0'
@@ -24,6 +23,8 @@ overrides:
   esbuild@<=0.24.2: '>=0.25.0'
   proxy-addr@<2.0.8: '>=2.0.8'
   source-map-js@<1.2.2: '>=1.2.2'
+  fast-uri@>=3.0.0 <4.0.0: '>=3.1.9 <4'
+  fast-uri@>=4.0.0 <5.0.0: '>=4.2.3 <5'
 
 importers:
 
@@ -79,8 +80,8 @@ importers:
         specifier: ^16.5.0
         version: 16.6.1
       express:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^5.3.0
+        version: 5.3.0
       fastify:
         specifier: ^5.12.7
         version: 5.12.7
@@ -98,7 +99,7 @@ importers:
         version: 10.2.0
       zod:
         specifier: ^4.3.5
-        version: 4.3.6
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -147,11 +148,11 @@ importers:
   packages/claude-runner:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.281
-        version: 0.3.281(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.32.1(zod@4.3.6))(zod@4.3.6)
+        specifier: 0.3.310
+        version: 0.3.310(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(zod@4.6.7)
       '@anthropic-ai/sdk':
-        specifier: ^0.128.0
-        version: 0.128.0(zod@4.3.6)
+        specifier: ^1.3.0
+        version: 1.3.0(zod@4.6.7)
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
@@ -166,7 +167,7 @@ importers:
         version: 11.3.4
       zod:
         specifier: ^4.3.6
-        version: 4.3.6
+        version: 4.6.7
     devDependencies:
       '@types/fs-extra':
         specifier: ^11.0.4
@@ -229,7 +230,7 @@ importers:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.1
-        version: 1.32.1(zod@4.3.6)
+        version: 1.32.1(zod@4.6.7)
       cyrus-core:
         specifier: workspace:*
         version: link:../core
@@ -238,7 +239,7 @@ importers:
         version: 5.12.7
       zod:
         specifier: ^4.3.6
-        version: 4.3.6
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^20.12.7
@@ -253,14 +254,14 @@ importers:
   packages/core:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.281
-        version: 0.3.281(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.32.1(zod@4.3.6))(zod@4.3.6)
+        specifier: 0.3.310
+        version: 0.3.310(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(zod@4.6.7)
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
       zod:
         specifier: ^4.3.6
-        version: 4.3.6
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -281,8 +282,8 @@ importers:
   packages/cursor-runner:
     dependencies:
       '@cursor/sdk':
-        specifier: ^1.0.19
-        version: 1.0.19
+        specifier: ^1.0.40
+        version: 1.0.40(zod@4.6.7)
       cyrus-core:
         specifier: workspace:*
         version: link:../core
@@ -303,8 +304,8 @@ importers:
   packages/edge-worker:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.281
-        version: 0.3.281(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.32.1(zod@4.3.6))(zod@4.3.6)
+        specifier: 0.3.310
+        version: 0.3.310(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(zod@4.6.7)
       '@linear/sdk':
         specifier: ^64.0.0
         version: 64.0.0(encoding@0.1.13)
@@ -364,7 +365,7 @@ importers:
         version: 5.12.7
       fastify-mcp:
         specifier: ^2.1.0
-        version: 2.1.0(zod@4.3.6)
+        version: 2.1.0(zod@4.6.7)
       file-type:
         specifier: ^21.3.2
         version: 21.3.4
@@ -375,8 +376,8 @@ importers:
         specifier: https://codeload.github.com/digitalbazaar/forge/tar.gz/ceba34402e329f0365134f23fe19898756527d65
         version: https://codeload.github.com/digitalbazaar/forge/tar.gz/ceba34402e329f0365134f23fe19898756527d65
       zod:
-        specifier: 4.3.6
-        version: 4.3.6
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -422,7 +423,7 @@ importers:
         version: 11.3.4
       zod:
         specifier: ^4.3.6
-        version: 4.3.6
+        version: 4.6.7
     devDependencies:
       '@types/fs-extra':
         specifier: ^11.0.4
@@ -504,16 +505,16 @@ importers:
         version: 64.0.0(encoding@0.1.13)
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.1
-        version: 1.32.1(zod@4.3.6)
+        version: 1.32.1(zod@4.6.7)
       fs-extra:
         specifier: ^11.3.2
         version: 11.3.4
       openai:
         specifier: ^6.9.1
-        version: 6.35.0(ws@8.21.0)(zod@4.3.6)
+        version: 6.35.0(ws@8.21.0)(zod@4.6.7)
       zod:
         specifier: ^4.3.5
-        version: 4.3.6
+        version: 4.6.7
     devDependencies:
       '@types/fs-extra':
         specifier: ^11.0.4
@@ -550,8 +551,8 @@ importers:
   packages/simple-agent-runner:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.281
-        version: 0.3.281(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.32.1(zod@4.3.6))(zod@4.3.6)
+        specifier: 0.3.310
+        version: 0.3.310(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(zod@4.6.7)
       cyrus-claude-runner:
         specifier: workspace:*
         version: link:../claude-runner
@@ -609,60 +610,60 @@ importers:
 
 packages:
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.281':
-    resolution: {integrity: sha512-wydRJU0CX7c/w1qEsgqGUJFzmlOMTvUpBkWHsj1pJFbrRFQUnIW0EWor+pDd4WiKWWihVqUhYEA+3LTmUiLZIQ==}
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.310':
+    resolution: {integrity: sha512-gpzMjDZdcdA2Webuqm9j76exG8yNK/755ZYWbS3MM4vVBlAsm+enEO+hhNt0Mx1VMil28RWetvTO4ZJ3YODVMA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.281':
-    resolution: {integrity: sha512-yvtdCwCimbI7dcFcQ204gEX4quzZBcyW2orCh8ESlkZY/Mn480qKCjyKWGuR17vGKGePynoiS1W895rxWNfHZQ==}
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.310':
+    resolution: {integrity: sha512-ZRQ4ZrzE2OOfR+Fx8h+CM4NKh0UiYqlh5TowP7HUhn5KUoYMjoSR/xIhix8ow42X2IDiBy0FjEVaA/Awhu2KAw==}
     cpu: [x64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.281':
-    resolution: {integrity: sha512-B5l5tnO0ymQjGSq+uZBnwLb8IdCj+gr/niKoxiUDqzfh7OPwuGyceq/g7bpzZ6VC/U7+Zsjv+Gce/VzcKVT1pA==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.310':
+    resolution: {integrity: sha512-viXuvvtli3pfHzTEI+oeJzk3nldkfHvj757Xh/uAeximUT9ANZIq4SMZw2cSqbhASjni0qcO6B1x4BGx2LuQpw==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.281':
-    resolution: {integrity: sha512-PrxuObUGayjtUS6yq5Sz+dMNXn8KaK1BeIXG/PRE+85Wt9DzchoIduycIoFaXWrG0xbbzYz0AKwttNqSAeDdSA==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.310':
+    resolution: {integrity: sha512-l6SPgUmJknjx+6/Pb7OR353fm3xBNAWqodFoC/Cflg0yMcLfz9iwNIc3Drgos2DqfHnid+ODqDzSO93AgQ7RmA==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.281':
-    resolution: {integrity: sha512-H+TWmbIhlEvZcOGJ6S9BQBBQuizaXfDhdSjgWbP6JGTrfW+U8dm49/0I9pdjHB2VT+1zgFzIt1YkkfkvSGtOVQ==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.310':
+    resolution: {integrity: sha512-/qFgN5LcofB8PayxBXoa+xDxkYPPQeo/eCyN0DsyyeI67ifH/l49pz9J+sH0+ctDe9und0vMCJPzng70bx2K+Q==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.281':
-    resolution: {integrity: sha512-3kxVGQrn9wNeFZV0MJEXI0XOj7U8e/1wL41W2MInYVIVWJnTanuX+pPqQH2DzyVNRcw6CMP5k3eockewGptWig==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.310':
+    resolution: {integrity: sha512-jx7awHPoofXuE6cRRQSzLUFyW6aUXbYD9AtnNIDUHmmPPrgJ9nSnqjPaqcNhOdaZH7onUUujEAq26N2tx29fYg==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.281':
-    resolution: {integrity: sha512-ySM49+TS94VrMkIzk65RHcNKfvXKhx6YuR2mplw8BbaYpcnKL4RTAr5WVbH1JhMLjPEBaDGSP1uCLZy/YkA9gg==}
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.310':
+    resolution: {integrity: sha512-tRmDMhZpoWAIrZxFBTh6vyZB8W5gldU5/Rfo+cyq/OvBKTxxbim+/0tIa9QlJQncoVLXVN9eySYeeB9KMjio7w==}
     cpu: [arm64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.281':
-    resolution: {integrity: sha512-hbnymWj9O31K0VMd/VOpMTZ0CNT3BkwgGGe84zHdAP6MDxmoZvqyS94UEaLQit3xmozCxfkfGns7/WgWH1Q6Sg==}
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.310':
+    resolution: {integrity: sha512-zvrIApxPccTJc6gCOtw5hj27QjWhhTi3z5x5iMmf9f0LZAKR+9mrgENVeFL7PP7zRGdYVhhX2SahbzxN83L/eA==}
     cpu: [x64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk@0.3.281':
-    resolution: {integrity: sha512-JTbluTKmY3wKQPIXzeCTvz/K0FElTuQU5Y7ueLgUOBrHcks8cHlGugEgIRezffhc13WzBAqYtaY15tJ+Bfunzg==}
+  '@anthropic-ai/claude-agent-sdk@0.3.310':
+    resolution: {integrity: sha512-fo+sr+9Ks73P001f6XKRQlyzfIBAJMgXArLUkH5Tu98NikRDZeGtFQVj23d5/hj2ijpFgzffrr4fHywY9qUkoQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@anthropic-ai/sdk': '>=0.93.0'
       '@modelcontextprotocol/sdk': ^1.29.0
       zod: ^4.0.0
 
-  '@anthropic-ai/sdk@0.128.0':
-    resolution: {integrity: sha512-tl5cBFZC1jVFrTuQyvQObA4WmuNgcYVeXfriqOumgtLAHUm4gPUj18YnszBW60v0PrjDB8nBDOC6wd9CmHQFlA==}
+  '@anthropic-ai/sdk@1.3.0':
+    resolution: {integrity: sha512-k7z9BlLLPxfZH+ov7dS6EnaN/wiZeV8YNT1LZfrpAHIy7oY7pHr4UzirF9f2OlHtFEnRBOX+AZQ91Y5fK+TPTw==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -780,39 +781,41 @@ packages:
     peerDependencies:
       '@bufbuild/protobuf': ^1.10.0
 
-  '@cursor/sdk-darwin-arm64@1.0.19':
-    resolution: {integrity: sha512-CPhqcpDaqjjqkkVGMLsdfXv7PGznL5L6U5CJXps/oaGW5mtHoxDpsRNj1rszCRQXNAvmMU+EFxLWnBwlE8mUNg==}
+  '@cursor/sdk-darwin-arm64@1.0.40':
+    resolution: {integrity: sha512-DHrygiLFP5VjJWT6b6yturkn8iy513Te9QN0UcU0OaWSwjgeQ5r99e5SgFY1/CSFjcDPOMJVKeODl6oOo7DXqA==}
     cpu: [arm64]
     os: [darwin]
     hasBin: true
 
-  '@cursor/sdk-darwin-x64@1.0.19':
-    resolution: {integrity: sha512-6/Jj0hxrxEs9V9wtYEApSkMcJwYAaT4Vwna9xBzgN6CK1K4Ws0E1/PfiddahAAFZpkp9pgjb8wQXwG7qJ2g77A==}
+  '@cursor/sdk-darwin-x64@1.0.40':
+    resolution: {integrity: sha512-1B5bj/GSMfdkTtsC1tzPQ8zfosOI19mHBqweYGZpy1AaQoU4fCDxZqoOLPot6+QpuADYCbmKG9Cce8A29IOTiw==}
     cpu: [x64]
     os: [darwin]
     hasBin: true
 
-  '@cursor/sdk-linux-arm64@1.0.19':
-    resolution: {integrity: sha512-Dq/BhGT1jAZ6eHJwy1Vugi/Upc+yoL0X/LN6ppd9cVPM9OAB1xX5KIbvIwsGlNiZccPLVXFv/1KOp5SBK+y+jQ==}
+  '@cursor/sdk-linux-arm64@1.0.40':
+    resolution: {integrity: sha512-shSOtG/hxTuuUOY7ydxZIAqhAKCU6ETPLI5BPDDTS9OXoZAGrtm3CQWR5VG7DvX0xzszOdCjGCN+fIEIHtbmCg==}
     cpu: [arm64]
     os: [linux]
     hasBin: true
 
-  '@cursor/sdk-linux-x64@1.0.19':
-    resolution: {integrity: sha512-ZHgHH+SdEwYwfPg/uVKqZRVOIMCV3/3vghxc/usOMYMrhbY9TYXZxYqwWTduVLzCXH7Dz0aT19mSJHmhwkQ1CA==}
+  '@cursor/sdk-linux-x64@1.0.40':
+    resolution: {integrity: sha512-d/mQePD01EgE3wqHR+iZecgOilHEXh6arftciQN8eT3cGx4bY5ikqTvZpuHJgfnIj/pbf1Sfh0ruQC5RHKWZqA==}
     cpu: [x64]
     os: [linux]
     hasBin: true
 
-  '@cursor/sdk-win32-x64@1.0.19':
-    resolution: {integrity: sha512-XGIQmx3J0K8uKkA00qnoy1FJHFdFdwNdcmUqtRF1PXLcYup91YYetAHk9afXM7S/v1t0L4EatydsirL8uz7SIw==}
+  '@cursor/sdk-win32-x64@1.0.40':
+    resolution: {integrity: sha512-iNWgHtttq8tWLQGM5KhfUphUzxOClBsqZSa/Gy2LIKPQakCMuBGXpQXYRLrX+CiYiAbCmeLL3sxBrjZfn7v/NA==}
     cpu: [x64]
     os: [win32]
     hasBin: true
 
-  '@cursor/sdk@1.0.19':
-    resolution: {integrity: sha512-DJbVnGeRJq7iwt9mz1cMACqVfAYP15IB+Q8Iz2eDtEN4A8Dp83yB0Y31YREj1jeA9EPUEdRZJRIYch/s+Wi9Ow==}
+  '@cursor/sdk@1.0.40':
+    resolution: {integrity: sha512-IaI59014gXLUTiWnVS2LlagOdSgWfMma0Sl4MwzsOh79UQf+CrKj+jj/AeX4vVPTlJ81X/Ca3dGytwPf/hWAQA==}
     engines: {node: '>=22.13'}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@esbuild/aix-ppc64@0.28.1':
     resolution: {integrity: sha512-Svl7tq8k/08+p6CXPpRjQ1fKX+1odH/BQbb48fV6fj3CWHhsoIOoY87w1oHXm0qEpkIK3ZfVgp0hed3XBXzXMQ==}
@@ -1603,8 +1606,8 @@ packages:
   axios@1.20.0:
     resolution: {integrity: sha512-r8aOh8j9cGKpgQAqpzrUHnSIc6a59Y3Xf/cv8sy1DrHCkZHzQGEuoq1tARk6qSyDdtQGSDgpb9kFlruzPvrgwg==}
 
-  body-parser@2.3.0:
-    resolution: {integrity: sha512-2cGmJupaNgg+QUwVLAucDuWuoMZ6EX9iHDRswZ5lsNYEmwPaRknMPCLZz07yTzVq/83p4o/wzbDZbBrTvGGTIw==}
+  body-parser@2.4.0:
+    resolution: {integrity: sha512-Ifk1KcLrxaGt1occQagQNFNNOqRt1LFuehEnHHzB8Z6cRgIxRU1TBaiIsUiCdA+gy5PL7Y1IX31DNKkRmxtXjQ==}
     engines: {node: '>=18'}
 
   bundle-name@4.1.0:
@@ -1657,10 +1660,6 @@ packages:
     resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
     engines: {node: '>=20'}
 
-  content-disposition@1.1.0:
-    resolution: {integrity: sha512-5jRCH9Z/+DRP7rkvY83B+yGIGX96OYdJmzngqnw2SBSxqCFPd0w2km3s5iawpGX8krnwSGmF0FW5Nhr0Hfai3g==}
-    engines: {node: '>=18'}
-
   content-disposition@2.0.1:
     resolution: {integrity: sha512-e+H0ZXHSWYrENhQzw1LPuP4oF5MzVKmDU6d3hxlvaPEYLLg62MxtQNPRx4SYSuYJSBUgnQIG4HIN2tEtNv7Dog==}
     engines: {node: '>=18'}
@@ -1668,10 +1667,6 @@ packages:
   content-type@1.0.5:
     resolution: {integrity: sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA==}
     engines: {node: '>= 0.6'}
-
-  content-type@2.0.0:
-    resolution: {integrity: sha512-j/O/d7GcZCyNl7/hwZAb606rzqkyvaDctLmckbxLzHvFBzTJHuGEdodATcP3yIRoDrLHkIATJuvzbFlp/ki2cQ==}
-    engines: {node: '>=18'}
 
   content-type@2.1.0:
     resolution: {integrity: sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag==}
@@ -1828,10 +1823,6 @@ packages:
     peerDependencies:
       express: '>= 4.11'
 
-  express@5.2.1:
-    resolution: {integrity: sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw==}
-    engines: {node: '>= 18'}
-
   express@5.3.0:
     resolution: {integrity: sha512-qCqy1xSoaugxOD4IVHb1ZWdkvCF2W3aE2okKouWj8VwJ+ztskSiXoBnCSJqfKT+cVPJhuJqe9YLbY425+Zh00g==}
     engines: {node: '>= 18'}
@@ -1851,11 +1842,11 @@ packages:
   fast-sha256@1.3.0:
     resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
 
-  fast-uri@3.1.8:
-    resolution: {integrity: sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg==}
+  fast-uri@3.1.9:
+    resolution: {integrity: sha512-hS/0Wt3Ya043oKXs0sIxrMpKQITXhMLIrVAKKXi4gozGC9v7YRWVnXIZzjNPTO02M9BdxLCWqK1yRXgNziVyJQ==}
 
-  fast-uri@4.2.1:
-    resolution: {integrity: sha512-TmHQgewjHtMq1E5QKA0tOE0yeYGQs25KZC/ziJpubRtWI15W92e6vPFydWOeZBVROSHBYw/QhD9d5OefdD6LDg==}
+  fast-uri@4.2.3:
+    resolution: {integrity: sha512-I1PXwP5eAhlNlcdpjt9CgB59op2ZvZfxw+BkqGFVIUOgNpCVTcTqp3HhTX7brxj5vsip+nSY4nTvff+eIA76hg==}
 
   fastify-mcp@2.1.0:
     resolution: {integrity: sha512-nx1Es7kEqzYe3COWwqdzQbtjgGJVKXFow6pd6rKKsByyXANdJAkEXAXeIJ+ox/vhGD26X7yX6pDDGmaezkBy6g==}
@@ -1991,6 +1982,10 @@ packages:
 
   iconv-lite@0.7.2:
     resolution: {integrity: sha512-im9DjEDQ55s9fL4EYzOAv0yMqmMBSZp6G0VvFyTMPKWxiSBHUj9NW/qqLmXUwXrrM7AvqSlTCfvqRb0cM8yYqw==}
+    engines: {node: '>=0.10.0'}
+
+  iconv-lite@0.7.3:
+    resolution: {integrity: sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==}
     engines: {node: '>=0.10.0'}
 
   ieee754@1.2.1:
@@ -2184,8 +2179,8 @@ packages:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
-  media-typer@1.1.0:
-    resolution: {integrity: sha512-aisnrDP4GNe06UcKFnV5bfMNPBUw4jsLGaWwWfnH3v02GnBuXX2MCVn5RbrWo0j3pczUilYblq7fQ7Nw2t5XKw==}
+  media-typer@1.1.1:
+    resolution: {integrity: sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ==}
     engines: {node: '>= 0.8'}
 
   merge-descriptors@2.0.0:
@@ -2231,9 +2226,9 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  negotiator@1.0.0:
-    resolution: {integrity: sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg==}
-    engines: {node: '>= 0.6'}
+  negotiator@1.1.0:
+    resolution: {integrity: sha512-NMPBRMJgiQHjbd8phG3Vebdx4kZ1H121rbl5IkMqeOsahptB9BKo/d7oJ3zTXqTgagn2bWlNSXkh0QUGM31RYg==}
+    engines: {node: '>=18'}
 
   node-fetch@2.7.0:
     resolution: {integrity: sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==}
@@ -2265,8 +2260,8 @@ packages:
     resolution: {integrity: sha512-0eJJY6hXLGf1udHwfNftBqH+g73EU4B504nZeKpz1sYRKafAghwxEJunB2O7rDZkL4PGfsMVnTXZ2EjibbqcsA==}
     engines: {node: '>=14.0.0'}
 
-  on-finished@2.4.1:
-    resolution: {integrity: sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==}
+  on-finished@2.4.2:
+    resolution: {integrity: sha512-ATWUv387i+nLD49EiDoOft5scf32Vsdz3ktrQJG9bi7jRFmaXTssvyvj1EmeKVVgvesbqUtvQQvaS2TpTukAZQ==}
     engines: {node: '>= 0.8'}
 
   once@1.4.0:
@@ -2349,20 +2344,12 @@ packages:
     resolution: {integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==}
     engines: {node: '>=10'}
 
-  qs@6.16.0:
-    resolution: {integrity: sha512-h6fhOIaRrID2CbEY2fqs+7t+UXZo+MLAnU5gRIq85uFtdiUPCdsApMlHhXogKVM4HM2DVbIjGNTTYH2OcmP1vA==}
-    engines: {node: '>=0.6'}
-
   qs@6.16.1:
     resolution: {integrity: sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg==}
     engines: {node: '>=0.6'}
 
   quick-format-unescaped@4.0.4:
     resolution: {integrity: sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg==}
-
-  range-parser@1.2.1:
-    resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
-    engines: {node: '>= 0.6'}
 
   range-parser@1.3.0:
     resolution: {integrity: sha512-hek2mFQpPuI4E1BBKrSto+BU3e3x4xuarsbiwr3+lf7p44juvFMV0XFWQAP3xUyqXA4RrXLIoaSUGbSt056ZMw==}
@@ -2778,59 +2765,57 @@ packages:
     peerDependencies:
       zod: ^3.25.28 || ^4
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
-  zod@4.3.6:
-    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
 snapshots:
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.281':
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.310':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.281':
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.310':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.281':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.310':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.281':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.310':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.281':
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.310':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.281':
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.310':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.281':
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.310':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.281':
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.310':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.281(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.32.1(zod@4.3.6))(zod@4.3.6)':
+  '@anthropic-ai/claude-agent-sdk@0.3.310(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(zod@4.6.7)':
     dependencies:
-      '@anthropic-ai/sdk': 0.128.0(zod@4.3.6)
-      '@modelcontextprotocol/sdk': 1.32.1(zod@4.3.6)
-      zod: 4.3.6
+      '@anthropic-ai/sdk': 1.3.0(zod@4.6.7)
+      '@modelcontextprotocol/sdk': 1.32.1(zod@4.6.7)
+      zod: 4.6.7
     optionalDependencies:
-      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.281
-      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.281
-      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.281
-      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.281
-      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.281
-      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.281
-      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.281
-      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.281
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.310
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.310
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.310
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.310
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.310
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.310
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.310
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.310
 
-  '@anthropic-ai/sdk@0.128.0(zod@4.3.6)':
+  '@anthropic-ai/sdk@1.3.0(zod@4.6.7)':
     dependencies:
+      '@opentelemetry/api': 1.9.1
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.0.0
     optionalDependencies:
-      zod: 4.3.6
+      zod: 4.6.7
 
   '@apm-js-collab/code-transformer-bundler-plugins@0.5.0':
     dependencies:
@@ -2921,34 +2906,34 @@ snapshots:
     dependencies:
       '@bufbuild/protobuf': 1.10.0
 
-  '@cursor/sdk-darwin-arm64@1.0.19':
+  '@cursor/sdk-darwin-arm64@1.0.40':
     optional: true
 
-  '@cursor/sdk-darwin-x64@1.0.19':
+  '@cursor/sdk-darwin-x64@1.0.40':
     optional: true
 
-  '@cursor/sdk-linux-arm64@1.0.19':
+  '@cursor/sdk-linux-arm64@1.0.40':
     optional: true
 
-  '@cursor/sdk-linux-x64@1.0.19':
+  '@cursor/sdk-linux-x64@1.0.40':
     optional: true
 
-  '@cursor/sdk-win32-x64@1.0.19':
+  '@cursor/sdk-win32-x64@1.0.40':
     optional: true
 
-  '@cursor/sdk@1.0.19':
+  '@cursor/sdk@1.0.40(zod@4.6.7)':
     dependencies:
       '@bufbuild/protobuf': 1.10.0
       '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
       '@connectrpc/connect-web': 1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))
       '@statsig/js-client': 3.31.0
-      zod: 3.25.76
+      zod: 4.6.7
     optionalDependencies:
-      '@cursor/sdk-darwin-arm64': 1.0.19
-      '@cursor/sdk-darwin-x64': 1.0.19
-      '@cursor/sdk-linux-arm64': 1.0.19
-      '@cursor/sdk-linux-x64': 1.0.19
-      '@cursor/sdk-win32-x64': 1.0.19
+      '@cursor/sdk-darwin-arm64': 1.0.40
+      '@cursor/sdk-darwin-x64': 1.0.40
+      '@cursor/sdk-linux-arm64': 1.0.40
+      '@cursor/sdk-linux-x64': 1.0.40
+      '@cursor/sdk-win32-x64': 1.0.40
 
   '@esbuild/aix-ppc64@0.28.1':
     optional: true
@@ -3032,7 +3017,7 @@ snapshots:
     dependencies:
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
-      fast-uri: 4.2.1
+      fast-uri: 4.2.3
 
   '@fastify/error@4.2.0': {}
 
@@ -3086,7 +3071,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@modelcontextprotocol/sdk@1.32.1(zod@4.3.6)':
+  '@modelcontextprotocol/sdk@1.32.1(zod@4.6.7)':
     dependencies:
       '@hono/node-server': 2.1.5(hono@4.13.13)
       ajv: 8.20.0
@@ -3103,8 +3088,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.3.6
-      zod-to-json-schema: 3.25.2(zod@4.3.6)
+      zod: 4.6.7
+      zod-to-json-schema: 3.25.2(zod@4.6.7)
     transitivePeerDependencies:
       - supports-color
 
@@ -3558,7 +3543,7 @@ snapshots:
   accepts@2.0.0:
     dependencies:
       mime-types: 3.0.2
-      negotiator: 1.0.0
+      negotiator: 1.1.0
 
   acorn-import-attributes@1.9.5(acorn@8.16.0):
     dependencies:
@@ -3579,7 +3564,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.8
+      fast-uri: 3.1.9
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -3620,15 +3605,15 @@ snapshots:
       - debug
       - supports-color
 
-  body-parser@2.3.0:
+  body-parser@2.4.0:
     dependencies:
       bytes: 3.1.2
-      content-type: 2.0.0
+      content-type: 2.1.0
       debug: 4.4.3
       http-errors: 2.0.1
-      iconv-lite: 0.7.2
-      on-finished: 2.4.1
-      qs: 6.16.0
+      iconv-lite: 0.7.3
+      on-finished: 2.4.2
+      qs: 6.16.1
       raw-body: 3.0.2
       type-is: 2.1.0
     transitivePeerDependencies:
@@ -3677,13 +3662,9 @@ snapshots:
 
   commander@14.0.3: {}
 
-  content-disposition@1.1.0: {}
-
   content-disposition@2.0.1: {}
 
   content-type@1.0.5: {}
-
-  content-type@2.0.0: {}
 
   content-type@2.1.0: {}
 
@@ -3828,43 +3809,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  express@5.2.1:
-    dependencies:
-      accepts: 2.0.0
-      body-parser: 2.3.0
-      content-disposition: 1.1.0
-      content-type: 1.0.5
-      cookie: 0.7.2
-      cookie-signature: 1.2.2
-      debug: 4.4.3
-      depd: 2.0.0
-      encodeurl: 2.0.0
-      escape-html: 1.0.3
-      etag: 1.8.1
-      finalhandler: 2.1.1
-      fresh: 2.0.0
-      http-errors: 2.0.1
-      merge-descriptors: 2.0.0
-      mime-types: 3.0.2
-      on-finished: 2.4.1
-      once: 1.4.0
-      parseurl: 1.3.3
-      proxy-addr: 2.0.8
-      qs: 6.16.0
-      range-parser: 1.2.1
-      router: 2.2.0
-      send: 1.2.1
-      serve-static: 2.2.1
-      statuses: 2.0.2
-      type-is: 2.1.0
-      vary: 1.1.2
-    transitivePeerDependencies:
-      - supports-color
-
   express@5.3.0:
     dependencies:
       accepts: 2.0.0
-      body-parser: 2.3.0
+      body-parser: 2.4.0
       content-disposition: 2.0.1
       content-type: 2.1.0
       cookie: 0.7.2
@@ -3879,7 +3827,7 @@ snapshots:
       http-errors: 2.0.1
       merge-descriptors: 2.0.0
       mime-types: 3.0.2
-      on-finished: 2.4.1
+      on-finished: 2.4.2
       once: 1.4.0
       parseurl: 1.3.3
       proxy-addr: 2.0.8
@@ -3903,7 +3851,7 @@ snapshots:
       '@fastify/merge-json-schemas': 0.2.1
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
-      fast-uri: 4.2.1
+      fast-uri: 4.2.3
       json-schema-ref-resolver: 3.0.0
       rfdc: 1.4.1
 
@@ -3913,13 +3861,13 @@ snapshots:
 
   fast-sha256@1.3.0: {}
 
-  fast-uri@3.1.8: {}
+  fast-uri@3.1.9: {}
 
-  fast-uri@4.2.1: {}
+  fast-uri@4.2.3: {}
 
-  fastify-mcp@2.1.0(zod@4.3.6):
+  fastify-mcp@2.1.0(zod@4.6.7):
     dependencies:
-      '@modelcontextprotocol/sdk': 1.32.1(zod@4.3.6)
+      '@modelcontextprotocol/sdk': 1.32.1(zod@4.6.7)
       fastify: 5.12.7
     transitivePeerDependencies:
       - '@cfworker/json-schema'
@@ -3968,7 +3916,7 @@ snapshots:
       debug: 4.4.3
       encodeurl: 2.0.0
       escape-html: 1.0.3
-      on-finished: 2.4.1
+      on-finished: 2.4.2
       parseurl: 1.3.3
       statuses: 2.0.2
     transitivePeerDependencies:
@@ -4072,6 +4020,10 @@ snapshots:
     optional: true
 
   iconv-lite@0.7.2:
+    dependencies:
+      safer-buffer: 2.1.2
+
+  iconv-lite@0.7.3:
     dependencies:
       safer-buffer: 2.1.2
 
@@ -4252,7 +4204,7 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  media-typer@1.1.0: {}
+  media-typer@1.1.1: {}
 
   merge-descriptors@2.0.0: {}
 
@@ -4280,7 +4232,9 @@ snapshots:
 
   nanoid@3.3.20: {}
 
-  negotiator@1.0.0: {}
+  negotiator@1.1.0:
+    dependencies:
+      content-type: 2.1.0
 
   node-fetch@2.7.0(encoding@0.1.13):
     dependencies:
@@ -4298,7 +4252,7 @@ snapshots:
 
   on-exit-leak-free@2.1.2: {}
 
-  on-finished@2.4.1:
+  on-finished@2.4.2:
     dependencies:
       ee-first: 1.1.1
 
@@ -4317,10 +4271,10 @@ snapshots:
       is-inside-container: 1.0.0
       wsl-utils: 0.1.0
 
-  openai@6.35.0(ws@8.21.0)(zod@4.3.6):
+  openai@6.35.0(ws@8.21.0)(zod@4.6.7):
     optionalDependencies:
       ws: 8.21.0
-      zod: 4.3.6
+      zod: 4.6.7
 
   parseurl@1.3.3: {}
 
@@ -4375,19 +4329,12 @@ snapshots:
 
   proxy-from-env@2.1.0: {}
 
-  qs@6.16.0:
-    dependencies:
-      es-define-property: 1.0.1
-      side-channel: 1.1.1
-
   qs@6.16.1:
     dependencies:
       es-define-property: 1.0.1
       side-channel: 1.1.1
 
   quick-format-unescaped@4.0.4: {}
-
-  range-parser@1.2.1: {}
 
   range-parser@1.3.0: {}
 
@@ -4481,8 +4428,8 @@ snapshots:
       http-errors: 2.0.1
       mime-types: 3.0.2
       ms: 2.1.3
-      on-finished: 2.4.1
-      range-parser: 1.2.1
+      on-finished: 2.4.2
+      range-parser: 1.3.0
       statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
@@ -4645,8 +4592,8 @@ snapshots:
 
   type-is@2.1.0:
     dependencies:
-      content-type: 2.0.0
-      media-typer: 1.1.0
+      content-type: 2.1.0
+      media-typer: 1.1.1
       mime-types: 3.0.2
 
   typescript@5.9.3: {}
@@ -4746,10 +4693,8 @@ snapshots:
 
   yaml@2.8.3: {}
 
-  zod-to-json-schema@3.25.2(zod@4.3.6):
+  zod-to-json-schema@3.25.2(zod@4.6.7):
     dependencies:
-      zod: 4.3.6
+      zod: 4.6.7
 
-  zod@3.25.76: {}
-
-  zod@4.3.6: {}
+  zod@4.6.7: {}
