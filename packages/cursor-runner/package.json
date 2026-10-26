@@ -21,6 +21,7 @@
 		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
+		"@connectrpc/connect-node": "^1.7.0",
 		"@cursor/sdk": "^1.0.19",
 		"cyrus-core": "workspace:*",
 		"cyrus-simple-agent-runner": "workspace:*"
