@@ -399,8 +399,8 @@ describe("EdgeWorker - Feedback Delivery", () => {
 		});
 
 		it("should find child session via single session manager and sessionRepositories mapping", async () => {
-			// Arrange - The single ASM has the child session runner
-			mockChildAgentSessionManager.hasAgentRunner.mockReturnValue(true);
+			// Arrange - No runner in memory, as for a child restored after a restart
+			mockChildAgentSessionManager.hasAgentRunner.mockReturnValue(false);
 
 			const childSessionId = "child-session-456";
 			const feedbackMessage = "Test feedback across repositories";
@@ -427,7 +427,7 @@ describe("EdgeWorker - Feedback Delivery", () => {
 			expect(resumeAgentSessionSpy).toHaveBeenCalledOnce();
 
 			// Verify the child was found via the single session manager
-			expect(mockChildAgentSessionManager.hasAgentRunner).toHaveBeenCalledWith(
+			expect(mockChildAgentSessionManager.getSession).toHaveBeenCalledWith(
 				childSessionId,
 			);
 		});

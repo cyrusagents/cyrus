@@ -6374,10 +6374,7 @@ ${taskSection}`;
 			? this.repositories.get(childRepoId)
 			: undefined;
 
-		if (
-			!childRepo ||
-			!this.agentSessionManager.hasAgentRunner(childSessionId)
-		) {
+		if (!childRepo) {
 			console.error(
 				`[EdgeWorker] Child session ${childSessionId} not found in any repository`,
 			);
