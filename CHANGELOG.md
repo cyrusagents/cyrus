@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- New opt-in `singleSessionPerIssue` setting (default off). When enabled, a Linear-triggered start on an issue that already has a live session forwards its prompt to that session instead of starting a second runner in the same worktree, so a delegation and an @mention arriving seconds apart no longer produce two agents writing the same files. The incoming session says where the request went and is completed rather than left without a runner. GitHub, GitLab and Slack handling is unchanged. ([#1465](https://github.com/cyrusagents/cyrus/pull/1465))
+
 ### Changed
 - Moved the Cyrus Inbox plugin package to a separately maintained private repository. The CLI, runtime and `post_message_to_codex` tool are unchanged. ([#1558](https://github.com/cyrusagents/cyrus/pull/1558))
 

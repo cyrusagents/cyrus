@@ -668,6 +668,9 @@
 		"prReviewTrigger": {
 			"type": "boolean"
 		},
+		"singleSessionPerIssue": {
+			"type": "boolean"
+		},
 		"userAccessControl": {
 			"type": "object",
 			"properties": {
