@@ -4,7 +4,9 @@
 
 **Goal:** Advance Cyrus from Claude Agent SDK `0.3.281` to `0.3.314` and Anthropic API SDK `0.128.0` to `1.3.0`, while retaining the permission, package, Hosted migration, and authenticated-runtime gates established during CYPACK-1605.
 
-**Reviewed heads:** cyrus `21e2e64861e2803c4e615ab2a327456af2dcae6f`; cyrus-hosted `e7aaf3be10b0ec425adec2e37bff626da192f69b`.
+**Review-subject heads:** cyrus `21e2e64861e2803c4e615ab2a327456af2dcae6f`; cyrus-hosted `e7aaf3be10b0ec425adec2e37bff626da192f69b`.
+
+**Reconciliation validation heads:** cyrus executable/test changes `e69f9ed4e363d16c1626cc672de1fe1ef4c75458`; cyrus-hosted `d41af090e0fdfb5bc039d091b066a61a02d4d95d`.
 
 **Pull requests:** [cyrus#1567](https://github.com/cyrusagents/cyrus/pull/1567), [cyrus-hosted#1293](https://github.com/cyrusagents/cyrus-hosted/pull/1293)
 
@@ -86,7 +88,18 @@ The core defaults already omit retired `TaskOutput`. Hosted can still store the 
 
 The companion keeps the exact-only migration and its custom, reordered, empty, `NULL`, and historical protections. Its API wire and tracing tests, tool-default tests, migration test, and React Email HTML/plaintext/options compatibility tests pass.
 
-The Hosted lock is frozen at Bun lock SHA-256 `e53be0ddab94c4b91f98094f8b2f1f058cf44ab388d4436e51d54cc057711d4d`; `bun install --frozen-lockfile` makes no changes. The required isolated CI suite and final production-build result are recorded on cyrus-hosted#1293.
+The Hosted lock is frozen at Bun lock SHA-256 `e53be0ddab94c4b91f98094f8b2f1f058cf44ab388d4436e51d54cc057711d4d`; `bun install --frozen-lockfile` makes no changes. The source archive for executable head `391765a72f0ed2ca6e8f608aacf6a41aa6147aec` had SHA-256 `6712ae34983bcbf855f48fe5c261af1d3e4e1a14f28d3aa961f1fb09c4715184` and was verified in ephemeral Vercel Sandbox `sbx_NA3cDhrSPalz7XQZKE3lEH4zcvQL` using Linux, Node `v22.23.4`, and Bun `1.4.0`:
+
+- affected-path suite: 14 passed, 0 failed across the API wire/tracing, tool-default, exact-only migration, and React Email HTML/plaintext/options files;
+- lint: 3/3 workspaces plus repository policy passed;
+- typecheck: 11/11 tasks passed;
+- production build: 4/4 workspaces passed, including the Hosted Next.js application and design-system documentation;
+- final application build ID: `sBAuaWaHg3ehRDhcwHZRC`;
+- final lock SHA-256 remained `e53be0ddab94c4b91f98094f8b2f1f058cf44ab388d4436e51d54cc057711d4d`.
+
+The first isolated build intentionally had no application credentials and correctly failed during page-data collection because `src/lib/email/resend.ts` eagerly constructs a Resend client. The successful build used only the non-secret fixture `RESEND_API_KEY=re_ci_build_fixture`; it sent no email and supplied no production credential. That supported build fixture, frozen install, and production build gate are committed in the Hosted workflow at `d41af090e0fdfb5bc039d091b066a61a02d4d95d`. The sandbox was stopped after evidence collection.
+
+GitHub Actions run `41086928105` did not start a runner because the repository account reported a payment/spending-limit problem. That external admission failure is not represented as a test result; the isolated Linux receipt above supplies the final-head product validation while the required workflow remains configured for the next admitted GitHub run.
 
 No manual SQL, migration execution, deployment, credential change, or runtime restart was performed.
 
