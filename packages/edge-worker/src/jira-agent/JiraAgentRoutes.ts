@@ -140,3 +140,32 @@ export function registerJiraAgentRoutes(
 	route("get", (body) => service.get(RefSchema.parse(body)));
 	route("cancel", (body) => service.cancel(RefSchema.parse(body)));
 }
+
+/**
+ * Registered instead of the task routes when the journal cannot be loaded at
+ * startup. Answers 503 (authenticated) so Cyrus Hosted treats it as a
+ * transient runtime fault and keeps tasks fenced, rather than seeing a 404 and
+ * telling the user to upgrade cyrus-ai.
+ */
+export function registerUnavailableJiraAgentRoutes(
+	fastify: FastifyInstance,
+	getApiKey: () => string,
+): void {
+	for (const op of ["send", "get", "cancel"] as const) {
+		fastify.post(
+			`${JIRA_AGENT_ROUTE_PREFIX}/${op}`,
+			{ bodyLimit: JIRA_AGENT_BODY_LIMIT },
+			async (request: FastifyRequest, reply: FastifyReply) => {
+				if (!isAuthorizedBearer(request.headers.authorization, getApiKey())) {
+					return fail(reply, 401, "unauthorized", "Unauthorized");
+				}
+				return fail(
+					reply,
+					503,
+					"journal_unavailable",
+					"Jira task state could not be loaded on this Cyrus runtime",
+				);
+			},
+		);
+	}
+}

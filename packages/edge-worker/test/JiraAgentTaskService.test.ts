@@ -21,10 +21,14 @@ import {
 	JiraAgentJournal,
 	RESTART_MESSAGE,
 } from "../src/jira-agent/JiraAgentJournal.js";
-import { registerJiraAgentRoutes } from "../src/jira-agent/JiraAgentRoutes.js";
+import {
+	registerJiraAgentRoutes,
+	registerUnavailableJiraAgentRoutes,
+} from "../src/jira-agent/JiraAgentRoutes.js";
 import {
 	CANCELED_MESSAGE,
 	DEADLINE_MESSAGE,
+	JIRA_SCRUBBED_ENV,
 	JiraAgentTaskService,
 	type JiraRunnerBuildInput,
 	type JiraSendRequest,
@@ -819,6 +823,36 @@ describe("routes", () => {
 		);
 		expect(busy.statusCode).toBe(409);
 		expect(busy.json().code).toBe("context_busy");
+	});
+});
+
+describe("journal unavailable", () => {
+	it("answers 503 (transient), not 404 (unsupported runtime), and still requires the key", async () => {
+		const fastify = Fastify();
+		registerUnavailableJiraAgentRoutes(fastify, () => "k1");
+		await fastify.ready();
+		const inject = (auth?: string) =>
+			fastify.inject({
+				method: "POST",
+				url: "/api/jira-agent/v1/tasks/send",
+				payload: create() as object,
+				headers: auth ? { authorization: auth } : {},
+			});
+		expect((await inject()).statusCode).toBe(401);
+		const res = await inject("Bearer k1");
+		expect(res.statusCode).toBe(503);
+		expect(res.json().code).toBe("journal_unavailable");
+	});
+});
+
+describe("runner environment", () => {
+	it("blanks Cyrus-owned integration credentials, keeps model and GitHub credentials", () => {
+		expect(JIRA_SCRUBBED_ENV.CYRUS_API_KEY).toBe("");
+		expect(JIRA_SCRUBBED_ENV.SLACK_BOT_TOKEN).toBe("");
+		expect(JIRA_SCRUBBED_ENV.LINEAR_WEBHOOK_SECRET).toBe("");
+		expect(Object.values(JIRA_SCRUBBED_ENV).every((v) => v === "")).toBe(true);
+		expect(JIRA_SCRUBBED_ENV).not.toHaveProperty("ANTHROPIC_API_KEY");
+		expect(JIRA_SCRUBBED_ENV).not.toHaveProperty("GITHUB_TOKEN");
 	});
 });
 

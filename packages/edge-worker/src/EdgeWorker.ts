@@ -167,8 +167,12 @@ import { EgressProxy } from "./EgressProxy.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { JiraAgentJournal } from "./jira-agent/JiraAgentJournal.js";
-import { registerJiraAgentRoutes } from "./jira-agent/JiraAgentRoutes.js";
 import {
+	registerJiraAgentRoutes,
+	registerUnavailableJiraAgentRoutes,
+} from "./jira-agent/JiraAgentRoutes.js";
+import {
+	JIRA_SCRUBBED_ENV,
 	JiraAgentTaskService,
 	type JiraRunnerBuildInput,
 	scopeJiraAllowedTools,
@@ -949,8 +953,12 @@ export class EdgeWorker extends EventEmitter {
 			await journal.load();
 		} catch (error) {
 			this.logger.error(
-				"❌ Jira agent journal could not be loaded; Jira agent routes disabled",
+				"❌ Jira agent journal could not be loaded; Jira agent routes answer 503",
 				error instanceof Error ? error : new Error(String(error)),
+			);
+			registerUnavailableJiraAgentRoutes(
+				this.sharedApplicationServer.getFastifyInstance(),
+				() => process.env.CYRUS_API_KEY || "",
 			);
 			return;
 		}
@@ -1092,6 +1100,14 @@ export class EdgeWorker extends EventEmitter {
 			onError: input.onError,
 			requireLinearWorkspaceId,
 		});
+		// Jira tasks never need Cyrus's own integration credentials (the runtime
+		// API key that authorizes this bridge, webhook secrets, Linear/Slack/
+		// GitLab/Zulip/tunnel tokens). Blank them in the runner's environment;
+		// model-provider and GitHub credentials the coding workflow needs stay.
+		config.additionalEnv = {
+			...config.additionalEnv,
+			...JIRA_SCRUBBED_ENV,
+		};
 		return {
 			runner: this.createRunnerForType(runnerType, config),
 			runnerType,

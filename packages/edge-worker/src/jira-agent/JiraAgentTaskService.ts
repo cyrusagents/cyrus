@@ -173,6 +173,28 @@ export const JIRA_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
 	"PushNotification",
 ]);
 
+/**
+ * Cyrus-owned integration credentials blanked in a Jira task's runner env.
+ * The runtime API key would let the task call this very bridge; the rest
+ * belong to other platforms' webhooks and tokens. Applied through
+ * `additionalEnv`, which the Claude runner merges over its inherited env.
+ */
+export const JIRA_SCRUBBED_ENV: Record<string, string> = Object.fromEntries(
+	[
+		"CYRUS_API_KEY",
+		"CLOUDFLARE_TOKEN",
+		"GITHUB_WEBHOOK_SECRET",
+		"GITLAB_ACCESS_TOKEN",
+		"GITLAB_WEBHOOK_SECRET",
+		"LINEAR_CLIENT_SECRET",
+		"LINEAR_WEBHOOK_SECRET",
+		"SLACK_BOT_TOKEN",
+		"SLACK_SIGNING_SECRET",
+		"ZULIP_API_KEY",
+		"ZULIP_WEBHOOK_TOKEN",
+	].map((key) => [key, ""]),
+);
+
 /** Code tools for a Jira task: no MCP tools and no escaping/scheduling tools. */
 export function scopeJiraAllowedTools(tools: readonly string[]): string[] {
 	return tools.filter((tool) => {
