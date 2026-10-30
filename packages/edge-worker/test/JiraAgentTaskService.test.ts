@@ -687,30 +687,96 @@ describe("cancellation", () => {
 });
 
 describe("deadline and restart", () => {
-	it("hard deadline stops the runner and fails only after settlement", async () => {
-		runnerOpts = { ...runnerOpts, settleOnStop: false };
-		const svc = await makeService({ deadlineMs: 30 });
-		await svc.send(create());
-		await vi.waitFor(() => expect(lastRunner()?.stopCalls).toBe(1));
-		let s = await svc.get({
-			version: 1,
-			taskId: TASK_A,
-			contextId: CTX,
-			binding,
+	// Deadline tests fake only setTimeout/clearTimeout with a long deadline, wait
+	// for the runner to have actually started, then fire the deadline on
+	// purpose (a real 30 ms deadline could fire during setup on a slow CI box).
+	// Journal I/O stays real and is awaited through the published state.
+	const DEADLINE_MS = 60_000;
+	const req = () => ({
+		version: 1 as const,
+		taskId: TASK_A,
+		contextId: CTX,
+		binding,
+	});
+
+	it("deadline requests stop BEFORE persisting canceling; get only ever shows committed state", async () => {
+		// Hold the journal write of the `canceling` record open (the window CI
+		// hit): stop is already requested, the committed state is still
+		// `working`, and nothing settles until the runner actually finishes.
+		let release!: () => void;
+		const gate = new Promise<void>((r) => {
+			release = r;
 		});
-		expect(s.state).toBe("canceling");
-		expect(s.settled).toBe(false);
-		lastRunner().settle();
-		await vi.waitFor(async () => {
-			s = await svc.get({
-				version: 1,
-				taskId: TASK_A,
-				contextId: CTX,
-				binding,
+		const save = JiraAgentJournal.prototype.save;
+		const spy = vi
+			.spyOn(JiraAgentJournal.prototype, "save")
+			.mockImplementation(async function (this: JiraAgentJournal, record) {
+				if (record.tasks.some((t) => t.state === "canceling")) await gate;
+				return save.call(this, record);
 			});
-			expect(s.state).toBe("failed");
-		});
-		expect(s.error).toBe(DEADLINE_MESSAGE);
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+		try {
+			runnerOpts = { ...runnerOpts, settleOnStop: false };
+			const svc = await makeService({ deadlineMs: DEADLINE_MS });
+			await svc.send(create());
+			await started(1);
+			expect(lastRunner().stopCalls).toBe(0);
+			await vi.advanceTimersByTimeAsync(DEADLINE_MS);
+			await vi.waitFor(() => expect(lastRunner().stopCalls).toBe(1));
+			let s = await svc.get(req());
+			expect(s.state).toBe("working");
+			expect(s.settled).toBe(false);
+			release();
+			await vi.waitFor(async () => {
+				s = await svc.get(req());
+				expect(s.state).toBe("canceling");
+				expect(s.settled).toBe(false);
+			});
+			lastRunner().settle();
+			await vi.waitFor(async () => {
+				s = await svc.get(req());
+				expect(s.state).toBe("failed");
+				expect(s.settled).toBe(true);
+				expect(svc.liveCount()).toBe(0);
+			});
+			expect(s.error).toBe(DEADLINE_MESSAGE);
+		} finally {
+			release();
+			lastRunner()?.settle();
+			spy.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("hard deadline stops the runner and fails only after settlement", async () => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+		try {
+			runnerOpts = { ...runnerOpts, settleOnStop: false };
+			const svc = await makeService({ deadlineMs: DEADLINE_MS });
+			await svc.send(create());
+			await started(1);
+			expect(lastRunner().stopCalls).toBe(0);
+			await vi.advanceTimersByTimeAsync(DEADLINE_MS);
+			// Stop is requested first, then `canceling` is committed; wait for both.
+			let s = await svc.get(req());
+			await vi.waitFor(async () => {
+				expect(lastRunner().stopCalls).toBe(1);
+				s = await svc.get(req());
+				expect(s.state).toBe("canceling");
+				expect(s.settled).toBe(false);
+			});
+			lastRunner().settle();
+			await vi.waitFor(async () => {
+				s = await svc.get(req());
+				expect(s.state).toBe("failed");
+				expect(s.settled).toBe(true);
+				expect(svc.liveCount()).toBe(0);
+			});
+			expect(s.error).toBe(DEADLINE_MESSAGE);
+		} finally {
+			lastRunner()?.settle();
+			vi.useRealTimers();
+		}
 	});
 
 	it("restart marks in-flight tasks failed and CLOSES the context (no new writer in that worktree)", async () => {

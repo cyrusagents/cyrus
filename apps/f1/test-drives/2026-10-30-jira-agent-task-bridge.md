@@ -54,6 +54,17 @@ Same harness and simulation boundaries as the first joined drive (Hosted service
 - Main phase (exit 0): assignment → `COMPLETED` (commit `6bb7d4b`); duplicate message → same task; follow-up → new task, same context, `COMPLETED` (commit `b80ce3b`); cancel of a running task → `CANCELED`; cancel of a completed task → `TASK_NOT_CANCELABLE`.
 - Restart phases (exit 0): runtime `SIGKILL`ed while a task was `WORKING`; on restart that build logged `Stopped 1 of 1 process(es) this runtime had started…` for the journal-recorded pid 55613 (signalling since removed, see note above). Hosted GetTask → `FAILED` with the restart message; follow-up in that context → `FAILED` (`context_closed`); fresh assignment → `COMPLETED`. The operator's own post-kill liveness check in this run was invalid (a shell word-splitting bug), so child survival is not claimed from this run.
 
+## Report-only restart drive at `b6fda3b88` (+ test-only deadline fix), 20:02–20:05 UTC
+
+Bounded drive of the changed restart path only (runtime, curl bridge v1 bodies; no Hosted). F1 port 3661 checked free; the only other listener (an unrelated node process on 3123) was left alone. Real Claude, throwaway key, `CYRUS_F1_HOME=/tmp/jira-r8-home`, `CYRUS_F1_REPO_ID` = random UUID. Evidence: task-run dir `joined/r8/` (`f1-server-1.log`, `f1-server-2.log`, `identities.txt`, `after-kill.txt`, `after-restart.txt`, `get-resp.json`, `create2-resp.json`, `cleanup.txt`).
+
+- Create → 200 `submitted`, `admitted: true`. The journal recorded `ownedProcesses: [{pid 50056, started "Fri Oct 30 13:03:09 2026"}]` (the Claude Code child; parent = server 49727), task `working`.
+- An unrelated helper `sleep 900` (pid 50453, parent 1, started 13:03:19, cwd inside the same worktree) was started outside Cyrus.
+- Server `SIGKILL`ed. 4 s later both 50056 and 50453 were alive with unchanged start times.
+- Restart on the same home logged: `A Jira task interrupted by the restart may have left processes running in …: pid 50056 (started Fri Oct 30 13:03:09 2026) still present. They were not stopped automatically; … The conversation stays closed.` Both processes were still alive with unchanged start times right after startup and 20 s later — nothing was signalled.
+- `get` → `failed`, `settled: true`, restart message. `send create` of a new task in that context → 409 `context_closed`. Journal `closed: true`, single task `failed`/settled. No new session started in the restarted server log.
+- Cleanup (operator, not Cyrus): the restarted server, the helper and the orphaned Claude child were sent SIGTERM after re-checking each pid's start time; all three exited, port 3661 released.
+
 ## Limits
 
 - Restart closure was driven for real in the joined drives above (`CYRUS_F1_HOME`); restart process handling is now report-only and is covered by unit tests, not F1. Corrupt-journal quarantine, journal-write failure during cancel/deadline, and the queued-for-slot cancel are proven by unit tests (`JiraAgentTaskService.review.test.ts`, `RunnerConcurrency.test.ts`), not by F1.
