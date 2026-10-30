@@ -31,6 +31,7 @@ import {
 	TOMBSTONE_MESSAGE,
 } from "../src/jira-agent/JiraAgentTaskService.js";
 import { capRunnerStarts, SessionSemaphore } from "../src/RunnerConcurrency.js";
+import { standardJiraRouting } from "./jira-routing-fixture.js";
 
 const logger = {
 	debug: () => {},
@@ -47,27 +48,34 @@ const binding = {
 	teamId: "33333333-3333-4333-8333-333333333333",
 	installationLinkId: "44444444-4444-4444-8444-444444444444",
 	accountLinkId: "55555555-5555-4555-8555-555555555555",
-	repositoryId: "repo-a",
 };
 const otherBinding = {
 	...binding,
 	accountLinkId: "66666666-6666-4666-8666-666666666666",
 };
-const issue = { id: "10001", key: "QA-1", summary: "S", description: "D" };
+const issue = {
+	id: "10001",
+	key: "QA-1",
+	summary: "S",
+	description: "D",
+	labels: [] as string[],
+	projectKey: "QA",
+};
 const ref = (taskId = TASK_A, b = binding) => ({
-	version: 1 as const,
+	version: 2 as const,
 	taskId,
 	contextId: CTX,
 	binding: b,
 });
 const create = (over: Partial<JiraSendRequest> = {}): JiraSendRequest => ({
-	version: 1,
+	version: 2,
 	kind: "create",
 	taskId: TASK_A,
 	contextId: CTX,
 	messageId: "m1",
 	binding,
 	issue,
+	repositoryIds: ["repo-a"],
 	text: "Do it.",
 	...over,
 });
@@ -173,6 +181,7 @@ async function makeService(
 		journal,
 		logger,
 		getRepository: (id) => repos.get(id),
+		...standardJiraRouting(() => [...repos.values()]),
 		resolveRunnerType: () => runnerType,
 		createWorkspace: async (_r, target) => ({
 			path: join("/ws", target.identifier),
@@ -292,7 +301,7 @@ describe("stop is requested even if persistence fails (R4)", () => {
 describe("unreadable journal (R5)", () => {
 	for (const [name, content] of [
 		["corrupt JSON", "{not json"],
-		["wrong shape", JSON.stringify({ version: 1, contextId: CTX, tasks: 3 })],
+		["wrong shape", JSON.stringify({ version: 2, contextId: CTX, tasks: 3 })],
 	] as const) {
 		it(`quarantines a context with ${name}; nothing runs`, async () => {
 			mkdirSync(contextsDir(), { recursive: true });

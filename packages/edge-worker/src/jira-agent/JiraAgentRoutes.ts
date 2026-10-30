@@ -8,7 +8,7 @@ import {
 } from "./JiraAgentTaskService.js";
 
 /**
- * Bridge v1 routes Cyrus Hosted uses to run Jira remote-agent tasks on this
+ * Bridge v2 routes Cyrus Hosted uses to run Jira remote-agent tasks on this
  * runtime. Authenticated with the same `CYRUS_API_KEY` Bearer token as the
  * other Hosted → runtime routes (read on every request so `.env` reloads
  * apply). An empty key disables the routes rather than opening them.
@@ -28,9 +28,11 @@ const BindingSchema = z
 		teamId: uuid,
 		installationLinkId: uuid,
 		accountLinkId: uuid,
-		repositoryId: z.string().min(1).max(200),
 	})
 	.strict();
+
+/** Bridge version; v1 bound one repository to the whole Jira site. */
+export const JIRA_AGENT_BRIDGE_VERSION = 2;
 
 const IssueSchema = z
 	.object({
@@ -46,25 +48,36 @@ const IssueSchema = z
 			.regex(/^[A-Za-z][A-Za-z0-9_]*-[0-9]+$/),
 		summary: boundedText(4 * 1024),
 		description: boundedText(MAX_TEXT_BYTES),
+		labels: z.array(z.string().min(1).max(255)).max(100),
+		projectKey: z
+			.string()
+			.min(1)
+			.max(64)
+			.regex(/^[A-Za-z][A-Za-z0-9_]*$/),
 	})
-	.strict();
+	.strict()
+	.refine((issue) => issue.key.startsWith(`${issue.projectKey}-`), {
+		message: "projectKey must prefix key",
+	});
 
 const SendSchema = z
 	.object({
-		version: z.literal(1),
+		version: z.literal(2),
 		kind: z.enum(["create", "followup"]),
 		taskId: uuid,
 		contextId: uuid,
 		messageId: z.string().min(1).max(200),
 		binding: BindingSchema,
 		issue: IssueSchema,
+		// Authorized for the binding's workspace now (Hosted-resolved).
+		repositoryIds: z.array(z.string().min(1).max(200)).max(1000),
 		text: boundedText(MAX_TEXT_BYTES).refine((v) => v.trim().length > 0),
 	})
 	.strict();
 
 const RefSchema = z
 	.object({
-		version: z.literal(1),
+		version: z.literal(2),
 		taskId: uuid,
 		contextId: uuid,
 		binding: BindingSchema,
@@ -112,7 +125,7 @@ export function registerJiraAgentRoutes(
 				if (!body || typeof body !== "object") {
 					return fail(reply, 400, "invalid_request", "JSON body required");
 				}
-				if (body.version !== 1) {
+				if (body.version !== JIRA_AGENT_BRIDGE_VERSION) {
 					return fail(
 						reply,
 						400,

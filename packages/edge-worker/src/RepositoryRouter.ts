@@ -31,6 +31,22 @@ export type RepositoryRoutingResult =
 	| { type: "none" };
 
 /**
+ * Provider-neutral view of an issue for repository routing. Linear supplies
+ * lazy lookups through RepositoryRouterDeps; other trackers (Jira) supply the
+ * values they already hold, so routing never calls Linear for them.
+ */
+export interface IssueRoutingSource {
+	issueId?: string;
+	/** Team key (Linear) or project key (Jira): the issue-key prefix scope. */
+	teamKey?: string;
+	issueIdentifier?: string;
+	fetchLabels: () => Promise<string[]>;
+	fetchDescription: () => Promise<string | undefined>;
+	/** Project name matched against `projectKeys`; undefined when none. */
+	fetchProjectName: () => Promise<string | undefined>;
+}
+
+/**
  * Pending repository selection data
  */
 export interface PendingRepositorySelection {
@@ -195,11 +211,69 @@ export class RepositoryRouter {
 		);
 		if (workspaceRepos.length === 0) return { type: "none" };
 
+		return this.routeIssue(
+			this.linearRoutingSource(issueId, teamKey, issueIdentifier, workspaceId),
+			workspaceRepos,
+		);
+	}
+
+	/** Linear lookups behind the provider-neutral routing source. */
+	private linearRoutingSource(
+		issueId: string | undefined,
+		teamKey: string | undefined,
+		issueIdentifier: string | undefined,
+		workspaceId: string,
+	): IssueRoutingSource {
+		return {
+			issueId,
+			teamKey,
+			issueIdentifier,
+			fetchLabels: () =>
+				issueId
+					? this.deps.fetchIssueLabels(issueId, workspaceId)
+					: Promise.resolve([]),
+			fetchDescription: () =>
+				issueId
+					? this.deps.fetchIssueDescription(issueId, workspaceId)
+					: Promise.resolve(undefined),
+			fetchProjectName: async () => {
+				if (!issueId) return undefined;
+				const issueTracker = this.deps.getIssueTracker(workspaceId);
+				if (!issueTracker) {
+					this.logger.warn(
+						`No issue tracker found for workspace ${workspaceId}`,
+					);
+					return undefined;
+				}
+				const fullIssue = await issueTracker.fetchIssue(issueId);
+				const project = await fullIssue?.project;
+				return project?.name || undefined;
+			},
+		};
+	}
+
+	/**
+	 * Standard repository routing over one workspace's repositories, shared by
+	 * every issue tracker:
+	 * Priority 1: Description tag (explicit [repo=...] in issue description)
+	 * Priority 2: Routing labels
+	 * Priority 3: Project-based routing
+	 * Priority 4: Team-based routing (then issue-key prefix)
+	 * Priority 5: Catch-all repositories
+	 *
+	 * If no routing matches, returns needs_selection (no default assignment).
+	 */
+	async routeIssue(
+		source: IssueRoutingSource,
+		workspaceRepos: RepositoryConfig[],
+	): Promise<RepositoryRoutingResult> {
+		if (workspaceRepos.length === 0) return { type: "none" };
+		const { issueId, teamKey, issueIdentifier } = source;
+
 		// Priority 1: Check description tags [repo=...] (supports multiple, with optional #branch)
 		const descriptionTagResult = await this.findRepositoriesByDescriptionTag(
-			issueId,
+			source,
 			workspaceRepos,
-			workspaceId,
 		);
 		if (descriptionTagResult.repositories.length > 0) {
 			this.logger.info(
@@ -228,10 +302,8 @@ export class RepositoryRouter {
 
 		// Priority 2: Check routing labels
 		const labelMatchedRepos = await this.findRepositoriesByLabels(
-			issueId,
+			source,
 			workspaceRepos,
-			workspaceId,
-			teamKey,
 		);
 		if (labelMatchedRepos.length > 0) {
 			this.logger.info(
@@ -247,9 +319,8 @@ export class RepositoryRouter {
 		// Priority 3: Check project-based routing
 		if (issueId) {
 			const projectMatchedRepo = await this.findRepositoryByProject(
-				issueId,
+				source,
 				workspaceRepos,
-				workspaceId,
 			);
 			if (projectMatchedRepo) {
 				this.logger.info(
@@ -333,11 +404,10 @@ export class RepositoryRouter {
 	 * without teamKeys match labels across the whole workspace.
 	 */
 	private async findRepositoriesByLabels(
-		issueId: string | undefined,
+		source: IssueRoutingSource,
 		repos: RepositoryConfig[],
-		workspaceId: string,
-		teamKey?: string,
 	): Promise<RepositoryConfig[]> {
+		const { issueId, teamKey } = source;
 		if (!issueId) return [];
 
 		const reposWithRoutingLabels = repos.filter(
@@ -353,7 +423,7 @@ export class RepositoryRouter {
 		if (reposWithRoutingLabels.length === 0) return [];
 
 		try {
-			const labels = await this.deps.fetchIssueLabels(issueId, workspaceId);
+			const labels = await source.fetchLabels();
 
 			const matched: RepositoryConfig[] = [];
 			for (const repo of reposWithRoutingLabels) {
@@ -387,20 +457,17 @@ export class RepositoryRouter {
 	 * - repos=frontend,backend
 	 */
 	private async findRepositoriesByDescriptionTag(
-		issueId: string | undefined,
+		source: IssueRoutingSource,
 		repos: RepositoryConfig[],
-		workspaceId: string,
 	): Promise<{
 		repositories: RepositoryConfig[];
 		baseBranchOverrides: Map<string, string>;
 	}> {
-		if (!issueId) return { repositories: [], baseBranchOverrides: new Map() };
+		if (!source.issueId)
+			return { repositories: [], baseBranchOverrides: new Map() };
 
 		try {
-			const description = await this.deps.fetchIssueDescription(
-				issueId,
-				workspaceId,
-			);
+			const description = await source.fetchDescription();
 			if (!description)
 				return { repositories: [], baseBranchOverrides: new Map() };
 
@@ -567,33 +634,23 @@ export class RepositoryRouter {
 	 * Find repository by project name
 	 */
 	private async findRepositoryByProject(
-		issueId: string,
+		source: IssueRoutingSource,
 		repos: RepositoryConfig[],
-		workspaceId: string,
 	): Promise<RepositoryConfig | null> {
+		const { issueId } = source;
 		// Try each repository that has projectKeys configured
 		for (const repo of repos) {
 			if (!repo.projectKeys || repo.projectKeys.length === 0) continue;
 
 			try {
-				const issueTracker = this.deps.getIssueTracker(workspaceId);
-				if (!issueTracker) {
-					this.logger.warn(
-						`No issue tracker found for workspace ${workspaceId}`,
-					);
-					continue;
-				}
-
-				const fullIssue = await issueTracker.fetchIssue(issueId);
-				const project = await fullIssue?.project;
-				if (!project || !project.name) {
+				const projectName = await source.fetchProjectName();
+				if (!projectName) {
 					this.logger.debug(
 						`No project name found for issue ${issueId} in repository ${repo.name}`,
 					);
 					continue;
 				}
 
-				const projectName = project.name;
 				if (repo.projectKeys.includes(projectName)) {
 					this.logger.debug(
 						`Matched issue ${issueId} to repository ${repo.name} via project: ${projectName}`,

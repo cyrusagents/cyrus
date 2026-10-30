@@ -12,6 +12,7 @@ import {
 	UNDELIVERED_FOLLOWUP_MESSAGE,
 } from "../src/jira-agent/JiraAgentTaskService.js";
 import { capRunnerStarts, SessionSemaphore } from "../src/RunnerConcurrency.js";
+import { standardJiraRouting } from "./jira-routing-fixture.js";
 
 const logger: any = {
 	debug() {},
@@ -28,19 +29,26 @@ const binding = {
 	teamId: "t",
 	installationLinkId: "i",
 	accountLinkId: "a",
-	repositoryId: "repo",
 };
 const request: any = {
-	version: 1,
+	version: 2,
 	kind: "create",
 	taskId,
 	contextId,
 	binding,
 	messageId: "m1",
-	issue: { id: "1", key: "QA-1", summary: "test", description: "" },
+	issue: {
+		id: "1",
+		key: "QA-1",
+		summary: "test",
+		description: "",
+		labels: [],
+		projectKey: "QA",
+	},
+	repositoryIds: ["repo"],
 	text: "initial",
 };
-const ref: any = { version: 1, taskId, contextId, binding };
+const ref: any = { version: 2, taskId, contextId, binding };
 const repo: any = {
 	id: "repo",
 	name: "repo",
@@ -69,6 +77,7 @@ async function setup(buildRunner: any, getRepository: any = () => repo) {
 		journal,
 		logger,
 		getRepository,
+		...standardJiraRouting(() => [repo]),
 		resolveRunnerType: () => "claude",
 		createWorkspace: async () =>
 			({ path: "/fixture-ws/context", isGitWorktree: true }) as any,
@@ -379,6 +388,7 @@ describe("ownership records for restart cleanup", () => {
 			journal,
 			logger,
 			getRepository: () => repo,
+			...standardJiraRouting(() => [repo]),
 			resolveRunnerType: () => "claude",
 			createWorkspace: async () =>
 				({ path: "/fixture-ws/context", isGitWorktree: true }) as any,

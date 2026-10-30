@@ -6,6 +6,7 @@ import type {
 	SDKMessage,
 	Workspace,
 } from "cyrus-core";
+import type { RepositoryRoutingResult } from "../RepositoryRouter.js";
 import { setRunnerStartGuard } from "../RunnerConcurrency.js";
 import {
 	isUuid,
@@ -13,14 +14,28 @@ import {
 	type JiraBinding,
 	type JiraContextRecord,
 	type JiraIssueRef,
+	type JiraRouting,
 	type JiraTaskRecord,
 	type JiraTaskState,
+	RESTING_STATES,
 	TERMINAL_STATES,
 } from "./JiraAgentJournal.js";
+import {
+	describeRouting,
+	repositorySelectionGuidance,
+	selectRepositoryFromReply,
+} from "./JiraRepositoryRouting.js";
 
 /**
- * Executes Jira remote-agent tasks forwarded by Cyrus Hosted (bridge v1,
- * CONTRACT v3).
+ * Executes Jira remote-agent tasks forwarded by Cyrus Hosted (bridge v2).
+ *
+ * - Repositories are chosen per context with standard Cyrus routing
+ *   ([repo=...] selectors, routing labels, team/project keys, catch-all) over
+ *   the repositories Hosted authorizes for the workspace AND this runtime has
+ *   configured. The result is committed with the context before anything runs
+ *   and never re-routed; every later message re-checks that each routed
+ *   repository is still authorized and configured (`repository_unavailable`
+ *   otherwise). No match asks the Jira user to choose (`input-required`).
  *
  * - Every state change is made on a copy of the context record, persisted,
  *   and only then published (one serialized lock per context). `get` always
@@ -45,7 +60,8 @@ import {
 
 export type JiraAgentErrorCode =
 	| "invalid_request"
-	| "unknown_repository"
+	| "no_repository"
+	| "repository_unavailable"
 	| "unsupported_runner"
 	| "task_not_found"
 	| "conflict"
@@ -59,7 +75,8 @@ export type JiraAgentErrorCode =
 
 const ERROR_STATUS: Record<JiraAgentErrorCode, number> = {
 	invalid_request: 400,
-	unknown_repository: 400,
+	no_repository: 409,
+	repository_unavailable: 409,
 	unsupported_runner: 400,
 	task_not_found: 404,
 	conflict: 409,
@@ -84,18 +101,20 @@ export class JiraAgentError extends Error {
 }
 
 export interface JiraSendRequest {
-	version: 1;
+	version: 2;
 	kind: "create" | "followup";
 	taskId: string;
 	contextId: string;
 	messageId: string;
 	binding: JiraBinding;
 	issue: JiraIssueRef;
+	/** Repository ids Hosted authorizes for the binding's workspace now. */
+	repositoryIds: string[];
 	text: string;
 }
 
 export interface JiraTaskRef {
-	version: 1;
+	version: 2;
 	taskId: string;
 	contextId: string;
 	binding: JiraBinding;
@@ -115,7 +134,8 @@ export interface JiraTaskSnapshot {
 }
 
 export interface JiraRunnerBuildInput {
-	repository: RepositoryConfig;
+	/** Routed repositories; the first is primary for runner configuration. */
+	repositories: RepositoryConfig[];
 	workspace: Workspace;
 	contextId: string;
 	taskId: string;
@@ -132,11 +152,23 @@ export interface JiraAgentTaskServiceDeps {
 	logger: ILogger;
 	/** Current configured repository by id; never a path or URL. */
 	getRepository: (repositoryId: string) => RepositoryConfig | undefined;
-	/** Runner type this repository would run with (checked before admission). */
-	resolveRunnerType: (repository: RepositoryConfig) => string;
+	/** Every repository configured on this runtime, in configuration order. */
+	listRepositories: () => RepositoryConfig[];
+	/** Standard Cyrus repository routing for this issue over `candidates`. */
+	routeRepositories: (
+		issue: JiraIssueRef,
+		requestText: string,
+		candidates: RepositoryConfig[],
+	) => Promise<RepositoryRoutingResult>;
+	/** Runner type these repositories would run with (checked before admission). */
+	resolveRunnerType: (
+		repositories: RepositoryConfig[],
+		issue: JiraIssueRef,
+	) => string;
 	createWorkspace: (
-		repository: RepositoryConfig,
+		repositories: RepositoryConfig[],
 		target: { identifier: string; branchName: string; title: string },
+		baseBranches: Record<string, string>,
 	) => Promise<Workspace>;
 	buildRunner: (
 		input: JiraRunnerBuildInput,
@@ -194,7 +226,7 @@ export const SHUTDOWN_MESSAGE =
 	"Cyrus stopped because its runtime shut down; send a follow-up to continue.";
 export const TOMBSTONE_MESSAGE = "Canceled before Cyrus started it.";
 export const REPOSITORY_GONE_MESSAGE =
-	"The repository linked to this Jira site is no longer configured in Cyrus.";
+	"A repository this conversation works in is no longer available in Cyrus. Assign the work item to Cyrus again to start a new conversation.";
 export const UNSUPPORTED_RUNNER_MESSAGE =
 	"Jira tasks currently run only with the Claude runner. Configure Claude as this repository's runner in Cyrus, then assign the work item again.";
 
@@ -273,8 +305,7 @@ function sameBinding(a: JiraBinding, b: JiraBinding): boolean {
 	return (
 		a.teamId === b.teamId &&
 		a.installationLinkId === b.installationLinkId &&
-		a.accountLinkId === b.accountLinkId &&
-		a.repositoryId === b.repositoryId
+		a.accountLinkId === b.accountLinkId
 	);
 }
 
@@ -302,12 +333,15 @@ export function jiraWorkspaceTarget(
 
 /** Instructions appended to the runner's system prompt for Jira tasks. */
 export function buildJiraSystemPrompt(
-	repository: RepositoryConfig,
+	repositories: RepositoryConfig[],
 	branchName: string,
 ): string {
+	const names = repositories.map((r) => `"${r.name}"`).join(", ");
 	return [
 		"You are Cyrus, working on a Jira work item that a Jira user assigned to you or mentioned you on.",
-		`You are working in an isolated git worktree of the repository "${repository.name}" on branch "${branchName}". Work only in this worktree.`,
+		repositories.length === 1
+			? `You are working in an isolated git worktree of the repository ${names} on branch "${branchName}". Work only in this worktree.`
+			: `You are working in isolated git worktrees of the repositories ${names}, one subdirectory per repository, each on branch "${branchName}". Work only in these worktrees.`,
 		"Your short progress messages and your final answer are shown to the Jira user in Jira's agent panel. Nothing is posted to Jira automatically.",
 		"If you change code: commit your work on the current branch, push it, and open a pull request (for example with `gh pr create`). Include the pull request link in your final answer.",
 		"If no code change is needed, answer the request directly.",
@@ -460,19 +494,6 @@ export class JiraAgentTaskService {
 				"This conversation was interrupted by a Cyrus restart",
 			);
 		}
-		const repository = this.deps.getRepository(request.binding.repositoryId);
-		if (!repository) {
-			throw new JiraAgentError(
-				"unknown_repository",
-				"Repository is not configured on this Cyrus runtime",
-			);
-		}
-		if (this.deps.resolveRunnerType(repository) !== "claude") {
-			throw new JiraAgentError(
-				"unsupported_runner",
-				UNSUPPORTED_RUNNER_MESSAGE,
-			);
-		}
 		if (existing?.tasks.some((t) => !t.settled)) {
 			throw new JiraAgentError(
 				"context_busy",
@@ -480,14 +501,47 @@ export class JiraAgentTaskService {
 			);
 		}
 
+		// A routed context keeps its repositories; only an unrouted one routes.
+		let routing = existing?.routing ?? null;
+		let initialText = request.text;
+		let selectionGuidance: string | null = null;
+		let routedNote: string | null = null;
+		if (routing) {
+			this.authorizedRepositories(routing, request.repositoryIds);
+		} else {
+			const decided = await this.route(request, existing ?? null);
+			initialText = decided.initialText;
+			if (decided.kind === "needs_selection") {
+				selectionGuidance = repositorySelectionGuidance(decided.candidates);
+			} else {
+				routing = decided.routing;
+				routedNote = describeRouting(decided.repositories, routing);
+			}
+		}
+		if (routing) {
+			const repositories = this.authorizedRepositories(
+				routing,
+				request.repositoryIds,
+			);
+			if (
+				this.deps.resolveRunnerType(repositories, request.issue) !== "claude"
+			) {
+				throw new JiraAgentError(
+					"unsupported_runner",
+					UNSUPPORTED_RUNNER_MESSAGE,
+				);
+			}
+		}
+
 		const now = new Date().toISOString();
 		const record = await this.commit(
 			request.contextId,
 			() => ({
-				version: 1,
+				version: 2,
 				contextId: request.contextId,
 				binding: { ...request.binding },
-				issue: { ...request.issue },
+				issue: structuredClone(request.issue),
+				routing: null,
 				workspacePath: null,
 				runnerType: null,
 				runnerSessionId: null,
@@ -497,26 +551,145 @@ export class JiraAgentTaskService {
 				retired: {},
 			}),
 			(draft) => {
-				if (!draft.issue) draft.issue = { ...request.issue };
+				if (!draft.issue) draft.issue = structuredClone(request.issue);
+				// Bound before anything runs: later messages never re-route.
+				if (!draft.routing && routing) draft.routing = structuredClone(routing);
 				draft.tasks.push({
 					taskId: request.taskId,
 					messageHashes: { [request.messageId]: hash },
-					state: "submitted",
-					settled: false,
+					state: selectionGuidance ? "input-required" : "submitted",
+					settled: selectionGuidance !== null,
 					admitted: true,
-					initialText: request.text,
+					initialText,
 					pendingFollowups: [],
-					progress: [],
-					nextSeq: 1,
-					result: null,
+					progress: routedNote ? [{ seq: 1, at: now, text: routedNote }] : [],
+					nextSeq: routedNote ? 2 : 1,
+					result: selectionGuidance,
 					error: null,
 					createdAt: now,
 					updatedAt: now,
 				});
 			},
 		);
-		this.startExecution(request.contextId, request.taskId);
+		if (!selectionGuidance)
+			this.startExecution(request.contextId, request.taskId);
 		return this.snapshot(record, this.mustFindTask(record, request.taskId));
+	}
+
+	/**
+	 * Route an unrouted context. A reply to a pending repository question that
+	 * names one of the offered repositories selects it; otherwise standard
+	 * routing runs on the work item and this message. Never picks arbitrarily.
+	 */
+	private async route(
+		request: JiraSendRequest,
+		existing: JiraContextRecord | null,
+	): Promise<
+		| {
+				kind: "selected";
+				routing: JiraRouting;
+				repositories: RepositoryConfig[];
+				initialText: string;
+		  }
+		| {
+				kind: "needs_selection";
+				candidates: RepositoryConfig[];
+				initialText: string;
+		  }
+	> {
+		const allowed = new Set(request.repositoryIds);
+		const candidates = this.deps
+			.listRepositories()
+			.filter((repository) => allowed.has(repository.id));
+		if (candidates.length === 0) {
+			throw new JiraAgentError(
+				"no_repository",
+				"No repository in this Cyrus workspace is configured on this runtime",
+			);
+		}
+		// The request still waiting for a choice carries over, so a reply that
+		// doesn't choose is added to it rather than replacing it.
+		const awaiting = existing?.tasks.at(-1);
+		const pending =
+			awaiting?.state === "input-required" ? awaiting.initialText : null;
+		const combined =
+			pending !== null ? `${pending}\n\n${request.text}` : request.text;
+		if (pending !== null) {
+			const picked = selectRepositoryFromReply(request.text, candidates);
+			if (picked)
+				return {
+					kind: "selected",
+					routing: {
+						repositoryIds: [picked.id],
+						baseBranches: {},
+						method: "user-selected",
+					},
+					repositories: [picked],
+					initialText: pending,
+				};
+		}
+		const result = await this.deps.routeRepositories(
+			request.issue,
+			request.text,
+			candidates,
+		);
+		if (result.type !== "selected" || result.repositories.length === 0)
+			return { kind: "needs_selection", candidates, initialText: combined };
+		// The router only ever returns candidates; re-check, never trust.
+		const repositories = result.repositories.filter((r) =>
+			candidates.some((c) => c.id === r.id),
+		);
+		if (repositories.length !== result.repositories.length)
+			return { kind: "needs_selection", candidates, initialText: combined };
+		const baseBranches: Record<string, string> = {};
+		for (const [id, branch] of result.baseBranchOverrides ?? [])
+			if (repositories.some((r) => r.id === id)) baseBranches[id] = branch;
+		return {
+			kind: "selected",
+			routing: {
+				repositoryIds: repositories.map((r) => r.id),
+				baseBranches,
+				method: result.routingMethod,
+			},
+			repositories,
+			initialText: combined,
+		};
+	}
+
+	/**
+	 * The context's routed repositories, each still authorized by Hosted for
+	 * this message and still configured here. Never substitutes another.
+	 */
+	private authorizedRepositories(
+		routing: JiraRouting,
+		authorizedIds: readonly string[],
+	): RepositoryConfig[] {
+		const allowed = new Set(authorizedIds);
+		const repositories = this.configuredRepositories(routing);
+		if (
+			!repositories ||
+			!routing.repositoryIds.every((id) => allowed.has(id))
+		) {
+			throw new JiraAgentError(
+				"repository_unavailable",
+				REPOSITORY_GONE_MESSAGE,
+			);
+		}
+		return repositories;
+	}
+
+	/** Routed repositories as currently configured, or null if any is gone. */
+	private configuredRepositories(
+		routing: JiraRouting | null,
+	): RepositoryConfig[] | null {
+		if (!routing) return null;
+		const repositories: RepositoryConfig[] = [];
+		for (const id of routing.repositoryIds) {
+			const repository = this.deps.getRepository(id);
+			if (!repository) return null;
+			repositories.push(repository);
+		}
+		return repositories;
 	}
 
 	private async followup(request: JiraSendRequest): Promise<JiraTaskSnapshot> {
@@ -549,12 +722,17 @@ export class JiraAgentTaskService {
 		}
 		if (
 			!task ||
-			TERMINAL_STATES.has(task.state) ||
+			RESTING_STATES.has(task.state) ||
 			task.state === "canceling" ||
 			this.lives.get(task.taskId)?.fence
 		) {
 			throw new JiraAgentError("task_terminal", "Task has already ended");
 		}
+		// Still the same repositories, still authorized for this workspace.
+		this.authorizedRepositories(
+			record.routing as JiraRouting,
+			request.repositoryIds,
+		);
 		if (this.unfinalized.has(request.taskId)) {
 			// Its execution ended but the final state could not be saved: there
 			// is no executor to run this message. Cancel settles the task.
@@ -618,7 +796,7 @@ export class JiraAgentTaskService {
 			// Retired (trimmed) tasks are terminal: answer like get does.
 			if ((record as JiraContextRecord).retired[ref.taskId]) return null;
 			const task = this.mustFindTask(record as JiraContextRecord, ref.taskId);
-			if (TERMINAL_STATES.has(task.state) && task.settled) return null;
+			if (RESTING_STATES.has(task.state) && task.settled) return null;
 			const current = this.lives.get(ref.taskId) ?? null;
 			if (!current) {
 				// No execution is running (its terminal write failed earlier, so
@@ -649,10 +827,11 @@ export class JiraAgentTaskService {
 		await this.commit(
 			ref.contextId,
 			() => ({
-				version: 1,
+				version: 2,
 				contextId: ref.contextId,
 				binding: { ...ref.binding },
 				issue: null,
+				routing: null,
 				workspacePath: null,
 				runnerType: null,
 				runnerSessionId: null,
@@ -744,12 +923,17 @@ export class JiraAgentTaskService {
 			const initial = this.journal.getContext(contextId) as JiraContextRecord;
 			const issue = initial.issue as JiraIssueRef;
 			const target = jiraWorkspaceTarget(contextId, issue);
-			let repository = this.deps.getRepository(initial.binding.repositoryId);
-			if (!repository) {
+			const routing = initial.routing as JiraRouting;
+			let repositories = this.configuredRepositories(routing);
+			if (!repositories) {
 				live.fatalError = REPOSITORY_GONE_MESSAGE;
 				return;
 			}
-			const workspace = await this.deps.createWorkspace(repository, target);
+			const workspace = await this.deps.createWorkspace(
+				repositories,
+				target,
+				routing.baseBranches,
+			);
 			if (!workspace.isGitWorktree) {
 				live.fatalError =
 					"Cyrus could not create an isolated git worktree for this task.";
@@ -757,7 +941,10 @@ export class JiraAgentTaskService {
 			}
 			if (live.fence) return;
 			live.workspacePath = workspace.path;
-			const systemPrompt = buildJiraSystemPrompt(repository, target.branchName);
+			const systemPrompt = buildJiraSystemPrompt(
+				repositories,
+				target.branchName,
+			);
 			let prompt = buildJiraInitialPrompt(
 				issue,
 				this.mustFindTask(initial, taskId).initialText,
@@ -765,9 +952,9 @@ export class JiraAgentTaskService {
 			let first = true;
 
 			for (;;) {
-				// Revalidate the bound repository before every runner start.
-				repository = this.deps.getRepository(initial.binding.repositoryId);
-				if (!repository) {
+				// Revalidate the routed repositories before every runner start.
+				repositories = this.configuredRepositories(routing);
+				if (!repositories) {
 					live.fatalError = REPOSITORY_GONE_MESSAGE;
 					return;
 				}
@@ -780,7 +967,7 @@ export class JiraAgentTaskService {
 							}
 						: null;
 				const { runner, runnerType } = await this.deps.buildRunner({
-					repository,
+					repositories,
 					workspace,
 					contextId,
 					taskId,
@@ -806,8 +993,7 @@ export class JiraAgentTaskService {
 				// spawn: the repository may be removed while the task is queued.
 				setRunnerStartGuard(runner, () => {
 					if (live.fence) return false;
-					if (this.deps.getRepository(initial.binding.repositoryId))
-						return true;
+					if (this.configuredRepositories(routing)) return true;
 					live.fatalError = REPOSITORY_GONE_MESSAGE;
 					return false;
 				});
@@ -1005,11 +1191,11 @@ export class JiraAgentTaskService {
 		);
 		const streaming = runner.isStreaming?.() === true;
 		if (!result.isError && streaming && task.pendingFollowups.length > 0) {
-			// Follow-ups never run once the bound repository is gone.
+			// Follow-ups never run once a routed repository is gone.
 			const record = this.journal.getContext(
 				live.contextId,
 			) as JiraContextRecord;
-			if (!this.deps.getRepository(record.binding.repositoryId)) {
+			if (!this.configuredRepositories(record.routing)) {
 				live.fatalError = REPOSITORY_GONE_MESSAGE;
 			} else {
 				const next = task.pendingFollowups[0] as string;

@@ -177,6 +177,7 @@ import {
 	type JiraRunnerBuildInput,
 	scopeJiraAllowedTools,
 } from "./jira-agent/JiraAgentTaskService.js";
+import { jiraRoutingSource } from "./jira-agent/JiraRepositoryRouting.js";
 import {
 	findOwnedProcesses,
 	inspectOwnedProcesses,
@@ -991,12 +992,21 @@ export class EdgeWorker extends EventEmitter {
 			journal,
 			logger: this.logger,
 			getRepository: (id) => this.repositories.get(id),
-			// Same selection buildIssueConfig makes for a Jira task (no labels).
-			resolveRunnerType: () =>
-				this.runnerSelectionService.determineRunnerSelection([], undefined)
-					.runnerType,
-			createWorkspace: (repository, target) =>
-				this.createJiraWorkspace(repository, target),
+			listRepositories: () => [...this.repositories.values()],
+			// Standard routing; the Jira source never reaches Linear services.
+			routeRepositories: (issue, requestText, candidates) =>
+				this.repositoryRouter.routeIssue(
+					jiraRoutingSource(issue, requestText),
+					candidates,
+				),
+			// Same selection buildIssueConfig makes for this Jira task.
+			resolveRunnerType: (_repositories, issue) =>
+				this.runnerSelectionService.determineRunnerSelection(
+					issue.labels,
+					issue.description,
+				).runnerType,
+			createWorkspace: (repositories, target, baseBranches) =>
+				this.createJiraWorkspace(repositories, target, baseBranches),
 			buildRunner: (input) => this.buildJiraAgentRunner(input),
 			captureOwnedProcesses: (workspacePath) =>
 				findOwnedProcesses(process.pid, workspacePath),
@@ -1009,10 +1019,11 @@ export class EdgeWorker extends EventEmitter {
 		this.logger.info("✅ Jira agent task routes registered");
 	}
 
-	/** Isolated worktree for one Jira context in its single bound repository. */
+	/** Isolated worktree(s) for one Jira context in its routed repositories. */
 	private async createJiraWorkspace(
-		repository: RepositoryConfig,
+		repositories: RepositoryConfig[],
 		target: { identifier: string; branchName: string; title: string },
+		baseBranches: Record<string, string>,
 	) {
 		const syntheticIssue = {
 			id: target.identifier,
@@ -1042,8 +1053,10 @@ export class EdgeWorker extends EventEmitter {
 			update: () =>
 				Promise.resolve({ success: true, issue: undefined, lastSyncId: 0 }),
 		} as unknown as Issue;
-		return this.gitService.createGitWorktree(syntheticIssue, [repository], {
+		const overrides = new Map(Object.entries(baseBranches));
+		return this.gitService.createGitWorktree(syntheticIssue, repositories, {
 			globalSetupScript: this.config.global_setup_script,
+			...(overrides.size > 0 ? { baseBranchOverrides: overrides } : {}),
 		});
 	}
 
@@ -1057,7 +1070,8 @@ export class EdgeWorker extends EventEmitter {
 	private async buildJiraAgentRunner(
 		input: JiraRunnerBuildInput,
 	): Promise<{ runner: IAgentRunner; runnerType: RunnerType }> {
-		const { repository, workspace } = input;
+		const { repositories, workspace } = input;
+		const repository = repositories[0] as RepositoryConfig;
 		const sessionId = `jira-${input.taskId}`;
 		const resumeType = input.resume?.runnerType as RunnerType | undefined;
 		const resumeId = input.resume?.sessionId;
@@ -1074,9 +1088,11 @@ export class EdgeWorker extends EventEmitter {
 				identifier: input.issue.key,
 				title: input.issue.summary,
 			},
-			repositories: [
-				{ repositoryId: repository.id, baseBranchName: repository.baseBranch },
-			],
+			repositories: repositories.map((repo) => ({
+				repositoryId: repo.id,
+				baseBranchName:
+					workspace.resolvedBaseBranches?.[repo.id]?.branch ?? repo.baseBranch,
+			})),
 			workspace,
 			...(resumeType && resumeId
 				? { [`${resumeType}SessionId`]: resumeId }
@@ -1086,14 +1102,28 @@ export class EdgeWorker extends EventEmitter {
 		const plugins = await this.skillsPluginResolver.resolve();
 		const skills = await this.skillsPluginResolver.discoverSkillNames(plugins, {
 			repositoryId: repository.id,
-			repoPaths: [workspace.path],
+			repoPaths: [workspace.path, ...Object.values(workspace.repoPaths ?? {})],
 		});
-		const allowedTools = scopeJiraAllowedTools(
-			this.toolPermissionResolver.buildGithubAllowedTools(repository),
+		// Least privilege across routed repositories: a tool is allowed only if
+		// every repository allows it, and disallowed if any disallows it.
+		const perRepoAllowed = repositories.map((repo) =>
+			this.toolPermissionResolver.buildGithubAllowedTools(repo),
 		);
+		const allowedTools = scopeJiraAllowedTools(
+			(perRepoAllowed[0] ?? []).filter((tool) =>
+				perRepoAllowed.every((tools) => tools.includes(tool)),
+			),
+		);
+		const disallowedTools = [
+			...new Set(
+				repositories.flatMap((repo) => this.buildDisallowedTools(repo)),
+			),
+		];
 		const allowedDirectories = [
-			workspace.path,
-			...this.gitService.getGitMetadataDirectories(workspace.path),
+			...new Set([
+				workspace.path,
+				...this.gitService.getGitMetadataDirectoriesForWorkspace(workspace),
+			]),
 		];
 
 		const { config, runnerType } = this.runnerConfigBuilder.buildIssueConfig({
@@ -1103,8 +1133,10 @@ export class EdgeWorker extends EventEmitter {
 			systemPrompt: input.systemPrompt,
 			allowedTools,
 			allowedDirectories,
-			disallowedTools: this.buildDisallowedTools(repository),
+			disallowedTools,
 			resumeSessionId: resumeId,
+			labels: input.issue.labels,
+			issueDescription: input.issue.description,
 			maxTurns: 200,
 			mcpScope: "none",
 			autoMemoryDirectory: join(

@@ -17,7 +17,8 @@ import type { ILogger } from "cyrus-core";
  * The journal is the source of truth for idempotency (`messageHashes`, kept
  * for retired tasks too), the pinned binding of a context, the single-writer
  * reservation (`settled`), pre-admission cancel tombstones (`admitted:
- * false`), closed contexts, and the runner session to resume.
+ * false`), closed contexts, the repositories the context was routed to, and
+ * the runner session to resume.
  */
 
 export type JiraTaskState =
@@ -26,25 +27,34 @@ export type JiraTaskState =
 	| "canceling"
 	| "completed"
 	| "failed"
-	| "canceled";
+	| "canceled"
+	| "input-required";
 
 export const TERMINAL_STATES: ReadonlySet<JiraTaskState> = new Set([
 	"completed",
 	"failed",
 	"canceled",
 ]);
+/**
+ * Settled states with nothing running: terminal, or waiting for the Jira user
+ * to say which repository to use (`input-required`, never executed).
+ */
+export const RESTING_STATES: ReadonlySet<JiraTaskState> = new Set([
+	...TERMINAL_STATES,
+	"input-required",
+]);
 const STATES: ReadonlySet<string> = new Set([
 	"submitted",
 	"working",
 	"canceling",
-	...TERMINAL_STATES,
+	...RESTING_STATES,
 ]);
 
+/** Who the context belongs to (Hosted link ids); never a repository. */
 export interface JiraBinding {
 	teamId: string;
 	installationLinkId: string;
 	accountLinkId: string;
-	repositoryId: string;
 }
 
 export interface JiraIssueRef {
@@ -52,6 +62,20 @@ export interface JiraIssueRef {
 	key: string;
 	summary: string;
 	description: string;
+	labels: string[];
+	/** Jira project key (the issue-key prefix). */
+	projectKey: string;
+}
+
+/**
+ * Repositories a context was routed to, fixed before its first execution.
+ * Follow-ups and later tasks in the context reuse it; it is never re-routed.
+ */
+export interface JiraRouting {
+	repositoryIds: string[];
+	/** Per-repository base branch from [repo=name#branch] selectors. */
+	baseBranches: Record<string, string>;
+	method: string;
 }
 
 export interface JiraProgressEntry {
@@ -94,11 +118,13 @@ export interface JiraRetiredTask {
 }
 
 export interface JiraContextRecord {
-	version: 1;
+	version: 2;
 	contextId: string;
 	binding: JiraBinding;
 	/** Null only for a context created by a pre-admission cancel tombstone. */
 	issue: JiraIssueRef | null;
+	/** Null until routing selects repositories (or while awaiting a choice). */
+	routing: JiraRouting | null;
 	workspacePath: string | null;
 	/** Runner that last executed in this context, and its resumable session. */
 	runnerType: string | null;
@@ -135,6 +161,8 @@ const isObj = (v: unknown): v is Record<string, unknown> =>
 	!!v && typeof v === "object" && !Array.isArray(v);
 const isHashMap = (v: unknown): v is Record<string, string> =>
 	isObj(v) && Object.values(v).every(isStr);
+const isStrArray = (v: unknown): v is string[] =>
+	Array.isArray(v) && v.every(isStr);
 
 /** Strict shape check of a stored context; throws on anything unexpected. */
 export function parseContextRecord(
@@ -146,27 +174,50 @@ export function parseContextRecord(
 	};
 	if (!isObj(raw)) fail("not an object");
 	const r = raw as Record<string, unknown>;
-	if (r.version !== 1) fail("version");
+	if (r.version !== 1 && r.version !== 2) fail("version");
 	if (r.contextId !== contextId) fail("contextId");
-	const b = r.binding;
+	const b = r.binding as Record<string, unknown>;
 	if (
 		!isObj(b) ||
 		!isStr(b.teamId) ||
 		!isStr(b.installationLinkId) ||
 		!isStr(b.accountLinkId) ||
-		!isStr(b.repositoryId)
+		(r.version === 1 && !isStr(b.repositoryId))
 	)
 		fail("binding");
-	const i = r.issue;
+	const i = r.issue as Record<string, unknown> | null;
 	if (
 		i !== null &&
 		(!isObj(i) ||
 			!isStr(i.id) ||
 			!isStr(i.key) ||
 			!isStr(i.summary) ||
-			!isStr(i.description))
+			!isStr(i.description) ||
+			(i.labels !== undefined && !isStrArray(i.labels)) ||
+			(i.projectKey !== undefined && !isStr(i.projectKey)))
 	)
 		fail("issue");
+	// Version 1 bound one repository to the whole Jira site; it becomes that
+	// context's fixed routing.
+	let routing: JiraRouting | null = null;
+	if (r.version === 1) {
+		routing = {
+			repositoryIds: [b.repositoryId as string],
+			baseBranches: {},
+			method: "site-repository",
+		};
+	} else if (r.routing !== null) {
+		const g = r.routing;
+		if (
+			!isObj(g) ||
+			!isStrArray(g.repositoryIds) ||
+			g.repositoryIds.length === 0 ||
+			!isHashMap(g.baseBranches) ||
+			!isStr(g.method)
+		)
+			fail("routing");
+		routing = g as unknown as JiraRouting;
+	}
 	if (r.workspacePath !== null && !isStr(r.workspacePath)) fail("workspace");
 	if (r.runnerType !== null && !isStr(r.runnerType)) fail("runnerType");
 	if (r.runnerSessionId !== null && !isStr(r.runnerSessionId))
@@ -224,11 +275,29 @@ export function parseContextRecord(
 		)
 	)
 		fail("ownedProcesses");
+	const issue = i
+		? ({
+				id: i.id as string,
+				key: i.key as string,
+				summary: i.summary as string,
+				description: i.description as string,
+				labels: (i.labels as string[] | undefined) ?? [],
+				projectKey:
+					(i.projectKey as string | undefined) ??
+					(i.key as string).split("-")[0] ??
+					"",
+			} as JiraIssueRef)
+		: null;
 	return {
-		version: 1,
+		version: 2,
 		contextId,
-		binding: b as unknown as JiraBinding,
-		issue: (i ?? null) as JiraIssueRef | null,
+		binding: {
+			teamId: b.teamId as string,
+			installationLinkId: b.installationLinkId as string,
+			accountLinkId: b.accountLinkId as string,
+		},
+		issue,
+		routing,
 		workspacePath: (r.workspacePath ?? null) as string | null,
 		runnerType: (r.runnerType ?? null) as string | null,
 		runnerSessionId: (r.runnerSessionId ?? null) as string | null,
@@ -285,7 +354,7 @@ export class JiraAgentJournal {
 			}
 			let changed = false;
 			for (const task of record.tasks) {
-				if (!task.settled || !TERMINAL_STATES.has(task.state)) {
+				if (!task.settled || !RESTING_STATES.has(task.state)) {
 					task.state = "failed";
 					task.settled = true;
 					task.error = RESTART_MESSAGE;
@@ -366,7 +435,7 @@ export class JiraAgentJournal {
 	private trim(record: JiraContextRecord): void {
 		while (record.tasks.length > MAX_TASKS_PER_CONTEXT) {
 			const idx = record.tasks.findIndex(
-				(t) => t.settled && TERMINAL_STATES.has(t.state),
+				(t) => t.settled && RESTING_STATES.has(t.state),
 			);
 			if (idx < 0) break;
 			const [removed] = record.tasks.splice(idx, 1);
