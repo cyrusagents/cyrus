@@ -22,6 +22,8 @@ The fixture repo (`./f1 init-test-repo -p /tmp/jira-f1-v3-repo`) got one extra c
 
 Server logs: `logs/runtime-f1-claude-server.log` (debug level; ambient environment values redacted after the run) and `logs/runtime-f1-codex-server.log` in the task-run directory.
 
+> **Restart cleanup changed after these drives.** The drives below that report `Stopped … process(es)` ran builds that signalled recorded processes at startup. That signalling was removed (review 3: a pid can be reused between any check and `kill`), so restart reconciliation is now **report-only** — it logs recorded identities that may still be running and signals nothing. The report-only behavior is covered by `test/OrphanReaper.test.ts` (real `sleep` fixtures: own process recorded and reported, nothing signalled; unrelated process in the worktree untouched); it has **not** been re-driven in F1.
+
 ## Joined Hosted ⇄ runtime drive (17:40–17:46 UTC)
 
 Real Cyrus Hosted A2A service, runtime bridge HTTP client and dispatch ledger (real migration on PGlite) against this F1 server with real Claude. Only Forge/Jira were simulated (Forge token verification is unit-tested in Hosted; the as-user Jira API was a fake). New opt-in F1 server variables: `CYRUS_F1_REPO_ID` (bind the fixture to a Hosted repository UUID) and `CYRUS_F1_HOME` (keep one Cyrus home across restarts). Port 3631 checked free first; throwaway `CYRUS_API_KEY`; info log level. Harness: Hosted `apps/app/src/lib/jira-agent/joined-runtime.test.ts`.
@@ -45,9 +47,16 @@ Separate from the joined drive above: curl bridge v1 bodies against the F1 serve
 
 Limits of this drive: macOS only (Linux uses `/proc` paths covered only by code review); one owned process; ownership is (pid, start time to the second) captured on runner messages (throttled to 10 s), so a process spawned and orphaned between captures would not be recorded and is left running.
 
+## Final joined drive at runtime `a33b2ddef` / Hosted `ec06f5ec5` (18:01–18:05 UTC)
+
+Same harness and simulation boundaries as the first joined drive (Hosted service + bridge + ledger on PGlite; Forge/Jira simulated), F1 port 3651 checked free, throwaway key, `CYRUS_F1_HOME=/tmp/jira-final-home`. Evidence: task-run dir `joined/final/` (`joined-main.log`, `joined-restart-before.log`, `joined-restart-after.log`, `f1-server-1.log`, `f1-server-2.log`, `children.txt`).
+
+- Main phase (exit 0): assignment → `COMPLETED` (commit `6bb7d4b`); duplicate message → same task; follow-up → new task, same context, `COMPLETED` (commit `b80ce3b`); cancel of a running task → `CANCELED`; cancel of a completed task → `TASK_NOT_CANCELABLE`.
+- Restart phases (exit 0): runtime `SIGKILL`ed while a task was `WORKING`; on restart that build logged `Stopped 1 of 1 process(es) this runtime had started…` for the journal-recorded pid 55613 (signalling since removed, see note above). Hosted GetTask → `FAILED` with the restart message; follow-up in that context → `FAILED` (`context_closed`); fresh assignment → `COMPLETED`. The operator's own post-kill liveness check in this run was invalid (a shell word-splitting bug), so child survival is not claimed from this run.
+
 ## Limits
 
-- Restart closure and orphan reconciliation were driven for real in the joined drive above (`CYRUS_F1_HOME`). Corrupt-journal quarantine, journal-write failure during cancel/deadline, and the queued-for-slot cancel are proven by unit tests (`JiraAgentTaskService.review.test.ts`, `RunnerConcurrency.test.ts`), not by F1.
+- Restart closure was driven for real in the joined drives above (`CYRUS_F1_HOME`); restart process handling is now report-only and is covered by unit tests, not F1. Corrupt-journal quarantine, journal-write failure during cancel/deadline, and the queued-for-slot cancel are proven by unit tests (`JiraAgentTaskService.review.test.ts`, `RunnerConcurrency.test.ts`), not by F1.
 - The egress sandbox was off (`hasSandbox: false`); sandbox preservation is covered by `RunnerConfigBuilder.jira-scope.test.ts`.
 - Only Cyrus-owned integration variables are blanked; the operator's other ambient environment variables still reach the session, as for every Cyrus session type.
-- No Jira/Forge delivery, Hosted dispatch ledger or real push/PR was exercised (fixture has no remote).
+- The Hosted A2A service, runtime bridge client and dispatch ledger ran only locally in the joined drives (real migration on PGlite, in-process). No deployed Hosted, Supabase/PostgREST, Forge/Jira delivery, real invocation token or user token, and no real push/PR (the fixture has no remote) was exercised.

@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	findOwnedProcesses,
+	inspectOwnedProcesses,
 	type ProcessProbe,
-	terminateOwnedProcesses,
 } from "../src/jira-agent/OrphanReaper.js";
 
 const dirs: string[] = [];
@@ -43,8 +43,8 @@ function spawnUnowned(cwd: string): Promise<number> {
 	});
 }
 
-describe("ownership-scoped orphan cleanup (real processes)", () => {
-	it("records and stops only this runtime's own process inside the worktree", async () => {
+describe("ownership-scoped restart inspection (report only)", () => {
+	it("records only this runtime's own process in the worktree and reports it WITHOUT signalling (real processes)", async () => {
 		const root = await mkdtemp(join(tmpdir(), "jira-orphan-"));
 		dirs.push(root);
 		const worktree = join(root, "worktrees", "jira-ctx");
@@ -67,58 +67,76 @@ describe("ownership-scoped orphan cleanup (real processes)", () => {
 		const recorded = await findOwnedProcesses(process.pid, worktree);
 		expect(recorded.map((r) => r.pid)).toEqual([owned.pid]);
 
-		const result = await terminateOwnedProcesses(recorded, worktree, {
-			graceMs: 300,
-		});
-		expect(result).toEqual({ matched: [owned.pid], survivors: [] });
-		expect(alive(owned.pid!)).toBe(false);
+		const result = await inspectOwnedProcesses(recorded);
+		expect(result.possiblyRunning.map((r) => r.pid)).toEqual([owned.pid]);
+		expect(result.gone).toEqual([]);
+		expect(result.unknown).toEqual([]);
+		// Nothing was signalled.
+		await delay(200);
+		expect(alive(owned.pid!)).toBe(true);
 		expect(alive(unowned)).toBe(true);
 		expect(alive(ownedElsewhere.pid!)).toBe(true);
+
+		// Once the recorded process really exits it is reported gone.
+		process.kill(owned.pid!, "SIGKILL");
+		await delay(300);
+		expect(
+			(await inspectOwnedProcesses(recorded)).gone.map((r) => r.pid),
+		).toEqual([owned.pid]);
 	}, 30_000);
 
-	it("never signals a recycled pid (different start time) or a process that left the worktree", async () => {
-		const signals: string[] = [];
+	it("identity changing between inspection steps (review-3 probe) is never signalled and a reused pid is gone", async () => {
+		// Same shape as orphan-review3-repro.mts probe 1: the pid is reused by an
+		// unrelated process. The API has no kill path at all.
+		let started = "old-start";
 		const probe: ProcessProbe = {
-			table: async () => [
-				{ pid: 101, ppid: 1, started: "Fri Oct 30 10:00:01 2026" },
-				{ pid: 102, ppid: 1, started: "Fri Oct 30 10:00:02 2026" },
-			],
-			cwd: async (pid) => (pid === 101 ? "/w/jira-a/pkg" : "/somewhere/else"),
-		};
-		const result = await terminateOwnedProcesses(
-			[
-				{ pid: 101, started: "Fri Oct 30 09:59:59 2026" }, // pid reused by another process
-				{ pid: 102, started: "Fri Oct 30 10:00:02 2026" }, // no longer in the worktree
-			],
-			"/w/jira-a",
-			{
-				probe,
-				kill: (pid, sig) => signals.push(`${pid}:${sig}`),
-				sleep: async () => {},
-				graceMs: 0,
+			table: async () => {
+				const row = { pid: 424242, ppid: 1, started };
+				started = "new-unrelated-process-start";
+				return [row];
 			},
+			cwd: async () => "/fixture/worktree",
+		};
+		const first = await inspectOwnedProcesses(
+			[{ pid: 424242, started: "old-start" }],
+			probe,
 		);
-		expect(signals).toEqual([]);
-		expect(result).toEqual({ matched: [], survivors: [] });
+		expect(first.possiblyRunning.map((r) => r.pid)).toEqual([424242]);
+		const second = await inspectOwnedProcesses(
+			[{ pid: 424242, started: "old-start" }],
+			probe,
+		);
+		expect(second.gone.map((r) => r.pid)).toEqual([424242]);
 	});
 
-	it("escalates to SIGKILL and reports a survivor that ignores signals", async () => {
-		const signals: string[] = [];
+	it("a matching process that changed directory is still possibly running, not stopped (review-3 probe 2)", async () => {
 		const probe: ProcessProbe = {
-			table: async () => [{ pid: 101, ppid: 1, started: "T" }],
-			cwd: async () => "/w/jira-a",
+			table: async () => [{ pid: 424243, ppid: 1, started: "same-start" }],
+			cwd: async () => "/elsewhere",
 		};
-		const result = await terminateOwnedProcesses(
-			[{ pid: 101, started: "T" }],
-			"/w/jira-a",
-			{
-				probe,
-				kill: (pid, sig) => signals.push(`${pid}:${sig}`),
-				sleep: async () => {},
-				graceMs: 0,
-			},
+		const result = await inspectOwnedProcesses(
+			[{ pid: 424243, started: "same-start" }],
+			probe,
 		);
-		expect(signals).toEqual(["101:SIGTERM", "101:SIGKILL"]);
-		expect(result).toEqual({ matched: [101], survivors: [101] });
+		expect(result.possiblyRunning.map((r) => r.pid)).toEqual([424243]);
+		expect(result.gone).toEqual([]);
+	});
+
+	it("an inspection failure is reported as unknown, never as stopped", async () => {
+		const probe: ProcessProbe = {
+			table: async () => {
+				throw new Error("ps unavailable");
+			},
+			cwd: async () => null,
+		};
+		const result = await inspectOwnedProcesses(
+			[{ pid: 7, started: "T" }],
+			probe,
+		);
+		expect(result).toEqual({
+			possiblyRunning: [],
+			gone: [],
+			unknown: [{ pid: 7, started: "T" }],
+		});
 	});
 });

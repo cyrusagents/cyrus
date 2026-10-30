@@ -2,19 +2,23 @@ import { execFile } from "node:child_process";
 import { readlink, realpath } from "node:fs/promises";
 
 /**
- * Restart reconciliation for Jira task worktrees, limited to processes this
- * runtime provably started.
+ * Restart reconciliation for Jira task worktrees — REPORT ONLY.
  *
  * A runner's model subprocess can outlive an abruptly killed Cyrus process
  * (observed: the Claude Code child kept running in its worktree after the
  * worker was SIGKILLed). While a Jira task runs, the runtime records its OWN
  * descendant processes whose working directory is inside the task worktree
- * as (pid, start time). After a restart, only a process matching a recorded
- * pid AND the same start time AND still working inside that worktree is
- * signalled. Anything else — a user's shell or editor in the worktree, a
- * recycled pid, a shared runtime — is never touched. (A process environment
- * marker was considered, but macOS does not expose other processes'
- * environments, so it could not identify ownership there.)
+ * as (pid, start time). After a restart the closed context already refuses
+ * new work in that worktree; this module only reports which recorded
+ * identities may still be running so an operator can stop them.
+ *
+ * It deliberately never signals. Node exposes no race-free process handle
+ * (no pidfd), `ps` start times have one-second precision, and any check is
+ * followed by an asynchronous gap before `kill(pid)`: a recorded process can
+ * exit and its pid be reused in between, so a signal could hit an unrelated
+ * process. Until a safe identity primitive is available, automatic stopping
+ * is deferred. (A process-environment marker was considered, but macOS does
+ * not expose other processes' environments.)
  */
 export interface OwnedProcess {
 	pid: number;
@@ -120,57 +124,42 @@ export async function findOwnedProcesses(
 	return owned;
 }
 
-export interface TerminateDeps {
-	probe: ProcessProbe;
-	kill(pid: number, signal: NodeJS.Signals): void;
-	sleep(ms: number): Promise<void>;
-	graceMs: number;
+export interface InspectionResult {
+	/** Recorded identity (same pid AND start time) still present: may still be running. */
+	possiblyRunning: OwnedProcess[];
+	/** Recorded pid gone, or reused by a process with a different start time. */
+	gone: OwnedProcess[];
+	/** Inspection itself failed: nothing is known about these. */
+	unknown: OwnedProcess[];
 }
 
-const defaultTerminateDeps: TerminateDeps = {
-	probe: systemProcessProbe,
-	kill: (pid, signal) => process.kill(pid, signal),
-	sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-	graceMs: 3000,
-};
-
 /**
- * Stop recorded processes that are still the SAME process (pid and start
- * time) and still inside `worktree`: SIGTERM, then SIGKILL after the grace
- * period. Returns which matched and which could not be stopped.
+ * Classify recorded processes after a restart without signalling anything.
+ * A matching identity counts as possibly running wherever its cwd now is:
+ * leaving the worktree is not evidence that it stopped.
  */
-export async function terminateOwnedProcesses(
+export async function inspectOwnedProcesses(
 	recorded: readonly OwnedProcess[],
-	worktree: string,
-	overrides: Partial<TerminateDeps> = {},
-): Promise<{ matched: number[]; survivors: number[] }> {
-	const deps = { ...defaultTerminateDeps, ...overrides };
-	if (recorded.length === 0) return { matched: [], survivors: [] };
-	const bases = await roots(worktree);
-	const sameProcessInside = async (): Promise<number[]> => {
-		const table = await deps.probe.table();
-		const alive: number[] = [];
-		for (const rec of recorded) {
-			if (rec.pid === process.pid) continue;
-			const row = table.find((r) => r.pid === rec.pid);
-			if (!row || row.started !== rec.started) continue;
-			const cwd = await deps.probe.cwd(rec.pid);
-			if (cwd && inside(cwd, bases)) alive.push(rec.pid);
-		}
-		return alive;
+	probe: ProcessProbe = systemProcessProbe,
+): Promise<InspectionResult> {
+	const result: InspectionResult = {
+		possiblyRunning: [],
+		gone: [],
+		unknown: [],
 	};
-	const signal = (pid: number, sig: NodeJS.Signals) => {
-		try {
-			deps.kill(pid, sig);
-		} catch {
-			// Already gone or not ours to signal.
-		}
-	};
-	const matched = await sameProcessInside();
-	for (const pid of matched) signal(pid, "SIGTERM");
-	if (matched.length === 0) return { matched, survivors: [] };
-	await deps.sleep(deps.graceMs);
-	for (const pid of await sameProcessInside()) signal(pid, "SIGKILL");
-	await deps.sleep(200);
-	return { matched, survivors: await sameProcessInside() };
+	if (recorded.length === 0) return result;
+	let table: ProcessRow[];
+	try {
+		table = await probe.table();
+	} catch {
+		result.unknown.push(...recorded);
+		return result;
+	}
+	for (const rec of recorded) {
+		const row = table.find((r) => r.pid === rec.pid);
+		if (row && row.started === rec.started && rec.pid !== process.pid)
+			result.possiblyRunning.push(rec);
+		else result.gone.push(rec);
+	}
+	return result;
 }

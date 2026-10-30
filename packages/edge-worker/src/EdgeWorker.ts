@@ -179,7 +179,7 @@ import {
 } from "./jira-agent/JiraAgentTaskService.js";
 import {
 	findOwnedProcesses,
-	terminateOwnedProcesses,
+	inspectOwnedProcesses,
 } from "./jira-agent/OrphanReaper.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
@@ -966,26 +966,26 @@ export class EdgeWorker extends EventEmitter {
 			);
 			return;
 		}
-		// Stop processes this runtime itself started (recorded pid + start time,
-		// still inside the worktree) that an abrupt exit left running in contexts
-		// the restart closed. The contexts stay closed either way; this only
-		// stops orphaned edits and model usage, never unrelated processes.
+		// Report processes this runtime itself started (recorded pid + start
+		// time) in worktrees of contexts the restart closed. The contexts stay
+		// closed regardless. Nothing is signalled: a pid can be reused between
+		// any check and a kill, so automatic stopping is deferred (see
+		// OrphanReaper.ts) and the operator is told exactly what to look at.
 		for (const closed of journal.closedWithOwnedProcesses()) {
-			try {
-				const { matched, survivors } = await terminateOwnedProcesses(
-					closed.processes,
-					closed.workspacePath,
+			const { possiblyRunning, unknown } = await inspectOwnedProcesses(
+				closed.processes,
+			);
+			if (possiblyRunning.length > 0 || unknown.length > 0)
+				this.logger.warn(
+					`[JiraAgent] A Jira task interrupted by the restart may have left processes running in ${closed.workspacePath}: ${[
+						...possiblyRunning.map(
+							(p) => `pid ${p.pid} (started ${p.started}) still present`,
+						),
+						...unknown.map((p) => `pid ${p.pid} could not be inspected`),
+					].join(
+						"; ",
+					)}. They were not stopped automatically; stop them if they are still Cyrus runs. The conversation stays closed.`,
 				);
-				if (matched.length > 0)
-					this.logger.warn(
-						`[JiraAgent] Stopped ${matched.length - survivors.length} of ${matched.length} process(es) this runtime had started in a closed Jira worktree${survivors.length ? `; ${survivors.length} could not be stopped` : ""}`,
-					);
-			} catch (error) {
-				this.logger.error(
-					"[JiraAgent] Could not check a closed Jira worktree for leftover processes",
-					error instanceof Error ? error : new Error(String(error)),
-				);
-			}
 		}
 		this.jiraAgentService = new JiraAgentTaskService({
 			journal,
