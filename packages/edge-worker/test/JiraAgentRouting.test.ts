@@ -17,6 +17,7 @@ import {
 	REPOSITORY_GONE_MESSAGE,
 	REVOKED_MESSAGE,
 	SCOPE_CHANGED_MESSAGE,
+	UNPINNED_HISTORY_MESSAGE,
 } from "../src/jira-agent/JiraAgentTaskService.js";
 import { standardJiraRouting } from "./jira-routing-fixture.js";
 
@@ -717,13 +718,179 @@ describe("output and work follow the CURRENT authorization (two-sided contract)"
 		expect((await svc.get(ref(TASK_A))).contentWithheld).toBe(true);
 	});
 
-	it("cancel needs no authorization (content-free stop)", async () => {
+	it("cancel needs no authorization to stop, and returns no output without it (RR7)", async () => {
 		holdRuns = true;
 		const svc = await service();
 		const issue = { ...request().issue, description: "[repo=api]" };
-		await svc.send(request({ issue }));
+		const sent = await svc.send(request({ issue }));
+		// Persisted progress exists before the stop (the routing line).
+		expect(sent.progress.length).toBeGreaterThan(0);
 		await vi.waitFor(() => expect(builds).toHaveLength(1));
 		const s = await svc.cancel(ref(TASK_A));
 		expect(s.state === "canceled" || s.state === "canceling").toBe(true);
+		expect(s).toMatchObject({
+			contentWithheld: true,
+			progress: [],
+			result: null,
+		});
+		// The stop itself still happened.
+		await vi.waitFor(() => expect(svc.liveCount()).toBe(0));
+		const after = await svc.get(ref(TASK_A, ["api"]));
+		expect(after.state).toBe("canceled");
+	});
+
+	it.each([
+		["omitted", undefined],
+		["empty", []],
+		["incomplete", ["web"]],
+	])("cancel of a completed task with %s authorization returns no output (RR7)", async (_name, ids) => {
+		const { svc } = await routedToApi();
+		const s = await svc.cancel(ref(TASK_A, ids as string[] | undefined));
+		expect(s).toMatchObject({
+			state: "completed",
+			contentWithheld: true,
+			result: null,
+			progress: [],
+			repositoryIds: ["api"],
+		});
+	});
+
+	it("cancel with covering authorization keeps the normal answer", async () => {
+		const { svc } = await routedToApi();
+		const s = await svc.cancel(ref(TASK_A, ["api", "web"]));
+		expect(s).toMatchObject({
+			state: "completed",
+			contentWithheld: false,
+			result: "done",
+		});
+		expect(s.progress.length).toBeGreaterThan(0);
+	});
+});
+
+describe("journals that ran before scopes were pinned (RR8)", () => {
+	const legacyIssue = {
+		id: "10001",
+		key: "QA-7",
+		summary: "Fix login",
+		description: "The login form is broken.",
+		labels: [],
+		projectKey: "QA",
+	};
+	const dir = () => join(home, "jira-agent", "contexts");
+	function seed(record: Record<string, unknown>) {
+		mkdirSync(dir(), { recursive: true });
+		writeFileSync(join(dir(), `${CTX}.json`), JSON.stringify(record));
+	}
+	const completedTask = {
+		taskId: TASK_A,
+		messageHashes: {},
+		state: "completed",
+		settled: true,
+		admitted: true,
+		initialText: "old work",
+		pendingFollowups: [],
+		progress: [],
+		nextSeq: 1,
+		result: "old result",
+		error: null,
+		createdAt: "2026-10-30T00:00:00Z",
+		updatedAt: "2026-10-30T00:00:00Z",
+	};
+	const executedHistory = {
+		workspacePath: "/old/workspace",
+		runnerType: "claude",
+		runnerSessionId: "old-session-in-original-repo",
+		closed: false,
+		ownedProcesses: [],
+		tasks: [completedTask],
+		retired: {},
+	};
+
+	it.each([
+		[
+			"v2",
+			{
+				version: 2,
+				contextId: CTX,
+				binding,
+				issue: { ...legacyIssue },
+				routing: {
+					repositoryIds: ["web"],
+					baseBranches: {},
+					method: "description-tag",
+				},
+				...executedHistory,
+			},
+		],
+		[
+			"v1",
+			{
+				version: 1,
+				contextId: CTX,
+				binding: { ...binding, repositoryId: "web" },
+				issue: { id: "10001", key: "QA-7", summary: "s", description: "d" },
+				...executedHistory,
+			},
+		],
+	])("an executed %s context without a scope never resumes in a same-id replacement", async (_v, record) => {
+		seed(record);
+		configured.set(
+			"web",
+			repo("web", {
+				repositoryPath: "/replacement/repository",
+				workspaceBaseDir: "/replacement/workspaces",
+			}),
+		);
+		const svc = await service();
+		await expect(
+			svc.send(request({ taskId: TASK_B, messageId: "m2" })),
+		).rejects.toMatchObject({
+			code: "repository_unavailable",
+			message: UNPINNED_HISTORY_MESSAGE,
+		});
+		expect(builds).toHaveLength(0);
+		expect(workspaces).toHaveLength(0);
+		// Nothing was adopted as the old session's scope.
+		expect(journalFile().scope ?? null).toBeNull();
+		// A new conversation still works.
+		await svc.send(
+			request({
+				taskId: TASK_B,
+				contextId: "22222222-2222-4222-8222-222222222222",
+				messageId: "m3",
+				issue: { ...request().issue, description: "[repo=web]" },
+			}),
+		);
+		await vi.waitFor(() => expect(builds).toHaveLength(1));
+		expect(builds[0]?.resume).toBeNull();
+	});
+
+	it("a context that only waited for a choice (never ran) stays usable", async () => {
+		seed({
+			version: 2,
+			contextId: CTX,
+			binding,
+			issue: { ...legacyIssue },
+			routing: null,
+			workspacePath: null,
+			runnerType: null,
+			runnerSessionId: null,
+			closed: false,
+			ownedProcesses: [],
+			tasks: [
+				{
+					...completedTask,
+					state: "input-required",
+					result: "Which repository should I work in?",
+					initialText: "Please fix this.",
+				},
+			],
+			retired: {},
+		});
+		const svc = await service();
+		await svc.send(request({ taskId: TASK_B, messageId: "m2", text: "api" }));
+		await completed(svc, TASK_B);
+		expect(builds[0]?.resume).toBeNull();
+		expect(builds[0]?.repositories[0]?.id).toBe("api");
 	});
 });

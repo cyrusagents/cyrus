@@ -259,6 +259,8 @@ export const REPOSITORY_GONE_MESSAGE =
 	"A repository this conversation works in is no longer available in Cyrus. Assign the work item to Cyrus again to start a new conversation.";
 export const SCOPE_CHANGED_MESSAGE =
 	"A repository this conversation works in was moved or reconfigured in Cyrus, so it can't continue here. Assign the work item to Cyrus again to start a new conversation.";
+export const UNPINNED_HISTORY_MESSAGE =
+	"This conversation ran before Cyrus recorded where its repositories live, so it can't continue safely. Assign the work item to Cyrus again to start a new conversation.";
 export const REVOKED_MESSAGE =
 	"Cyrus stopped because a repository this conversation works in is no longer available to this workspace.";
 export const UNSUPPORTED_RUNNER_MESSAGE =
@@ -576,6 +578,7 @@ export class JiraAgentTaskService {
 				routing,
 				request.authorizedRepositoryIds,
 				existing?.scope ?? null,
+				existing ?? null,
 			);
 			const runner = ranBefore
 				? (existing as JiraContextRecord).runnerType
@@ -737,7 +740,14 @@ export class JiraAgentTaskService {
 		routing: JiraRouting,
 		authorizedIds: readonly string[],
 		scope: JiraScope | null,
+		record: JiraContextRecord | null = null,
 	): RepositoryConfig[] {
+		if (record && hasUnpinnedHistory(record)) {
+			throw new JiraAgentError(
+				"repository_unavailable",
+				UNPINNED_HISTORY_MESSAGE,
+			);
+		}
 		const allowed = new Set(authorizedIds);
 		if (!routing.repositoryIds.every((id) => allowed.has(id))) {
 			throw new JiraAgentError(
@@ -870,6 +880,7 @@ export class JiraAgentTaskService {
 			record.routing as JiraRouting,
 			request.authorizedRepositoryIds,
 			record.scope,
+			record,
 		);
 		if (this.unfinalized.has(request.taskId)) {
 			// Its execution ended but the final state could not be saved: there
@@ -979,8 +990,12 @@ export class JiraAgentTaskService {
 			return current;
 		});
 		if (live) await Promise.race([live.done, sleep(this.cancelWaitMs)]);
+		// The stop never needs read authority, but its answer carries output
+		// only while the fresh authorization covers the route (same as get).
 		const { record, task } = this.resolve(ref);
-		return this.snapshot(record, task);
+		return this.snapshot(record, task, {
+			withhold: !this.routeAuthorized(record, ref.authorizedRepositoryIds),
+		});
 	}
 
 	/** Durable pre-admission cancel: a later create for this task is refused. */
@@ -1114,6 +1129,13 @@ export class JiraAgentTaskService {
 				return;
 			}
 			const scope = inspected.scope;
+			// A context that already ran without a pinned scope (written before
+			// scopes existed) has no trustworthy identity to compare: never
+			// resume it, never adopt the current configuration as its scope.
+			if (hasUnpinnedHistory(initial)) {
+				live.fatalError = UNPINNED_HISTORY_MESSAGE;
+				return;
+			}
 			if (initial.scope && !sameScope(initial.scope, scope)) {
 				live.fatalError = SCOPE_CHANGED_MESSAGE;
 				return;
@@ -1688,6 +1710,19 @@ export class JiraAgentTaskService {
 			if (this.locks.get(key) === tail) this.locks.delete(key);
 		}
 	}
+}
+
+/**
+ * Something already ran in this context (runner, session or worktree
+ * recorded) but no physical scope was pinned: a journal written before
+ * scopes existed. Unexecuted contexts (waiting for a choice, tombstones)
+ * have none of these and stay usable.
+ */
+function hasUnpinnedHistory(record: JiraContextRecord): boolean {
+	return (
+		!record.scope &&
+		Boolean(record.runnerType || record.runnerSessionId || record.workspacePath)
+	);
 }
 
 function applyTerminal(

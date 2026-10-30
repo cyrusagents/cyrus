@@ -604,7 +604,13 @@ describe("follow-ups", () => {
 		await expect(
 			svc.send(create({ kind: "followup", messageId: "f2", text: "two" })),
 		).rejects.toMatchObject({ code: "context_busy" });
-		await svc.cancel({ version: 2, taskId: TASK_A, contextId: CTX, binding });
+		await svc.cancel({
+			authorizedRepositoryIds: ["repo-a"],
+			version: 2,
+			taskId: TASK_A,
+			contextId: CTX,
+			binding,
+		});
 		await expect(
 			svc.send(create({ kind: "followup", messageId: "f3", text: "three" })),
 		).rejects.toMatchObject({ code: "task_terminal" });
@@ -617,6 +623,7 @@ describe("cancellation", () => {
 		await svc.send(create());
 		await started(1);
 		const s = await svc.cancel({
+			authorizedRepositoryIds: ["repo-a"],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
@@ -637,6 +644,7 @@ describe("cancellation", () => {
 			create({ kind: "followup", messageId: "f1", text: "queued" }),
 		);
 		const s = await svc.cancel({
+			authorizedRepositoryIds: ["repo-a"],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
@@ -687,7 +695,13 @@ describe("cancellation", () => {
 		const svc = await makeService();
 		await svc.send(create());
 		await started(1);
-		await svc.cancel({ version: 2, taskId: TASK_A, contextId: CTX, binding });
+		await svc.cancel({
+			authorizedRepositoryIds: ["repo-a"],
+			version: 2,
+			taskId: TASK_A,
+			contextId: CTX,
+			binding,
+		});
 		await new Promise((r) => setTimeout(r, 80));
 		const s = await svc.get({
 			authorizedRepositoryIds: ["repo-a"],
@@ -714,6 +728,7 @@ describe("cancellation", () => {
 		});
 		await svc.send(create());
 		const s = await svc.cancel({
+			authorizedRepositoryIds: ["repo-a"],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
@@ -756,6 +771,7 @@ describe("cancellation", () => {
 			).toBe("completed"),
 		);
 		const s = await svc.cancel({
+			authorizedRepositoryIds: ["repo-a"],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
