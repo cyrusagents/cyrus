@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Cyrus can now run tasks for Jira's remote-agent integration when Cyrus Hosted forwards them. Each Jira request runs in its own isolated worktree of the single repository linked to that Jira site, with code tools only: no Linear, Slack or Cyrus MCP servers and no repository `.mcp.json` files. Progress, the final summary, follow-up messages and cancellation flow back through Hosted, and a task is only reported canceled once its run has actually stopped. Task state survives a Cyrus restart; a task that was running when Cyrus restarted is reported as interrupted rather than left running. Tasks stop after 50 minutes. Requires a Cyrus Hosted release with the Jira agent connector.
+
 ### Changed
 - Moved the Cyrus Inbox plugin package to a separately maintained private repository. The CLI, runtime and `post_message_to_codex` tool are unchanged. ([#1558](https://github.com/cyrusagents/cyrus/pull/1558))
 

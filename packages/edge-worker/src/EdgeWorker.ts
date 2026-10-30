@@ -56,6 +56,8 @@ import type {
 	WebhookIssue,
 } from "cyrus-core";
 import {
+	AgentSessionStatus,
+	AgentSessionType,
 	CLIIssueTrackerService,
 	CLIRPCServer,
 	createLogger,
@@ -164,6 +166,13 @@ import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { EgressProxy } from "./EgressProxy.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
+import { JiraAgentJournal } from "./jira-agent/JiraAgentJournal.js";
+import { registerJiraAgentRoutes } from "./jira-agent/JiraAgentRoutes.js";
+import {
+	JiraAgentTaskService,
+	type JiraRunnerBuildInput,
+	scopeJiraAllowedTools,
+} from "./jira-agent/JiraAgentTaskService.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
 import type {
@@ -241,6 +250,7 @@ export class EdgeWorker extends EventEmitter {
 	private gitLabCommentService: GitLabCommentService; // Service for posting comments back to GitLab MRs
 	private cliRPCServer: CLIRPCServer | null = null; // CLI RPC server for CLI platform mode
 	private configUpdater: ConfigUpdater | null = null; // Single config updater for configuration updates
+	private jiraAgentService: JiraAgentTaskService | null = null; // Jira remote-agent tasks forwarded by Cyrus Hosted
 	private persistenceManager: PersistenceManager;
 	private sharedApplicationServer: SharedApplicationServer;
 	private cyrusHome: string;
@@ -922,6 +932,170 @@ export class EdgeWorker extends EventEmitter {
 
 		// 5. Register /version endpoint for CLI version info
 		this.registerVersionEndpoint();
+
+		// 6. Register Jira remote-agent task routes (bridge v1, Hosted-forwarded)
+		await this.registerJiraAgentRoutes();
+	}
+
+	/**
+	 * Register the Jira remote-agent task bridge used by Cyrus Hosted
+	 * (`/api/jira-agent/v1/tasks/{send,get,cancel}`), gated by CYRUS_API_KEY.
+	 * The durable journal is loaded first so interrupted tasks are reported
+	 * honestly before any new request is admitted.
+	 */
+	private async registerJiraAgentRoutes(): Promise<void> {
+		const journal = new JiraAgentJournal(this.cyrusHome, this.logger);
+		try {
+			await journal.load();
+		} catch (error) {
+			this.logger.error(
+				"❌ Jira agent journal could not be loaded; Jira agent routes disabled",
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			return;
+		}
+		this.jiraAgentService = new JiraAgentTaskService({
+			journal,
+			logger: this.logger,
+			getRepository: (id) => this.repositories.get(id),
+			createWorkspace: (repository, target) =>
+				this.createJiraWorkspace(repository, target),
+			buildRunner: (input) => this.buildJiraAgentRunner(input),
+		});
+		registerJiraAgentRoutes(
+			this.sharedApplicationServer.getFastifyInstance(),
+			this.jiraAgentService,
+			() => process.env.CYRUS_API_KEY || "",
+		);
+		this.logger.info("✅ Jira agent task routes registered");
+	}
+
+	/** Isolated worktree for one Jira context in its single bound repository. */
+	private async createJiraWorkspace(
+		repository: RepositoryConfig,
+		target: { identifier: string; branchName: string; title: string },
+	) {
+		const syntheticIssue = {
+			id: target.identifier,
+			identifier: target.identifier,
+			title: target.title,
+			description: null,
+			url: "",
+			branchName: target.branchName,
+			assigneeId: null,
+			stateId: null,
+			teamId: null,
+			labelIds: [],
+			priority: 0,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			archivedAt: null,
+			state: Promise.resolve(undefined),
+			assignee: Promise.resolve(undefined),
+			team: Promise.resolve(undefined),
+			parent: Promise.resolve(undefined),
+			project: Promise.resolve(undefined),
+			labels: () => Promise.resolve({ nodes: [] }),
+			comments: () => Promise.resolve({ nodes: [] }),
+			attachments: () => Promise.resolve({ nodes: [] }),
+			children: () => Promise.resolve({ nodes: [] }),
+			inverseRelations: () => Promise.resolve({ nodes: [] }),
+			update: () =>
+				Promise.resolve({ success: true, issue: undefined, lastSyncId: 0 }),
+		} as unknown as Issue;
+		return this.gitService.createGitWorktree(syntheticIssue, [repository], {
+			globalSetupScript: this.config.global_setup_script,
+		});
+	}
+
+	/**
+	 * Build a runner for a Jira task through the standard issue config
+	 * builder (runner/model selection, sandbox, egress CA, writable paths,
+	 * GitHub token, managed skills preserved) with NO MCP servers, code tools
+	 * only, the task worktree as the only working directory and a
+	 * context-scoped memory directory.
+	 */
+	private async buildJiraAgentRunner(
+		input: JiraRunnerBuildInput,
+	): Promise<{ runner: IAgentRunner; runnerType: RunnerType }> {
+		const { repository, workspace } = input;
+		const sessionId = `jira-${input.taskId}`;
+		const resumeType = input.resume?.runnerType as RunnerType | undefined;
+		const resumeId = input.resume?.sessionId;
+		const session = {
+			id: sessionId,
+			type: AgentSessionType.CommentThread,
+			status: AgentSessionStatus.Active,
+			context: AgentSessionType.CommentThread,
+			createdAt: Date.now(),
+			updatedAt: Date.now(),
+			issueId: input.issue.id,
+			issue: {
+				id: input.issue.id,
+				identifier: input.issue.key,
+				title: input.issue.summary,
+			},
+			repositories: [
+				{ repositoryId: repository.id, baseBranchName: repository.baseBranch },
+			],
+			workspace,
+			...(resumeType && resumeId
+				? { [`${resumeType}SessionId`]: resumeId }
+				: {}),
+		} as unknown as CyrusAgentSession;
+
+		const plugins = await this.skillsPluginResolver.resolve();
+		const skills = await this.skillsPluginResolver.discoverSkillNames(plugins, {
+			repositoryId: repository.id,
+			repoPaths: [workspace.path],
+		});
+		const allowedTools = scopeJiraAllowedTools(
+			this.toolPermissionResolver.buildGithubAllowedTools(repository),
+		);
+		const allowedDirectories = [
+			workspace.path,
+			...this.gitService.getGitMetadataDirectories(workspace.path),
+		];
+
+		const { config, runnerType } = this.runnerConfigBuilder.buildIssueConfig({
+			session,
+			repository,
+			sessionId,
+			systemPrompt: input.systemPrompt,
+			allowedTools,
+			allowedDirectories,
+			disallowedTools: this.buildDisallowedTools(repository),
+			resumeSessionId: resumeId,
+			maxTurns: 200,
+			mcpScope: "none",
+			autoMemoryDirectory: join(
+				this.cyrusHome,
+				"jira-agent",
+				"memory",
+				input.contextId,
+			),
+			cyrusHome: this.cyrusHome,
+			githubToken: repository.githubUrl
+				? this.githubTokenStore.getTokenForRepoUrl(repository.githubUrl)
+				: undefined,
+			logger: this.logger.withContext({ sessionId }),
+			plugins,
+			opencodeGlobalConfig: this.config.opencode?.config,
+			opencodeGlobalStateScope: this.config.opencode?.stateScope,
+			skills,
+			sandboxSettings: this.sdkSandboxSettings ?? undefined,
+			egressCaCertPath: this.egressCaCertPath ?? undefined,
+			sandboxWritablePaths: resolveSandboxWritablePaths(
+				this.config.sandbox?.writablePaths,
+			),
+			onMessage: input.onMessage,
+			onError: input.onError,
+			requireLinearWorkspaceId,
+		});
+		return {
+			runner: this.createRunnerForType(runnerType, config),
+			runnerType,
+		};
 	}
 
 	/**
@@ -2778,6 +2952,11 @@ ${taskSection}`;
 			}
 		}
 
+		// Busy if any Jira agent task may still be executing
+		if ((this.jiraAgentService?.liveCount() ?? 0) > 0) {
+			return "busy";
+		}
+
 		// Busy if any chat platform runner is actively running
 		if (
 			this.activeChatSessionHandlers.some((handler) =>
@@ -2871,6 +3050,11 @@ ${taskSection}`;
 				"❌ Failed to save EdgeWorker state during shutdown:",
 				error,
 			);
+		}
+
+		// Fence and stop Jira agent tasks (bounded wait for settlement)
+		if (this.jiraAgentService) {
+			await this.jiraAgentService.stopAll();
 		}
 
 		// get all agent runners (including chat platform sessions)

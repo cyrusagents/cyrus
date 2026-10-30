@@ -146,6 +146,17 @@ export interface IssueRunnerConfigInput {
 	platformMcpConfigOverrides?: readonly string[];
 	/** Whether Claude should ignore ambient MCP configuration. Defaults to true. */
 	strictMcpConfig?: boolean;
+	/**
+	 * `"none"` builds the session with NO MCP servers at all: no native
+	 * Linear / cyrus-tools / Slack servers, and no repository or platform
+	 * `.mcp.json` files. Used by scoped integrations (Jira remote-agent
+	 * tasks) whose callers are not Linear workspaces and must not inherit
+	 * Linear/Slack credentials. Strict MCP config is forced on so ambient
+	 * MCP configuration is ignored too. Defaults to `"default"`.
+	 */
+	mcpScope?: "default" | "none";
+	/** Override the auto-memory directory (Claude SDK). */
+	autoMemoryDirectory?: string;
 	linearWorkspaceId?: string;
 	cyrusHome: string;
 	logger: ILogger;
@@ -419,14 +430,19 @@ export class RunnerConfigBuilder {
 			input.repository.model ||
 			this.runnerSelector.getDefaultModelForRunner(runnerType);
 
-		const resolvedWorkspaceId =
-			input.linearWorkspaceId ??
-			input.requireLinearWorkspaceId(input.repository);
-		const mcpConfig = this.mcpConfigProvider.buildMcpConfig(
-			input.repository.id,
-			resolvedWorkspaceId,
-			input.sessionId,
-		);
+		const noMcp = input.mcpScope === "none";
+		const resolvedWorkspaceId = noMcp
+			? undefined
+			: (input.linearWorkspaceId ??
+				input.requireLinearWorkspaceId(input.repository));
+		const mcpConfig =
+			resolvedWorkspaceId === undefined
+				? {}
+				: this.mcpConfigProvider.buildMcpConfig(
+						input.repository.id,
+						resolvedWorkspaceId,
+						input.sessionId,
+					);
 		// Repo-override vs platform-default resolution for MCP config paths:
 		//   - If the routed repo has its own `allowedTools` override, it
 		//     also owns its own MCP config — use `repository.mcpConfigPath`
@@ -437,13 +453,15 @@ export class RunnerConfigBuilder {
 		//     (`linearMcpConfigs` / `githubMcpConfigs`).
 		// This guarantees the agent's permission rules and the loaded MCP
 		// server set always come from the same scope.
-		const mcpConfigPath = resolveIssueMcpConfigPath(
-			input.repository,
-			input.platformMcpConfigOverrides,
-			this.mcpConfigProvider.buildMergedMcpConfigPath.bind(
-				this.mcpConfigProvider,
-			),
-		);
+		const mcpConfigPath = noMcp
+			? undefined
+			: resolveIssueMcpConfigPath(
+					input.repository,
+					input.platformMcpConfigOverrides,
+					this.mcpConfigProvider.buildMergedMcpConfigPath.bind(
+						this.mcpConfigProvider,
+					),
+				);
 
 		// Multi-repo sessions place each repo in a sibling sub-worktree of the
 		// cwd (the workspace container). Register those sub-worktrees as
@@ -465,7 +483,10 @@ export class RunnerConfigBuilder {
 			cyrusHome: input.cyrusHome,
 			mcpConfigPath,
 			mcpConfig,
-			strictMcpConfig: input.strictMcpConfig ?? true,
+			strictMcpConfig: noMcp ? true : (input.strictMcpConfig ?? true),
+			...(input.autoMemoryDirectory && {
+				autoMemoryDirectory: input.autoMemoryDirectory,
+			}),
 			appendSystemPrompt: appendCloudRuntimeAddendum(
 				appendGitHubCliMediaAddendum(
 					appendBrowserUseAddendum(
@@ -496,6 +517,7 @@ export class RunnerConfigBuilder {
 				this.buildSandboxConfig(input)),
 			// AskUserQuestion callback - only for Claude runner
 			...(runnerType === "claude" &&
+				resolvedWorkspaceId !== undefined &&
 				input.createAskUserQuestionCallback && {
 					onAskUserQuestion: input.createAskUserQuestionCallback(
 						input.sessionId,
