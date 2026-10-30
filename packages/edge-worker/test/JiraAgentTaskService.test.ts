@@ -240,7 +240,7 @@ beforeEach(() => {
 	};
 });
 afterEach(() => {
-	rmSync(home, { recursive: true, force: true });
+	rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 describe("create, progress and completion", () => {
@@ -742,6 +742,10 @@ describe("deadline and restart", () => {
 		await svc2.send(
 			create({ taskId: TASK_B, contextId: CTX2, messageId: "m2" }),
 		);
+		// Both services keep executing in the background; stop them so no
+		// journal write races the temp-home cleanup.
+		await svc2.stopAll(1000);
+		await svc.stopAll(1000);
 	});
 
 	it("journal writes are atomic (no temp files left behind)", async () => {

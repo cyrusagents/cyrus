@@ -129,6 +129,24 @@ export class SessionSemaphore {
  * runner is never modified, every other property forwards through unchanged,
  * and the original methods stay observable (e.g. as test spies).
  */
+const START_GUARD = Symbol("cyrus.runnerStartGuard");
+
+/**
+ * Register a check that a slot-gated runner (see `capRunnerStarts`) runs
+ * inside its acquired slot, right before the underlying start. Returning
+ * false skips the start (the call resolves as not started). Returns false if
+ * the runner is not gated, so callers can fall back to their own checks.
+ */
+export function setRunnerStartGuard(
+	runner: IAgentRunner,
+	guard: () => boolean,
+): boolean {
+	const register = (runner as unknown as Record<symbol, unknown>)[START_GUARD];
+	if (typeof register !== "function") return false;
+	(register as (g: () => boolean) => void)(guard);
+	return true;
+}
+
 export function capRunnerStarts(
 	runner: IAgentRunner,
 	semaphore: SessionSemaphore,
@@ -136,8 +154,14 @@ export function capRunnerStarts(
 	// `stop()` before the session has spawned must win: a runner stopped while
 	// queued for a slot never starts, and one whose slot arrives at the same
 	// moment re-checks the flag inside the slot, right before spawning.
+	// One-shot latch: once stopped, this wrapped instance never starts again
+	// (callers build a fresh runner to resume). That is what keeps a canceled
+	// queued attempt from being revived.
 	let stopped = false;
 	let withdraw: (() => void) | null = null;
+	// Optional owner check run inside the acquired slot, immediately before
+	// spawning (e.g. "is the bound repository still configured?").
+	let startGuard: (() => boolean) | null = null;
 	const notStarted = (): AgentSessionInfo => ({
 		sessionId: null,
 		startedAt: new Date(),
@@ -154,6 +178,7 @@ export function capRunnerStarts(
 		if (!granted) return notStarted();
 		try {
 			if (stopped) return notStarted();
+			if (startGuard && !startGuard()) return notStarted();
 			return await run();
 		} finally {
 			semaphore.release();
@@ -171,6 +196,11 @@ export function capRunnerStarts(
 					return (initialPrompt?: string) =>
 						gate(() => startStreaming(initialPrompt));
 				}
+			}
+			if (property === START_GUARD) {
+				return (guard: () => boolean) => {
+					startGuard = guard;
+				};
 			}
 			if (property === "stop") {
 				return () => {

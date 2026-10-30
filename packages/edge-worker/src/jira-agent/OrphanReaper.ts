@@ -1,95 +1,164 @@
 import { execFile } from "node:child_process";
-import { readdir, readlink, realpath } from "node:fs/promises";
+import { readlink, realpath } from "node:fs/promises";
 
 /**
- * Restart reconciliation for Jira task worktrees.
+ * Restart reconciliation for Jira task worktrees, limited to processes this
+ * runtime provably started.
  *
  * A runner's model subprocess can outlive an abruptly killed Cyrus process
  * (observed: the Claude Code child kept running in its worktree after the
- * worker was SIGKILLed). Contexts interrupted by a restart are already closed
- * to new work; this additionally stops any surviving process whose working
- * directory is inside such a worktree, so an orphan does not keep editing
- * files or spending model usage. Only processes this user may signal are
- * affected, and the current process is never touched.
+ * worker was SIGKILLed). While a Jira task runs, the runtime records its OWN
+ * descendant processes whose working directory is inside the task worktree
+ * as (pid, start time). After a restart, only a process matching a recorded
+ * pid AND the same start time AND still working inside that worktree is
+ * signalled. Anything else — a user's shell or editor in the worktree, a
+ * recycled pid, a shared runtime — is never touched. (A process environment
+ * marker was considered, but macOS does not expose other processes'
+ * environments, so it could not identify ownership there.)
  */
-export type ProcessCwd = { pid: number; cwd: string };
-
-export interface OrphanReaperDeps {
-	list(): Promise<ProcessCwd[]>;
-	kill(pid: number, signal: NodeJS.Signals): void;
-	isAlive(pid: number): boolean;
-	sleep(ms: number): Promise<void>;
-	graceMs: number;
+export interface OwnedProcess {
+	pid: number;
+	/** Process start time as reported by `ps -o lstart=` (second precision). */
+	started: string;
 }
 
-/** Working directories of running processes (Linux /proc, else lsof). */
-export async function listProcessCwds(): Promise<ProcessCwd[]> {
-	if (process.platform === "linux") {
-		const out: ProcessCwd[] = [];
-		for (const entry of await readdir("/proc").catch(() => [] as string[])) {
-			if (!/^\d+$/.test(entry)) continue;
-			const cwd = await readlink(`/proc/${entry}/cwd`).catch(() => null);
-			if (cwd) out.push({ pid: Number(entry), cwd });
-		}
-		return out;
-	}
-	const stdout = await new Promise<string>((resolve, reject) =>
+export interface ProcessRow {
+	pid: number;
+	ppid: number;
+	started: string;
+}
+
+export interface ProcessProbe {
+	table(): Promise<ProcessRow[]>;
+	cwd(pid: number): Promise<string | null>;
+}
+
+function run(cmd: string, args: string[]): Promise<string> {
+	return new Promise((resolve, reject) =>
 		execFile(
-			"lsof",
-			["-n", "-P", "-w", "-d", "cwd", "-Fpn"],
+			cmd,
+			args,
 			{ maxBuffer: 16 * 1024 * 1024, timeout: 15_000 },
-			// lsof exits 1 when some processes can't be inspected; output is still valid.
+			// lsof exits 1 when a process can't be inspected; output still valid.
 			(error, out) =>
 				out || !error ? resolve(String(out)) : reject(error as Error),
 		),
 	);
-	const out: ProcessCwd[] = [];
-	let pid: number | null = null;
-	for (const line of stdout.split("\n")) {
-		if (line.startsWith("p")) pid = Number(line.slice(1));
-		else if (line.startsWith("n") && pid !== null)
-			out.push({ pid, cwd: line.slice(1) });
-	}
+}
+
+export const systemProcessProbe: ProcessProbe = {
+	async table() {
+		const out = await run("ps", ["-A", "-o", "pid=,ppid=,lstart="]);
+		const rows: ProcessRow[] = [];
+		for (const line of out.split("\n")) {
+			const m = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(line);
+			if (m)
+				rows.push({ pid: Number(m[1]), ppid: Number(m[2]), started: m[3]! });
+		}
+		return rows;
+	},
+	async cwd(pid) {
+		if (process.platform === "linux")
+			return readlink(`/proc/${pid}/cwd`).catch(() => null);
+		const out = await run("lsof", [
+			"-n",
+			"-P",
+			"-w",
+			"-a",
+			"-p",
+			String(pid),
+			"-d",
+			"cwd",
+			"-Fn",
+		]).catch(() => "");
+		const line = out.split("\n").find((l) => l.startsWith("n"));
+		return line ? line.slice(1) : null;
+	},
+};
+
+async function roots(path: string): Promise<string[]> {
+	const out = [path.replace(/\/+$/, "")];
+	const real = await realpath(path).catch(() => null);
+	if (real && real !== out[0]) out.push(real);
 	return out;
 }
 
-const defaultDeps: OrphanReaperDeps = {
-	list: listProcessCwds,
-	kill: (pid, signal) => process.kill(pid, signal),
-	isAlive: (pid) => {
-		try {
-			process.kill(pid, 0);
-			return true;
-		} catch {
-			return false;
+const inside = (cwd: string, bases: string[]) =>
+	bases.some((b) => cwd === b || cwd.startsWith(`${b}/`));
+
+/** Descendants of `rootPid` currently working inside `worktree`. */
+export async function findOwnedProcesses(
+	rootPid: number,
+	worktree: string,
+	probe: ProcessProbe = systemProcessProbe,
+): Promise<OwnedProcess[]> {
+	const table = await probe.table();
+	const children = new Map<number, ProcessRow[]>();
+	for (const row of table) {
+		const list = children.get(row.ppid) ?? [];
+		list.push(row);
+		children.set(row.ppid, list);
+	}
+	const descendants: ProcessRow[] = [];
+	const queue = [rootPid];
+	const seen = new Set<number>(queue);
+	while (queue.length > 0) {
+		for (const child of children.get(queue.shift()!) ?? []) {
+			if (seen.has(child.pid)) continue;
+			seen.add(child.pid);
+			descendants.push(child);
+			queue.push(child.pid);
 		}
-	},
+	}
+	const bases = await roots(worktree);
+	const owned: OwnedProcess[] = [];
+	for (const row of descendants) {
+		const cwd = await probe.cwd(row.pid);
+		if (cwd && inside(cwd, bases))
+			owned.push({ pid: row.pid, started: row.started });
+	}
+	return owned;
+}
+
+export interface TerminateDeps {
+	probe: ProcessProbe;
+	kill(pid: number, signal: NodeJS.Signals): void;
+	sleep(ms: number): Promise<void>;
+	graceMs: number;
+}
+
+const defaultTerminateDeps: TerminateDeps = {
+	probe: systemProcessProbe,
+	kill: (pid, signal) => process.kill(pid, signal),
 	sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
 	graceMs: 3000,
 };
 
 /**
- * SIGTERM every process whose cwd is inside one of `roots`, then SIGKILL any
- * still alive after the grace period. Returns the pids found and any that
- * could not be stopped.
+ * Stop recorded processes that are still the SAME process (pid and start
+ * time) and still inside `worktree`: SIGTERM, then SIGKILL after the grace
+ * period. Returns which matched and which could not be stopped.
  */
-export async function terminateProcessesUnder(
-	roots: readonly string[],
-	overrides: Partial<OrphanReaperDeps> = {},
-): Promise<{ found: number[]; survivors: number[] }> {
-	const deps = { ...defaultDeps, ...overrides };
-	const resolved = new Set<string>();
-	for (const root of roots) {
-		resolved.add(root.replace(/\/+$/, ""));
-		const real = await realpath(root).catch(() => null);
-		if (real) resolved.add(real);
-	}
-	if (resolved.size === 0) return { found: [], survivors: [] };
-	const inside = (cwd: string) =>
-		[...resolved].some((r) => cwd === r || cwd.startsWith(`${r}/`));
-	const found = (await deps.list())
-		.filter((p) => p.pid !== process.pid && inside(p.cwd))
-		.map((p) => p.pid);
+export async function terminateOwnedProcesses(
+	recorded: readonly OwnedProcess[],
+	worktree: string,
+	overrides: Partial<TerminateDeps> = {},
+): Promise<{ matched: number[]; survivors: number[] }> {
+	const deps = { ...defaultTerminateDeps, ...overrides };
+	if (recorded.length === 0) return { matched: [], survivors: [] };
+	const bases = await roots(worktree);
+	const sameProcessInside = async (): Promise<number[]> => {
+		const table = await deps.probe.table();
+		const alive: number[] = [];
+		for (const rec of recorded) {
+			if (rec.pid === process.pid) continue;
+			const row = table.find((r) => r.pid === rec.pid);
+			if (!row || row.started !== rec.started) continue;
+			const cwd = await deps.probe.cwd(rec.pid);
+			if (cwd && inside(cwd, bases)) alive.push(rec.pid);
+		}
+		return alive;
+	};
 	const signal = (pid: number, sig: NodeJS.Signals) => {
 		try {
 			deps.kill(pid, sig);
@@ -97,9 +166,11 @@ export async function terminateProcessesUnder(
 			// Already gone or not ours to signal.
 		}
 	};
-	for (const pid of found) signal(pid, "SIGTERM");
-	if (found.length > 0) await deps.sleep(deps.graceMs);
-	for (const pid of found) if (deps.isAlive(pid)) signal(pid, "SIGKILL");
-	if (found.length > 0) await deps.sleep(200);
-	return { found, survivors: found.filter((pid) => deps.isAlive(pid)) };
+	const matched = await sameProcessInside();
+	for (const pid of matched) signal(pid, "SIGTERM");
+	if (matched.length === 0) return { matched, survivors: [] };
+	await deps.sleep(deps.graceMs);
+	for (const pid of await sameProcessInside()) signal(pid, "SIGKILL");
+	await deps.sleep(200);
+	return { matched, survivors: await sameProcessInside() };
 }

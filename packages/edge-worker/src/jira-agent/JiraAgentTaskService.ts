@@ -6,6 +6,7 @@ import type {
 	SDKMessage,
 	Workspace,
 } from "cyrus-core";
+import { setRunnerStartGuard } from "../RunnerConcurrency.js";
 import {
 	isUuid,
 	type JiraAgentJournal,
@@ -149,6 +150,13 @@ export interface JiraAgentTaskServiceDeps {
 	maxQueuedFollowups?: number;
 	/** Attempts to persist a terminal state before leaving it unsettled. */
 	finalizeAttempts?: number;
+	/**
+	 * This runtime's own processes currently working in `workspacePath`
+	 * (pid + start time), recorded so a restart can stop exactly those.
+	 */
+	captureOwnedProcesses?: (
+		workspacePath: string,
+	) => Promise<{ pid: number; started: string }[]>;
 }
 
 type Fence = "cancel" | "deadline" | "shutdown";
@@ -161,9 +169,14 @@ interface LiveTask {
 	done: Promise<void>;
 	deadlineTimer: ReturnType<typeof setTimeout> | null;
 	graceTimer: ReturnType<typeof setTimeout> | null;
+	/** Final result of the CURRENT turn (reset whenever a new turn starts). */
 	lastResult: { text: string; isError: boolean } | null;
+	/** Runner-reported error during the current turn before any successful result. */
+	turnError: string | null;
 	fatalError: string | null;
 	sessionId: string | null;
+	workspacePath: string | null;
+	lastProcessCapture: number;
 }
 
 export const MAX_TEXT_BYTES = 32 * 1024;
@@ -173,6 +186,10 @@ const MAX_PROGRESS_ENTRIES = 20;
 export const DEADLINE_MESSAGE =
 	"Cyrus stopped this task after reaching its 50-minute time limit.";
 export const CANCELED_MESSAGE = "Canceled from Jira.";
+export const NO_RESULT_MESSAGE =
+	"Cyrus stopped without producing a final answer for this request.";
+export const UNDELIVERED_FOLLOWUP_MESSAGE =
+	"A follow-up message was accepted but could not be delivered to Cyrus, so this task was stopped. Send it again to continue.";
 export const SHUTDOWN_MESSAGE =
 	"Cyrus stopped because its runtime shut down; send a follow-up to continue.";
 export const TOMBSTONE_MESSAGE = "Canceled before Cyrus started it.";
@@ -370,6 +387,8 @@ export class JiraAgentTaskService {
 	private readonly journal: JiraAgentJournal;
 	private readonly logger: ILogger;
 	private readonly lives = new Map<string, LiveTask>();
+	/** Executions that ended but whose final state could not be persisted. */
+	private readonly unfinalized = new Set<string>();
 	private readonly locks = new Map<string, Promise<unknown>>();
 	private readonly deadlineMs: number;
 	private readonly cancelWaitMs: number;
@@ -473,6 +492,7 @@ export class JiraAgentTaskService {
 				runnerType: null,
 				runnerSessionId: null,
 				closed: false,
+				ownedProcesses: [],
 				tasks: [],
 				retired: {},
 			}),
@@ -535,6 +555,14 @@ export class JiraAgentTaskService {
 		) {
 			throw new JiraAgentError("task_terminal", "Task has already ended");
 		}
+		if (this.unfinalized.has(request.taskId)) {
+			// Its execution ended but the final state could not be saved: there
+			// is no executor to run this message. Cancel settles the task.
+			throw new JiraAgentError(
+				"journal_error",
+				"This task's final state could not be saved; cancel it and start again",
+			);
+		}
 		if (task.pendingFollowups.length >= this.maxQueued) {
 			throw new JiraAgentError(
 				"context_busy",
@@ -587,6 +615,8 @@ export class JiraAgentTaskService {
 				await this.tombstone(ref);
 				return null;
 			}
+			// Retired (trimmed) tasks are terminal: answer like get does.
+			if ((record as JiraContextRecord).retired[ref.taskId]) return null;
 			const task = this.mustFindTask(record as JiraContextRecord, ref.taskId);
 			if (TERMINAL_STATES.has(task.state) && task.settled) return null;
 			const current = this.lives.get(ref.taskId) ?? null;
@@ -596,6 +626,7 @@ export class JiraAgentTaskService {
 				await this.commitTask(ref.contextId, ref.taskId, (t) =>
 					applyTerminal(t, "canceled", null, CANCELED_MESSAGE),
 				);
+				this.unfinalized.delete(ref.taskId);
 				return null;
 			}
 			// Stop first: a journal failure below must not prevent it.
@@ -626,6 +657,7 @@ export class JiraAgentTaskService {
 				runnerType: null,
 				runnerSessionId: null,
 				closed: false,
+				ownedProcesses: [],
 				tasks: [],
 				retired: {},
 			}),
@@ -674,8 +706,11 @@ export class JiraAgentTaskService {
 			deadlineTimer: null,
 			graceTimer: null,
 			lastResult: null,
+			turnError: null,
 			fatalError: null,
 			sessionId: null,
+			workspacePath: null,
+			lastProcessCapture: 0,
 		};
 		this.lives.set(taskId, live);
 		live.deadlineTimer = setTimeout(() => {
@@ -721,6 +756,7 @@ export class JiraAgentTaskService {
 				return;
 			}
 			if (live.fence) return;
+			live.workspacePath = workspace.path;
 			const systemPrompt = buildJiraSystemPrompt(repository, target.branchName);
 			let prompt = buildJiraInitialPrompt(
 				issue,
@@ -752,10 +788,9 @@ export class JiraAgentTaskService {
 					systemPrompt,
 					resume,
 					onMessage: (message) => this.onRunnerMessage(live, runner, message),
-					onError: (error) =>
-						this.logger.warn(
-							`[JiraAgent] Runner error for task ${taskId}: ${error.message}`,
-						),
+					// ClaudeRunner reports SDK/spawn/auth failures here and then
+					// RESOLVES its start promise, so this is the failure signal.
+					onError: (error) => this.onRunnerError(live, runner, error),
 				});
 				if (runnerType !== "claude") {
 					live.fatalError = UNSUPPORTED_RUNNER_MESSAGE;
@@ -765,7 +800,17 @@ export class JiraAgentTaskService {
 				// gate never starts a runner stopped while it was queued.
 				live.runner = runner;
 				live.lastResult = null;
+				live.turnError = null;
 				if (live.fence) return;
+				// Re-check the binding inside the concurrency slot, right before
+				// spawn: the repository may be removed while the task is queued.
+				setRunnerStartGuard(runner, () => {
+					if (live.fence) return false;
+					if (this.deps.getRepository(initial.binding.repositoryId))
+						return true;
+					live.fatalError = REPOSITORY_GONE_MESSAGE;
+					return false;
+				});
 				await this.withLock(contextId, () =>
 					this.commit(contextId, null, (draft) => {
 						draft.workspacePath = workspace.path;
@@ -799,12 +844,21 @@ export class JiraAgentTaskService {
 					live.graceTimer = null;
 				}
 				if (live.fence) return;
+				if (live.fatalError) return;
 				const lastResult = live.lastResult as LiveTask["lastResult"];
 				if (executionError && !lastResult) {
 					live.fatalError = errorText(executionError);
 					return;
 				}
-				if (lastResult?.isError) return;
+				if (live.turnError && !(lastResult && !lastResult.isError)) {
+					live.fatalError = live.turnError;
+					return;
+				}
+				if (!lastResult) {
+					live.fatalError = NO_RESULT_MESSAGE;
+					return;
+				}
+				if (lastResult.isError) return;
 				// Decide "another turn" vs "finish" under the context lock, so a
 				// follow-up is either committed before (and runs) or after (and is
 				// refused as task_terminal once the terminal state commits).
@@ -837,6 +891,56 @@ export class JiraAgentTaskService {
 		}
 	}
 
+	/** Record this runtime's processes in the worktree (throttled, best effort). */
+	private captureProcesses(live: LiveTask): void {
+		const capture = this.deps.captureOwnedProcesses;
+		const path = live.workspacePath;
+		if (!capture || !path) return;
+		const now = Date.now();
+		if (now - live.lastProcessCapture < 10_000) return;
+		live.lastProcessCapture = now;
+		capture(path)
+			.then((found) =>
+				found.length === 0
+					? undefined
+					: this.withLock(live.contextId, () =>
+							this.commit(live.contextId, null, (draft) => {
+								const known = new Set(
+									draft.ownedProcesses.map((o) => `${o.pid}@${o.started}`),
+								);
+								for (const o of found)
+									if (!known.has(`${o.pid}@${o.started}`))
+										draft.ownedProcesses.push(o);
+								if (draft.ownedProcesses.length > 50)
+									draft.ownedProcesses.splice(
+										0,
+										draft.ownedProcesses.length - 50,
+									);
+							}),
+						),
+			)
+			.catch((error) =>
+				this.logger.warn(
+					`[JiraAgent] Could not record processes for ${live.taskId}: ${errorText(error)}`,
+				),
+			);
+	}
+
+	private onRunnerError(
+		live: LiveTask,
+		runner: IAgentRunner,
+		error: Error,
+	): void {
+		this.logger.warn(
+			`[JiraAgent] Runner error for task ${live.taskId}: ${error.message}`,
+		);
+		if (live.fence || live.runner !== runner) return;
+		// Only an error before this turn's successful result fails the turn; a
+		// result from an EARLIER turn never counts (lastResult resets per turn).
+		if (live.lastResult && !live.lastResult.isError) return;
+		live.turnError ??= errorText(error);
+	}
+
 	private onRunnerMessage(
 		live: LiveTask,
 		runner: IAgentRunner,
@@ -845,6 +949,7 @@ export class JiraAgentTaskService {
 		// Late output after a fence (cancel/deadline/shutdown) never changes
 		// the task: it cannot resurrect or complete a stopped task.
 		if (live.fence) return;
+		this.captureProcesses(live);
 		const sessionId = (message as { session_id?: unknown }).session_id;
 		if (typeof sessionId === "string" && sessionId.length > 0) {
 			live.sessionId = sessionId;
@@ -900,26 +1005,47 @@ export class JiraAgentTaskService {
 		);
 		const streaming = runner.isStreaming?.() === true;
 		if (!result.isError && streaming && task.pendingFollowups.length > 0) {
-			const next = task.pendingFollowups[0] as string;
-			let removed = false;
-			try {
-				await this.commitTask(live.contextId, live.taskId, (t) => {
-					t.pendingFollowups.shift();
-				});
-				removed = true;
-				runner.addStreamMessage?.(buildFollowupPrompt([next]));
-				live.lastResult = null;
-				return;
-			} catch (error) {
-				this.logger.warn(
-					`[JiraAgent] Could not deliver follow-up to ${live.taskId} in-session: ${errorText(error)}`,
-				);
-				if (removed) {
-					// Injection failed after the removal committed: put it back so
-					// the post-execution check runs it as a new turn.
+			// Follow-ups never run once the bound repository is gone.
+			const record = this.journal.getContext(
+				live.contextId,
+			) as JiraContextRecord;
+			if (!this.deps.getRepository(record.binding.repositoryId)) {
+				live.fatalError = REPOSITORY_GONE_MESSAGE;
+			} else {
+				const next = task.pendingFollowups[0] as string;
+				let removed = false;
+				try {
 					await this.commitTask(live.contextId, live.taskId, (t) => {
-						t.pendingFollowups.unshift(next);
-					}).catch(() => {});
+						t.pendingFollowups.shift();
+					});
+					removed = true;
+					runner.addStreamMessage?.(buildFollowupPrompt([next]));
+					live.lastResult = null;
+					live.turnError = null;
+					return;
+				} catch (error) {
+					this.logger.warn(
+						`[JiraAgent] Could not deliver follow-up to ${live.taskId} in-session: ${errorText(error)}`,
+					);
+					if (removed) {
+						// Injection failed after the removal committed: put it back so
+						// the post-execution check runs it as a new turn. If even that
+						// cannot be saved, the accepted message would be lost, so the
+						// task fails explicitly instead of finishing as completed.
+						try {
+							await this.commitTask(live.contextId, live.taskId, (t) => {
+								t.pendingFollowups.unshift(next);
+							});
+						} catch (requeueError) {
+							this.logger.error(
+								`[JiraAgent] Follow-up for ${live.taskId} could not be requeued`,
+								requeueError instanceof Error
+									? requeueError
+									: new Error(String(requeueError)),
+							);
+							live.fatalError = UNDELIVERED_FOLLOWUP_MESSAGE;
+						}
+					}
 				}
 			}
 		}
@@ -970,6 +1096,7 @@ export class JiraAgentTaskService {
 				if (attempt < this.finalizeAttempts) await sleep(50 * attempt);
 			}
 		}
+		this.unfinalized.add(live.taskId);
 	}
 
 	private outcome(
@@ -990,9 +1117,11 @@ export class JiraAgentTaskService {
 				null,
 				truncateUtf8(live.lastResult.text, MAX_PROGRESS_ENTRY),
 			];
+		// Completed only with an actual successful final result of the last turn.
+		if (!live.lastResult) return ["failed", null, NO_RESULT_MESSAGE];
 		return [
 			"completed",
-			truncateUtf8(live.lastResult?.text ?? "", MAX_TEXT_BYTES),
+			truncateUtf8(live.lastResult.text, MAX_TEXT_BYTES),
 			null,
 		];
 	}

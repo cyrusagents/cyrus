@@ -3,75 +3,122 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { terminateProcessesUnder } from "../src/jira-agent/OrphanReaper.js";
+import {
+	findOwnedProcesses,
+	type ProcessProbe,
+	terminateOwnedProcesses,
+} from "../src/jira-agent/OrphanReaper.js";
 
 const dirs: string[] = [];
+const pids: number[] = [];
 afterEach(async () => {
+	for (const pid of pids.splice(0)) {
+		try {
+			process.kill(pid, "SIGKILL");
+		} catch {}
+	}
 	for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
 });
+const alive = (pid: number) => {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+};
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-describe("terminateProcessesUnder", () => {
-	it("stops a REAL process whose cwd is inside a closed worktree and leaves others alone", async () => {
+/** A process NOT descended from this test: `sh` backgrounds it and exits. */
+function spawnUnowned(cwd: string): Promise<number> {
+	return new Promise((resolve) => {
+		const sh = spawn("sh", ["-c", "sleep 300 >/dev/null 2>&1 & echo $!"], {
+			cwd,
+		});
+		let out = "";
+		sh.stdout.on("data", (d) => {
+			out += d;
+		});
+		sh.on("exit", () => resolve(Number(out.trim())));
+	});
+}
+
+describe("ownership-scoped orphan cleanup (real processes)", () => {
+	it("records and stops only this runtime's own process inside the worktree", async () => {
 		const root = await mkdtemp(join(tmpdir(), "jira-orphan-"));
 		dirs.push(root);
 		const worktree = join(root, "worktrees", "jira-ctx");
-		const other = join(root, "elsewhere");
+		const elsewhere = join(root, "elsewhere");
 		await mkdir(join(worktree, "src"), { recursive: true });
-		await mkdir(other, { recursive: true });
-		// An "orphan" in a subdirectory of the worktree, and a bystander outside it.
-		const orphan = spawn("sleep", ["300"], {
+		await mkdir(elsewhere, { recursive: true });
+		const owned = spawn("sleep", ["300"], {
 			cwd: join(worktree, "src"),
 			stdio: "ignore",
 		});
-		const bystander = spawn("sleep", ["300"], { cwd: other, stdio: "ignore" });
-		const alive = (pid: number) => {
-			try {
-				process.kill(pid, 0);
-				return true;
-			} catch {
-				return false;
-			}
-		};
-		try {
-			await new Promise((r) => setTimeout(r, 300));
-			const result = await terminateProcessesUnder([worktree], {
-				graceMs: 500,
-			});
-			expect(result.found).toEqual([orphan.pid]);
-			expect(result.survivors).toEqual([]);
-			expect(alive(orphan.pid!)).toBe(false);
-			expect(alive(bystander.pid!)).toBe(true);
-		} finally {
-			orphan.kill("SIGKILL");
-			bystander.kill("SIGKILL");
-		}
+		const ownedElsewhere = spawn("sleep", ["300"], {
+			cwd: elsewhere,
+			stdio: "ignore",
+		});
+		pids.push(owned.pid!, ownedElsewhere.pid!);
+		const unowned = await spawnUnowned(worktree); // e.g. a user's shell job
+		pids.push(unowned);
+		await delay(300);
+
+		const recorded = await findOwnedProcesses(process.pid, worktree);
+		expect(recorded.map((r) => r.pid)).toEqual([owned.pid]);
+
+		const result = await terminateOwnedProcesses(recorded, worktree, {
+			graceMs: 300,
+		});
+		expect(result).toEqual({ matched: [owned.pid], survivors: [] });
+		expect(alive(owned.pid!)).toBe(false);
+		expect(alive(unowned)).toBe(true);
+		expect(alive(ownedElsewhere.pid!)).toBe(true);
 	}, 30_000);
 
-	it("escalates to SIGKILL when SIGTERM is ignored and reports survivors", async () => {
+	it("never signals a recycled pid (different start time) or a process that left the worktree", async () => {
 		const signals: string[] = [];
-		let alive = true;
-		const result = await terminateProcessesUnder(["/w/jira-a"], {
-			list: async () => [
-				{ pid: 101, cwd: "/w/jira-a/pkg" },
-				{ pid: 102, cwd: "/w/jira-ab" },
-				{ pid: process.pid, cwd: "/w/jira-a" },
+		const probe: ProcessProbe = {
+			table: async () => [
+				{ pid: 101, ppid: 1, started: "Fri Oct 30 10:00:01 2026" },
+				{ pid: 102, ppid: 1, started: "Fri Oct 30 10:00:02 2026" },
 			],
-			kill: (pid, sig) => {
-				signals.push(`${pid}:${sig}`);
+			cwd: async (pid) => (pid === 101 ? "/w/jira-a/pkg" : "/somewhere/else"),
+		};
+		const result = await terminateOwnedProcesses(
+			[
+				{ pid: 101, started: "Fri Oct 30 09:59:59 2026" }, // pid reused by another process
+				{ pid: 102, started: "Fri Oct 30 10:00:02 2026" }, // no longer in the worktree
+			],
+			"/w/jira-a",
+			{
+				probe,
+				kill: (pid, sig) => signals.push(`${pid}:${sig}`),
+				sleep: async () => {},
+				graceMs: 0,
 			},
-			isAlive: () => alive,
-			sleep: async () => {},
-			graceMs: 0,
-		});
-		expect(signals).toEqual(["101:SIGTERM", "101:SIGKILL"]);
-		expect(result).toEqual({ found: [101], survivors: [101] });
-		alive = false;
+		);
+		expect(signals).toEqual([]);
+		expect(result).toEqual({ matched: [], survivors: [] });
 	});
 
-	it("does nothing without closed worktrees", async () => {
-		expect(await terminateProcessesUnder([])).toEqual({
-			found: [],
-			survivors: [],
-		});
+	it("escalates to SIGKILL and reports a survivor that ignores signals", async () => {
+		const signals: string[] = [];
+		const probe: ProcessProbe = {
+			table: async () => [{ pid: 101, ppid: 1, started: "T" }],
+			cwd: async () => "/w/jira-a",
+		};
+		const result = await terminateOwnedProcesses(
+			[{ pid: 101, started: "T" }],
+			"/w/jira-a",
+			{
+				probe,
+				kill: (pid, sig) => signals.push(`${pid}:${sig}`),
+				sleep: async () => {},
+				graceMs: 0,
+			},
+		);
+		expect(signals).toEqual(["101:SIGTERM", "101:SIGKILL"]);
+		expect(result).toEqual({ matched: [101], survivors: [101] });
 	});
 });

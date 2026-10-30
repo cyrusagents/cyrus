@@ -29,9 +29,21 @@ Real Cyrus Hosted A2A service, runtime bridge HTTP client and dispatch ledger (r
 - Assignment (SendMessage, no context) → `SUBMITTED`; same message re-sent with a new JSON-RPC id → same task, one runner. GetTask polling → `COMPLETED` with an artifact naming commit `96cda69` (`Add JOINED.md`).
 - Follow-up in the completed context → a NEW task in the SAME context, resumed the session → `COMPLETED`, commit `067af41`; the first task stayed `COMPLETED`. Worktree `jira-9f0f7d74-…` (full UUID) holds both commits; fixture `main` unchanged. 0 `mcpServerNames` entries in the server log.
 - Long task, CancelTask after 10 s → `CANCELED` (runtime log: `session_stop_requested` 17:41:21.623 → `session_completed` 17:41:23.627 before the reply). CancelTask on the completed task → `TASK_NOT_CANCELABLE`.
-- **Restart:** a long task was running (GetTask `WORKING`) when the server was killed with `SIGKILL`. Its Claude Code child (pid recorded) **survived** the parent kill and was still running in the context's worktree 50 s later — confirming the review concern. Restarting on the same `CYRUS_F1_HOME` logged `Stopped 1 orphaned process(es) in closed Jira worktrees`; the orphan was gone. Hosted GetTask → `FAILED` "Cyrus restarted while this task was running…"; a follow-up in that context → runtime `context_closed` → Hosted `FAILED` with restart guidance; a fresh assignment (new context) → `COMPLETED`.
+- **Restart:** a long task was running (GetTask `WORKING`) when the server was killed with `SIGKILL`. Its Claude Code child (pid recorded) **survived** the parent kill and was still running in the context's worktree 50 s later — confirming the review concern. Restarting on the same `CYRUS_F1_HOME` logged `Stopped 1 orphaned process(es) in closed Jira worktrees`; the orphan was gone. (That build matched ANY process by working directory; it was superseded by the ownership-scoped cleanup driven below.) Hosted GetTask → `FAILED` "Cyrus restarted while this task was running…"; a follow-up in that context → runtime `context_closed` → Hosted `FAILED` with restart guidance; a fresh assignment (new context) → `COMPLETED`.
 
 Logs (task-run dir `joined/`): `f1-server-1.log`, `f1-server-2.log`, `joined-main.log`, `joined-restart-before.log`, `joined-restart-after.log`, `children-after-kill.txt`.
+
+## Ownership-scoped restart drive (runtime only, 17:53–17:56 UTC)
+
+Separate from the joined drive above: curl bridge v1 bodies against the F1 server (no Hosted), real Claude, port 3641 checked free, throwaway key, `CYRUS_F1_HOME=/tmp/jira-f1-r3-home`, `CYRUS_F1_REPO_ID` = a random UUID. Evidence: task-run dir `joined/r3/`.
+
+- Create (context `57865b4e-…`) → 200 `submitted`. While it worked, the journal recorded `ownedProcesses: [{pid: 41852, started: "Fri Oct 30 10:54:28 2026"}]` — the Claude Code child, a descendant of the server with cwd in the task worktree.
+- An unrelated `sleep 600` (pid 42392, parent 1, i.e. not started by Cyrus) was started with cwd inside the same worktree, standing in for a user's shell job.
+- Server (pid 41264) `SIGKILL`ed at 17:54:58Z; 5 s later both 41852 and 42392 were still alive (`after-kill.txt`).
+- Restart on the same home: `Stopped 1 of 1 process(es) this runtime had started in a closed Jira worktree`; 41852 gone, **42392 untouched** (`after-restart.txt`; it was then killed manually).
+- `get` → `failed`, settled, restart message; `create` of a new task in that context → 409 `context_closed`.
+
+Limits of this drive: macOS only (Linux uses `/proc` paths covered only by code review); one owned process; ownership is (pid, start time to the second) captured on runner messages (throttled to 10 s), so a process spawned and orphaned between captures would not be recorded and is left running.
 
 ## Limits
 

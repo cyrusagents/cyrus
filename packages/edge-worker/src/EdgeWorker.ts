@@ -177,7 +177,10 @@ import {
 	type JiraRunnerBuildInput,
 	scopeJiraAllowedTools,
 } from "./jira-agent/JiraAgentTaskService.js";
-import { terminateProcessesUnder } from "./jira-agent/OrphanReaper.js";
+import {
+	findOwnedProcesses,
+	terminateOwnedProcesses,
+} from "./jira-agent/OrphanReaper.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
 import type {
@@ -963,20 +966,23 @@ export class EdgeWorker extends EventEmitter {
 			);
 			return;
 		}
-		// Stop processes an abrupt exit left running in worktrees of contexts the
-		// restart closed. Those contexts stay closed either way; this only stops
-		// orphaned edits and model usage.
-		const closed = journal.closedWorkspaces();
-		if (closed.length > 0) {
+		// Stop processes this runtime itself started (recorded pid + start time,
+		// still inside the worktree) that an abrupt exit left running in contexts
+		// the restart closed. The contexts stay closed either way; this only
+		// stops orphaned edits and model usage, never unrelated processes.
+		for (const closed of journal.closedWithOwnedProcesses()) {
 			try {
-				const { found, survivors } = await terminateProcessesUnder(closed);
-				if (found.length > 0)
+				const { matched, survivors } = await terminateOwnedProcesses(
+					closed.processes,
+					closed.workspacePath,
+				);
+				if (matched.length > 0)
 					this.logger.warn(
-						`[JiraAgent] Stopped ${found.length - survivors.length} orphaned process(es) in closed Jira worktrees${survivors.length ? `; ${survivors.length} could not be stopped` : ""}`,
+						`[JiraAgent] Stopped ${matched.length - survivors.length} of ${matched.length} process(es) this runtime had started in a closed Jira worktree${survivors.length ? `; ${survivors.length} could not be stopped` : ""}`,
 					);
 			} catch (error) {
 				this.logger.error(
-					"[JiraAgent] Could not check closed Jira worktrees for orphaned processes",
+					"[JiraAgent] Could not check a closed Jira worktree for leftover processes",
 					error instanceof Error ? error : new Error(String(error)),
 				);
 			}
@@ -992,6 +998,8 @@ export class EdgeWorker extends EventEmitter {
 			createWorkspace: (repository, target) =>
 				this.createJiraWorkspace(repository, target),
 			buildRunner: (input) => this.buildJiraAgentRunner(input),
+			captureOwnedProcesses: (workspacePath) =>
+				findOwnedProcesses(process.pid, workspacePath),
 		});
 		registerJiraAgentRoutes(
 			this.sharedApplicationServer.getFastifyInstance(),

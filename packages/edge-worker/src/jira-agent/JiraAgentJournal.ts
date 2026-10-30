@@ -108,6 +108,11 @@ export interface JiraContextRecord {
 	 * still touch the worktree, so no new task may run in this context.
 	 */
 	closed: boolean;
+	/**
+	 * This runtime's own descendant processes seen working in the worktree
+	 * (pid + start time), so a restart can stop exactly those and nothing else.
+	 */
+	ownedProcesses: { pid: number; started: string }[];
 	tasks: JiraTaskRecord[];
 	retired: Record<string, JiraRetiredTask>;
 }
@@ -207,6 +212,18 @@ export function parseContextRecord(
 	)
 		fail("retired");
 	if (r.closed !== undefined && typeof r.closed !== "boolean") fail("closed");
+	const owned = r.ownedProcesses ?? [];
+	if (
+		!Array.isArray(owned) ||
+		!owned.every(
+			(o) =>
+				isObj(o) &&
+				Number.isSafeInteger(o.pid) &&
+				(o.pid as number) > 0 &&
+				isStr(o.started),
+		)
+	)
+		fail("ownedProcesses");
 	return {
 		version: 1,
 		contextId,
@@ -216,6 +233,7 @@ export function parseContextRecord(
 		runnerType: (r.runnerType ?? null) as string | null,
 		runnerSessionId: (r.runnerSessionId ?? null) as string | null,
 		closed: r.closed === true,
+		ownedProcesses: owned as { pid: number; started: string }[],
 		tasks,
 		retired: retired as Record<string, JiraRetiredTask>,
 	};
@@ -282,11 +300,17 @@ export class JiraAgentJournal {
 		}
 	}
 
-	/** Worktrees of contexts closed by a restart (for orphan reconciliation). */
-	closedWorkspaces(): string[] {
+	/** Closed contexts with recorded own processes (restart reconciliation). */
+	closedWithOwnedProcesses(): {
+		workspacePath: string;
+		processes: { pid: number; started: string }[];
+	}[] {
 		return [...this.contexts.values()]
-			.filter((c) => c.closed && c.workspacePath)
-			.map((c) => c.workspacePath as string);
+			.filter((c) => c.closed && c.workspacePath && c.ownedProcesses.length > 0)
+			.map((c) => ({
+				workspacePath: c.workspacePath as string,
+				processes: c.ownedProcesses,
+			}));
 	}
 
 	isQuarantined(contextId: string): boolean {
