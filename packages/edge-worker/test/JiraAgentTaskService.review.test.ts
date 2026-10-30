@@ -66,6 +66,7 @@ const ref = (taskId = TASK_A, b = binding) => ({
 	taskId,
 	contextId: CTX,
 	binding: b,
+	authorizedRepositoryIds: ["repo-a"],
 });
 const create = (over: Partial<JiraSendRequest> = {}): JiraSendRequest => ({
 	version: 2,
@@ -75,7 +76,7 @@ const create = (over: Partial<JiraSendRequest> = {}): JiraSendRequest => ({
 	messageId: "m1",
 	binding,
 	issue,
-	repositoryIds: ["repo-a"],
+	authorizedRepositoryIds: ["repo-a"],
 	text: "Do it.",
 	...over,
 });

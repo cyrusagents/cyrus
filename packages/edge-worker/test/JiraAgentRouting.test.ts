@@ -15,6 +15,8 @@ import {
 	type JiraRunnerBuildInput,
 	type JiraSendRequest,
 	REPOSITORY_GONE_MESSAGE,
+	REVOKED_MESSAGE,
+	SCOPE_CHANGED_MESSAGE,
 } from "../src/jira-agent/JiraAgentTaskService.js";
 import { standardJiraRouting } from "./jira-routing-fixture.js";
 
@@ -75,17 +77,28 @@ function request(over: Partial<JiraSendRequest> = {}): JiraSendRequest {
 			labels: [],
 			projectKey: "QA",
 		},
-		repositoryIds: [...configured.keys()],
+		authorizedRepositoryIds: [...configured.keys()],
 		text: "Please fix this.",
 		...over,
 	};
 }
 
+/** When set, runs stay live until stopped (for revocation while running). */
+let holdRuns = false;
+
 /** Runner that answers every turn at once with a successful result. */
 function instantRunner(input: JiraRunnerBuildInput) {
+	let release: () => void = () => {};
+	const held = new Promise<void>((r) => {
+		release = r;
+	});
 	return {
 		supportsStreamingInput: false,
 		start: async () => {
+			if (holdRuns) {
+				await held;
+				return { sessionId: "sess-1" };
+			}
 			input.onMessage({
 				type: "result",
 				subtype: "success",
@@ -94,7 +107,7 @@ function instantRunner(input: JiraRunnerBuildInput) {
 			} as never);
 			return { sessionId: "sess-1" };
 		},
-		stop: () => {},
+		stop: () => release(),
 		isRunning: () => false,
 	};
 }
@@ -107,10 +120,13 @@ async function service() {
 		logger,
 		getRepository: (id) => configured.get(id),
 		...standardJiraRouting(() => [...configured.values()]),
-		resolveRunnerType: () => "claude",
+		// Same rule the shared RunnerSelectionService applies to descriptions.
+		resolveRunnerType: (_repos, issue) =>
+			/\[agent=(\w+)\]/.exec(issue.description)?.[1] ?? "claude",
 		createWorkspace: async (repositories, target, baseBranches) => {
 			workspaces.push({ ids: repositories.map((r) => r.id), baseBranches });
-			return { path: join("/ws", target.identifier), isGitWorktree: true };
+			const base = (repositories[0] as RepositoryConfig).workspaceBaseDir;
+			return { path: join(base, target.identifier), isGitWorktree: true };
 		},
 		buildRunner: async (input) => {
 			builds.push(input);
@@ -127,13 +143,20 @@ const journalFile = () =>
 
 async function completed(svc: JiraAgentTaskService, taskId = TASK_A) {
 	await vi.waitFor(async () => {
-		const s = await svc.get({ version: 2, taskId, contextId: CTX, binding });
+		const s = await svc.get({
+			authorizedRepositoryIds: [...configured.keys()],
+			version: 2,
+			taskId,
+			contextId: CTX,
+			binding,
+		});
 		expect(s.state).toBe("completed");
 		expect(svc.liveCount()).toBe(0);
 	});
 }
 
 beforeEach(() => {
+	holdRuns = false;
 	home = mkdtempSync(join(tmpdir(), "jira-routing-"));
 	builds = [];
 	workspaces = [];
@@ -283,17 +306,22 @@ describe("workspace authorization", () => {
 		configured.set("other-team", repo("other-team"));
 		const svc = await service();
 		const issue = { ...request().issue, description: "[repo=other-team]" };
-		const s = await svc.send(request({ issue, repositoryIds: ["web", "api"] }));
-		// other-team is a configured catch-all here, but not this workspace's.
+		const s = await svc.send(
+			request({ issue, authorizedRepositoryIds: ["web", "api"] }),
+		);
+		// other-team is a configured catch-all here, but not this workspace's:
+		// the selector is reported unresolved and never offered as a choice.
 		expect(s.state).toBe("input-required");
-		expect(s.result).not.toContain("other-team");
+		expect(s.result).toContain('I couldn\'t match "other-team"');
+		expect(s.result).toContain("- web\n- api");
+		expect(s.result).not.toContain("- other-team");
 		expect(builds).toHaveLength(0);
 	});
 
 	it("refuses when nothing authorized is configured on this runtime", async () => {
 		const svc = await service();
 		await expect(
-			svc.send(request({ repositoryIds: ["somewhere-else"] })),
+			svc.send(request({ authorizedRepositoryIds: ["somewhere-else"] })),
 		).rejects.toMatchObject({ code: "no_repository", status: 409 });
 	});
 });
@@ -332,7 +360,7 @@ describe("a context keeps its routing for life", () => {
 				request({
 					taskId: TASK_B,
 					messageId: "m2",
-					repositoryIds: ["web", "mono"],
+					authorizedRepositoryIds: ["web", "mono"],
 				}),
 			),
 		).rejects.toMatchObject({
@@ -346,7 +374,11 @@ describe("a context keeps its routing for life", () => {
 		const svc = await routedToApi();
 		await expect(
 			svc.send(
-				request({ taskId: TASK_B, messageId: "m2", repositoryIds: ["web"] }),
+				request({
+					taskId: TASK_B,
+					messageId: "m2",
+					authorizedRepositoryIds: ["web"],
+				}),
 			),
 		).rejects.toMatchObject({ code: "repository_unavailable" });
 	});
@@ -365,6 +397,7 @@ describe("a context keeps its routing for life", () => {
 		await svc.send(request());
 		const after = await service();
 		const s = await after.get({
+			authorizedRepositoryIds: [...configured.keys()],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
@@ -377,16 +410,26 @@ describe("a context keeps its routing for life", () => {
 		expect(builds[0]?.repositories[0]?.id).toBe("web");
 	});
 
-	it("cancel of a task waiting for a choice changes nothing", async () => {
+	it("cancel of a task waiting for a choice cancels its request for good", async () => {
 		const svc = await service();
-		await svc.send(request());
-		const s = await svc.cancel({
-			version: 2,
+		await svc.send(request({ text: "Carry out the original work." }));
+		const ref = {
+			version: 2 as const,
 			taskId: TASK_A,
 			contextId: CTX,
 			binding,
-		});
-		expect(s.state).toBe("input-required");
+		};
+		expect((await svc.cancel(ref)).state).toBe("canceled");
+		// Repeated cancel answers the same.
+		expect((await svc.cancel(ref)).state).toBe("canceled");
+		// A later message naming a repository is an independent request: the
+		// canceled request is never carried into it.
+		const later = await svc.send(
+			request({ taskId: TASK_B, messageId: "m2", text: "api" }),
+		);
+		expect(later.state).toBe("input-required");
+		expect(journalFile().tasks[1].initialText).toBe("api");
+		expect(builds).toHaveLength(0);
 	});
 });
 
@@ -419,5 +462,268 @@ describe("legacy journal", () => {
 			binding,
 			routing: { repositoryIds: ["web"], method: "site-repository" },
 		});
+	});
+});
+
+describe("strict routing never picks arbitrarily (RR1, RR2)", () => {
+	it("two default repositories ask instead of running the first", async () => {
+		configured = new Map([repo("first"), repo("second")].map((r) => [r.id, r]));
+		const svc = await service();
+		const s = await svc.send(request());
+		expect(s.state).toBe("input-required");
+		expect(s.result).toContain("- first\n- second");
+		expect(builds).toHaveLength(0);
+		expect(workspaces).toHaveLength(0);
+	});
+
+	it("an issue-key prefix shared by two repositories asks", async () => {
+		configured = new Map(
+			[repo("a", { teamKeys: ["QA"] }), repo("b", { teamKeys: ["QA"] })].map(
+				(r) => [r.id, r],
+			),
+		);
+		const svc = await service();
+		expect((await svc.send(request())).state).toBe("input-required");
+		expect(builds).toHaveLength(0);
+	});
+
+	it("an explicit selector naming no repository never falls back to the default", async () => {
+		configured.set("mono", repo("mono"));
+		const svc = await service();
+		const issue = { ...request().issue, description: "[repo=missing]" };
+		const s = await svc.send(request({ issue }));
+		expect(s.state).toBe("input-required");
+		expect(s.result).toContain('I couldn\'t match "missing"');
+		expect(builds).toHaveLength(0);
+	});
+
+	it("a partly unknown selector list runs nothing, not the known part", async () => {
+		const svc = await service();
+		const issue = {
+			...request().issue,
+			description: "Both, please.\nrepos=web,missing",
+		};
+		const s = await svc.send(request({ issue }));
+		expect(s.state).toBe("input-required");
+		expect(s.result).toContain('"missing"');
+		expect(builds).toHaveLength(0);
+	});
+
+	it("a selector matching two repositories is ambiguous", async () => {
+		configured = new Map(
+			[
+				repo("web", { routingLabels: ["x"] }),
+				repo("Web-2", { name: "web", routingLabels: ["y"] }),
+			].map((r) => [r.id, r]),
+		);
+		const svc = await service();
+		const issue = { ...request().issue, description: "[repo=web]" };
+		expect((await svc.send(request({ issue }))).state).toBe("input-required");
+		expect(builds).toHaveLength(0);
+	});
+});
+
+describe("a context's physical scope is pinned (RR4)", () => {
+	async function completedOnce() {
+		const svc = await service();
+		const issue = { ...request().issue, description: "[repo=api]" };
+		await svc.send(request({ issue }));
+		await completed(svc);
+		expect(journalFile().scope).toMatchObject({
+			workspacePath: `/ws/jira-${CTX}`,
+			entries: [{ repositoryId: "api", configuredPath: "/repos/api" }],
+		});
+		return svc;
+	}
+
+	it("a repository moved under the same id refuses instead of resuming elsewhere", async () => {
+		const svc = await completedOnce();
+		configured.set("api", repo("api", { repositoryPath: "/elsewhere/api" }));
+		await expect(
+			svc.send(request({ taskId: TASK_B, messageId: "m2" })),
+		).rejects.toMatchObject({
+			code: "repository_unavailable",
+			message: SCOPE_CHANGED_MESSAGE,
+		});
+		expect(builds).toHaveLength(1);
+	});
+
+	it("a changed worktree location fails before any resumed run", async () => {
+		const svc = await completedOnce();
+		configured.set(
+			"api",
+			repo("api", {
+				teamKeys: ["API"],
+				routingLabels: ["backend"],
+				workspaceBaseDir: "/other-ws",
+			}),
+		);
+		await svc.send(request({ taskId: TASK_B, messageId: "m2" }));
+		await vi.waitFor(async () => {
+			const s = await svc.get({
+				authorizedRepositoryIds: [...configured.keys()],
+				version: 2,
+				taskId: TASK_B,
+				contextId: CTX,
+				binding,
+			});
+			expect(s).toMatchObject({
+				state: "failed",
+				settled: true,
+				error: SCOPE_CHANGED_MESSAGE,
+			});
+		});
+		// The earlier session was never resumed in the new location.
+		expect(builds).toHaveLength(1);
+		expect(journalFile().scope.workspacePath).toBe(`/ws/jira-${CTX}`);
+	});
+
+	it("unrelated repositories added later don't disturb the context", async () => {
+		const svc = await completedOnce();
+		configured.set("new", repo("new"));
+		await svc.send(
+			request({
+				taskId: TASK_B,
+				messageId: "m2",
+				authorizedRepositoryIds: [...configured.keys()],
+			}),
+		);
+		await completed(svc, TASK_B);
+		expect(builds.map((b) => b.resume)).toEqual([
+			null,
+			{ runnerType: "claude", sessionId: "sess-1" },
+		]);
+	});
+});
+
+describe("one set of issue facts for admission and execution (RR6)", () => {
+	it("correcting an unsupported [agent=...] while choosing a repository runs with the correction", async () => {
+		const svc = await service();
+		const wrong = { ...request().issue, description: "Fix it. [agent=codex]" };
+		expect((await svc.send(request({ issue: wrong }))).state).toBe(
+			"input-required",
+		);
+		const fixed = { ...request().issue, description: "Fix it. [agent=claude]" };
+		await svc.send(
+			request({ taskId: TASK_B, messageId: "m2", text: "api", issue: fixed }),
+		);
+		await completed(svc, TASK_B);
+		expect(builds[0]?.issue.description).toBe("Fix it. [agent=claude]");
+	});
+
+	it("an unsupported selector added after a Claude session exists doesn't block resuming it", async () => {
+		const svc = await service();
+		const first = { ...request().issue, description: "[repo=api]" };
+		await svc.send(request({ issue: first }));
+		await completed(svc);
+		const later = {
+			...request().issue,
+			description: "[repo=api] [agent=codex]",
+		};
+		await svc.send(request({ taskId: TASK_B, messageId: "m2", issue: later }));
+		await completed(svc, TASK_B);
+		// The pinned session's facts are used, not the later selector.
+		expect(builds[1]?.issue.description).toBe("[repo=api]");
+		expect(builds[1]?.resume).toEqual({
+			runnerType: "claude",
+			sessionId: "sess-1",
+		});
+	});
+
+	it("an unsupported selector on a first run is still refused before admission", async () => {
+		const svc = await service();
+		const issue = {
+			...request().issue,
+			description: "[repo=api] [agent=codex]",
+		};
+		await expect(svc.send(request({ issue }))).rejects.toMatchObject({
+			code: "unsupported_runner",
+		});
+	});
+});
+
+describe("output and work follow the CURRENT authorization (two-sided contract)", () => {
+	const ref = (taskId = TASK_A, ids?: string[]) => ({
+		version: 2 as const,
+		taskId,
+		contextId: CTX,
+		binding,
+		authorizedRepositoryIds: ids,
+	});
+	async function routedToApi() {
+		const svc = await service();
+		const issue = { ...request().issue, description: "[repo=api]" };
+		const s = await svc.send(request({ issue }));
+		expect(s.repositoryIds).toEqual(["api"]);
+		await completed(svc);
+		return { svc, issue };
+	}
+
+	it("snapshots carry the route; output is withheld once a routed repository is deauthorized", async () => {
+		const { svc } = await routedToApi();
+		const ok = await svc.get(ref(TASK_A, ["web", "api"]));
+		expect(ok).toMatchObject({
+			state: "completed",
+			result: "done",
+			repositoryIds: ["api"],
+			contentWithheld: false,
+		});
+		const hidden = await svc.get(ref(TASK_A, ["web"]));
+		expect(hidden).toMatchObject({
+			state: "completed",
+			result: null,
+			progress: [],
+			repositoryIds: ["api"],
+			contentWithheld: true,
+		});
+		// Unrelated changes to the authorized set don't matter.
+		expect((await svc.get(ref(TASK_A, ["api"]))).contentWithheld).toBe(false);
+	});
+
+	it("a duplicate send never replays output after deauthorization; authority isn't identity", async () => {
+		const { svc, issue } = await routedToApi();
+		// Same message with a different (fresh) authorization: same identity,
+		// so a duplicate, not a conflict; but the route is no longer covered.
+		await expect(
+			svc.send(request({ issue, authorizedRepositoryIds: ["web"] })),
+		).rejects.toMatchObject({ code: "repository_unavailable" });
+		const again = await svc.send(
+			request({ issue, authorizedRepositoryIds: ["api", "web", "x"] }),
+		);
+		expect(again).toMatchObject({ state: "completed", result: "done" });
+	});
+
+	it("losing authorization stops a running task (fence), without output", async () => {
+		holdRuns = true;
+		const svc = await service();
+		const issue = { ...request().issue, description: "[repo=api]" };
+		await svc.send(request({ issue }));
+		await vi.waitFor(() => expect(builds).toHaveLength(1));
+		const s = await svc.get(ref(TASK_A, ["web"]));
+		expect(s.contentWithheld).toBe(true);
+		await vi.waitFor(async () => {
+			const after = await svc.get(ref(TASK_A, ["api"]));
+			expect(after).toMatchObject({
+				state: "canceled",
+				settled: true,
+				error: REVOKED_MESSAGE,
+			});
+			expect(svc.liveCount()).toBe(0);
+		});
+	});
+
+	it("a get without any authorization withholds output", async () => {
+		const { svc } = await routedToApi();
+		expect((await svc.get(ref(TASK_A))).contentWithheld).toBe(true);
+	});
+
+	it("cancel needs no authorization (content-free stop)", async () => {
+		holdRuns = true;
+		const svc = await service();
+		const issue = { ...request().issue, description: "[repo=api]" };
+		await svc.send(request({ issue }));
+		await vi.waitFor(() => expect(builds).toHaveLength(1));
+		const s = await svc.cancel(ref(TASK_A));
+		expect(s.state === "canceled" || s.state === "canceling").toBe(true);
 	});
 });

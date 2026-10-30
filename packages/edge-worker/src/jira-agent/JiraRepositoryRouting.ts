@@ -61,6 +61,7 @@ const MAX_LISTED = 20;
 /** What the Jira user sees when routing can't decide (A2A input-required). */
 export function repositorySelectionGuidance(
 	candidates: RepositoryConfig[],
+	unresolved: string[] = [],
 ): string {
 	const listed = candidates
 		.slice(0, MAX_LISTED)
@@ -70,8 +71,12 @@ export function repositorySelectionGuidance(
 		candidates.length > MAX_LISTED
 			? `\n…and ${candidates.length - MAX_LISTED} more.`
 			: "";
+	const missed =
+		unresolved.length > 0
+			? `I couldn't match ${unresolved.map((v) => `"${v}"`).join(", ")} to exactly one repository in this workspace, so I haven't started. `
+			: "";
 	return [
-		"Which repository should I work in? Reply with one of these names:",
+		`${missed}Which repository should I work in? Reply with one of these names:`,
 		`${listed}${more}`,
 		"To choose up front next time, add [repo=name] to the work item description (repo=a,b for several, [repo=name#branch] for a base branch), or use a routing label your Cyrus admin set up.",
 	].join("\n\n");

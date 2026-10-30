@@ -178,6 +178,7 @@ import {
 	scopeJiraAllowedTools,
 } from "./jira-agent/JiraAgentTaskService.js";
 import { jiraRoutingSource } from "./jira-agent/JiraRepositoryRouting.js";
+import { inspectJiraWorkspace } from "./jira-agent/JiraWorkspaceScope.js";
 import {
 	findOwnedProcesses,
 	inspectOwnedProcesses,
@@ -998,6 +999,7 @@ export class EdgeWorker extends EventEmitter {
 				this.repositoryRouter.routeIssue(
 					jiraRoutingSource(issue, requestText),
 					candidates,
+					{ strict: true },
 				),
 			// Same selection buildIssueConfig makes for this Jira task.
 			resolveRunnerType: (_repositories, issue) =>
@@ -1007,6 +1009,7 @@ export class EdgeWorker extends EventEmitter {
 				).runnerType,
 			createWorkspace: (repositories, target, baseBranches) =>
 				this.createJiraWorkspace(repositories, target, baseBranches),
+			inspectWorkspace: inspectJiraWorkspace,
 			buildRunner: (input) => this.buildJiraAgentRunner(input),
 			captureOwnedProcesses: (workspacePath) =>
 				findOwnedProcesses(process.pid, workspacePath),

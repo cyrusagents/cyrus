@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { ILogger } from "cyrus-core";
+import type { JiraScope } from "./JiraWorkspaceScope.js";
 
 /**
  * Durable per-context journal for Jira remote-agent tasks.
@@ -125,6 +126,11 @@ export interface JiraContextRecord {
 	issue: JiraIssueRef | null;
 	/** Null until routing selects repositories (or while awaiting a choice). */
 	routing: JiraRouting | null;
+	/**
+	 * Physical scope (each routed repository's git identity and worktree),
+	 * pinned before the first run; later runs must match it exactly.
+	 */
+	scope: JiraScope | null;
 	workspacePath: string | null;
 	/** Runner that last executed in this context, and its resumable session. */
 	runnerType: string | null;
@@ -275,6 +281,22 @@ export function parseContextRecord(
 		)
 	)
 		fail("ownedProcesses");
+	const sc = r.scope ?? null;
+	if (
+		sc !== null &&
+		(!isObj(sc) ||
+			!isStr(sc.workspacePath) ||
+			!Array.isArray(sc.entries) ||
+			!sc.entries.every(
+				(e) =>
+					isObj(e) &&
+					isStr(e.repositoryId) &&
+					isStr(e.configuredPath) &&
+					isStr(e.gitCommonDir) &&
+					isStr(e.worktreePath),
+			))
+	)
+		fail("scope");
 	const issue = i
 		? ({
 				id: i.id as string,
@@ -298,6 +320,7 @@ export function parseContextRecord(
 		},
 		issue,
 		routing,
+		scope: sc as JiraScope | null,
 		workspacePath: (r.workspacePath ?? null) as string | null,
 		runnerType: (r.runnerType ?? null) as string | null,
 		runnerSessionId: (r.runnerSessionId ?? null) as string | null,

@@ -31,6 +31,8 @@ const BindingSchema = z
 	})
 	.strict();
 
+const AuthorizedIds = z.array(z.string().min(1).max(200)).max(1000);
+
 /** Bridge version; v1 bound one repository to the whole Jira site. */
 export const JIRA_AGENT_BRIDGE_VERSION = 2;
 
@@ -69,8 +71,8 @@ const SendSchema = z
 		messageId: z.string().min(1).max(200),
 		binding: BindingSchema,
 		issue: IssueSchema,
-		// Authorized for the binding's workspace now (Hosted-resolved).
-		repositoryIds: z.array(z.string().min(1).max(200)).max(1000),
+		// Fresh authority for THIS delivery (Hosted-resolved; not identity).
+		authorizedRepositoryIds: AuthorizedIds,
 		text: boundedText(MAX_TEXT_BYTES).refine((v) => v.trim().length > 0),
 	})
 	.strict();
@@ -81,8 +83,11 @@ const RefSchema = z
 		taskId: uuid,
 		contextId: uuid,
 		binding: BindingSchema,
+		authorizedRepositoryIds: AuthorizedIds.optional(),
 	})
 	.strict();
+// get must say what is authorized now; cancel may omit it (content-free stop).
+const GetSchema = RefSchema.required({ authorizedRepositoryIds: true });
 
 function digest(value: string): Buffer {
 	return createHash("sha256").update(value, "utf8").digest();
@@ -150,7 +155,7 @@ export function registerJiraAgentRoutes(
 	};
 
 	route("send", (body) => service.send(SendSchema.parse(body)));
-	route("get", (body) => service.get(RefSchema.parse(body)));
+	route("get", (body) => service.get(GetSchema.parse(body)));
 	route("cancel", (body) => service.cancel(RefSchema.parse(body)));
 }
 

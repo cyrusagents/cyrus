@@ -27,8 +27,26 @@ export type RepositoryRoutingResult =
 				| "catch-all"
 				| "workspace-fallback";
 	  }
-	| { type: "needs_selection"; workspaceRepos: RepositoryConfig[] }
+	| {
+			type: "needs_selection";
+			workspaceRepos: RepositoryConfig[];
+			/**
+			 * Strict routing only: explicit [repo=...] selectors that matched no
+			 * repository, or more than one, among the candidates.
+			 */
+			unresolvedSelectors?: string[];
+	  }
 	| { type: "none" };
+
+/**
+ * Routing options. `strict` (used for Jira) never picks arbitrarily: an
+ * explicit selector must resolve completely and uniquely, and an issue-key
+ * prefix or default (catch-all) repository must be unique; otherwise the
+ * result is needs_selection. Linear uses the default, non-strict behavior.
+ */
+export interface RoutingOptions {
+	strict?: boolean;
+}
 
 /**
  * Provider-neutral view of an issue for repository routing. Linear supplies
@@ -266,15 +284,47 @@ export class RepositoryRouter {
 	async routeIssue(
 		source: IssueRoutingSource,
 		workspaceRepos: RepositoryConfig[],
+		options: RoutingOptions = {},
 	): Promise<RepositoryRoutingResult> {
 		if (workspaceRepos.length === 0) return { type: "none" };
 		const { issueId, teamKey, issueIdentifier } = source;
+		const strict = options.strict === true;
+
+		if (strict) {
+			const explicit = await this.resolveDescriptionTagsStrictly(
+				source,
+				workspaceRepos,
+			);
+			if (explicit.unresolved.length > 0) {
+				this.logger.info(
+					`Explicit repository selectors not resolved: [${explicit.unresolved.join(", ")}] - requesting user selection`,
+				);
+				return {
+					type: "needs_selection",
+					workspaceRepos,
+					unresolvedSelectors: explicit.unresolved,
+				};
+			}
+			if (explicit.repositories.length > 0) {
+				this.logger.info(
+					`Repositories selected: [${explicit.repositories.map((r) => r.name).join(", ")}] (description-tag routing)`,
+				);
+				return {
+					type: "selected",
+					repositories: explicit.repositories,
+					baseBranchOverrides:
+						explicit.baseBranchOverrides.size > 0
+							? explicit.baseBranchOverrides
+							: undefined,
+					routingMethod: "description-tag",
+				};
+			}
+		}
 
 		// Priority 1: Check description tags [repo=...] (supports multiple, with optional #branch)
-		const descriptionTagResult = await this.findRepositoriesByDescriptionTag(
-			source,
-			workspaceRepos,
-		);
+		const descriptionTagResult = strict
+			? { repositories: [], baseBranchOverrides: new Map<string, string>() }
+			: await this.findRepositoriesByDescriptionTag(source, workspaceRepos);
 		if (descriptionTagResult.repositories.length > 0) {
 			this.logger.info(
 				`Repositories selected: [${descriptionTagResult.repositories.map((r) => r.name).join(", ")}] (description-tag routing)`,
@@ -336,6 +386,8 @@ export class RepositoryRouter {
 
 		// Priority 4: Check team-based routing
 		if (teamKey) {
+			if (strict && this.countTeamKeyMatches(teamKey, workspaceRepos) > 1)
+				return { type: "needs_selection", workspaceRepos };
 			const teamMatchedRepo = this.findRepositoryByTeamKey(
 				teamKey,
 				workspaceRepos,
@@ -357,6 +409,8 @@ export class RepositoryRouter {
 		if (issueIdentifier?.includes("-")) {
 			const prefix = issueIdentifier.split("-")[0];
 			if (prefix) {
+				if (strict && this.countTeamKeyMatches(prefix, workspaceRepos) > 1)
+					return { type: "needs_selection", workspaceRepos };
 				const repo = this.findRepositoryByTeamKey(prefix, workspaceRepos);
 				if (repo) {
 					this.logger.info(
@@ -373,12 +427,17 @@ export class RepositoryRouter {
 
 		// Priority 5: Find catch-all repository (no routing configuration)
 		// TODO: Remove catch-all routing - require explicit routing configuration for all repositories
-		const catchAllRepo = workspaceRepos.find(
-			(repo) =>
-				(!repo.teamKeys || repo.teamKeys.length === 0) &&
-				(!repo.routingLabels || repo.routingLabels.length === 0) &&
-				(!repo.projectKeys || repo.projectKeys.length === 0),
-		);
+		const isCatchAll = (repo: RepositoryConfig) =>
+			(!repo.teamKeys || repo.teamKeys.length === 0) &&
+			(!repo.routingLabels || repo.routingLabels.length === 0) &&
+			(!repo.projectKeys || repo.projectKeys.length === 0);
+		if (strict && workspaceRepos.filter(isCatchAll).length > 1) {
+			this.logger.info(
+				"More than one default (catch-all) repository - requesting user selection",
+			);
+			return { type: "needs_selection", workspaceRepos };
+		}
+		const catchAllRepo = workspaceRepos.find(isCatchAll);
 
 		if (catchAllRepo) {
 			this.logger.info(
@@ -618,6 +677,72 @@ export class RepositoryRouter {
 			.filter((r) => r.length > 0);
 
 		return repos.map((repo) => (branch ? { repo, branch } : { repo }));
+	}
+
+	/**
+	 * Strict selector resolution: every parsed [repo=...] / repo= / repos= value
+	 * must match exactly one candidate (same matching rules as the non-strict
+	 * path: hosting URL suffix, case-insensitive name, or id). Unmatched and
+	 * ambiguous values are returned, never dropped.
+	 */
+	private async resolveDescriptionTagsStrictly(
+		source: IssueRoutingSource,
+		repos: RepositoryConfig[],
+	): Promise<{
+		repositories: RepositoryConfig[];
+		baseBranchOverrides: Map<string, string>;
+		unresolved: string[];
+	}> {
+		const none = {
+			repositories: [],
+			baseBranchOverrides: new Map<string, string>(),
+			unresolved: [],
+		};
+		if (!source.issueId) return none;
+		let description: string | undefined;
+		try {
+			description = await source.fetchDescription();
+		} catch (error) {
+			this.logger.error(`Failed to fetch description for routing:`, error);
+			return none;
+		}
+		if (!description) return none;
+		const tags = this.parseRepoTagsFromDescription(description);
+		const repositories: RepositoryConfig[] = [];
+		const baseBranchOverrides = new Map<string, string>();
+		const unresolved: string[] = [];
+		for (const tag of tags) {
+			const matches = repos.filter((repo) =>
+				this.repoMatchesTag(repo, tag.repo),
+			);
+			if (matches.length !== 1) {
+				unresolved.push(tag.repo);
+				continue;
+			}
+			const repo = matches[0] as RepositoryConfig;
+			if (!repositories.some((r) => r.id === repo.id)) repositories.push(repo);
+			if (tag.branch) baseBranchOverrides.set(repo.id, tag.branch);
+		}
+		return { repositories, baseBranchOverrides, unresolved };
+	}
+
+	/** The description-tag matching rules for one selector value. */
+	private repoMatchesTag(repo: RepositoryConfig, value: string): boolean {
+		return (
+			repo.githubUrl?.endsWith(`/${value}`) === true ||
+			repo.githubUrl?.endsWith(`/${value}.git`) === true ||
+			repo.gitlabUrl?.endsWith(`/${value}`) === true ||
+			repo.gitlabUrl?.endsWith(`/${value}.git`) === true ||
+			repo.name.toLowerCase() === value.toLowerCase() ||
+			repo.id === value
+		);
+	}
+
+	private countTeamKeyMatches(
+		teamKey: string,
+		repos: RepositoryConfig[],
+	): number {
+		return repos.filter((r) => r.teamKeys?.includes(teamKey)).length;
 	}
 
 	/**

@@ -45,10 +45,16 @@ const request: any = {
 		labels: [],
 		projectKey: "QA",
 	},
-	repositoryIds: ["repo"],
+	authorizedRepositoryIds: ["repo"],
 	text: "initial",
 };
-const ref: any = { version: 2, taskId, contextId, binding };
+const ref: any = {
+	version: 2,
+	taskId,
+	contextId,
+	binding,
+	authorizedRepositoryIds: ["repo"],
+};
 const repo: any = {
 	id: "repo",
 	name: "repo",

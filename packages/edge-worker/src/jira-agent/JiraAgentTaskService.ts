@@ -25,17 +25,29 @@ import {
 	repositorySelectionGuidance,
 	selectRepositoryFromReply,
 } from "./JiraRepositoryRouting.js";
+import {
+	type JiraScope,
+	type ScopeInspection,
+	sameScope,
+} from "./JiraWorkspaceScope.js";
 
 /**
  * Executes Jira remote-agent tasks forwarded by Cyrus Hosted (bridge v2).
  *
- * - Repositories are chosen per context with standard Cyrus routing
- *   ([repo=...] selectors, routing labels, team/project keys, catch-all) over
- *   the repositories Hosted authorizes for the workspace AND this runtime has
- *   configured. The result is committed with the context before anything runs
- *   and never re-routed; every later message re-checks that each routed
- *   repository is still authorized and configured (`repository_unavailable`
- *   otherwise). No match asks the Jira user to choose (`input-required`).
+ * - Repositories are chosen per context with standard Cyrus routing in strict
+ *   mode ([repo=...] selectors that must all resolve, routing labels, a
+ *   unique issue-key prefix or default repository) over the repositories
+ *   Hosted authorizes for the workspace NOW (`authorizedRepositoryIds`, sent
+ *   fresh with every request and never part of the idempotency hash) AND this
+ *   runtime has configured. No unique answer asks the Jira user
+ *   (`input-required`). The route is committed before anything runs and
+ *   never re-routed; the physical scope (each repository's git identity and
+ *   worktree) is pinned before the first run and must match on every later
+ *   run.
+ * - Every send and get re-checks the route against the fresh authorization:
+ *   if any routed repository is no longer authorized, live work is stopped,
+ *   output is withheld and new work is refused (`repository_unavailable`).
+ *   Snapshots carry the route (`repositoryIds`) so Hosted can enforce it too.
  *
  * - Every state change is made on a copy of the context record, persisted,
  *   and only then published (one serialized lock per context). `get` always
@@ -108,8 +120,12 @@ export interface JiraSendRequest {
 	messageId: string;
 	binding: JiraBinding;
 	issue: JiraIssueRef;
-	/** Repository ids Hosted authorizes for the binding's workspace now. */
-	repositoryIds: string[];
+	/**
+	 * Repository ids Hosted authorizes for the binding's workspace at the time
+	 * of THIS delivery. Fresh authority, not request identity: excluded from
+	 * the idempotency hash, so a retry carries current authorization.
+	 */
+	authorizedRepositoryIds: string[];
 	text: string;
 }
 
@@ -118,6 +134,8 @@ export interface JiraTaskRef {
 	taskId: string;
 	contextId: string;
 	binding: JiraBinding;
+	/** Required for get; cancel works without it (content-free stop). */
+	authorizedRepositoryIds?: string[];
 }
 
 export interface JiraTaskSnapshot {
@@ -131,6 +149,10 @@ export interface JiraTaskSnapshot {
 	error: string | null;
 	updatedAt: string;
 	pendingFollowups: number;
+	/** The context's route (null until routed); Hosted pins and enforces it. */
+	repositoryIds: string[] | null;
+	/** True when output was withheld because the route is no longer authorized. */
+	contentWithheld: boolean;
 }
 
 export interface JiraRunnerBuildInput {
@@ -170,6 +192,14 @@ export interface JiraAgentTaskServiceDeps {
 		target: { identifier: string; branchName: string; title: string },
 		baseBranches: Record<string, string>,
 	) => Promise<Workspace>;
+	/**
+	 * Every routed repository has its own valid worktree of THAT repository
+	 * in the workspace (see JiraWorkspaceScope.inspectJiraWorkspace).
+	 */
+	inspectWorkspace: (
+		workspace: Workspace,
+		repositories: RepositoryConfig[],
+	) => Promise<ScopeInspection>;
 	buildRunner: (
 		input: JiraRunnerBuildInput,
 	) => Promise<{ runner: IAgentRunner; runnerType: string }>;
@@ -191,7 +221,7 @@ export interface JiraAgentTaskServiceDeps {
 	) => Promise<{ pid: number; started: string }[]>;
 }
 
-type Fence = "cancel" | "deadline" | "shutdown";
+type Fence = "cancel" | "deadline" | "shutdown" | "revoked";
 
 interface LiveTask {
 	contextId: string;
@@ -227,6 +257,10 @@ export const SHUTDOWN_MESSAGE =
 export const TOMBSTONE_MESSAGE = "Canceled before Cyrus started it.";
 export const REPOSITORY_GONE_MESSAGE =
 	"A repository this conversation works in is no longer available in Cyrus. Assign the work item to Cyrus again to start a new conversation.";
+export const SCOPE_CHANGED_MESSAGE =
+	"A repository this conversation works in was moved or reconfigured in Cyrus, so it can't continue here. Assign the work item to Cyrus again to start a new conversation.";
+export const REVOKED_MESSAGE =
+	"Cyrus stopped because a repository this conversation works in is no longer available to this workspace.";
 export const UNSUPPORTED_RUNNER_MESSAGE =
 	"Jira tasks currently run only with the Claude runner. Configure Claude as this repository's runner in Cyrus, then assign the work item again.";
 
@@ -276,6 +310,12 @@ export function scopeJiraAllowedTools(tools: readonly string[]): string[] {
 		const base = tool.split("(")[0] ?? tool;
 		return !JIRA_EXCLUDED_TOOLS.has(base);
 	});
+}
+
+/** Idempotency identity of a send: everything but the fresh authorization. */
+export function requestHash(request: JiraSendRequest): string {
+	const { authorizedRepositoryIds: _fresh, ...identity } = request;
+	return canonicalHash(identity);
 }
 
 export function canonicalHash(value: unknown): string {
@@ -456,7 +496,7 @@ export class JiraAgentTaskService {
 
 	private async create(request: JiraSendRequest): Promise<JiraTaskSnapshot> {
 		this.assertAvailable(request.contextId);
-		const hash = canonicalHash(request);
+		const hash = requestHash(request);
 		const indexed = this.journal.contextOfTask(request.taskId);
 		if (indexed && indexed !== request.contextId) {
 			throw new JiraAgentError(
@@ -479,6 +519,8 @@ export class JiraAgentTaskService {
 			}
 			const hashes = task?.messageHashes ?? retired?.messageHashes ?? {};
 			if (hashes[request.messageId] === hash) {
+				// A replay answers only while its route is still authorized.
+				await this.enforceAuthority(existing, request.authorizedRepositoryIds);
 				if (task) return this.snapshot(existing, task);
 				throw new JiraAgentError("task_terminal", "Task has already ended");
 			}
@@ -507,25 +549,38 @@ export class JiraAgentTaskService {
 		let selectionGuidance: string | null = null;
 		let routedNote: string | null = null;
 		if (routing) {
-			this.authorizedRepositories(routing, request.repositoryIds);
+			await this.enforceAuthority(
+				existing as JiraContextRecord,
+				request.authorizedRepositoryIds,
+			);
 		} else {
 			const decided = await this.route(request, existing ?? null);
 			initialText = decided.initialText;
 			if (decided.kind === "needs_selection") {
-				selectionGuidance = repositorySelectionGuidance(decided.candidates);
+				selectionGuidance = repositorySelectionGuidance(
+					decided.candidates,
+					decided.unresolved,
+				);
 			} else {
 				routing = decided.routing;
 				routedNote = describeRouting(decided.repositories, routing);
 			}
 		}
+		// One set of issue facts for admission and execution: until something
+		// has run in this context, the current work item (as Hosted just read
+		// it) replaces the stored one; once a runner session exists, its
+		// pinned runner decides and later issue edits can't change it.
+		const ranBefore = Boolean(existing?.runnerType);
 		if (routing) {
 			const repositories = this.authorizedRepositories(
 				routing,
-				request.repositoryIds,
+				request.authorizedRepositoryIds,
+				existing?.scope ?? null,
 			);
-			if (
-				this.deps.resolveRunnerType(repositories, request.issue) !== "claude"
-			) {
+			const runner = ranBefore
+				? (existing as JiraContextRecord).runnerType
+				: this.deps.resolveRunnerType(repositories, request.issue);
+			if (runner !== "claude") {
 				throw new JiraAgentError(
 					"unsupported_runner",
 					UNSUPPORTED_RUNNER_MESSAGE,
@@ -542,6 +597,7 @@ export class JiraAgentTaskService {
 				binding: { ...request.binding },
 				issue: structuredClone(request.issue),
 				routing: null,
+				scope: null,
 				workspacePath: null,
 				runnerType: null,
 				runnerSessionId: null,
@@ -551,7 +607,8 @@ export class JiraAgentTaskService {
 				retired: {},
 			}),
 			(draft) => {
-				if (!draft.issue) draft.issue = structuredClone(request.issue);
+				if (!draft.issue || !ranBefore)
+					draft.issue = structuredClone(request.issue);
 				// Bound before anything runs: later messages never re-route.
 				if (!draft.routing && routing) draft.routing = structuredClone(routing);
 				draft.tasks.push({
@@ -594,10 +651,12 @@ export class JiraAgentTaskService {
 		| {
 				kind: "needs_selection";
 				candidates: RepositoryConfig[];
+				/** Explicit selectors that didn't resolve to one repository. */
+				unresolved: string[];
 				initialText: string;
 		  }
 	> {
-		const allowed = new Set(request.repositoryIds);
+		const allowed = new Set(request.authorizedRepositoryIds);
 		const candidates = this.deps
 			.listRepositories()
 			.filter((repository) => allowed.has(repository.id));
@@ -634,13 +693,26 @@ export class JiraAgentTaskService {
 			candidates,
 		);
 		if (result.type !== "selected" || result.repositories.length === 0)
-			return { kind: "needs_selection", candidates, initialText: combined };
+			return {
+				kind: "needs_selection",
+				candidates,
+				unresolved:
+					result.type === "needs_selection"
+						? (result.unresolvedSelectors ?? [])
+						: [],
+				initialText: combined,
+			};
 		// The router only ever returns candidates; re-check, never trust.
 		const repositories = result.repositories.filter((r) =>
 			candidates.some((c) => c.id === r.id),
 		);
 		if (repositories.length !== result.repositories.length)
-			return { kind: "needs_selection", candidates, initialText: combined };
+			return {
+				kind: "needs_selection",
+				candidates,
+				unresolved: [],
+				initialText: combined,
+			};
 		const baseBranches: Record<string, string> = {};
 		for (const [id, branch] of result.baseBranchOverrides ?? [])
 			if (repositories.some((r) => r.id === id)) baseBranches[id] = branch;
@@ -658,22 +730,30 @@ export class JiraAgentTaskService {
 
 	/**
 	 * The context's routed repositories, each still authorized by Hosted for
-	 * this message and still configured here. Never substitutes another.
+	 * this message, still configured here and (once pinned) still configured
+	 * at the same path. Never substitutes another.
 	 */
 	private authorizedRepositories(
 		routing: JiraRouting,
 		authorizedIds: readonly string[],
+		scope: JiraScope | null,
 	): RepositoryConfig[] {
 		const allowed = new Set(authorizedIds);
-		const repositories = this.configuredRepositories(routing);
-		if (
-			!repositories ||
-			!routing.repositoryIds.every((id) => allowed.has(id))
-		) {
+		if (!routing.repositoryIds.every((id) => allowed.has(id))) {
 			throw new JiraAgentError(
 				"repository_unavailable",
 				REPOSITORY_GONE_MESSAGE,
 			);
+		}
+		const repositories = this.configuredRepositories(routing);
+		if (!repositories) {
+			throw new JiraAgentError(
+				"repository_unavailable",
+				REPOSITORY_GONE_MESSAGE,
+			);
+		}
+		if (scope && !this.scopeConfigured(scope)) {
+			throw new JiraAgentError("repository_unavailable", SCOPE_CHANGED_MESSAGE);
 		}
 		return repositories;
 	}
@@ -692,9 +772,61 @@ export class JiraAgentTaskService {
 		return repositories;
 	}
 
+	/** Each pinned repository is still configured at its pinned path. */
+	private scopeConfigured(scope: JiraScope): boolean {
+		return scope.entries.every(
+			(e) =>
+				this.deps.getRepository(e.repositoryId)?.repositoryPath ===
+				e.configuredPath,
+		);
+	}
+
+	/**
+	 * Fresh authorization covers the whole route, or the context is fenced:
+	 * live work is stopped (never continued under lost authority) and the
+	 * request is refused. Unrouted contexts have nothing to check.
+	 */
+	private async enforceAuthority(
+		record: JiraContextRecord,
+		authorizedIds: readonly string[] | undefined,
+	): Promise<void> {
+		if (this.routeAuthorized(record, authorizedIds)) return;
+		await this.fenceRevoked(record);
+		throw new JiraAgentError("repository_unavailable", REPOSITORY_GONE_MESSAGE);
+	}
+
+	private routeAuthorized(
+		record: JiraContextRecord,
+		authorizedIds: readonly string[] | undefined,
+	): boolean {
+		if (!record.routing) return true;
+		if (!authorizedIds) return false;
+		const allowed = new Set(authorizedIds);
+		return record.routing.repositoryIds.every((id) => allowed.has(id));
+	}
+
+	/** Stop every live execution in the context because authority was lost. */
+	private async fenceRevoked(record: JiraContextRecord): Promise<void> {
+		for (const task of record.tasks) {
+			const live = this.lives.get(task.taskId);
+			if (!live || live.fence) continue;
+			this.fence(live, "revoked");
+			this.requestStop(live);
+			await this.commitTask(record.contextId, task.taskId, (t) => {
+				if (!TERMINAL_STATES.has(t.state)) t.state = "canceling";
+				t.pendingFollowups = [];
+			}).catch((error) =>
+				this.logger.error(
+					`[JiraAgent] Could not record revocation stop for ${task.taskId}`,
+					error instanceof Error ? error : new Error(String(error)),
+				),
+			);
+		}
+	}
+
 	private async followup(request: JiraSendRequest): Promise<JiraTaskSnapshot> {
 		this.assertAvailable(request.contextId);
-		const hash = canonicalHash(request);
+		const hash = requestHash(request);
 		const record = this.journal.getContext(request.contextId);
 		if (
 			!record ||
@@ -713,7 +845,10 @@ export class JiraAgentTaskService {
 		}
 		const hashes = task?.messageHashes ?? retired?.messageHashes;
 		const prior = hashes?.[request.messageId];
-		if (prior === hash && task) return this.snapshot(record, task);
+		if (prior === hash && task) {
+			await this.enforceAuthority(record, request.authorizedRepositoryIds);
+			return this.snapshot(record, task);
+		}
 		if (prior !== undefined) {
 			throw new JiraAgentError(
 				"conflict",
@@ -728,10 +863,13 @@ export class JiraAgentTaskService {
 		) {
 			throw new JiraAgentError("task_terminal", "Task has already ended");
 		}
-		// Still the same repositories, still authorized for this workspace.
+		// Still the same repositories, still authorized for this workspace;
+		// lost authority also stops the running task.
+		await this.enforceAuthority(record, request.authorizedRepositoryIds);
 		this.authorizedRepositories(
 			record.routing as JiraRouting,
-			request.repositoryIds,
+			request.authorizedRepositoryIds,
+			record.scope,
 		);
 		if (this.unfinalized.has(request.taskId)) {
 			// Its execution ended but the final state could not be saved: there
@@ -762,11 +900,26 @@ export class JiraAgentTaskService {
 
 	// ---------------------------------------------------------------- get
 
+	/**
+	 * A task's state. Output (progress, result, error) is returned only while
+	 * the fresh authorization still covers the context's route; otherwise
+	 * live work is stopped and a content-free snapshot is returned so Hosted
+	 * can still settle its bookkeeping.
+	 */
 	async get(ref: JiraTaskRef): Promise<JiraTaskSnapshot> {
 		this.assertIds(ref.contextId, ref.taskId);
 		this.assertAvailable(ref.contextId);
-		const { record, task } = this.resolve(ref);
-		return this.snapshot(record, task);
+		const { record } = this.resolve(ref);
+		if (this.routeAuthorized(record, ref.authorizedRepositoryIds)) {
+			const { record: current, task } = this.resolve(ref);
+			return this.snapshot(current, task);
+		}
+		await this.withLock(ref.contextId, async () => {
+			const current = this.journal.getContext(ref.contextId);
+			if (current) await this.fenceRevoked(current);
+		});
+		const { record: current, task } = this.resolve(ref);
+		return this.snapshot(current, task, { withhold: true });
 	}
 
 	// ---------------------------------------------------------------- cancel
@@ -796,6 +949,15 @@ export class JiraAgentTaskService {
 			// Retired (trimmed) tasks are terminal: answer like get does.
 			if ((record as JiraContextRecord).retired[ref.taskId]) return null;
 			const task = this.mustFindTask(record as JiraContextRecord, ref.taskId);
+			// A task waiting for a repository choice has nothing running, but
+			// its request is still pending: cancel it for good so a later
+			// choice can't start it.
+			if (task.state === "input-required") {
+				await this.commitTask(ref.contextId, ref.taskId, (t) =>
+					applyTerminal(t, "canceled", null, CANCELED_MESSAGE),
+				);
+				return null;
+			}
 			if (RESTING_STATES.has(task.state) && task.settled) return null;
 			const current = this.lives.get(ref.taskId) ?? null;
 			if (!current) {
@@ -832,6 +994,7 @@ export class JiraAgentTaskService {
 				binding: { ...ref.binding },
 				issue: null,
 				routing: null,
+				scope: null,
 				workspacePath: null,
 				runnerType: null,
 				runnerSessionId: null,
@@ -939,6 +1102,22 @@ export class JiraAgentTaskService {
 					"Cyrus could not create an isolated git worktree for this task.";
 				return;
 			}
+			// Every routed repository must have its own worktree of THAT
+			// repository (a partially failed multi-repository checkout leaves a
+			// plain directory), and a context's scope never changes.
+			const inspected = await this.deps.inspectWorkspace(
+				workspace,
+				repositories,
+			);
+			if (!inspected.ok) {
+				live.fatalError = `Cyrus could not prepare an isolated git worktree for every repository of this task (${inspected.reason}).`;
+				return;
+			}
+			const scope = inspected.scope;
+			if (initial.scope && !sameScope(initial.scope, scope)) {
+				live.fatalError = SCOPE_CHANGED_MESSAGE;
+				return;
+			}
 			if (live.fence) return;
 			live.workspacePath = workspace.path;
 			const systemPrompt = buildJiraSystemPrompt(
@@ -956,6 +1135,10 @@ export class JiraAgentTaskService {
 				repositories = this.configuredRepositories(routing);
 				if (!repositories) {
 					live.fatalError = REPOSITORY_GONE_MESSAGE;
+					return;
+				}
+				if (!this.scopeConfigured(scope)) {
+					live.fatalError = SCOPE_CHANGED_MESSAGE;
 					return;
 				}
 				const record = this.journal.getContext(contextId) as JiraContextRecord;
@@ -993,13 +1176,21 @@ export class JiraAgentTaskService {
 				// spawn: the repository may be removed while the task is queued.
 				setRunnerStartGuard(runner, () => {
 					if (live.fence) return false;
-					if (this.configuredRepositories(routing)) return true;
-					live.fatalError = REPOSITORY_GONE_MESSAGE;
-					return false;
+					if (!this.configuredRepositories(routing)) {
+						live.fatalError = REPOSITORY_GONE_MESSAGE;
+						return false;
+					}
+					if (!this.scopeConfigured(scope)) {
+						live.fatalError = SCOPE_CHANGED_MESSAGE;
+						return false;
+					}
+					return true;
 				});
 				await this.withLock(contextId, () =>
 					this.commit(contextId, null, (draft) => {
 						draft.workspacePath = workspace.path;
+						// Pinned before anything runs in this context.
+						if (!draft.scope) draft.scope = structuredClone(scope);
 						if (draft.runnerType !== runnerType) {
 							draft.runnerType = runnerType;
 							draft.runnerSessionId = null;
@@ -1197,6 +1388,8 @@ export class JiraAgentTaskService {
 			) as JiraContextRecord;
 			if (!this.configuredRepositories(record.routing)) {
 				live.fatalError = REPOSITORY_GONE_MESSAGE;
+			} else if (record.scope && !this.scopeConfigured(record.scope)) {
+				live.fatalError = SCOPE_CHANGED_MESSAGE;
 			} else {
 				const next = task.pendingFollowups[0] as string;
 				let removed = false;
@@ -1291,6 +1484,7 @@ export class JiraAgentTaskService {
 		if (live.fence === "cancel") return ["canceled", null, CANCELED_MESSAGE];
 		if (live.fence === "deadline") return ["failed", null, DEADLINE_MESSAGE];
 		if (live.fence === "shutdown") return ["failed", null, SHUTDOWN_MESSAGE];
+		if (live.fence === "revoked") return ["canceled", null, REVOKED_MESSAGE];
 		if (live.fatalError)
 			return [
 				"failed",
@@ -1464,18 +1658,22 @@ export class JiraAgentTaskService {
 	private snapshot(
 		record: JiraContextRecord,
 		task: JiraTaskRecord,
+		options: { withhold?: boolean } = {},
 	): JiraTaskSnapshot {
+		const withhold = options.withhold === true;
 		return {
 			taskId: task.taskId,
 			contextId: record.contextId,
 			state: task.state,
 			settled: task.settled,
 			admitted: task.admitted,
-			progress: task.progress.map((p) => ({ ...p })),
-			result: task.result,
-			error: task.error,
+			progress: withhold ? [] : task.progress.map((p) => ({ ...p })),
+			result: withhold ? null : task.result,
+			error: withhold ? REVOKED_MESSAGE : task.error,
 			updatedAt: task.updatedAt,
 			pendingFollowups: task.pendingFollowups.length,
+			repositoryIds: record.routing ? [...record.routing.repositoryIds] : null,
+			contentWithheld: withhold,
 		};
 	}
 

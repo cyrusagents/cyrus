@@ -71,7 +71,7 @@ function create(over: Partial<JiraSendRequest> = {}): JiraSendRequest {
 		messageId: "msg-1",
 		binding,
 		issue,
-		repositoryIds: ["repo-a"],
+		authorizedRepositoryIds: ["repo-a"],
 		text: "Investigate the assigned issue.",
 		...over,
 	};
@@ -256,8 +256,15 @@ describe("create, progress and completion", () => {
 		await started(1);
 		await vi.waitFor(async () =>
 			expect(
-				(await svc.get({ version: 2, taskId: TASK_A, contextId: CTX, binding }))
-					.state,
+				(
+					await svc.get({
+						authorizedRepositoryIds: ["repo-a"],
+						version: 2,
+						taskId: TASK_A,
+						contextId: CTX,
+						binding,
+					})
+				).state,
 			).toBe("working"),
 		);
 		const input = builds[0] as JiraRunnerBuildInput;
@@ -275,6 +282,7 @@ describe("create, progress and completion", () => {
 		lastRunner().result("Done: fixed it.");
 		await vi.waitFor(async () => {
 			const s = await svc.get({
+				authorizedRepositoryIds: ["repo-a"],
 				version: 2,
 				taskId: TASK_A,
 				contextId: CTX,
@@ -283,6 +291,7 @@ describe("create, progress and completion", () => {
 			expect(s.state).toBe("completed");
 		});
 		const s = await svc.get({
+			authorizedRepositoryIds: ["repo-a"],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
@@ -307,8 +316,15 @@ describe("create, progress and completion", () => {
 		lastRunner().result("boom", true);
 		await vi.waitFor(async () =>
 			expect(
-				(await svc.get({ version: 2, taskId: TASK_A, contextId: CTX, binding }))
-					.state,
+				(
+					await svc.get({
+						authorizedRepositoryIds: ["repo-a"],
+						version: 2,
+						taskId: TASK_A,
+						contextId: CTX,
+						binding,
+					})
+				).state,
 			).toBe("failed"),
 		);
 	});
@@ -320,6 +336,7 @@ describe("create, progress and completion", () => {
 		lastRunner().fail("process exited");
 		await vi.waitFor(async () => {
 			const s = await svc.get({
+				authorizedRepositoryIds: ["repo-a"],
 				version: 2,
 				taskId: TASK_A,
 				contextId: CTX,
@@ -336,6 +353,7 @@ describe("create, progress and completion", () => {
 		await svc.send(create());
 		await vi.waitFor(async () => {
 			const s = await svc.get({
+				authorizedRepositoryIds: ["repo-a"],
 				version: 2,
 				taskId: TASK_A,
 				contextId: CTX,
@@ -349,7 +367,7 @@ describe("create, progress and completion", () => {
 	it("refuses when no authorized repository is configured here, persisting nothing", async () => {
 		const svc = await makeService();
 		await expect(
-			svc.send(create({ repositoryIds: ["nope"] })),
+			svc.send(create({ authorizedRepositoryIds: ["nope"] })),
 		).rejects.toMatchObject({ code: "no_repository" });
 		expect(readdirSync(join(home, "jira-agent", "contexts"))).toEqual([]);
 	});
@@ -398,8 +416,15 @@ describe("idempotency and single writer", () => {
 		lastRunner().result("first");
 		await vi.waitFor(async () =>
 			expect(
-				(await svc.get({ version: 2, taskId: TASK_A, contextId: CTX, binding }))
-					.state,
+				(
+					await svc.get({
+						authorizedRepositoryIds: ["repo-a"],
+						version: 2,
+						taskId: TASK_A,
+						contextId: CTX,
+						binding,
+					})
+				).state,
 			).toBe("completed"),
 		);
 		await svc.send(
@@ -412,6 +437,7 @@ describe("idempotency and single writer", () => {
 		});
 		// Old task immutable.
 		const old = await svc.get({
+			authorizedRepositoryIds: ["repo-a"],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
@@ -431,7 +457,13 @@ describe("idempotency and single writer", () => {
 			svc.send(create({ taskId: TASK_B, messageId: "m2", binding: other })),
 		).rejects.toMatchObject({ code: "context_mismatch" });
 		await expect(
-			svc.get({ version: 2, taskId: TASK_A, contextId: CTX, binding: other }),
+			svc.get({
+				authorizedRepositoryIds: ["repo-a"],
+				version: 2,
+				taskId: TASK_A,
+				contextId: CTX,
+				binding: other,
+			}),
 		).rejects.toMatchObject({ code: "context_mismatch" });
 		await expect(
 			svc.send(
@@ -444,7 +476,13 @@ describe("idempotency and single writer", () => {
 		).rejects.toMatchObject({ code: "context_mismatch" });
 		// Task id used under another context.
 		await expect(
-			svc.get({ version: 2, taskId: TASK_A, contextId: CTX2, binding }),
+			svc.get({
+				authorizedRepositoryIds: ["repo-a"],
+				version: 2,
+				taskId: TASK_A,
+				contextId: CTX2,
+				binding,
+			}),
 		).rejects.toMatchObject({ code: "task_not_found" });
 		await expect(svc.send(create({ contextId: CTX2 }))).rejects.toMatchObject({
 			code: "context_mismatch",
@@ -503,6 +541,7 @@ describe("follow-ups", () => {
 		expect(r.injected[0]).toContain("Include the failing fixture.");
 		expect(r.completeCalls).toBe(0);
 		let s = await svc.get({
+			authorizedRepositoryIds: ["repo-a"],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
@@ -512,6 +551,7 @@ describe("follow-ups", () => {
 		r.result("second turn");
 		await vi.waitFor(async () => {
 			s = await svc.get({
+				authorizedRepositoryIds: ["repo-a"],
 				version: 2,
 				taskId: TASK_A,
 				contextId: CTX,
@@ -543,8 +583,15 @@ describe("follow-ups", () => {
 		lastRunner().settle();
 		await vi.waitFor(async () =>
 			expect(
-				(await svc.get({ version: 2, taskId: TASK_A, contextId: CTX, binding }))
-					.result,
+				(
+					await svc.get({
+						authorizedRepositoryIds: ["repo-a"],
+						version: 2,
+						taskId: TASK_A,
+						contextId: CTX,
+						binding,
+					})
+				).result,
 			).toBe("second"),
 		);
 	});
@@ -609,11 +656,19 @@ describe("cancellation", () => {
 		lastRunner().settle();
 		await vi.waitFor(async () =>
 			expect(
-				(await svc.get({ version: 2, taskId: TASK_A, contextId: CTX, binding }))
-					.state,
+				(
+					await svc.get({
+						authorizedRepositoryIds: ["repo-a"],
+						version: 2,
+						taskId: TASK_A,
+						contextId: CTX,
+						binding,
+					})
+				).state,
 			).toBe("canceled"),
 		);
 		const final = await svc.get({
+			authorizedRepositoryIds: ["repo-a"],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
@@ -635,6 +690,7 @@ describe("cancellation", () => {
 		await svc.cancel({ version: 2, taskId: TASK_A, contextId: CTX, binding });
 		await new Promise((r) => setTimeout(r, 80));
 		const s = await svc.get({
+			authorizedRepositoryIds: ["repo-a"],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
@@ -667,8 +723,15 @@ describe("cancellation", () => {
 		release();
 		await vi.waitFor(async () =>
 			expect(
-				(await svc.get({ version: 2, taskId: TASK_A, contextId: CTX, binding }))
-					.state,
+				(
+					await svc.get({
+						authorizedRepositoryIds: ["repo-a"],
+						version: 2,
+						taskId: TASK_A,
+						contextId: CTX,
+						binding,
+					})
+				).state,
 			).toBe("canceled"),
 		);
 		expect(runners).toHaveLength(0);
@@ -681,8 +744,15 @@ describe("cancellation", () => {
 		lastRunner().result("done");
 		await vi.waitFor(async () =>
 			expect(
-				(await svc.get({ version: 2, taskId: TASK_A, contextId: CTX, binding }))
-					.state,
+				(
+					await svc.get({
+						authorizedRepositoryIds: ["repo-a"],
+						version: 2,
+						taskId: TASK_A,
+						contextId: CTX,
+						binding,
+					})
+				).state,
 			).toBe("completed"),
 		);
 		const s = await svc.cancel({
@@ -707,6 +777,7 @@ describe("deadline and restart", () => {
 		taskId: TASK_A,
 		contextId: CTX,
 		binding,
+		authorizedRepositoryIds: ["repo-a"],
 	});
 
 	it("deadline requests stop BEFORE persisting canceling; get only ever shows committed state", async () => {
@@ -799,6 +870,7 @@ describe("deadline and restart", () => {
 		// Simulate a process restart: a fresh journal + service on the same home.
 		const svc2 = await makeService();
 		const s = await svc2.get({
+			authorizedRepositoryIds: ["repo-a"],
 			version: 2,
 			taskId: TASK_A,
 			contextId: CTX,
@@ -869,10 +941,24 @@ describe("routes", () => {
 		expect((await post(f, "get", { version: 2 }, "Bearer k2")).statusCode).toBe(
 			401,
 		);
-		const ok = await post(
+		// get must carry the current authorization.
+		const noAuthority = await post(
 			f,
 			"get",
 			{ version: 2, taskId: TASK_A, contextId: CTX, binding },
+			"Bearer k1",
+		);
+		expect(noAuthority.json().code).toBe("invalid_request");
+		const ok = await post(
+			f,
+			"get",
+			{
+				version: 2,
+				taskId: TASK_A,
+				contextId: CTX,
+				binding,
+				authorizedRepositoryIds: ["repo-a"],
+			},
 			"Bearer k1",
 		);
 		expect(ok.statusCode).toBe(404);
