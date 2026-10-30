@@ -22,9 +22,20 @@ The fixture repo (`./f1 init-test-repo -p /tmp/jira-f1-v3-repo`) got one extra c
 
 Server logs: `logs/runtime-f1-claude-server.log` (debug level; ambient environment values redacted after the run) and `logs/runtime-f1-codex-server.log` in the task-run directory.
 
+## Joined Hosted ⇄ runtime drive (17:40–17:46 UTC)
+
+Real Cyrus Hosted A2A service, runtime bridge HTTP client and dispatch ledger (real migration on PGlite) against this F1 server with real Claude. Only Forge/Jira were simulated (Forge token verification is unit-tested in Hosted; the as-user Jira API was a fake). New opt-in F1 server variables: `CYRUS_F1_REPO_ID` (bind the fixture to a Hosted repository UUID) and `CYRUS_F1_HOME` (keep one Cyrus home across restarts). Port 3631 checked free first; throwaway `CYRUS_API_KEY`; info log level. Harness: Hosted `apps/app/src/lib/jira-agent/joined-runtime.test.ts`.
+
+- Assignment (SendMessage, no context) → `SUBMITTED`; same message re-sent with a new JSON-RPC id → same task, one runner. GetTask polling → `COMPLETED` with an artifact naming commit `96cda69` (`Add JOINED.md`).
+- Follow-up in the completed context → a NEW task in the SAME context, resumed the session → `COMPLETED`, commit `067af41`; the first task stayed `COMPLETED`. Worktree `jira-9f0f7d74-…` (full UUID) holds both commits; fixture `main` unchanged. 0 `mcpServerNames` entries in the server log.
+- Long task, CancelTask after 10 s → `CANCELED` (runtime log: `session_stop_requested` 17:41:21.623 → `session_completed` 17:41:23.627 before the reply). CancelTask on the completed task → `TASK_NOT_CANCELABLE`.
+- **Restart:** a long task was running (GetTask `WORKING`) when the server was killed with `SIGKILL`. Its Claude Code child (pid recorded) **survived** the parent kill and was still running in the context's worktree 50 s later — confirming the review concern. Restarting on the same `CYRUS_F1_HOME` logged `Stopped 1 orphaned process(es) in closed Jira worktrees`; the orphan was gone. Hosted GetTask → `FAILED` "Cyrus restarted while this task was running…"; a follow-up in that context → runtime `context_closed` → Hosted `FAILED` with restart guidance; a fresh assignment (new context) → `COMPLETED`.
+
+Logs (task-run dir `joined/`): `f1-server-1.log`, `f1-server-2.log`, `joined-main.log`, `joined-restart-before.log`, `joined-restart-after.log`, `children-after-kill.txt`.
+
 ## Limits
 
-- F1 creates a fresh `CYRUS_HOME` per start, so restart closure (`context_closed`), corrupt-journal quarantine, journal-write failure during cancel/deadline, and the queued-for-slot cancel are proven by unit tests (`JiraAgentTaskService.review.test.ts`, `RunnerConcurrency.test.ts`), not by F1.
+- Restart closure and orphan reconciliation were driven for real in the joined drive above (`CYRUS_F1_HOME`). Corrupt-journal quarantine, journal-write failure during cancel/deadline, and the queued-for-slot cancel are proven by unit tests (`JiraAgentTaskService.review.test.ts`, `RunnerConcurrency.test.ts`), not by F1.
 - The egress sandbox was off (`hasSandbox: false`); sandbox preservation is covered by `RunnerConfigBuilder.jira-scope.test.ts`.
 - Only Cyrus-owned integration variables are blanked; the operator's other ambient environment variables still reach the session, as for every Cyrus session type.
 - No Jira/Forge delivery, Hosted dispatch ledger or real push/PR was exercised (fixture has no remote).

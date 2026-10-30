@@ -177,6 +177,7 @@ import {
 	type JiraRunnerBuildInput,
 	scopeJiraAllowedTools,
 } from "./jira-agent/JiraAgentTaskService.js";
+import { terminateProcessesUnder } from "./jira-agent/OrphanReaper.js";
 import { McpConfigService } from "./McpConfigService.js";
 import { PromptBuilder } from "./PromptBuilder.js";
 import type {
@@ -961,6 +962,24 @@ export class EdgeWorker extends EventEmitter {
 				() => process.env.CYRUS_API_KEY || "",
 			);
 			return;
+		}
+		// Stop processes an abrupt exit left running in worktrees of contexts the
+		// restart closed. Those contexts stay closed either way; this only stops
+		// orphaned edits and model usage.
+		const closed = journal.closedWorkspaces();
+		if (closed.length > 0) {
+			try {
+				const { found, survivors } = await terminateProcessesUnder(closed);
+				if (found.length > 0)
+					this.logger.warn(
+						`[JiraAgent] Stopped ${found.length - survivors.length} orphaned process(es) in closed Jira worktrees${survivors.length ? `; ${survivors.length} could not be stopped` : ""}`,
+					);
+			} catch (error) {
+				this.logger.error(
+					"[JiraAgent] Could not check closed Jira worktrees for orphaned processes",
+					error instanceof Error ? error : new Error(String(error)),
+				);
+			}
 		}
 		this.jiraAgentService = new JiraAgentTaskService({
 			journal,

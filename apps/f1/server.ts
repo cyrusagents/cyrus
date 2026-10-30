@@ -38,7 +38,13 @@ import { bold, cyan, dim, gray, green, success } from "./src/utils/colors.js";
 
 const CYRUS_PORT = Number.parseInt(process.env.CYRUS_PORT || "3600", 10);
 const CYRUS_REPO_PATH = process.env.CYRUS_REPO_PATH || process.cwd();
-const CYRUS_HOME = join(tmpdir(), `cyrus-f1-${Date.now()}`);
+// CYRUS_F1_HOME reuses a Cyrus home across server restarts (restart-recovery
+// drives); by default every start gets a fresh one.
+const CYRUS_HOME =
+	process.env.CYRUS_F1_HOME || join(tmpdir(), `cyrus-f1-${Date.now()}`);
+// CYRUS_F1_REPO_ID lets a joined drive bind the repository to an id issued
+// elsewhere (e.g. a Cyrus Hosted repository UUID).
+const CYRUS_F1_REPO_ID = process.env.CYRUS_F1_REPO_ID || "f1-test-repo";
 const DEFAULT_REPOS_BASE_DIR = getDefaultReposDir(CYRUS_HOME);
 const DEFAULT_WORKTREES_BASE_DIR = getDefaultWorktreesDir(CYRUS_HOME);
 // Optional second repository path for multi-repo orchestration testing
@@ -92,7 +98,7 @@ function setupDirectories(): void {
 function createEdgeWorkerConfig(): EdgeWorkerConfig {
 	// Create primary test repository configuration
 	const repository: RepositoryConfig = {
-		id: "f1-test-repo",
+		id: CYRUS_F1_REPO_ID,
 		name: "F1 Test Repository",
 		repositoryPath: CYRUS_REPO_PATH,
 		baseBranch: "main",

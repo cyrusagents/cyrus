@@ -282,6 +282,13 @@ export class JiraAgentJournal {
 		}
 	}
 
+	/** Worktrees of contexts closed by a restart (for orphan reconciliation). */
+	closedWorkspaces(): string[] {
+		return [...this.contexts.values()]
+			.filter((c) => c.closed && c.workspacePath)
+			.map((c) => c.workspacePath as string);
+	}
+
 	isQuarantined(contextId: string): boolean {
 		return this.quarantined.has(contextId);
 	}
