@@ -67,7 +67,7 @@ Bounded drive of the changed restart path only (runtime, curl bridge v1 bodies; 
 
 ## Limits
 
-- Restart closure was driven for real in the joined drives above (`CYRUS_F1_HOME`); restart process handling is now report-only and is covered by unit tests, not F1. Corrupt-journal quarantine, journal-write failure during cancel/deadline, and the queued-for-slot cancel are proven by unit tests (`JiraAgentTaskService.review.test.ts`, `RunnerConcurrency.test.ts`), not by F1.
+- Restart closure was driven for real in the joined drives above (`CYRUS_F1_HOME`). The current report-only restart handling was driven once, in the bounded runtime-only F1 slice at `b6fda3b88` above (one real Claude child, macOS, curl bridge bodies, no Hosted); the earlier automatic-termination drives are historical. Corrupt-journal quarantine, journal-write failure during cancel/deadline, and the queued-for-slot cancel are proven by unit tests (`JiraAgentTaskService.review.test.ts`, `RunnerConcurrency.test.ts`), not by F1.
 - The egress sandbox was off (`hasSandbox: false`); sandbox preservation is covered by `RunnerConfigBuilder.jira-scope.test.ts`.
 - Only Cyrus-owned integration variables are blanked; the operator's other ambient environment variables still reach the session, as for every Cyrus session type.
 - The Hosted A2A service, runtime bridge client and dispatch ledger ran only locally in the joined drives (real migration on PGlite, in-process). No deployed Hosted, Supabase/PostgREST, Forge/Jira delivery, real invocation token or user token, and no real push/PR (the fixture has no remote) was exercised.
