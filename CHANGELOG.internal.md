@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Changed
+- Published and verified `cyrus-core@0.2.75-test.10` for the Hosted SDK/tool-default refresh, added installed-package permission-contract coverage, and recorded the Agent SDK 0.3.314 compatibility review. ([CYPACK-1607](https://linear.app/ceedar/issue/CYPACK-1607/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1567](https://github.com/cyrusagents/cyrus/pull/1567), [cyrus-hosted#1293](https://github.com/cyrusagents/cyrus-hosted/pull/1293))
+
 ## [0.2.74] - 2026-10-21
 
 ### Added
