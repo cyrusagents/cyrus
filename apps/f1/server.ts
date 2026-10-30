@@ -45,6 +45,8 @@ const CYRUS_HOME =
 // CYRUS_F1_REPO_ID lets a joined drive bind the repository to an id issued
 // elsewhere (e.g. a Cyrus Hosted repository UUID).
 const CYRUS_F1_REPO_ID = process.env.CYRUS_F1_REPO_ID || "f1-test-repo";
+const CYRUS_F1_REPO_ID_2 =
+	process.env.CYRUS_F1_REPO_ID_2 || "f1-test-repo-secondary";
 const DEFAULT_REPOS_BASE_DIR = getDefaultReposDir(CYRUS_HOME);
 const DEFAULT_WORKTREES_BASE_DIR = getDefaultWorktreesDir(CYRUS_HOME);
 // Optional second repository path for multi-repo orchestration testing
@@ -138,7 +140,7 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 	// Add second repository if multi-repo mode is enabled
 	if (MULTI_REPO_MODE && CYRUS_REPO_PATH_2) {
 		const secondaryRepository: RepositoryConfig = {
-			id: "f1-test-repo-secondary",
+			id: CYRUS_F1_REPO_ID_2,
 			name: "F1 Secondary Repository",
 			repositoryPath: CYRUS_REPO_PATH_2,
 			baseBranch: "main",

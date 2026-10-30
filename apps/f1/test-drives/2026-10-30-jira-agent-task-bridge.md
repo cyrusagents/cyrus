@@ -65,6 +65,21 @@ Bounded drive of the changed restart path only (runtime, curl bridge v1 bodies; 
 - `get` → `failed`, `settled: true`, restart message. `send create` of a new task in that context → 409 `context_closed`. Journal `closed: true`, single task `failed`/settled. No new session started in the restarted server log.
 - Cleanup (operator, not Cyrus): the restarted server, the helper and the orphaned Claude child were sent SIGTERM after re-checking each pid's start time; all three exited, port 3661 released.
 
+## Joined repository-routing drive at runtime `ad271acea` (+ F1 `CYRUS_F1_REPO_ID_2`), 21:16–21:19 UTC
+
+Hosted working tree after the install/routing correction (real A2A service, bridge client and migrations through `20261126000000` on PGlite; Forge/Jira simulated) against one owned F1 server on port 3671 (checked free) in multi-repo mode: two `init-test-repo` fixtures, repository ids = random UUIDs shared with Hosted, real Claude, throwaway key, `CYRUS_F1_HOME=/tmp/jira-r10-home`. Evidence: task-run dir `joined/r10/` (`joined-routing.log`, `joined-main.log`, `f1-server.log`, `contexts.txt`, `worktrees.txt`, `cleanup.txt`).
+
+- Routing phase (exit 0), with the runtime's own journal read for each context:
+  - cross-workspace: the secondary repository belonged to another Hosted workspace; `[repo=secondary-repo]` → `INPUT_REQUIRED` listing only the primary repository (no routing recorded, nothing ran).
+  - explicit `[repo=primary-repo]` → `COMPLETED`, routing `description-tag`, worktree under the primary repository.
+  - Jira label `backend` → `COMPLETED`, routing `label-based`, worktree under `worktrees/secondary/`.
+  - no match → `INPUT_REQUIRED` listing both; reply `F1 Secondary Repository` in the same context → new task, `COMPLETED`, routing `user-selected`.
+  - follow-up in the label-routed context reused its routing; after the secondary repository was deactivated in Hosted, the next message → `FAILED` "…no longer available…", routing unchanged, nothing appended or run.
+- Main phase (exit 0): duplicate message → same task; `COMPLETED`; follow-up → new task, same context, `COMPLETED`; running task canceled → `CANCELED`.
+- Cleanup: own server SIGTERM after identity check; no process left in the fixture worktrees; port freed.
+
+Not driven here: restart with routing (journal persistence across a service restart is unit-tested in `JiraAgentRouting.test.ts`; the report-only restart path is the drive above), real Forge/Jira delivery, multi-repository worktrees with real Claude (unit-tested), and push/PR (fixtures have no remote).
+
 ## Limits
 
 - Restart closure was driven for real in the joined drives above (`CYRUS_F1_HOME`). The current report-only restart handling was driven once, in the bounded runtime-only F1 slice at `b6fda3b88` above (one real Claude child, macOS, curl bridge bodies, no Hosted); the earlier automatic-termination drives are historical. Corrupt-journal quarantine, journal-write failure during cancel/deadline, and the queued-for-slot cancel are proven by unit tests (`JiraAgentTaskService.review.test.ts`, `RunnerConcurrency.test.ts`), not by F1.
