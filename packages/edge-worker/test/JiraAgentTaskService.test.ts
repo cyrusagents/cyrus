@@ -177,6 +177,7 @@ let builds: JiraRunnerBuildInput[];
 let runnerOpts: ConstructorParameters<typeof FakeRunner>[1];
 let workspaceIsGit: boolean;
 let repos: Map<string, RepositoryConfig>;
+let runnerType: string;
 
 const repo = {
 	id: "repo-a",
@@ -195,6 +196,7 @@ async function makeService(
 		journal,
 		logger,
 		getRepository: (id) => repos.get(id),
+		resolveRunnerType: () => runnerType,
 		createWorkspace: async (_repo, target) => ({
 			path: join("/ws", target.identifier),
 			isGitWorktree: workspaceIsGit,
@@ -228,6 +230,7 @@ beforeEach(() => {
 	runners = [];
 	builds = [];
 	workspaceIsGit = true;
+	runnerType = "claude";
 	repos = new Map([["repo-a", repo]]);
 	runnerOpts = {
 		streaming: true,
@@ -254,9 +257,9 @@ describe("create, progress and completion", () => {
 			).toBe("working"),
 		);
 		const input = builds[0] as JiraRunnerBuildInput;
-		expect(input.workspace.path).toBe("/ws/jira-111111111111");
+		expect(input.workspace.path).toBe(`/ws/jira-${CTX}`);
 		expect(input.resume).toBeNull();
-		expect(input.systemPrompt).toContain("cyrus/jira-qa-1-11111111");
+		expect(input.systemPrompt).toContain(`cyrus/jira-qa-1-${CTX}`);
 		expect(lastRunner().prompts[0]).toContain(
 			"<summary>Fix the fixture</summary>",
 		);
@@ -455,7 +458,7 @@ describe("idempotency and single writer", () => {
 			.spyOn(journal, "save")
 			.mockRejectedValueOnce(new Error("disk full"));
 		await expect(svc.send(create())).rejects.toMatchObject({
-			code: "journal_failure",
+			code: "journal_error",
 		});
 		expect(runners).toHaveLength(0);
 		expect(journal.getContext(CTX)).toBeUndefined();
@@ -488,7 +491,8 @@ describe("follow-ups", () => {
 		);
 		const r = lastRunner();
 		r.result("first turn");
-		expect(r.injected).toHaveLength(1);
+		// Delivered only after the follow-up's removal is committed.
+		await vi.waitFor(() => expect(r.injected).toHaveLength(1));
 		expect(r.injected[0]).toContain("Include the failing fixture.");
 		expect(r.completeCalls).toBe(0);
 		let s = await svc.get({
@@ -709,7 +713,7 @@ describe("deadline and restart", () => {
 		expect(s.error).toBe(DEADLINE_MESSAGE);
 	});
 
-	it("restart marks in-flight tasks failed and releases the context", async () => {
+	it("restart marks in-flight tasks failed and CLOSES the context (no new writer in that worktree)", async () => {
 		const svc = await makeService();
 		await svc.send(create());
 		await started(1);
@@ -728,7 +732,16 @@ describe("deadline and restart", () => {
 		expect(s.settled).toBe(true);
 		expect(s.error).toBe(RESTART_MESSAGE);
 		expect(journalFile().tasks[0].state).toBe("failed");
-		await svc2.send(create({ taskId: TASK_B, messageId: "m2" }));
+		expect(journalFile().closed).toBe(true);
+		const buildsBefore = builds.length;
+		await expect(
+			svc2.send(create({ taskId: TASK_B, messageId: "m2" })),
+		).rejects.toMatchObject({ code: "context_closed", status: 409 });
+		expect(builds.length).toBe(buildsBefore);
+		// A fresh invocation (new context, new worktree) still works.
+		await svc2.send(
+			create({ taskId: TASK_B, contextId: CTX2, messageId: "m2" }),
+		);
 	});
 
 	it("journal writes are atomic (no temp files left behind)", async () => {

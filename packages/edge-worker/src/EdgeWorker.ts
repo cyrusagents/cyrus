@@ -966,6 +966,10 @@ export class EdgeWorker extends EventEmitter {
 			journal,
 			logger: this.logger,
 			getRepository: (id) => this.repositories.get(id),
+			// Same selection buildIssueConfig makes for a Jira task (no labels).
+			resolveRunnerType: () =>
+				this.runnerSelectionService.determineRunnerSelection([], undefined)
+					.runnerType,
 			createWorkspace: (repository, target) =>
 				this.createJiraWorkspace(repository, target),
 			buildRunner: (input) => this.buildJiraAgentRunner(input),

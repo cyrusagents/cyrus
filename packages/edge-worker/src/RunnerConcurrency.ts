@@ -10,7 +10,7 @@
  * kernel OOM killer).
  */
 
-import type { IAgentRunner } from "cyrus-core";
+import type { AgentSessionInfo, IAgentRunner } from "cyrus-core";
 
 /**
  * Counting semaphore with FIFO waiters and a live-adjustable limit.
@@ -47,18 +47,42 @@ export class SessionSemaphore {
 	}
 
 	acquire(): Promise<void> {
+		return this.acquireCancellable().granted.then(() => undefined);
+	}
+
+	/**
+	 * Like `acquire()`, but the wait can be withdrawn. `cancel()` removes a
+	 * still-queued waiter (its promise resolves `false` and no slot is
+	 * taken); once a slot was granted `cancel()` does nothing and the caller
+	 * owns the slot (`granted` resolved `true`).
+	 */
+	acquireCancellable(): { granted: Promise<boolean>; cancel: () => void } {
 		if (this.activeCount < this.limit) {
 			this.activeCount++;
-			return Promise.resolve();
+			return { granted: Promise.resolve(true), cancel: () => {} };
 		}
-		return new Promise<void>((resolve) => {
-			this.waiters.push(resolve);
+		let waiter: (() => void) | null = null;
+		let resolveGranted: (granted: boolean) => void = () => {};
+		const granted = new Promise<boolean>((resolve) => {
+			resolveGranted = resolve;
+			waiter = () => resolve(true);
+			this.waiters.push(waiter);
 			this.onQueued?.(
 				`Session start queued: ${this.activeCount} running at the ` +
 					`maxConcurrentSessions limit of ${this.limit}, ` +
 					`${this.waiters.length} waiting`,
 			);
 		});
+		return {
+			granted,
+			cancel: () => {
+				const index = waiter ? this.waiters.indexOf(waiter) : -1;
+				if (index >= 0) {
+					this.waiters.splice(index, 1);
+					resolveGranted(false);
+				}
+			},
+		};
 	}
 
 	release(): void {
@@ -109,9 +133,27 @@ export function capRunnerStarts(
 	runner: IAgentRunner,
 	semaphore: SessionSemaphore,
 ): IAgentRunner {
-	const gate = async <T>(run: () => Promise<T>): Promise<T> => {
-		await semaphore.acquire();
+	// `stop()` before the session has spawned must win: a runner stopped while
+	// queued for a slot never starts, and one whose slot arrives at the same
+	// moment re-checks the flag inside the slot, right before spawning.
+	let stopped = false;
+	let withdraw: (() => void) | null = null;
+	const notStarted = (): AgentSessionInfo => ({
+		sessionId: null,
+		startedAt: new Date(),
+		isRunning: false,
+	});
+	const gate = async (
+		run: () => Promise<AgentSessionInfo>,
+	): Promise<AgentSessionInfo> => {
+		if (stopped) return notStarted();
+		const admission = semaphore.acquireCancellable();
+		withdraw = admission.cancel;
+		const granted = await admission.granted;
+		withdraw = null;
+		if (!granted) return notStarted();
 		try {
+			if (stopped) return notStarted();
 			return await run();
 		} finally {
 			semaphore.release();
@@ -123,13 +165,19 @@ export function capRunnerStarts(
 			if (property === "start") {
 				return (prompt: string) => gate(() => target.start(prompt));
 			}
-			if (
-				property === "startStreaming" &&
-				typeof target.startStreaming === "function"
-			) {
-				return (initialPrompt?: string) =>
-					// biome-ignore lint/style/noNonNullAssertion: guarded by the typeof check above
-					gate(() => target.startStreaming!(initialPrompt));
+			if (property === "startStreaming") {
+				const startStreaming = target.startStreaming?.bind(target);
+				if (startStreaming) {
+					return (initialPrompt?: string) =>
+						gate(() => startStreaming(initialPrompt));
+				}
+			}
+			if (property === "stop") {
+				return () => {
+					stopped = true;
+					withdraw?.();
+					return target.stop();
+				};
 			}
 			return Reflect.get(target, property, receiver);
 		},

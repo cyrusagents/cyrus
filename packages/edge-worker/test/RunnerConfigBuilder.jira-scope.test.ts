@@ -85,6 +85,8 @@ describe("RunnerConfigBuilder mcpScope none (Jira tasks)", () => {
 		expect(config.mcpConfig).toEqual({});
 		expect(config.mcpConfigPath).toBeUndefined();
 		expect(config.strictMcpConfig).toBe(true);
+		// The runner's own discovery (worktree .mcp.json) is switched off too.
+		expect(config.disableMcpDiscovery).toBe(true);
 		expect(provider.buildMcpConfig).not.toHaveBeenCalled();
 		expect(provider.buildMergedMcpConfigPath).not.toHaveBeenCalled();
 		expect(requireLinearWorkspaceId).not.toHaveBeenCalled();

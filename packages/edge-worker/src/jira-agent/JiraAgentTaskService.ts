@@ -18,43 +18,57 @@ import {
 } from "./JiraAgentJournal.js";
 
 /**
- * Executes Jira remote-agent tasks forwarded by Cyrus Hosted (bridge v1).
+ * Executes Jira remote-agent tasks forwarded by Cyrus Hosted (bridge v1,
+ * CONTRACT v3).
  *
- * Guarantees (see CONTRACT v2 §5):
- * - Idempotent per (taskId, messageId): the same canonical body returns the
- *   current snapshot; a different body is a `conflict`.
- * - ONE live execution per context: `create` is refused with `context_busy`
- *   while any earlier task in the context is not settled, whatever its id.
- * - A context's binding (workspace, installation link, account link,
- *   repository) and Jira issue are pinned at first create; any later request
- *   that disagrees is `context_mismatch`.
- * - Cancellation fences queued follow-ups and late runner output, calls
- *   `runner.stop()` and then awaits the ORIGINAL execution promise. Only a
- *   settled execution is reported `canceled`; otherwise `canceling` and the
- *   context stays reserved until it settles.
- * - The hard deadline uses the same stop procedure and becomes `failed` only
- *   after settlement.
+ * - Every state change is made on a copy of the context record, persisted,
+ *   and only then published (one serialized lock per context). `get` always
+ *   returns committed state; a failed write changes nothing visible and the
+ *   request answers `journal_error`.
+ * - Idempotent per (taskId, messageId); a different body is `conflict`.
+ *   Retired (trimmed) tasks keep their message hashes, so replays never
+ *   re-execute.
+ * - ONE live execution per context (`context_busy` until settled), pinned
+ *   binding and issue (`context_mismatch`), closed contexts after a restart
+ *   (`context_closed`), quarantined unreadable contexts (`context_unavailable`).
+ * - Claude runner only (`unsupported_runner` before admission): its stop and
+ *   environment/MCP scoping are the ones this feature relies on.
+ * - Cancel / deadline: fence, request `runner.stop()` FIRST (so a journal
+ *   failure cannot prevent the stop), then persist `canceling`, then await
+ *   the ORIGINAL execution promise. Only a settled execution is `canceled` /
+ *   `failed`. The concurrency gate never spawns a runner stopped while queued.
+ * - Cancel of a task this runtime never admitted durably records a tombstone;
+ *   a delayed create for it is refused with `task_canceled`.
+ * - Follow-ups are delivered to the runner only after they are committed.
  */
 
 export type JiraAgentErrorCode =
 	| "invalid_request"
 	| "unknown_repository"
+	| "unsupported_runner"
 	| "task_not_found"
 	| "conflict"
 	| "context_mismatch"
 	| "context_busy"
+	| "context_closed"
+	| "task_canceled"
 	| "task_terminal"
-	| "journal_failure";
+	| "context_unavailable"
+	| "journal_error";
 
 const ERROR_STATUS: Record<JiraAgentErrorCode, number> = {
 	invalid_request: 400,
 	unknown_repository: 400,
+	unsupported_runner: 400,
 	task_not_found: 404,
 	conflict: 409,
 	context_mismatch: 409,
 	context_busy: 409,
+	context_closed: 409,
+	task_canceled: 409,
 	task_terminal: 409,
-	journal_failure: 500,
+	context_unavailable: 503,
+	journal_error: 500,
 };
 
 export class JiraAgentError extends Error {
@@ -91,6 +105,7 @@ export interface JiraTaskSnapshot {
 	contextId: string;
 	state: JiraTaskState;
 	settled: boolean;
+	admitted: boolean;
 	progress: { seq: number; at: string; text: string }[];
 	result: string | null;
 	error: string | null;
@@ -116,6 +131,8 @@ export interface JiraAgentTaskServiceDeps {
 	logger: ILogger;
 	/** Current configured repository by id; never a path or URL. */
 	getRepository: (repositoryId: string) => RepositoryConfig | undefined;
+	/** Runner type this repository would run with (checked before admission). */
+	resolveRunnerType: (repository: RepositoryConfig) => string;
 	createWorkspace: (
 		repository: RepositoryConfig,
 		target: { identifier: string; branchName: string; title: string },
@@ -130,6 +147,8 @@ export interface JiraAgentTaskServiceDeps {
 	/** After a final result, how long a held-open session may take to end. */
 	postResultGraceMs?: number;
 	maxQueuedFollowups?: number;
+	/** Attempts to persist a terminal state before leaving it unsettled. */
+	finalizeAttempts?: number;
 }
 
 type Fence = "cancel" | "deadline" | "shutdown";
@@ -144,6 +163,7 @@ interface LiveTask {
 	graceTimer: ReturnType<typeof setTimeout> | null;
 	lastResult: { text: string; isError: boolean } | null;
 	fatalError: string | null;
+	sessionId: string | null;
 }
 
 export const MAX_TEXT_BYTES = 32 * 1024;
@@ -155,6 +175,11 @@ export const DEADLINE_MESSAGE =
 export const CANCELED_MESSAGE = "Canceled from Jira.";
 export const SHUTDOWN_MESSAGE =
 	"Cyrus stopped because its runtime shut down; send a follow-up to continue.";
+export const TOMBSTONE_MESSAGE = "Canceled before Cyrus started it.";
+export const REPOSITORY_GONE_MESSAGE =
+	"The repository linked to this Jira site is no longer configured in Cyrus.";
+export const UNSUPPORTED_RUNNER_MESSAGE =
+	"Jira tasks currently run only with the Claude runner. Configure Claude as this repository's runner in Cyrus, then assign the work item again.";
 
 /**
  * Tools a Jira task must not have even when the repository/platform list
@@ -250,10 +275,10 @@ export function jiraWorkspaceTarget(
 	contextId: string,
 	issue: JiraIssueRef,
 ): { identifier: string; branchName: string; title: string } {
-	const compact = contextId.replace(/-/g, "");
+	// The full context UUID: no prefix collisions between contexts.
 	return {
-		identifier: `jira-${compact.slice(0, 12)}`,
-		branchName: `cyrus/jira-${sanitizeBranchPart(issue.key)}-${compact.slice(0, 8)}`,
+		identifier: `jira-${contextId}`,
+		branchName: `cyrus/jira-${sanitizeBranchPart(issue.key)}-${contextId}`,
 		title: issue.key,
 	};
 }
@@ -338,16 +363,19 @@ const sleep = (ms: number) =>
 		t.unref?.();
 	});
 
+const errorText = (error: unknown) =>
+	error instanceof Error ? error.message : String(error);
+
 export class JiraAgentTaskService {
 	private readonly journal: JiraAgentJournal;
 	private readonly logger: ILogger;
 	private readonly lives = new Map<string, LiveTask>();
 	private readonly locks = new Map<string, Promise<unknown>>();
-	private readonly saveChains = new Map<string, Promise<void>>();
 	private readonly deadlineMs: number;
 	private readonly cancelWaitMs: number;
 	private readonly postResultGraceMs: number;
 	private readonly maxQueued: number;
+	private readonly finalizeAttempts: number;
 
 	constructor(private readonly deps: JiraAgentTaskServiceDeps) {
 		this.journal = deps.journal;
@@ -356,6 +384,7 @@ export class JiraAgentTaskService {
 		this.cancelWaitMs = deps.cancelWaitMs ?? 15_000;
 		this.postResultGraceMs = deps.postResultGraceMs ?? 30_000;
 		this.maxQueued = deps.maxQueuedFollowups ?? 10;
+		this.finalizeAttempts = deps.finalizeAttempts ?? 3;
 	}
 
 	/** Number of tasks whose execution may still be running. */
@@ -373,6 +402,7 @@ export class JiraAgentTaskService {
 	}
 
 	private async create(request: JiraSendRequest): Promise<JiraTaskSnapshot> {
+		this.assertAvailable(request.contextId);
 		const hash = canonicalHash(request);
 		const indexed = this.journal.contextOfTask(request.taskId);
 		if (indexed && indexed !== request.contextId) {
@@ -385,9 +415,19 @@ export class JiraAgentTaskService {
 		if (existing) this.assertPinned(existing, request.binding, request.issue);
 
 		if (existing && indexed) {
-			const task = this.mustFindTask(existing, request.taskId);
-			if (task.messageHashes[request.messageId] === hash) {
-				return this.snapshot(existing, task);
+			const retired = existing.retired[request.taskId];
+			const task = existing.tasks.find((t) => t.taskId === request.taskId);
+			const admitted = task?.admitted ?? retired?.admitted ?? true;
+			if (!admitted) {
+				throw new JiraAgentError(
+					"task_canceled",
+					"This task was canceled before Cyrus started it",
+				);
+			}
+			const hashes = task?.messageHashes ?? retired?.messageHashes ?? {};
+			if (hashes[request.messageId] === hash) {
+				if (task) return this.snapshot(existing, task);
+				throw new JiraAgentError("task_terminal", "Task has already ended");
 			}
 			throw new JiraAgentError(
 				"conflict",
@@ -395,10 +435,23 @@ export class JiraAgentTaskService {
 			);
 		}
 
-		if (!this.deps.getRepository(request.binding.repositoryId)) {
+		if (existing?.closed) {
+			throw new JiraAgentError(
+				"context_closed",
+				"This conversation was interrupted by a Cyrus restart",
+			);
+		}
+		const repository = this.deps.getRepository(request.binding.repositoryId);
+		if (!repository) {
 			throw new JiraAgentError(
 				"unknown_repository",
 				"Repository is not configured on this Cyrus runtime",
+			);
+		}
+		if (this.deps.resolveRunnerType(repository) !== "claude") {
+			throw new JiraAgentError(
+				"unsupported_runner",
+				UNSUPPORTED_RUNNER_MESSAGE,
 			);
 		}
 		if (existing?.tasks.some((t) => !t.settled)) {
@@ -409,48 +462,45 @@ export class JiraAgentTaskService {
 		}
 
 		const now = new Date().toISOString();
-		const task: JiraTaskRecord = {
-			taskId: request.taskId,
-			messageHashes: { [request.messageId]: hash },
-			state: "submitted",
-			settled: false,
-			initialText: request.text,
-			pendingFollowups: [],
-			progress: [],
-			nextSeq: 1,
-			result: null,
-			error: null,
-			createdAt: now,
-			updatedAt: now,
-		};
-		const record: JiraContextRecord = existing ?? {
-			version: 1,
-			contextId: request.contextId,
-			binding: { ...request.binding },
-			issue: { ...request.issue },
-			workspacePath: null,
-			runnerType: null,
-			runnerSessionId: null,
-			tasks: [],
-		};
-		record.tasks.push(task);
-		if (existing) this.journal.indexTask(record.contextId, task.taskId);
-		else this.journal.putContext(record);
-
-		try {
-			await this.persist(record);
-		} catch (error) {
-			record.tasks.pop();
-			if (existing) this.journal.unindexTask(task.taskId);
-			else this.journal.forgetContext(record.contextId);
-			throw this.journalError(error);
-		}
-
-		this.startExecution(record, task);
-		return this.snapshot(record, task);
+		const record = await this.commit(
+			request.contextId,
+			() => ({
+				version: 1,
+				contextId: request.contextId,
+				binding: { ...request.binding },
+				issue: { ...request.issue },
+				workspacePath: null,
+				runnerType: null,
+				runnerSessionId: null,
+				closed: false,
+				tasks: [],
+				retired: {},
+			}),
+			(draft) => {
+				if (!draft.issue) draft.issue = { ...request.issue };
+				draft.tasks.push({
+					taskId: request.taskId,
+					messageHashes: { [request.messageId]: hash },
+					state: "submitted",
+					settled: false,
+					admitted: true,
+					initialText: request.text,
+					pendingFollowups: [],
+					progress: [],
+					nextSeq: 1,
+					result: null,
+					error: null,
+					createdAt: now,
+					updatedAt: now,
+				});
+			},
+		);
+		this.startExecution(request.contextId, request.taskId);
+		return this.snapshot(record, this.mustFindTask(record, request.taskId));
 	}
 
 	private async followup(request: JiraSendRequest): Promise<JiraTaskSnapshot> {
+		this.assertAvailable(request.contextId);
 		const hash = canonicalHash(request);
 		const record = this.journal.getContext(request.contextId);
 		if (
@@ -460,16 +510,29 @@ export class JiraAgentTaskService {
 			throw new JiraAgentError("task_not_found", "Task not found");
 		}
 		this.assertPinned(record, request.binding, request.issue);
-		const task = this.mustFindTask(record, request.taskId);
-		const prior = task.messageHashes[request.messageId];
-		if (prior === hash) return this.snapshot(record, task);
+		const task = record.tasks.find((t) => t.taskId === request.taskId);
+		const retired = record.retired[request.taskId];
+		if ((task?.admitted ?? retired?.admitted) === false) {
+			throw new JiraAgentError(
+				"task_canceled",
+				"This task was canceled before Cyrus started it",
+			);
+		}
+		const hashes = task?.messageHashes ?? retired?.messageHashes;
+		const prior = hashes?.[request.messageId];
+		if (prior === hash && task) return this.snapshot(record, task);
 		if (prior !== undefined) {
 			throw new JiraAgentError(
 				"conflict",
 				"messageId was already used with a different request",
 			);
 		}
-		if (TERMINAL_STATES.has(task.state) || task.state === "canceling") {
+		if (
+			!task ||
+			TERMINAL_STATES.has(task.state) ||
+			task.state === "canceling" ||
+			this.lives.get(task.taskId)?.fence
+		) {
 			throw new JiraAgentError("task_terminal", "Task has already ended");
 		}
 		if (task.pendingFollowups.length >= this.maxQueued) {
@@ -478,23 +541,24 @@ export class JiraAgentTaskService {
 				"Too many follow-ups are waiting for this task",
 			);
 		}
-		task.messageHashes[request.messageId] = hash;
-		task.pendingFollowups.push(request.text);
-		task.updatedAt = new Date().toISOString();
-		try {
-			await this.persist(record);
-		} catch (error) {
-			delete task.messageHashes[request.messageId];
-			task.pendingFollowups.pop();
-			throw this.journalError(error);
-		}
-		return this.snapshot(record, task);
+		// Committed before anything can deliver it; delivery reads only
+		// committed follow-ups (see onResult / runTask).
+		const committed = await this.commitTask(
+			request.contextId,
+			request.taskId,
+			(t) => {
+				t.messageHashes[request.messageId] = hash;
+				t.pendingFollowups.push(request.text);
+			},
+		);
+		return this.snapshot(committed.record, committed.task);
 	}
 
 	// ---------------------------------------------------------------- get
 
 	async get(ref: JiraTaskRef): Promise<JiraTaskSnapshot> {
 		this.assertIds(ref.contextId, ref.taskId);
+		this.assertAvailable(ref.contextId);
 		const { record, task } = this.resolve(ref);
 		return this.snapshot(record, task);
 	}
@@ -504,27 +568,85 @@ export class JiraAgentTaskService {
 	async cancel(ref: JiraTaskRef): Promise<JiraTaskSnapshot> {
 		this.assertIds(ref.contextId, ref.taskId);
 		const live = await this.withLock(ref.contextId, async () => {
-			const { record, task } = this.resolve(ref);
-			if (TERMINAL_STATES.has(task.state)) return null;
-			const current = this.lives.get(task.taskId) ?? null;
-			if (!current) {
-				// Not executing and not settled cannot persist past a restart;
-				// defensively settle it as canceled.
-				this.applyTerminal(task, "canceled", null, CANCELED_MESSAGE);
-				await this.persistOrThrow(record);
+			this.assertAvailable(ref.contextId);
+			const record = this.journal.getContext(ref.contextId);
+			const indexed = this.journal.contextOfTask(ref.taskId);
+			if (indexed && indexed !== ref.contextId) {
+				throw new JiraAgentError(
+					"context_mismatch",
+					"Task belongs to another context",
+				);
+			}
+			if (record && !sameBinding(record.binding, ref.binding)) {
+				throw new JiraAgentError(
+					"context_mismatch",
+					"Context is bound to a different link",
+				);
+			}
+			if (!indexed) {
+				await this.tombstone(ref);
 				return null;
 			}
+			const task = this.mustFindTask(record as JiraContextRecord, ref.taskId);
+			if (TERMINAL_STATES.has(task.state) && task.settled) return null;
+			const current = this.lives.get(ref.taskId) ?? null;
+			if (!current) {
+				// No execution is running (its terminal write failed earlier, so
+				// the execution provably ended): settle it as canceled.
+				await this.commitTask(ref.contextId, ref.taskId, (t) =>
+					applyTerminal(t, "canceled", null, CANCELED_MESSAGE),
+				);
+				return null;
+			}
+			// Stop first: a journal failure below must not prevent it.
 			this.fence(current, "cancel");
-			task.state = "canceling";
-			task.pendingFollowups = [];
-			task.updatedAt = new Date().toISOString();
-			await this.persistOrThrow(record);
 			this.requestStop(current);
+			await this.commitTask(ref.contextId, ref.taskId, (t) => {
+				t.state = "canceling";
+				t.pendingFollowups = [];
+			});
 			return current;
 		});
 		if (live) await Promise.race([live.done, sleep(this.cancelWaitMs)]);
 		const { record, task } = this.resolve(ref);
 		return this.snapshot(record, task);
+	}
+
+	/** Durable pre-admission cancel: a later create for this task is refused. */
+	private async tombstone(ref: JiraTaskRef): Promise<void> {
+		const now = new Date().toISOString();
+		await this.commit(
+			ref.contextId,
+			() => ({
+				version: 1,
+				contextId: ref.contextId,
+				binding: { ...ref.binding },
+				issue: null,
+				workspacePath: null,
+				runnerType: null,
+				runnerSessionId: null,
+				closed: false,
+				tasks: [],
+				retired: {},
+			}),
+			(draft) => {
+				draft.tasks.push({
+					taskId: ref.taskId,
+					messageHashes: {},
+					state: "canceled",
+					settled: true,
+					admitted: false,
+					initialText: "",
+					pendingFollowups: [],
+					progress: [],
+					nextSeq: 1,
+					result: null,
+					error: TOMBSTONE_MESSAGE,
+					createdAt: now,
+					updatedAt: now,
+				});
+			},
+		);
 	}
 
 	/** EdgeWorker shutdown: fence and stop every live execution (bounded). */
@@ -542,10 +664,10 @@ export class JiraAgentTaskService {
 
 	// ---------------------------------------------------------------- execution
 
-	private startExecution(record: JiraContextRecord, task: JiraTaskRecord) {
+	private startExecution(contextId: string, taskId: string) {
 		const live: LiveTask = {
-			contextId: record.contextId,
-			taskId: task.taskId,
+			contextId,
+			taskId,
 			fence: null,
 			runner: null,
 			done: Promise.resolve(),
@@ -553,54 +675,67 @@ export class JiraAgentTaskService {
 			graceTimer: null,
 			lastResult: null,
 			fatalError: null,
+			sessionId: null,
 		};
-		this.lives.set(task.taskId, live);
+		this.lives.set(taskId, live);
 		live.deadlineTimer = setTimeout(() => {
 			this.logger.warn(
-				`[JiraAgent] Task ${task.taskId} reached its time limit; stopping`,
+				`[JiraAgent] Task ${taskId} reached its time limit; stopping`,
 			);
 			this.fence(live, "deadline");
-			task.state = "canceling";
-			task.updatedAt = new Date().toISOString();
-			this.persist(record).catch((error) =>
-				this.logger.error("[JiraAgent] Failed to persist deadline", error),
-			);
 			this.requestStop(live);
+			this.withLock(contextId, () =>
+				this.commitTask(contextId, taskId, (t) => {
+					if (!TERMINAL_STATES.has(t.state)) t.state = "canceling";
+				}),
+			).catch((error) =>
+				this.logger.error(
+					`[JiraAgent] Failed to persist deadline for ${taskId}`,
+					error instanceof Error ? error : new Error(String(error)),
+				),
+			);
 		}, this.deadlineMs);
 		live.deadlineTimer.unref?.();
-		live.done = this.runTask(record, task, live).finally(() => {
+		live.done = this.runTask(live).finally(() => {
 			if (live.deadlineTimer) clearTimeout(live.deadlineTimer);
 			if (live.graceTimer) clearTimeout(live.graceTimer);
-			this.lives.delete(task.taskId);
+			this.lives.delete(taskId);
 		});
 	}
 
-	private async runTask(
-		record: JiraContextRecord,
-		task: JiraTaskRecord,
-		live: LiveTask,
-	): Promise<void> {
+	private async runTask(live: LiveTask): Promise<void> {
+		const { contextId, taskId } = live;
 		try {
-			const repository = this.deps.getRepository(record.binding.repositoryId);
+			const initial = this.journal.getContext(contextId) as JiraContextRecord;
+			const issue = initial.issue as JiraIssueRef;
+			const target = jiraWorkspaceTarget(contextId, issue);
+			let repository = this.deps.getRepository(initial.binding.repositoryId);
 			if (!repository) {
-				live.fatalError =
-					"The repository linked to this Jira site is no longer configured in Cyrus.";
+				live.fatalError = REPOSITORY_GONE_MESSAGE;
 				return;
 			}
-			const target = jiraWorkspaceTarget(record.contextId, record.issue);
 			const workspace = await this.deps.createWorkspace(repository, target);
 			if (!workspace.isGitWorktree) {
 				live.fatalError =
 					"Cyrus could not create an isolated git worktree for this task.";
 				return;
 			}
-			record.workspacePath = workspace.path;
 			if (live.fence) return;
-
 			const systemPrompt = buildJiraSystemPrompt(repository, target.branchName);
-			let prompt = buildJiraInitialPrompt(record.issue, task.initialText);
+			let prompt = buildJiraInitialPrompt(
+				issue,
+				this.mustFindTask(initial, taskId).initialText,
+			);
+			let first = true;
 
 			for (;;) {
+				// Revalidate the bound repository before every runner start.
+				repository = this.deps.getRepository(initial.binding.repositoryId);
+				if (!repository) {
+					live.fatalError = REPOSITORY_GONE_MESSAGE;
+					return;
+				}
+				const record = this.journal.getContext(contextId) as JiraContextRecord;
 				const resume =
 					record.runnerType && record.runnerSessionId
 						? {
@@ -611,28 +746,39 @@ export class JiraAgentTaskService {
 				const { runner, runnerType } = await this.deps.buildRunner({
 					repository,
 					workspace,
-					contextId: record.contextId,
-					taskId: task.taskId,
-					issue: record.issue,
+					contextId,
+					taskId,
+					issue,
 					systemPrompt,
 					resume,
-					onMessage: (message) =>
-						this.onRunnerMessage(record, task, live, runner, message),
+					onMessage: (message) => this.onRunnerMessage(live, runner, message),
 					onError: (error) =>
 						this.logger.warn(
-							`[JiraAgent] Runner error for task ${task.taskId}: ${error.message}`,
+							`[JiraAgent] Runner error for task ${taskId}: ${error.message}`,
 						),
 				});
-				if (live.fence) return;
+				if (runnerType !== "claude") {
+					live.fatalError = UNSUPPORTED_RUNNER_MESSAGE;
+					return;
+				}
+				// Visible to cancel before anything can spawn: the concurrency
+				// gate never starts a runner stopped while it was queued.
 				live.runner = runner;
 				live.lastResult = null;
-				if (record.runnerType !== runnerType) {
-					record.runnerType = runnerType;
-					record.runnerSessionId = null;
-				}
-				task.state = "working";
-				task.updatedAt = new Date().toISOString();
-				await this.persistOrThrow(record);
+				if (live.fence) return;
+				await this.withLock(contextId, () =>
+					this.commit(contextId, null, (draft) => {
+						draft.workspacePath = workspace.path;
+						if (draft.runnerType !== runnerType) {
+							draft.runnerType = runnerType;
+							draft.runnerSessionId = null;
+						}
+						const t = this.mustFindTask(draft, taskId);
+						if (first && t.state === "submitted") t.state = "working";
+						t.updatedAt = new Date().toISOString();
+					}),
+				);
+				first = false;
 				if (live.fence) return;
 
 				// The ORIGINAL execution promise is the only proof the run ended.
@@ -643,7 +789,7 @@ export class JiraAgentTaskService {
 				let executionError: unknown = null;
 				try {
 					const info = await execution;
-					if (info?.sessionId) record.runnerSessionId = info.sessionId;
+					if (info?.sessionId) live.sessionId = info.sessionId;
 				} catch (error) {
 					executionError = error;
 				}
@@ -653,78 +799,128 @@ export class JiraAgentTaskService {
 					live.graceTimer = null;
 				}
 				if (live.fence) return;
-				// Re-read: set by onRunnerMessage while the execution ran.
 				const lastResult = live.lastResult as LiveTask["lastResult"];
 				if (executionError && !lastResult) {
-					live.fatalError =
-						executionError instanceof Error
-							? executionError.message
-							: String(executionError);
+					live.fatalError = errorText(executionError);
 					return;
 				}
 				if (lastResult?.isError) return;
-				// Follow-ups that arrived after the final turn run as a new turn
-				// resuming the same session. Checked synchronously before the
-				// terminal state is written, so none can be stranded.
-				if (task.pendingFollowups.length === 0) return;
-				prompt = buildFollowupPrompt(task.pendingFollowups.splice(0));
+				// Decide "another turn" vs "finish" under the context lock, so a
+				// follow-up is either committed before (and runs) or after (and is
+				// refused as task_terminal once the terminal state commits).
+				const next = await this.withLock(contextId, async () => {
+					const current = this.mustFindTask(
+						this.journal.getContext(contextId) as JiraContextRecord,
+						taskId,
+					);
+					if (current.pendingFollowups.length === 0) {
+						await this.finalizeLocked(live);
+						return null;
+					}
+					const texts = [...current.pendingFollowups];
+					await this.commit(contextId, null, (draft) => {
+						// The next turn resumes this session.
+						if (live.sessionId) draft.runnerSessionId = live.sessionId;
+						const t = this.mustFindTask(draft, taskId);
+						t.pendingFollowups.splice(0, texts.length);
+						t.updatedAt = new Date().toISOString();
+					});
+					return texts;
+				});
+				if (!next) return;
+				prompt = buildFollowupPrompt(next);
 			}
 		} catch (error) {
-			if (!live.fence) {
-				live.fatalError =
-					error instanceof Error ? error.message : String(error);
-			}
+			if (!live.fence) live.fatalError = errorText(error);
 		} finally {
-			await this.finalize(record, task, live);
+			await this.withLock(contextId, () => this.finalizeLocked(live));
 		}
 	}
 
 	private onRunnerMessage(
-		record: JiraContextRecord,
-		task: JiraTaskRecord,
 		live: LiveTask,
 		runner: IAgentRunner,
 		message: SDKMessage,
 	): void {
 		// Late output after a fence (cancel/deadline/shutdown) never changes
 		// the task: it cannot resurrect or complete a stopped task.
-		if (live.fence || TERMINAL_STATES.has(task.state)) return;
+		if (live.fence) return;
 		const sessionId = (message as { session_id?: unknown }).session_id;
 		if (typeof sessionId === "string" && sessionId.length > 0) {
-			record.runnerSessionId = sessionId;
+			live.sessionId = sessionId;
 		}
 		const text = assistantText(message);
 		if (text) {
-			task.progress.push({
-				seq: task.nextSeq++,
+			const entry = {
 				at: new Date().toISOString(),
 				text: truncateUtf8(text, MAX_PROGRESS_ENTRY),
-			});
-			if (task.progress.length > MAX_PROGRESS_ENTRIES) {
-				task.progress.splice(0, task.progress.length - MAX_PROGRESS_ENTRIES);
-			}
-			task.updatedAt = new Date().toISOString();
-			this.persist(record).catch((error) =>
+			};
+			// Progress is published only once it is durable.
+			this.withLock(live.contextId, async () => {
+				if (live.fence) return;
+				await this.commitTask(live.contextId, live.taskId, (t) => {
+					if (TERMINAL_STATES.has(t.state)) return;
+					t.progress.push({ seq: t.nextSeq++, ...entry });
+					if (t.progress.length > MAX_PROGRESS_ENTRIES) {
+						t.progress.splice(0, t.progress.length - MAX_PROGRESS_ENTRIES);
+					}
+				});
+			}).catch((error) =>
 				this.logger.warn(
-					`[JiraAgent] Failed to persist progress for ${task.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+					`[JiraAgent] Progress for ${live.taskId} not saved (not shown): ${errorText(error)}`,
 				),
 			);
 		}
 		const result = resultOf(message);
 		if (!result) return;
 		live.lastResult = result;
-		// Turn boundary: deliver the next queued follow-up into the same live
-		// session; otherwise end the input stream so the execution settles.
+		this.withLock(live.contextId, () =>
+			this.onResultLocked(live, runner, result),
+		).catch((error) =>
+			this.logger.warn(
+				`[JiraAgent] Turn boundary for ${live.taskId} failed: ${errorText(error)}`,
+			),
+		);
+	}
+
+	/**
+	 * Turn boundary: deliver the next COMMITTED follow-up into the same live
+	 * session (removal committed first), otherwise end the input stream so the
+	 * execution settles.
+	 */
+	private async onResultLocked(
+		live: LiveTask,
+		runner: IAgentRunner,
+		result: { text: string; isError: boolean },
+	): Promise<void> {
+		if (live.fence || live.runner !== runner) return;
+		const task = this.mustFindTask(
+			this.journal.getContext(live.contextId) as JiraContextRecord,
+			live.taskId,
+		);
 		const streaming = runner.isStreaming?.() === true;
 		if (!result.isError && streaming && task.pendingFollowups.length > 0) {
-			const next = task.pendingFollowups.shift() as string;
+			const next = task.pendingFollowups[0] as string;
+			let removed = false;
 			try {
+				await this.commitTask(live.contextId, live.taskId, (t) => {
+					t.pendingFollowups.shift();
+				});
+				removed = true;
 				runner.addStreamMessage?.(buildFollowupPrompt([next]));
 				live.lastResult = null;
-				this.persist(record).catch(() => {});
 				return;
-			} catch {
-				task.pendingFollowups.unshift(next);
+			} catch (error) {
+				this.logger.warn(
+					`[JiraAgent] Could not deliver follow-up to ${live.taskId} in-session: ${errorText(error)}`,
+				);
+				if (removed) {
+					// Injection failed after the removal committed: put it back so
+					// the post-execution check runs it as a new turn.
+					await this.commitTask(live.contextId, live.taskId, (t) => {
+						t.pendingFollowups.unshift(next);
+					}).catch(() => {});
+				}
 			}
 		}
 		runner.completeStream?.();
@@ -742,67 +938,63 @@ export class JiraAgentTaskService {
 		}
 	}
 
-	private async finalize(
-		record: JiraContextRecord,
-		task: JiraTaskRecord,
-		live: LiveTask,
-	): Promise<void> {
-		if (live.fence === "cancel") {
-			this.applyTerminal(task, "canceled", null, CANCELED_MESSAGE);
-		} else if (live.fence === "deadline") {
-			this.applyTerminal(task, "failed", null, DEADLINE_MESSAGE);
-		} else if (live.fence === "shutdown") {
-			this.applyTerminal(task, "failed", null, SHUTDOWN_MESSAGE);
-		} else if (live.fatalError) {
-			this.applyTerminal(
-				task,
-				"failed",
-				null,
-				truncateUtf8(live.fatalError, MAX_PROGRESS_ENTRY),
-			);
-		} else if (live.lastResult?.isError) {
-			this.applyTerminal(
-				task,
-				"failed",
-				null,
-				truncateUtf8(live.lastResult.text, MAX_PROGRESS_ENTRY),
-			);
-		} else {
-			this.applyTerminal(
-				task,
-				"completed",
-				truncateUtf8(live.lastResult?.text ?? "", MAX_TEXT_BYTES),
-				null,
-			);
-		}
-		try {
-			await this.persist(record);
-		} catch (error) {
-			// The in-memory snapshot must not claim a result that is not durable.
-			this.logger.error(
-				`[JiraAgent] Failed to persist final state of ${task.taskId}`,
-				error instanceof Error ? error : new Error(String(error)),
-			);
-			if (task.state === "completed") {
-				task.state = "failed";
-				task.result = null;
-				task.error = "Cyrus finished but could not save the task result.";
+	/**
+	 * Commit the terminal state (called under the context lock once the
+	 * execution has settled). If it cannot be persisted after retries the
+	 * task stays unsettled — never falsely complete — and the context stays
+	 * reserved until a later cancel settles it.
+	 */
+	private async finalizeLocked(live: LiveTask): Promise<void> {
+		const record = this.journal.getContext(live.contextId);
+		const current = record?.tasks.find((t) => t.taskId === live.taskId);
+		if (!current || (current.settled && TERMINAL_STATES.has(current.state)))
+			return;
+		const [state, result, error] = this.outcome(live);
+		for (let attempt = 1; attempt <= this.finalizeAttempts; attempt++) {
+			try {
+				await this.commit(live.contextId, null, (draft) => {
+					if (live.sessionId) draft.runnerSessionId = live.sessionId;
+					applyTerminal(
+						this.mustFindTask(draft, live.taskId),
+						state,
+						result,
+						error,
+					);
+				});
+				return;
+			} catch (e) {
+				this.logger.error(
+					`[JiraAgent] Failed to persist final state of ${live.taskId} (attempt ${attempt})`,
+					e instanceof Error ? e : new Error(String(e)),
+				);
+				if (attempt < this.finalizeAttempts) await sleep(50 * attempt);
 			}
 		}
 	}
 
-	private applyTerminal(
-		task: JiraTaskRecord,
-		state: "completed" | "failed" | "canceled",
-		result: string | null,
-		error: string | null,
-	): void {
-		task.state = state;
-		task.settled = true;
-		task.result = result;
-		task.error = error;
-		task.pendingFollowups = [];
-		task.updatedAt = new Date().toISOString();
+	private outcome(
+		live: LiveTask,
+	): ["completed" | "failed" | "canceled", string | null, string | null] {
+		if (live.fence === "cancel") return ["canceled", null, CANCELED_MESSAGE];
+		if (live.fence === "deadline") return ["failed", null, DEADLINE_MESSAGE];
+		if (live.fence === "shutdown") return ["failed", null, SHUTDOWN_MESSAGE];
+		if (live.fatalError)
+			return [
+				"failed",
+				null,
+				truncateUtf8(live.fatalError, MAX_PROGRESS_ENTRY),
+			];
+		if (live.lastResult?.isError)
+			return [
+				"failed",
+				null,
+				truncateUtf8(live.lastResult.text, MAX_PROGRESS_ENTRY),
+			];
+		return [
+			"completed",
+			truncateUtf8(live.lastResult?.text ?? "", MAX_TEXT_BYTES),
+			null,
+		];
 	}
 
 	private fence(live: LiveTask, reason: Fence): void {
@@ -816,9 +1008,55 @@ export class JiraAgentTaskService {
 			runner.stop();
 		} catch (error) {
 			this.logger.warn(
-				`[JiraAgent] runner.stop() threw for ${live.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+				`[JiraAgent] runner.stop() threw for ${live.taskId}: ${errorText(error)}`,
 			);
 		}
+	}
+
+	// ---------------------------------------------------------------- state
+
+	/**
+	 * Copy → mutate → save → publish. Throws `journal_error` (and publishes
+	 * nothing) if the save fails. Must be called under the context lock.
+	 */
+	private async commit(
+		contextId: string,
+		init: (() => JiraContextRecord) | null,
+		mutate: (draft: JiraContextRecord) => void,
+	): Promise<JiraContextRecord> {
+		const current = this.journal.getContext(contextId);
+		let draft: JiraContextRecord;
+		if (current) draft = structuredClone(current);
+		else if (init) draft = init();
+		else throw new JiraAgentError("task_not_found", "Task not found");
+		mutate(draft);
+		try {
+			await this.journal.save(draft);
+		} catch (error) {
+			this.logger.error(
+				"[JiraAgent] Journal write failed",
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			throw new JiraAgentError(
+				"journal_error",
+				"Cyrus could not save the task state",
+			);
+		}
+		this.journal.publish(draft);
+		return draft;
+	}
+
+	private async commitTask(
+		contextId: string,
+		taskId: string,
+		mutate: (task: JiraTaskRecord) => void,
+	): Promise<{ record: JiraContextRecord; task: JiraTaskRecord }> {
+		const record = await this.commit(contextId, null, (draft) => {
+			const task = this.mustFindTask(draft, taskId);
+			mutate(task);
+			task.updatedAt = new Date().toISOString();
+		});
+		return { record, task: this.mustFindTask(record, taskId) };
 	}
 
 	// ---------------------------------------------------------------- helpers
@@ -837,14 +1075,39 @@ export class JiraAgentTaskService {
 				"Context is bound to a different link",
 			);
 		}
-		return { record, task: this.mustFindTask(record, ref.taskId) };
+		const task = record.tasks.find((t) => t.taskId === ref.taskId);
+		if (task) return { record, task };
+		// Retired: report its final state only.
+		const retired = record.retired[ref.taskId] as {
+			state: JiraTaskState;
+			admitted: boolean;
+		};
+		const now = new Date().toISOString();
+		return {
+			record,
+			task: {
+				taskId: ref.taskId,
+				messageHashes: {},
+				state: retired.state,
+				settled: true,
+				admitted: retired.admitted,
+				initialText: "",
+				pendingFollowups: [],
+				progress: [],
+				nextSeq: 1,
+				result: null,
+				error: null,
+				createdAt: now,
+				updatedAt: now,
+			},
+		};
 	}
 
 	private mustFindTask(
 		record: JiraContextRecord,
 		taskId: string,
 	): JiraTaskRecord {
-		const task = this.journal.findTask(record, taskId);
+		const task = record.tasks.find((t) => t.taskId === taskId);
 		if (!task) throw new JiraAgentError("task_not_found", "Task not found");
 		return task;
 	}
@@ -854,10 +1117,22 @@ export class JiraAgentTaskService {
 		binding: JiraBinding,
 		issue: JiraIssueRef,
 	): void {
-		if (!sameBinding(record.binding, binding) || record.issue.id !== issue.id) {
+		if (
+			!sameBinding(record.binding, binding) ||
+			(record.issue !== null && record.issue.id !== issue.id)
+		) {
 			throw new JiraAgentError(
 				"context_mismatch",
 				"Context is bound to a different link or issue",
+			);
+		}
+	}
+
+	private assertAvailable(contextId: string): void {
+		if (this.journal.isQuarantined(contextId)) {
+			throw new JiraAgentError(
+				"context_unavailable",
+				"This conversation's saved state could not be read on this Cyrus runtime",
 			);
 		}
 	}
@@ -880,6 +1155,7 @@ export class JiraAgentTaskService {
 			contextId: record.contextId,
 			state: task.state,
 			settled: task.settled,
+			admitted: task.admitted,
 			progress: task.progress.map((p) => ({ ...p })),
 			result: task.result,
 			error: task.error,
@@ -899,34 +1175,18 @@ export class JiraAgentTaskService {
 			if (this.locks.get(key) === tail) this.locks.delete(key);
 		}
 	}
+}
 
-	/** Serialized per-context save; rejects if THIS save fails. */
-	private persist(record: JiraContextRecord): Promise<void> {
-		const prev = this.saveChains.get(record.contextId) ?? Promise.resolve();
-		const next = prev.then(() => this.journal.save(record));
-		this.saveChains.set(
-			record.contextId,
-			next.catch(() => {}),
-		);
-		return next;
-	}
-
-	private async persistOrThrow(record: JiraContextRecord): Promise<void> {
-		try {
-			await this.persist(record);
-		} catch (error) {
-			throw this.journalError(error);
-		}
-	}
-
-	private journalError(error: unknown): JiraAgentError {
-		this.logger.error(
-			"[JiraAgent] Journal write failed",
-			error instanceof Error ? error : new Error(String(error)),
-		);
-		return new JiraAgentError(
-			"journal_failure",
-			"Cyrus could not save the task state",
-		);
-	}
+function applyTerminal(
+	task: JiraTaskRecord,
+	state: "completed" | "failed" | "canceled",
+	result: string | null,
+	error: string | null,
+): void {
+	task.state = state;
+	task.settled = true;
+	task.result = result;
+	task.error = error;
+	task.pendingFollowups = [];
+	task.updatedAt = new Date().toISOString();
 }

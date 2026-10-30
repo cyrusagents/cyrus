@@ -484,6 +484,9 @@ export class RunnerConfigBuilder {
 			mcpConfigPath,
 			mcpConfig,
 			strictMcpConfig: noMcp ? true : (input.strictMcpConfig ?? true),
+			// mcpScope "none" must also stop the runner's own discovery (e.g. the
+			// Claude runner's working-directory `.mcp.json` auto-load).
+			...(noMcp && { disableMcpDiscovery: true }),
 			...(input.autoMemoryDirectory && {
 				autoMemoryDirectory: input.autoMemoryDirectory,
 			}),

@@ -486,6 +486,13 @@ export interface AgentRunnerConfig {
 	 * Defaults to true for Claude sessions.
 	 */
 	strictMcpConfig?: boolean;
+	/**
+	 * Load no MCP servers at all: no working-directory `.mcp.json`
+	 * auto-discovery, no `mcpConfigPath` files, no inline `mcpConfig`, and
+	 * strict MCP mode forced on. Runners that cannot honour this must not be
+	 * used where it is required (Jira remote-agent tasks).
+	 */
+	disableMcpDiscovery?: boolean;
 	/** Global OpenCode runtime config overrides from Cyrus config */
 	opencodeGlobalConfig?: JsonObject;
 	/** Repository OpenCode runtime config overrides from Cyrus config */
