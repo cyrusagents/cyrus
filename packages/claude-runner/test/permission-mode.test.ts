@@ -108,16 +108,19 @@ describe("Cyrus permission policy", () => {
 			async function* () {} as unknown as typeof query,
 		);
 		const promptHook = vi.fn(async () => ({}));
+		const stopHook = vi.fn(async () => ({}));
 		const runner = new ClaudeRunner({
 			workingDirectory: root,
 			cyrusHome: root,
 			model: "custom-deployment-opus",
 			fallbackModel: "fallback-deployment-sonnet",
 			additionalEnv: { ...providerEnv },
+			allowedTools: ["Read", "Task"],
 			hooks: {
 				UserPromptSubmit: [
 					{ matcher: ".*", hooks: [promptHook], timeout: 0.25 },
 				],
+				Stop: [{ matcher: ".*", hooks: [stopHook], timeout: 0.25 }],
 			},
 		});
 
@@ -128,13 +131,24 @@ describe("Cyrus permission policy", () => {
 			fallbackModel: "fallback-deployment-sonnet",
 			permissionMode: "default",
 			env: providerEnv,
+			allowedTools: ["Read", "Task"],
 		});
 		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT");
 		expect(options?.env).not.toHaveProperty(
 			"CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK",
 		);
+		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_FORK_SUBAGENT");
+		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_AUTO_COMPACT_WINDOW");
+		expect(options).not.toHaveProperty("agents");
 		expect(options?.hooks?.UserPromptSubmit).toEqual([
 			{ matcher: ".*", hooks: [promptHook], timeout: 0.25 },
+		]);
+		expect(options?.hooks?.Stop).toEqual([
+			{ matcher: ".*", hooks: [stopHook], timeout: 0.25 },
+			expect.objectContaining({
+				matcher: ".*",
+				hooks: [expect.any(Function)],
+			}),
 		]);
 	});
 });
