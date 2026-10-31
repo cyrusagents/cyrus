@@ -6,9 +6,13 @@
 //   /tmp/consumer/node_modules/cyrus-claude-runner \
 //   /tmp/consumer
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync, realpathSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { validateRuntimeMessages } from "./runner-runtime-receipt.mjs";
 
 const packageRoot = resolve(
 	process.argv[2] ?? assert.fail("Pass the installed runner package directory"),
@@ -25,6 +29,12 @@ for (const name of [
 	"ANTHROPIC_API_KEY",
 	"ANTHROPIC_AUTH_TOKEN",
 	"CLAUDE_CODE_OAUTH_TOKEN",
+	"ANTHROPIC_BASE_URL",
+	"CLAUDE_CONFIG_DIR",
+	"CLAUDE_CODE_USE_BEDROCK",
+	"CLAUDE_CODE_USE_VERTEX",
+	"CLAUDE_CODE_USE_FOUNDRY",
+	"CLAUDE_CODE_USE_MANTLE",
 ]) {
 	assert.equal(
 		Object.hasOwn(process.env, name),
@@ -32,6 +42,97 @@ for (const name of [
 		`${name} would replace the intended existing Claude identity`,
 	);
 }
+
+// Hash installed bytes, not a mutable package version or workspace symlink.
+function packageIdentity(root) {
+	assert.equal(
+		realpathSync(root),
+		root,
+		"Use installed packages, not workspace links",
+	);
+	const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+	const files = [];
+	function walk(directory) {
+		for (const entry of readdirSync(directory, { withFileTypes: true }).sort(
+			(a, b) => a.name.localeCompare(b.name, "en"),
+		)) {
+			if (entry.name === "node_modules") continue;
+			const path = join(directory, entry.name);
+			if (entry.isDirectory()) walk(path);
+			else {
+				assert.ok(entry.isFile(), "Installed package contains a symlink");
+				files.push([
+					relative(root, path),
+					createHash("sha256").update(readFileSync(path)).digest("hex"),
+				]);
+			}
+		}
+	}
+	walk(root);
+	return {
+		name: manifest.name,
+		version: manifest.version,
+		filesSha256: createHash("sha256")
+			.update(JSON.stringify(files))
+			.digest("hex"),
+	};
+}
+const requireFromRunner = createRequire(join(packageRoot, "package.json"));
+const coreRoot = dirname(dirname(requireFromRunner.resolve("cyrus-core")));
+const sdkRoot = dirname(
+	requireFromRunner.resolve("@anthropic-ai/claude-agent-sdk"),
+);
+const requireFromCore = createRequire(join(coreRoot, "package.json"));
+assert.equal(
+	requireFromCore.resolve("@anthropic-ai/claude-agent-sdk"),
+	requireFromRunner.resolve("@anthropic-ai/claude-agent-sdk"),
+	"Runner and core must use the same SDK",
+);
+const apiRoot = dirname(requireFromRunner.resolve("@anthropic-ai/sdk"));
+const requireFromSdk = createRequire(join(sdkRoot, "package.json"));
+const nativeRoot = dirname(
+	requireFromSdk.resolve(
+		`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/package.json`,
+	),
+);
+const provenance = {
+	runner: packageIdentity(packageRoot),
+	core: packageIdentity(coreRoot),
+	agentSdk: packageIdentity(sdkRoot),
+	apiSdk: packageIdentity(apiRoot),
+	nativeRuntime: packageIdentity(nativeRoot),
+	consumerLockSha256: createHash("sha256")
+		.update(readFileSync(join(workingDirectory, "package-lock.json")))
+		.digest("hex"),
+};
+assert.equal(provenance.agentSdk.version, "0.3.316");
+assert.equal(provenance.apiSdk.version, "1.3.0");
+console.log(JSON.stringify({ status: "PREPARED", provenance }, null, 2));
+if (process.argv.includes("--provenance-only")) process.exit(0);
+// This checks identity only; the operator must establish restored access before
+// retrying a previous authentication failure. It is not an access-token probe.
+const identity = JSON.parse(
+	execFileSync(
+		join(nativeRoot, process.platform === "win32" ? "claude.exe" : "claude"),
+		["auth", "status", "--json"],
+		{ encoding: "utf8", timeout: 20_000 },
+	),
+);
+assert.equal(identity.loggedIn, true);
+assert.equal(identity.authMethod, "claude.ai");
+assert.equal(identity.apiProvider, "firstParty");
+assert.equal(identity.email, "connor@ceedar.io");
+assert.equal(identity.orgId, "685559cd-fcf8-43cb-8a0e-eb20cd18cead");
+const intendedIdentity = {
+	email: identity.email,
+	orgId: identity.orgId,
+	authMethod: identity.authMethod,
+	apiProvider: identity.apiProvider,
+};
+const packageText = readFileSync(
+	join(workingDirectory, "package.json"),
+	"utf8",
+);
 
 process.env.CYRUS_LOG_LEVEL = "ERROR";
 const { ClaudeRunner } = await import(
@@ -68,6 +169,8 @@ const prompt = [
 
 const startedAt = Date.now();
 let watchdog;
+let runningAfterCompletion;
+let pendingAfterCompletion;
 try {
 	await Promise.race([
 		runner.start(prompt),
@@ -78,79 +181,33 @@ try {
 			}, 120_000);
 		}),
 	]);
+	runningAfterCompletion = runner.isRunning();
+	pendingAfterCompletion = runner.hasPendingWork();
 } finally {
 	clearTimeout(watchdog);
+	runner.stop();
 }
-
-const toolUses = messages.flatMap((message) =>
-	message.type === "assistant" && Array.isArray(message.message?.content)
-		? message.message.content.filter((block) => block.type === "tool_use")
-		: [],
-);
-const toolResults = messages.flatMap((message) =>
-	message.type === "user" && Array.isArray(message.message?.content)
-		? message.message.content.filter((block) => block.type === "tool_result")
-		: [],
-);
-const result = messages.findLast((message) => message.type === "result");
-const init = messages.find(
-	(message) => message.type === "system" && message.subtype === "init",
-);
-const readUse = toolUses.find((tool) => tool.name === "Read");
-const bashUse = toolUses.find((tool) => tool.name === "Bash");
-const readResult = toolResults.find(
-	(block) => block.tool_use_id === readUse?.id,
-);
-const bashResult = toolResults.find(
-	(block) => block.tool_use_id === bashUse?.id,
-);
-const text = messages
-	.flatMap((message) =>
-		message.type === "assistant" && Array.isArray(message.message?.content)
-			? message.message.content
-					.filter((block) => block.type === "text")
-					.map((block) => block.text)
-			: [],
-	)
-	.join("")
-	.trim();
 
 assert.deepEqual(
 	callbackErrors.map((error) => error.message),
 	[],
 	"Runner emitted an error callback",
 );
-assert.ok(readUse, "Claude did not invoke Read");
-assert.match(
-	String(readUse.input?.file_path ?? ""),
-	/package\.json$/,
-	"Read did not target package.json",
+const { readUse, bashUse, result } = validateRuntimeMessages(
+	messages,
+	workingDirectory,
+	packageText,
 );
-assert.ok(readResult, "Read did not return a tool result");
-assert.ok(bashUse, "Claude did not invoke Bash");
-assert.equal(bashUse.input?.command, "pwd", "Bash command was not exactly pwd");
-assert.equal(
-	bashUse.input?.timeout,
-	10_000,
-	"Bash timeout was not exactly 10000",
+const init = messages.find(
+	(message) => message.type === "system" && message.subtype === "init",
 );
-assert.equal(
-	bashUse.input?.run_in_background ?? false,
-	false,
-	"Bash ran in the background",
-);
-assert.ok(bashResult, "Bash did not return a tool result");
-assert.ok(result, "Claude did not emit a terminal result");
-assert.equal(result.subtype, "success");
-assert.equal(result.is_error, false);
-assert.equal(text, "SDK_RUNTIME_OK");
 assert.equal(completed, true, "Runner did not emit complete");
 assert.equal(
-	runner.isRunning(),
+	runningAfterCompletion,
 	false,
 	"Runner remained active after completion",
 );
-assert.equal(runner.hasPendingWork(), false, "Runner retained pending work");
+assert.equal(pendingAfterCompletion, false, "Runner retained pending work");
 runner.stop();
 assert.equal(runner.isRunning(), false, "Runner did not stop cleanly");
 
@@ -158,6 +215,8 @@ console.log(
 	JSON.stringify(
 		{
 			status: "PASS",
+			provenance,
+			identity: intendedIdentity,
 			package: `${manifest.name}@${manifest.version}`,
 			workingDirectory,
 			sessionId: runner.getSessionInfo()?.sessionId,
@@ -167,14 +226,16 @@ console.log(
 			read: {
 				filePath: readUse.input.file_path,
 				resultReceived: true,
+				isError: false,
 			},
 			bash: {
 				command: bashUse.input.command,
 				timeout: bashUse.input.timeout,
 				foreground: true,
 				resultReceived: true,
+				isError: false,
 			},
-			finalText: text,
+			finalText: "SDK_RUNTIME_OK",
 			result: {
 				subtype: result.subtype,
 				isError: result.is_error,
