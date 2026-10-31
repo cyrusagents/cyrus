@@ -1,0 +1,30 @@
+# Jira Codex execution and isolation
+
+Date: October 30–31, 2026, 23:53–00:11 UTC. Runtime base `cccaf2881` plus the Codex changes in this commit. Hosted base `9c7c0d4f2` plus supported-runner guidance and the joined harness's PostgreSQL-array restore correction.
+
+## Scope
+
+The real F1 EdgeWorker ran on checked-free port 3674 using an isolated Cyrus home and disposable repository, authenticated bridge requests, Codex 0.159.2 and `gpt-6.1-sol`. The dedicated Jira Codex home was authenticated through native browser login. No production environment or real provider was involved in these drives. The joined checks use the real Hosted A2A service, bridge client and migration-backed PGlite ledger, with Forge/Jira simulated.
+
+## Results
+
+- A real Jira bridge task selected Codex through the standard description selector and selected the authorized fixture repository. It read README.md, ran actual shell checks and returned a final answer. The saved native tool output contains `ENV_SCRUBBED` and `OUTSIDE_DENIED`: the bridge key was absent and a known existing file outside the worktree could not be read. Task `419e038c-8f5e-44c9-a1e0-bc9f1232fa45` settled completed; native session `01a18f41-4ac7-7a12-b272-5806b8c29f8f`.
+- Joined assignment and duplicate retry returned the same task. Codex created and committed JOINED.md with `hello`, then resumed the same conversation to append and commit `world`. Git objects and file contents were inspected independently: `940dc8268055b89c051e9eb5fca12404d31f5c3f`, then `edecaa7d727f8c68aa84c41cfa08e23a5545a3ce`. The prior task remained immutable. The joined cancel check passed. One test passed, three other-phase tests skipped, ten assertions.
+- A separate explicit cancellation task ran `sleep 90`. Four real descendants were recorded immediately before cancellation, including the Codex code-mode host and sleep process, which used separate process groups. Once the bridge returned canceled/settled, all four identities were gone. Task `343c814b-616e-4a31-9af3-1acf62c27407`. This verifies the actual tool-stop path, beyond a mocked interrupt acknowledgment.
+- For restart, the runtime was SIGKILLed while task `03da6735-8fe9-4277-b932-d47b0697d55a` was working. The journal had recorded four descendant identities. Those descendants exited after loss of the runtime connection, before restart. An independently started helper in the same worktree remained alive with the same identity across restart. The restarted runtime closed the interrupted context, returned failed for its original task and follow-up, and completed a fresh assignment. No restart-time process signalling was observed. The owned helper was then explicitly stopped. The joined after-restart phase passed five assertions.
+- The disposable repository contained both .mcp.json and .codex/config.toml with inert sentinel servers whose commands would create a known marker. Fresh execution after restart succeeded, but the marker existed: native thread/start loaded the repository MCP server despite the preceding config/read reporting zero effective servers and a disabled untrusted project layer. This first negative check failed. The correction pins the task cwd and its canonical path explicitly untrusted in both start and resume requests, preventing native automatic trust. A fresh joined drive then completed assignment and same-session follow-up with the marker absent throughout: context `efac77af-f870-4b04-a847-6daeb2f2649d`, session `01a18f4a-57ed-7970-bc4b-959071cce9bd`, independently inspected commits `fb99c5c679adee170e3bd9870fcb833c249e2284` and `72c1128507bee1d68c299b535d96b8f1387a3d95`. Both tasks settled completed; duplicate and cancellation checks also passed (ten assertions). Native no-model regressions separately verify ordinary and linked worktree startup with empty thread-scoped MCP inventory.
+
+## Corrections found during the drive
+
+- A native permission profile must also set `default_permissions`; otherwise Codex's retained-config reload fails before the model turn with a misleading workspace-requirements error. Native negative/positive configuration probes and the subsequent successful restricted model run verified the fix.
+- The F1 default `gpt-5.5` was unsupported by the authenticated ChatGPT account; this drive explicitly selected `gpt-6.1-sol`.
+- The macOS Git shim needs read access to `/Library/Developer/CommandLineTools`. The first joined drive could edit files but could not commit. After allowing that specific system toolchain, the rerun made both independently verified commits; no authentication-home access was added.
+- The joined restart harness originally serialized PostgreSQL repository-id arrays as JSON. Restoring arrays according to the database column type fixed the harness; the same interrupted runtime state then passed the after-restart checks.
+
+- Native regression testing exposed a Darwin shutdown race: an exiting process group can return `EPERM` before disappearing. The close loop now keeps the execution fenced and retries observation, resolving only on `ESRCH`. A syscall regression verifies that persistent `EPERM` never reports settlement.
+
+## Evidence and limits
+
+Local receipts are under the task run's provider-runtime directory: codex-success-receipt.json, codex-cancel-descendants.json, codex-joined-toolchain.log, codex-restart-before-receipt.json, codex-restart-after-receipt.json, the joined restart logs, codex-trust-fixed-receipt.json and codex-joined-main.log. Secrets and auth state are excluded from this report and source control.
+
+These checks establish local real-model execution and the joined contract. They do not establish a genuine Atlassian browser install link, production deployment, cloud credential provisioning, or actual Jira provider delivery. The fixture has no Git remote; push and PR creation were not exercised. Native execution was tested on macOS; Linux has unit/CI coverage, not a real-model drive here. Unknown process-termination outcomes are tested with controlled transports and retain the task fence.

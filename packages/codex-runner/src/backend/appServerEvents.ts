@@ -11,6 +11,9 @@ export type AppServerNotification =
 
 type RawItem = Record<string, unknown>;
 
+const MAX_REASONING_SUMMARY_PARTS = 20;
+const MAX_REASONING_SUMMARY_CHARS = 4096;
+
 function str(value: unknown): string {
 	return typeof value === "string" ? value : "";
 }
@@ -79,8 +82,21 @@ export function translateAppServerItem(
 	switch (item.type) {
 		case "agentMessage":
 			return { type: "agent_message", id, text: str(item.text) };
-		case "reasoning":
-			return { type: "reasoning", id };
+		case "reasoning": {
+			// Only the provider's public summary; raw reasoning `content` is
+			// dropped here and never normalized.
+			const summary = Array.isArray(item.summary)
+				? item.summary
+						.filter(
+							(s): s is string => typeof s === "string" && s.trim() !== "",
+						)
+						.slice(0, MAX_REASONING_SUMMARY_PARTS)
+						.map((s) => s.slice(0, MAX_REASONING_SUMMARY_CHARS))
+				: [];
+			return summary.length > 0
+				? { type: "reasoning", id, summary }
+				: { type: "reasoning", id };
+		}
 		case "userMessage":
 			return { type: "user_message", id };
 		case "commandExecution":

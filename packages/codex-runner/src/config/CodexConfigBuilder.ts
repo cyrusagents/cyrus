@@ -1,4 +1,5 @@
-import { mkdirSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ResolvedCodexConfig } from "../backend/types.js";
@@ -27,9 +28,9 @@ export class CodexConfigBuilder {
 	constructor(private readonly config: CodexRunnerConfig) {}
 
 	async build(): Promise<ResolvedCodexConfig> {
-		await this.resolveModelWithFallback();
-
 		const codexHome = this.resolveCodexHome();
+		await this.resolveModelWithFallback(codexHome);
+		if (this.config.isolatedProcess) this.prepareIsolatedHome(codexHome);
 		const reasoningEffort =
 			this.config.modelReasoningEffort ??
 			getDefaultReasoningEffortForModel(this.config.model);
@@ -38,6 +39,7 @@ export class CodexConfigBuilder {
 			(this.config.includeWebSearch ? "live" : undefined);
 
 		return {
+			isolatedProcess: this.config.isolatedProcess,
 			model: this.config.model,
 			sandbox: resolveCodexSandbox({
 				mode: this.config.sandbox || "workspace-write",
@@ -100,14 +102,31 @@ export class CodexConfigBuilder {
 			this.config.codexHome ||
 			process.env.CODEX_HOME ||
 			join(homedir(), ".codex");
-		mkdirSync(codexHome, { recursive: true });
+		mkdirSync(codexHome, { recursive: true, mode: 0o700 });
 		return codexHome;
+	}
+
+	private prepareIsolatedHome(codexHome: string): void {
+		if (!this.config.codexHome || !this.config.disableMcpDiscovery) {
+			throw new Error(
+				"Isolated Codex requires a dedicated home and disabled MCP discovery",
+			);
+		}
+		// This runtime-owned home keeps native login/session storage, but never
+		// imports the operator's MCP servers, plugins or trusted project config.
+		const file = join(codexHome, `config-${randomUUID()}.tmp`);
+		writeFileSync(
+			file,
+			'cli_auth_credentials_store = "file"\n[features]\napps = false\nplugins = false\nhooks = false\nskill_mcp_dependency_install = false\n',
+			{ mode: 0o600 },
+		);
+		renameSync(file, join(codexHome, "config.toml"));
 	}
 
 	private buildEnvOverride(
 		codexHome: string,
 	): Record<string, string> | undefined {
-		if (!this.config.codexHome) {
+		if (!this.config.codexHome && !this.config.additionalEnv) {
 			return undefined;
 		}
 		const env: Record<string, string> = {};
@@ -116,6 +135,7 @@ export class CodexConfigBuilder {
 				env[key] = value;
 			}
 		}
+		Object.assign(env, this.config.additionalEnv);
 		env.CODEX_HOME = codexHome;
 		return env;
 	}
@@ -133,8 +153,20 @@ export class CodexConfigBuilder {
 		const { sandbox_workspace_write: _dropped, ...rest } =
 			this.config.configOverrides ?? {};
 		const configOverrides: CodexConfigOverrides = { ...rest };
+		if (this.config.isolatedProcess) {
+			// No explicit or inherited MCP configuration is admitted for Jira.
+			return {
+				features: {
+					apps: false,
+					plugins: false,
+					hooks: false,
+					skill_mcp_dependency_install: false,
+				},
+			};
+		}
 
 		const mcpServers = buildCodexMcpServersConfig({
+			disableMcpDiscovery: this.config.disableMcpDiscovery,
 			workingDirectory: this.config.workingDirectory,
 			mcpConfigPath: this.config.mcpConfigPath,
 			mcpConfig: this.config.mcpConfig,
@@ -163,19 +195,20 @@ export class CodexConfigBuilder {
 	 * fallback model before starting. Skipped when there is no API key (Codex
 	 * native auth handles access) or when the user has a ChatGPT subscription.
 	 */
-	private async resolveModelWithFallback(): Promise<void> {
+	private async resolveModelWithFallback(codexHome: string): Promise<void> {
 		const model = this.config.model;
 		const fallback = this.config.fallbackModel;
 		if (!model || !fallback || fallback === model) return;
 
-		const apiKey = process.env.OPENAI_API_KEY;
+		const env = this.buildEnvOverride(codexHome) ?? process.env;
+		const apiKey = env.OPENAI_API_KEY;
 		if (!apiKey) return;
 
-		if (await this.hasCodexSubscription()) return;
+		if (await this.hasCodexSubscription(codexHome)) return;
 
 		const baseUrl = (
-			process.env.OPENAI_BASE_URL ||
-			process.env.OPENAI_API_BASE ||
+			env.OPENAI_BASE_URL ||
+			env.OPENAI_API_BASE ||
 			"https://api.openai.com/v1"
 		).replace(/\/+$/, "");
 
@@ -200,7 +233,7 @@ export class CodexConfigBuilder {
 		}
 	}
 
-	private async hasCodexSubscription(): Promise<boolean> {
+	private async hasCodexSubscription(codexHome: string): Promise<boolean> {
 		const codexBin = this.config.codexPath || "codex";
 		try {
 			const { execFile } = await import("node:child_process");
@@ -209,7 +242,7 @@ export class CodexConfigBuilder {
 			const { stdout, stderr } = await execFileAsync(
 				codexBin,
 				["login", "status"],
-				{ timeout: 5_000 },
+				{ timeout: 5_000, env: this.buildEnvOverride(codexHome) },
 			);
 			const result = /logged in using chatgpt/i.test(stdout + stderr);
 			console.log(

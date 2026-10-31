@@ -24,6 +24,8 @@ export type CodexConfigOverrides = { [key: string]: CodexConfigValue };
  * Configuration for CodexRunner.
  */
 export interface CodexRunnerConfig extends AgentRunnerConfig {
+	/** Use an exclusive process and await its teardown before settlement. */
+	isolatedProcess?: boolean;
 	/** Path to codex CLI binary (defaults to `codex` in PATH) */
 	codexPath?: string;
 	/**

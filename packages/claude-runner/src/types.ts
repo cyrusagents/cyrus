@@ -50,6 +50,12 @@ export interface ClaudeRunnerConfig {
 	 * claude.ai connectors. Defaults to true.
 	 */
 	strictMcpConfig?: boolean;
+	/**
+	 * Load no MCP servers: skip working-directory `.mcp.json` discovery,
+	 * `mcpConfigPath` files and inline `mcpConfig`, and force strict MCP mode
+	 * so Claude Code ignores project/user/plugin MCP settings too.
+	 */
+	disableMcpDiscovery?: boolean;
 	model?: string; // Claude model to use (e.g., "opus", "sonnet", "haiku")
 	fallbackModel?: string; // Fallback model if primary model is unavailable
 	maxTurns?: number; // Maximum number of turns before completing the session
