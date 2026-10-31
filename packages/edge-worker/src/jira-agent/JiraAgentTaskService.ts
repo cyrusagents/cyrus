@@ -9,6 +9,11 @@ import type {
 import type { RepositoryRoutingResult } from "../RepositoryRouter.js";
 import { setRunnerStartGuard } from "../RunnerConcurrency.js";
 import {
+	activityFromMessage,
+	type JiraActivityEntry,
+	MAX_ACTIVITY_ENTRIES,
+} from "./JiraActivity.js";
+import {
 	isUuid,
 	type JiraAgentJournal,
 	type JiraBinding,
@@ -145,6 +150,8 @@ export interface JiraTaskSnapshot {
 	settled: boolean;
 	admitted: boolean;
 	progress: { seq: number; at: string; text: string }[];
+	/** Bounded tool/reasoning activity (see JiraActivity.ts); withheld like progress. */
+	activity: JiraActivityEntry[];
 	result: string | null;
 	error: string | null;
 	updatedAt: string;
@@ -239,11 +246,14 @@ interface LiveTask {
 	sessionId: string | null;
 	workspacePath: string | null;
 	lastProcessCapture: number;
+	/** Labels of this task's tool starts awaiting their finish (display only). */
+	toolLabels: Map<string, string>;
 }
 
 export const MAX_TEXT_BYTES = 32 * 1024;
 const MAX_PROGRESS_ENTRY = 2 * 1024;
 const MAX_PROGRESS_ENTRIES = 20;
+const MAX_OPEN_TOOLS = 200;
 
 export const DEADLINE_MESSAGE =
 	"Cyrus stopped this task after reaching its 50-minute time limit.";
@@ -623,6 +633,7 @@ export class JiraAgentTaskService {
 					initialText,
 					pendingFollowups: [],
 					progress: routedNote ? [{ seq: 1, at: now, text: routedNote }] : [],
+					activity: [],
 					nextSeq: routedNote ? 2 : 1,
 					result: selectionGuidance,
 					error: null,
@@ -1028,6 +1039,7 @@ export class JiraAgentTaskService {
 					initialText: "",
 					pendingFollowups: [],
 					progress: [],
+					activity: [],
 					nextSeq: 1,
 					result: null,
 					error: TOMBSTONE_MESSAGE,
@@ -1068,6 +1080,7 @@ export class JiraAgentTaskService {
 			sessionId: null,
 			workspacePath: null,
 			lastProcessCapture: 0,
+			toolLabels: new Map(),
 		};
 		this.lives.set(taskId, live);
 		live.deadlineTimer = setTimeout(() => {
@@ -1354,19 +1367,37 @@ export class JiraAgentTaskService {
 			live.sessionId = sessionId;
 		}
 		const text = assistantText(message);
-		if (text) {
-			const entry = {
-				at: new Date().toISOString(),
-				text: truncateUtf8(text, MAX_PROGRESS_ENTRY),
-			};
-			// Progress is published only once it is durable.
+		const drafts = activityFromMessage(
+			message,
+			live.toolLabels,
+			live.workspacePath,
+		);
+		if (live.toolLabels.size > MAX_OPEN_TOOLS) {
+			// Unfinished starts are only display state; drop the oldest.
+			const oldest = live.toolLabels.keys().next().value as string;
+			live.toolLabels.delete(oldest);
+		}
+		if (text || drafts.length > 0) {
+			const at = new Date().toISOString();
+			// Progress and activity are published only once they are durable.
 			this.withLock(live.contextId, async () => {
 				if (live.fence) return;
 				await this.commitTask(live.contextId, live.taskId, (t) => {
 					if (TERMINAL_STATES.has(t.state)) return;
-					t.progress.push({ seq: t.nextSeq++, ...entry });
-					if (t.progress.length > MAX_PROGRESS_ENTRIES) {
-						t.progress.splice(0, t.progress.length - MAX_PROGRESS_ENTRIES);
+					if (text) {
+						t.progress.push({
+							seq: t.nextSeq++,
+							at,
+							text: truncateUtf8(text, MAX_PROGRESS_ENTRY),
+						});
+						if (t.progress.length > MAX_PROGRESS_ENTRIES) {
+							t.progress.splice(0, t.progress.length - MAX_PROGRESS_ENTRIES);
+						}
+					}
+					for (const draft of drafts)
+						t.activity.push({ seq: t.nextSeq++, at, ...draft });
+					if (t.activity.length > MAX_ACTIVITY_ENTRIES) {
+						t.activity.splice(0, t.activity.length - MAX_ACTIVITY_ENTRIES);
 					}
 				});
 			}).catch((error) =>
@@ -1625,6 +1656,7 @@ export class JiraAgentTaskService {
 				initialText: "",
 				pendingFollowups: [],
 				progress: [],
+				activity: [],
 				nextSeq: 1,
 				result: null,
 				error: null,
@@ -1690,6 +1722,7 @@ export class JiraAgentTaskService {
 			settled: task.settled,
 			admitted: task.admitted,
 			progress: withhold ? [] : task.progress.map((p) => ({ ...p })),
+			activity: withhold ? [] : task.activity.map((a) => ({ ...a })),
 			result: withhold ? null : task.result,
 			error: withhold ? REVOKED_MESSAGE : task.error,
 			updatedAt: task.updatedAt,

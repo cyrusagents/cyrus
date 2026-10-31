@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { ILogger } from "cyrus-core";
+import { isActivityEntry, type JiraActivityEntry } from "./JiraActivity.js";
 import type { JiraScope } from "./JiraWorkspaceScope.js";
 
 /**
@@ -104,6 +105,8 @@ export interface JiraTaskRecord {
 	/** Committed follow-ups not yet delivered to the runner, in order. */
 	pendingFollowups: string[];
 	progress: JiraProgressEntry[];
+	/** Bounded tool/reasoning activity (absent in journals written before it). */
+	activity: JiraActivityEntry[];
 	nextSeq: number;
 	result: string | null;
 	error: string | null;
@@ -248,11 +251,20 @@ export function parseContextRecord(
 			)
 		)
 			fail("progress");
+		if (
+			t.activity !== undefined &&
+			(!Array.isArray(t.activity) || !t.activity.every(isActivityEntry))
+		)
+			fail("activity");
 		if (typeof t.nextSeq !== "number") fail("nextSeq");
 		if (t.result !== null && !isStr(t.result)) fail("result");
 		if (t.error !== null && !isStr(t.error)) fail("error");
 		if (!isStr(t.createdAt) || !isStr(t.updatedAt)) fail("timestamps");
-		return { ...t, admitted: t.admitted ?? true } as JiraTaskRecord;
+		return {
+			...t,
+			admitted: t.admitted ?? true,
+			activity: t.activity ?? [],
+		} as JiraTaskRecord;
 	});
 	const retired = r.retired ?? {};
 	if (
