@@ -76,6 +76,7 @@ Hosted keeps its wider effective range, exact-only default migration (custom/reo
 Fresh test repo: `/private/tmp/cyrus-1570-f1-repo`; server port 3600.
 
 - [x] Fresh repository created; server starts; ping healthy; status ready.
+- [x] Server shut down gracefully after setup validation, with zero sessions.
 - [x] Local issue `issue-1` / `DEF-1` created with the required runtime criteria.
 - [ ] Session/worktree execution, activity rendering/pagination and final response: held before session start to avoid an unauthorized blind provider retry.
 - [ ] Successful integrated installed runner/core runtime receipt: still required.
@@ -84,3 +85,9 @@ Fresh test repo: `/private/tmp/cyrus-1570-f1-repo`; server port 3600.
 - [x] Receipt validator: 13/13 tests pass; no provider calls.
 
 F1 control-plane setup is partial validation, not an end-to-end pass. Final-head CI and immutable package preparation are recorded with this report's companion artifact; authenticated acceptance remains held until an actual successful receipt is attached.
+
+## Prepared immutable package artifact
+
+[Package provenance](assets/2026-10-31-cypack-1609-package-provenance.json) records source commit `bc8455175e94328f38cef0299154bb54688b0602`, source tree and lock, both local tarballs and installed integrities, and installed runner/core/SDK/native byte hashes. Runner and core resolve one deduplicated `.316` SDK and API SDK `1.3.0`; the clean consumer audit has zero vulnerabilities. Installed mocked contracts pass 6/6 configurations, separately from the 13 receipt-validator tests. Neither is a runtime pass. No package sources changed after this source commit; later commits contain evidence only.
+
+Consumer: `/private/tmp/cyrus-1570-consumer`. Tarballs: `/private/tmp/cyrus-1570-artifacts`. These are local preparation artifacts, not a new npm publication. Rebuilding elsewhere requires recording the new tarball/lock identities before using its receipt.
