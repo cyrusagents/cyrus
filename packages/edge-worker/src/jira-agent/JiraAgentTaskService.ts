@@ -1397,7 +1397,14 @@ export class JiraAgentTaskService {
 		const { events, overflow } = extractActivityEvents(message);
 		const at = new Date().toISOString();
 		const items: PendingOutput[] = [];
-		if (text) items.push({ runner, at, kind: "progress", text });
+		// Bounded before queueing (also re-bounded at commit).
+		if (text)
+			items.push({
+				runner,
+				at,
+				kind: "progress",
+				text: truncateUtf8(text, MAX_PROGRESS_ENTRY),
+			});
 		for (const event of events)
 			items.push({ runner, at, kind: "event", event });
 		live.output.dropped += overflow;
@@ -1437,59 +1444,18 @@ export class JiraAgentTaskService {
 				out.pending = [];
 				return;
 			}
-			const batch = out.pending.splice(0);
-			const dropped = out.dropped;
-			out.dropped = 0;
-			if (batch.length === 0 && dropped === 0) return;
-			let staged = out.correlation;
-			const drafts: { at: string; draft?: ActivityDraft; progress?: string }[] =
-				[];
-			if (dropped > 0)
-				drafts.push({
-					at: batch[0]?.at ?? new Date().toISOString(),
-					draft: { kind: "gap", text: GAP_TEXT },
-				});
-			for (const item of batch) {
-				if (item.kind === "progress") {
-					drafts.push({ at: item.at, progress: item.text });
-					continue;
-				}
-				// Tool ids are scoped to the runner that reported them.
-				if (!staged || staged.runner !== item.runner)
-					staged = new ActivityCorrelation(item.runner);
-				else if (staged === out.correlation) staged = staged.clone();
-				for (const draft of staged.apply([item.event]))
-					drafts.push({ at: item.at, draft });
-			}
+			const staged = this.stageOutput(live);
+			if (!staged) return;
 			try {
 				await this.commitTask(live.contextId, live.taskId, (t) => {
 					if (TERMINAL_STATES.has(t.state)) return;
-					for (const d of drafts) {
-						if (d.progress !== undefined) {
-							t.progress.push({
-								seq: t.nextSeq++,
-								at: d.at,
-								text: truncateUtf8(d.progress, MAX_PROGRESS_ENTRY),
-							});
-						} else if (d.draft) {
-							t.activity.push({ seq: t.nextSeq++, at: d.at, ...d.draft });
-						}
-					}
-					if (t.progress.length > MAX_PROGRESS_ENTRIES)
-						t.progress.splice(0, t.progress.length - MAX_PROGRESS_ENTRIES);
-					t.activity = boundActivityWindow(t.activity);
+					staged.apply(t);
 				});
-				out.correlation = staged;
+				out.correlation = staged.correlation;
 				out.failures = 0;
 			} catch (error) {
 				// Nothing was published; retry the same batch (bounded).
-				out.pending.unshift(...batch);
-				out.dropped += dropped;
-				const excess = out.pending.length - MAX_PENDING_OUTPUT;
-				if (excess > 0) {
-					out.pending.splice(MAX_PENDING_OUTPUT);
-					out.dropped += excess;
-				}
+				staged.restore();
 				out.failures++;
 				this.logger.warn(
 					`[JiraAgent] Progress for ${live.taskId} not saved (not shown, will retry): ${errorText(error)}`,
@@ -1507,6 +1473,71 @@ export class JiraAgentTaskService {
 				`[JiraAgent] Progress flush for ${live.taskId} failed: ${errorText(error)}`,
 			),
 		);
+	}
+
+	/**
+	 * Take everything pending (call under the context lock) and stage it:
+	 * entries to append, and the correlation to keep once they are durable.
+	 * `restore` puts the batch back (bounded; overflow becomes a gap).
+	 */
+	private stageOutput(live: LiveTask): {
+		apply: (t: JiraTaskRecord) => void;
+		correlation: ActivityCorrelation | null;
+		restore: () => void;
+	} | null {
+		const out = live.output;
+		const batch = out.pending.splice(0);
+		const dropped = out.dropped;
+		out.dropped = 0;
+		if (batch.length === 0 && dropped === 0) return null;
+		let staged = out.correlation;
+		const entries: { at: string; draft?: ActivityDraft; progress?: string }[] =
+			[];
+		if (dropped > 0)
+			entries.push({
+				at: batch[0]?.at ?? new Date().toISOString(),
+				draft: { kind: "gap", text: GAP_TEXT },
+			});
+		for (const item of batch) {
+			if (item.kind === "progress") {
+				entries.push({ at: item.at, progress: item.text });
+				continue;
+			}
+			// Tool ids are scoped to the runner that reported them.
+			if (!staged || staged.runner !== item.runner)
+				staged = new ActivityCorrelation(item.runner);
+			else if (staged === out.correlation) staged = staged.clone();
+			for (const draft of staged.apply([item.event]))
+				entries.push({ at: item.at, draft });
+		}
+		return {
+			correlation: staged,
+			apply: (t) => {
+				for (const e of entries) {
+					if (e.progress !== undefined) {
+						t.progress.push({
+							seq: t.nextSeq++,
+							at: e.at,
+							text: truncateUtf8(e.progress, MAX_PROGRESS_ENTRY),
+						});
+					} else if (e.draft) {
+						t.activity.push({ seq: t.nextSeq++, at: e.at, ...e.draft });
+					}
+				}
+				if (t.progress.length > MAX_PROGRESS_ENTRIES)
+					t.progress.splice(0, t.progress.length - MAX_PROGRESS_ENTRIES);
+				t.activity = boundActivityWindow(t.activity);
+			},
+			restore: () => {
+				out.pending.unshift(...batch);
+				out.dropped += dropped;
+				const excess = out.pending.length - MAX_PENDING_OUTPUT;
+				if (excess > 0) {
+					out.pending.splice(MAX_PENDING_OUTPUT);
+					out.dropped += excess;
+				}
+			},
+		};
 	}
 
 	/**
@@ -1599,10 +1630,20 @@ export class JiraAgentTaskService {
 		if (!current || (current.settled && TERMINAL_STATES.has(current.state)))
 			return;
 		const [state, result, error] = this.outcome(live);
+		// Output accepted before the end (including a batch whose write failed
+		// and awaits retry) is committed WITH the terminal state, or the task
+		// would end showing an incomplete log. Fenced output stays discarded.
+		if (live.output.retryTimer) {
+			clearTimeout(live.output.retryTimer);
+			live.output.retryTimer = null;
+		}
+		if (live.fence) live.output.pending = [];
+		const staged = live.fence ? null : this.stageOutput(live);
 		for (let attempt = 1; attempt <= this.finalizeAttempts; attempt++) {
 			try {
 				await this.commit(live.contextId, null, (draft) => {
 					if (live.sessionId) draft.runnerSessionId = live.sessionId;
+					staged?.apply(this.mustFindTask(draft, live.taskId));
 					applyTerminal(
 						this.mustFindTask(draft, live.taskId),
 						state,
@@ -1610,6 +1651,7 @@ export class JiraAgentTaskService {
 						error,
 					);
 				});
+				if (staged) live.output.correlation = staged.correlation;
 				return;
 			} catch (e) {
 				this.logger.error(
@@ -1619,6 +1661,7 @@ export class JiraAgentTaskService {
 				if (attempt < this.finalizeAttempts) await sleep(50 * attempt);
 			}
 		}
+		staged?.restore();
 		this.unfinalized.add(live.taskId);
 	}
 

@@ -138,7 +138,14 @@ export function extractActivityEvents(message: SDKMessage): {
 		if (!Array.isArray(m.summary)) return { events, overflow };
 		for (const part of m.summary.slice(0, MAX_EVENTS_PER_MESSAGE * 2)) {
 			if (typeof part !== "string") continue;
-			const text = part.replace(/\s+/g, " ").trim();
+			// Bounded before queueing (re-bounded when applied).
+			const text = truncateBytes(
+				part
+					.slice(0, MAX_ACTIVITY_TEXT_BYTES * 2)
+					.replace(/\s+/g, " ")
+					.trim(),
+				MAX_ACTIVITY_TEXT_BYTES,
+			);
 			if (text) add({ kind: "summary", text });
 		}
 		return { events, overflow };

@@ -530,6 +530,72 @@ describe("task activity", () => {
 		);
 	});
 
+	it("bounds pending text in bytes while the journal is blocked", async () => {
+		const svc = await makeService();
+		await svc.send(create());
+		await started();
+		let unblock!: () => void;
+		const blocked = new Promise<void>((r) => {
+			unblock = r;
+		});
+		const save = journal.save.bind(journal);
+		vi.spyOn(journal, "save").mockImplementation(async (record) => {
+			await blocked;
+			return save(record);
+		});
+		runner().onMessage(
+			assistant([{ type: "text", text: "x".repeat(1_000_000) }]),
+		);
+		runner().onMessage(summary(["推".repeat(4096)]));
+		const pending = (
+			svc as unknown as {
+				lives: Map<string, { output: { pending: unknown[] } }>;
+			}
+		).lives.get(TASK)!.output.pending;
+		const bytes = Buffer.byteLength(JSON.stringify(pending), "utf8");
+		expect(bytes).toBeLessThan(2048 + MAX_ACTIVITY_TEXT_BYTES + 1024);
+		unblock();
+		await vi.waitFor(async () =>
+			expect((await svc.get(ref())).activity).toHaveLength(1),
+		);
+	});
+
+	for (const kind of ["tool finish", "progress"] as const)
+		it(`a failed ${kind} write right before the final answer is kept with the terminal state`, async () => {
+			const svc = await makeService();
+			await svc.send(create());
+			await started();
+			runner().onMessage(assistant([toolUse("e1", "Bash")]));
+			await vi.waitFor(async () =>
+				expect((await svc.get(ref())).activity).toHaveLength(1),
+			);
+			const save = journal.save.bind(journal);
+			let failNext = true;
+			vi.spyOn(journal, "save").mockImplementation(async (record) => {
+				if (failNext) {
+					failNext = false;
+					throw new Error("disk full (synthetic)");
+				}
+				return save(record);
+			});
+			if (kind === "tool finish") runner().onMessage(toolResult("e1"));
+			else
+				runner().onMessage(assistant([{ type: "text", text: "Almost done." }]));
+			runner().finish("Final answer.");
+			await vi.waitFor(async () =>
+				expect((await svc.get(ref())).state).toBe("completed"),
+			);
+			const snap = await svc.get(ref());
+			expect(snap.result).toBe("Final answer.");
+			if (kind === "tool finish")
+				expect(snap.activity.map((a) => a.kind)).toEqual([
+					"tool_started",
+					"tool_finished",
+				]);
+			else expect(snap.progress.map((p) => p.text)).toContain("Almost done.");
+			expect(failNext).toBe(false);
+		});
+
 	it("ignores callbacks from a runner that is no longer current", async () => {
 		const svc = await makeService();
 		await svc.send(create());
