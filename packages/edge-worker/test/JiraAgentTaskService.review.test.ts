@@ -224,8 +224,8 @@ afterEach(() => {
 });
 
 describe("Claude-only admission (R3/R7)", () => {
-	it("refuses a non-Claude runner before admission and persists nothing", async () => {
-		runnerType = "codex";
+	it("refuses a unsupported runner before admission and persists nothing", async () => {
+		runnerType = "gemini";
 		const svc = await makeService();
 		await expect(svc.send(create())).rejects.toMatchObject({
 			code: "unsupported_runner",
@@ -476,4 +476,44 @@ describe("retired tasks keep their idempotency", () => {
 		).rejects.toMatchObject({ code: "conflict" });
 		expect(runners.length).toBe(before);
 	}, 30_000);
+});
+
+describe("Codex Jira admission and pinned continuation", () => {
+	it("admits Codex and resumes its session even if the next issue facts select Claude", async () => {
+		runnerType = "codex";
+		const inputs: unknown[] = [];
+		const svc = await makeService({
+			buildRunner: async (input) => {
+				inputs.push(input.resume);
+				const runner = new FakeRunner(input.onMessage, true, true);
+				runners.push(runner);
+				return { runner, runnerType: "codex" };
+			},
+		});
+		await svc.send(create());
+		await started(1);
+		last().result("Codex answer");
+		last().settle();
+		await vi.waitFor(async () =>
+			expect((await svc.get(ref())).settled).toBe(true),
+		);
+		runnerType = "claude";
+		await svc.send(
+			create({
+				taskId: TASK_B,
+				messageId: "next-codex-turn",
+				issue: { ...issue, description: "[agent=claude]" },
+			}),
+		);
+		await started(2);
+		expect(inputs).toEqual([
+			null,
+			{ runnerType: "codex", sessionId: "sess-1" },
+		]);
+		last().result("Codex follow-up");
+		last().settle();
+		await vi.waitFor(async () =>
+			expect((await svc.get(ref(TASK_B))).settled).toBe(true),
+		);
+	});
 });

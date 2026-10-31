@@ -59,8 +59,8 @@ import {
  * - ONE live execution per context (`context_busy` until settled), pinned
  *   binding and issue (`context_mismatch`), closed contexts after a restart
  *   (`context_closed`), quarantined unreadable contexts (`context_unavailable`).
- * - Claude runner only (`unsupported_runner` before admission): its stop and
- *   environment/MCP scoping are the ones this feature relies on.
+ * - Claude and isolated Codex runners (`unsupported_runner` before admission
+ *   for other harnesses), with confirmed stop and scoped environment/MCP.
  * - Cancel / deadline: fence, request `runner.stop()` FIRST (so a journal
  *   failure cannot prevent the stop), then persist `canceling`, then await
  *   the ORIGINAL execution promise. Only a settled execution is `canceled` /
@@ -264,7 +264,7 @@ export const UNPINNED_HISTORY_MESSAGE =
 export const REVOKED_MESSAGE =
 	"Cyrus stopped because a repository this conversation works in is no longer available to this workspace.";
 export const UNSUPPORTED_RUNNER_MESSAGE =
-	"Jira tasks currently run only with the Claude runner. Configure Claude as this repository's runner in Cyrus, then assign the work item again.";
+	"Jira tasks currently support Claude and Codex. Configure Claude or Codex as this repository's runner in Cyrus, then assign the work item again.";
 
 /**
  * Tools a Jira task must not have even when the repository/platform list
@@ -287,7 +287,7 @@ export const JIRA_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
  * Cyrus-owned integration credentials blanked in a Jira task's runner env.
  * The runtime API key would let the task call this very bridge; the rest
  * belong to other platforms' webhooks and tokens. Applied through
- * `additionalEnv`, which the Claude runner merges over its inherited env.
+ * `additionalEnv`, which the supported runners merge over its inherited env.
  */
 export const JIRA_SCRUBBED_ENV: Record<string, string> = Object.fromEntries(
 	[
@@ -583,7 +583,7 @@ export class JiraAgentTaskService {
 			const runner = ranBefore
 				? (existing as JiraContextRecord).runnerType
 				: this.deps.resolveRunnerType(repositories, request.issue);
-			if (runner !== "claude") {
+			if (runner !== "claude" && runner !== "codex") {
 				throw new JiraAgentError(
 					"unsupported_runner",
 					UNSUPPORTED_RUNNER_MESSAGE,
@@ -1184,7 +1184,7 @@ export class JiraAgentTaskService {
 					// RESOLVES its start promise, so this is the failure signal.
 					onError: (error) => this.onRunnerError(live, runner, error),
 				});
-				if (runnerType !== "claude") {
+				if (runnerType !== "claude" && runnerType !== "codex") {
 					live.fatalError = UNSUPPORTED_RUNNER_MESSAGE;
 					return;
 				}

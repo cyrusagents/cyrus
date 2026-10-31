@@ -119,7 +119,7 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 		if (this.sessionInfo?.isRunning) {
 			this.wasStopped = true;
 		}
-		this.cleanupRuntimeState();
+		if (this.backend) void this.backend.close().catch(() => undefined);
 	}
 
 	isRunning(): boolean {
@@ -160,22 +160,35 @@ export class CodexRunner extends EventEmitter implements IAgentRunner {
 		this.backend = backend;
 		backend.on("event", (event) => this.handleBackendEvent(event));
 
-		const resolved = await new CodexConfigBuilder(this.config).build();
-		this.skillStager.stage();
-
 		const input: CodexUserInput[] = prompt?.trim()
 			? [{ type: "text", text: prompt.trim() }]
 			: [];
 
 		let caughtError: unknown;
 		try {
-			await backend.open(resolved);
-			await backend.runTurn(input);
+			const resolved = await new CodexConfigBuilder(this.config).build();
+			if (!this.wasStopped) {
+				this.skillStager.stage();
+				await backend.open(resolved);
+				if (!this.wasStopped) await backend.runTurn(input);
+			}
 		} catch (error) {
 			caughtError = error;
-		} finally {
-			this.finalizeSession(caughtError);
 		}
+		try {
+			await backend.close();
+		} catch (error) {
+			if (!this.config.isolatedProcess) throw error;
+			// Unknown process state retains Jira's execution promise and fence.
+			this.emit(
+				"error",
+				new Error("Codex process termination could not be confirmed", {
+					cause: error,
+				}),
+			);
+			await new Promise<never>(() => {});
+		}
+		this.finalizeSession(caughtError);
 
 		return this.sessionInfo;
 	}

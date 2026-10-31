@@ -1175,7 +1175,27 @@ export class EdgeWorker extends EventEmitter {
 			...JIRA_SCRUBBED_ENV,
 		};
 		return {
-			runner: this.createRunnerForType(runnerType, config),
+			runner:
+				runnerType === "codex"
+					? capRunnerStarts(
+							new CodexRunner({
+								...config,
+								isolatedProcess: true,
+								codexHome: join(this.cyrusHome, "jira-agent", "codex"),
+								sandbox: "workspace-write",
+								sandboxSettings: {
+									// Apple's /usr/bin/git shim needs the system toolchain.
+									allowRead:
+										process.platform === "darwin"
+											? ["/Library/Developer/CommandLineTools"]
+											: [],
+									allowWrite: [],
+								},
+								writableRoots: [],
+							}),
+							this.runnerSlots,
+						)
+					: this.createRunnerForType(runnerType, config),
 			runnerType,
 		};
 	}

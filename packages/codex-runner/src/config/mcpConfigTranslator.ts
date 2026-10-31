@@ -13,6 +13,7 @@ interface McpAllowedToolsFilter {
 
 /** Inputs the MCP translator needs from a runner config. */
 export interface McpTranslationInput {
+	disableMcpDiscovery?: boolean;
 	workingDirectory?: string;
 	mcpConfigPath?: string | string[];
 	mcpConfig?: Record<string, McpServerConfig>;
@@ -271,7 +272,9 @@ function copyConfigObject(
 export function buildCodexMcpServersConfig(
 	input: McpTranslationInput,
 ): Record<string, CodexConfigOverrides> | undefined {
-	const autoDetectedPath = autoDetectMcpConfigPath(input.workingDirectory);
+	const autoDetectedPath = input.disableMcpDiscovery
+		? undefined
+		: autoDetectMcpConfigPath(input.workingDirectory);
 	const configPaths = autoDetectedPath ? [autoDetectedPath] : ([] as string[]);
 	if (input.mcpConfigPath) {
 		const explicitPaths = Array.isArray(input.mcpConfigPath)

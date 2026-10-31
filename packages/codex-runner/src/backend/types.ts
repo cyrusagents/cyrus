@@ -118,6 +118,8 @@ export type ResolvedCodexSandbox =
  * `turn/start` params for the app-server.
  */
 export interface ResolvedCodexConfig {
+	/** Dedicated owned process, never pooled with another task. */
+	isolatedProcess?: boolean;
 	model?: string;
 	sandbox: ResolvedCodexSandbox;
 	workingDirectory?: string;

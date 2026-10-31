@@ -600,7 +600,7 @@ describe("a context's physical scope is pinned (RR4)", () => {
 describe("one set of issue facts for admission and execution (RR6)", () => {
 	it("correcting an unsupported [agent=...] while choosing a repository runs with the correction", async () => {
 		const svc = await service();
-		const wrong = { ...request().issue, description: "Fix it. [agent=codex]" };
+		const wrong = { ...request().issue, description: "Fix it. [agent=gemini]" };
 		expect((await svc.send(request({ issue: wrong }))).state).toBe(
 			"input-required",
 		);
@@ -619,7 +619,7 @@ describe("one set of issue facts for admission and execution (RR6)", () => {
 		await completed(svc);
 		const later = {
 			...request().issue,
-			description: "[repo=api] [agent=codex]",
+			description: "[repo=api] [agent=gemini]",
 		};
 		await svc.send(request({ taskId: TASK_B, messageId: "m2", issue: later }));
 		await completed(svc, TASK_B);
@@ -635,7 +635,7 @@ describe("one set of issue facts for admission and execution (RR6)", () => {
 		const svc = await service();
 		const issue = {
 			...request().issue,
-			description: "[repo=api] [agent=codex]",
+			description: "[repo=api] [agent=gemini]",
 		};
 		await expect(svc.send(request({ issue }))).rejects.toMatchObject({
 			code: "unsupported_runner",

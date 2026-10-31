@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { realpathSync } from "node:fs";
 import type { CodexConfigOverrides } from "../types.js";
 import type { AppServerClientFactory } from "./appServerClient.js";
 import {
@@ -57,7 +58,10 @@ export class AppServerCodexBackend
 	/** Watchdog: fails a turn that goes fully silent for too long. */
 	private idleTimer: ReturnType<typeof setTimeout> | null = null;
 	private readonly turnIdleTimeoutMs: number;
-	private readonly processManager: AppServerProcessManager;
+	private processManager: AppServerProcessManager;
+	private isolated = false;
+	private closed = false;
+	private closePromise: Promise<void> | null = null;
 	private readonly threadHandler: AppServerThreadHandler = {
 		onNotification: (method, params) =>
 			this.onNotification(method as AppServerNotification, params),
@@ -94,20 +98,67 @@ export class AppServerCodexBackend
 	}
 
 	async open(config: ResolvedCodexConfig): Promise<{ threadId: string }> {
+		if (this.closed) throw new Error("Codex backend already closed");
+		if (config.isolatedProcess && process.platform === "win32")
+			throw new Error("Isolated Codex execution requires POSIX process groups");
+		this.isolated = config.isolatedProcess === true;
+		if (this.isolated) this.processManager = this.processManager.fork();
 		this.outputSchema = config.outputSchema;
 		const appServer = await this.processManager.acquire(config);
 		this.appServer = appServer;
 
 		try {
+			if (this.closed) throw new Error("Codex backend closed during startup");
+			if (this.isolated) {
+				const auth = await appServer.request<{
+					account: unknown;
+					requiresOpenaiAuth: boolean;
+				}>("account/read", { refreshToken: false });
+				if (!auth.account && auth.requiresOpenaiAuth !== false) {
+					throw new Error(
+						"Jira Codex is not authenticated. Ask a Cyrus admin to run codex login with CODEX_HOME set to <Cyrus home>/jira-agent/codex on this worker.",
+					);
+				}
+				const effective = await appServer.request<{
+					config: Record<string, unknown>;
+					layers: Array<{
+						name: { type: string };
+						disabledReason?: string | null;
+					}>;
+				}>("config/read", {
+					cwd: config.workingDirectory,
+					includeLayers: true,
+				});
+				const nativeServers = effective.config?.mcp_servers;
+				const features = effective.config?.features as
+					| Record<string, unknown>
+					| undefined;
+				if (
+					!effective.config ||
+					!effective.layers ||
+					(nativeServers && Object.keys(nativeServers).length > 0) ||
+					effective.layers.some(
+						(layer) => layer.name.type === "project" && !layer.disabledReason,
+					) ||
+					["apps", "plugins", "hooks", "skill_mcp_dependency_install"].some(
+						(key) => features?.[key] !== false,
+					)
+				) {
+					throw new Error("Isolated Codex refuses inherited MCP configuration");
+				}
+			}
 			const threadId = config.resumeSessionId
 				? await this.resumeThread(config)
 				: await this.startThread(config);
 
+			if (this.closed)
+				throw new Error("Codex backend closed during thread startup");
 			this.threadId = threadId;
 			appServer.registerThread(threadId, this.threadHandler);
 			this.emit("event", { kind: "thread-started", threadId });
 			return { threadId };
 		} catch (error) {
+			if (this.isolated) await appServer.close();
 			this.appServer = null;
 			appServer.release();
 			throw error;
@@ -115,7 +166,7 @@ export class AppServerCodexBackend
 	}
 
 	async runTurn(input: CodexUserInput[]): Promise<void> {
-		if (!this.appServer || !this.threadId) {
+		if (this.closed || !this.appServer || !this.threadId) {
 			throw new Error("AppServerCodexBackend.runTurn called before open()");
 		}
 		const turnPromise = new Promise<void>((resolve, reject) => {
@@ -186,7 +237,17 @@ export class AppServerCodexBackend
 		}
 	}
 
-	async close(): Promise<void> {
+	close(): Promise<void> {
+		this.closed = true;
+		this.closePromise ??= this.closeBackend();
+		return this.closePromise;
+	}
+
+	private async closeBackend(): Promise<void> {
+		if (this.isolated) {
+			if (this.appServer) await this.appServer.close();
+			else await this.processManager.closeAll();
+		}
 		const appServer = this.appServer;
 		const threadId = this.threadId;
 		const turnId = this.activeTurnId;
@@ -267,8 +328,28 @@ export class AppServerCodexBackend
 			? { ...config.configOverrides }
 			: {};
 		const sandbox = config.sandbox;
+		if (this.isolated) {
+			if (!config.workingDirectory)
+				throw new Error("Isolated Codex requires a task working directory");
+			const paths = new Set([config.workingDirectory]);
+			try {
+				paths.add(realpathSync(config.workingDirectory));
+			} catch {
+				/* Codex reports invalid cwd. */
+			}
+			// A writable profile otherwise implicitly trusts project config at
+			// thread/start, even when config/read classified it as untrusted.
+			// Request-local explicit trust also survives retained config reload
+			// and resume, without racing other tasks in the shared auth home.
+			base.projects = Object.fromEntries(
+				[...paths].map((path) => [path, { trust_level: "untrusted" }]),
+			);
+		}
 
 		if (sandbox.kind === "profile") {
+			// Codex reloads this retained config before each model turn. The
+			// thread/start selector alone is not retained by that reload.
+			base.default_permissions = sandbox.profileId;
 			base.permissions = {
 				[sandbox.profileId]: {
 					filesystem: { ...sandbox.filesystem },
