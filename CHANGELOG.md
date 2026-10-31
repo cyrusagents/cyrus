@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- Updated `@anthropic-ai/claude-agent-sdk` from `0.3.281` to [`0.3.316`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03316), bringing Claude sessions to Claude Code 2.1.316, and updated `@anthropic-ai/sdk` from `^0.128.0` to [`^1.3.0`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.3.0). Cyrus explicitly retains its existing manual permission policy across the upstream auto-mode change. The mandatory tool extraction still finds the same 30 built-in tools, so no static allowance-list change is needed. ([CYPACK-1609](https://linear.app/ceedar/issue/CYPACK-1609/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1570](https://github.com/cyrusagents/cyrus/pull/1570), [cyrus-hosted#1301](https://github.com/cyrusagents/cyrus-hosted/pull/1301))
 - Moved the Cyrus Inbox plugin package to a separately maintained private repository. The CLI, runtime and `post_message_to_codex` tool are unchanged. ([#1558](https://github.com/cyrusagents/cyrus/pull/1558))
 
 ### Fixed
@@ -13,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - Feedback sent with `linear_agent_give_feedback` now reaches child sessions that were restored after a restart. Before, it was dropped with a `not found in any repository` error and the child never resumed. ([#1562](https://github.com/cyrusagents/cyrus/pull/1562))
 
 ### Security
+- Refreshed Axios's compatible `follow-redirects` dependency to `1.16.2`, fixing a credential-forwarding advisory and restoring a zero-advisory audit. ([CYPACK-1609](https://linear.app/ceedar/issue/CYPACK-1609/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1570](https://github.com/cyrusagents/cyrus/pull/1570))
 - Patched high-severity Zod collection-validation and body-parser compressed-body denial-of-service vulnerabilities plus fast-uri URL handling issues, while keeping upgraded Cursor session state under the Cyrus home directory. ([CYPACK-1603](https://linear.app/ceedar/issue/CYPACK-1603/address-open-security-patches-for-cyrus-cli), [#1563](https://github.com/cyrusagents/cyrus/pull/1563))
 - Updated Fastify to `5.12.7` across the CLI dependency graph, fixing a header-schema validation bypass and restoring a zero-advisory audit. ([CYPACK-1597](https://linear.app/ceedar/issue/CYPACK-1597/address-open-security-patches-for-cyrus-cli), [#1555](https://github.com/cyrusagents/cyrus/pull/1555))
 

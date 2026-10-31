@@ -81,6 +81,12 @@ describe("RunnerConfigBuilder sandbox writable paths", () => {
 			denyRead: ["~/"],
 			allowWrite: ["/ws/root", "/home/me/.supabase"],
 		});
+		expect(config.sandbox).toMatchObject({
+			enabled: true,
+			allowUnsandboxedCommands: false,
+			enableWeakerNetworkIsolation: true,
+		});
+		expect(config.sandbox.excludedCommands).toBeUndefined();
 		expect(config.allowedDirectories).toEqual([
 			"/repos/repo-a",
 			"/home/me/.supabase",
