@@ -17,7 +17,16 @@ import type { CodexConfigOverrides } from "../types.js";
  */
 export type NormalizedCodexItem =
 	| { type: "agent_message"; id: string; text: string }
-	| { type: "reasoning"; id: string; text?: string }
+	| {
+			type: "reasoning";
+			id: string;
+			text?: string;
+			/**
+			 * Provider-written public reasoning SUMMARY (app-server
+			 * `reasoning.summary[]`). Raw `content[]` is never carried.
+			 */
+			summary?: string[];
+	  }
 	| { type: "user_message"; id: string }
 	| {
 			type: "command_execution";

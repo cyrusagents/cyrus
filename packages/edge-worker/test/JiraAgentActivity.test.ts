@@ -1,11 +1,12 @@
 /**
  * Jira-visible tool/reasoning activity (runtime side).
  *
- * Pure label tests use the exact normalized shapes ClaudeRunner forwards and
- * CodexEventMapper emits (tool_use / tool_result / thinking). Service tests
- * use a scripted fake runner: they prove activity is bounded, durable,
- * withheld with output and never written after a fence, NOT that a real model
- * produces these messages.
+ * Extraction tests use the normalized shapes ClaudeRunner forwards and
+ * CodexEventMapper emits (tool_use / tool_result / the typed reasoning
+ * summary). Service tests drive the real message handler, context lock and
+ * journal with a scripted fake runner: they prove what is (and is never)
+ * published, its bounds and its persistence order, NOT that a real model
+ * emits these messages. Every secret below is an invented marker.
  */
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,9 +19,15 @@ import type {
 } from "cyrus-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-	activityFromMessage,
+	ActivityCorrelation,
+	extractActivityEvents,
+	GAP_TEXT,
 	MAX_ACTIVITY_ENTRIES,
-	redact,
+	MAX_ACTIVITY_TEXT_BYTES,
+	MAX_ACTIVITY_WINDOW_BYTES,
+	MAX_EVENTS_PER_MESSAGE,
+	REASONING_SUMMARY_SUBTYPE,
+	restoreActivity,
 	toolLabel,
 } from "../src/jira-agent/JiraActivity.js";
 import { JiraAgentJournal } from "../src/jira-agent/JiraAgentJournal.js";
@@ -38,6 +45,7 @@ const logger = {
 	withContext: () => logger,
 } as unknown as ILogger;
 
+const SECRET = "SYNTHETIC-SECRET-7f3a";
 const assistant = (content: unknown[], extra: Record<string, unknown> = {}) =>
 	({
 		type: "assistant",
@@ -45,131 +53,189 @@ const assistant = (content: unknown[], extra: Record<string, unknown> = {}) =>
 		message: { content },
 		...extra,
 	}) as unknown as SDKMessage;
-const toolResult = (id: string, isError = false, content = "OUTPUT-SECRET") =>
+const toolUse = (id: string, name: string, input: unknown = {}) => ({
+	type: "tool_use",
+	id,
+	name,
+	input,
+});
+const toolResult = (id: string, isError = false) =>
 	({
 		type: "user",
 		session_id: "sess-1",
 		message: {
 			role: "user",
 			content: [
-				{ type: "tool_result", tool_use_id: id, content, is_error: isError },
+				{
+					type: "tool_result",
+					tool_use_id: id,
+					content: `${SECRET}-output`,
+					is_error: isError,
+				},
 			],
 		},
 	}) as unknown as SDKMessage;
+const summary = (parts: unknown) =>
+	({
+		type: "system",
+		subtype: REASONING_SUMMARY_SUBTYPE,
+		summary: parts,
+		session_id: "sess-1",
+	}) as unknown as SDKMessage;
+const drafts = (messages: SDKMessage[]) => {
+	const c = new ActivityCorrelation("runner");
+	return messages.flatMap((m) => c.apply(extractActivityEvents(m).events));
+};
 
-describe("activity labels", () => {
-	it("pairs a Claude tool start with its finish and never copies output", () => {
-		const labels = new Map<string, string>();
-		const started = activityFromMessage(
-			assistant([
-				{ type: "text", text: "Let me check." },
-				{
-					type: "tool_use",
-					id: "t1",
-					name: "Bash",
-					input: { command: "npm test\nrm -rf /", description: "Run tests" },
-				},
-			]),
-			labels,
-			"/ws/jira-x",
-		);
-		expect(started).toEqual([
-			{ kind: "tool_started", toolId: "t1", text: "Command: Run tests" },
+describe("what activity may contain", () => {
+	it("uses fixed labels: no input, tool name or output reaches a start or finish", () => {
+		const inputs: [string, unknown][] = [
+			[
+				"Bash",
+				{ command: `curl -u alice:${SECRET} https://x`, description: SECRET },
+			],
+			["Grep", { pattern: SECRET }],
+			["Glob", { pattern: SECRET }],
+			["WebSearch", { query: SECRET }],
+			["WebFetch", { url: `https://${SECRET}.example/?k=${SECRET}` }],
+			["Task", { description: SECRET, prompt: SECRET }],
+			["Read", { file_path: `/ws/${SECRET}/a.ts` }],
+			["Edit", { file_path: "a.ts", old_string: SECRET, new_string: SECRET }],
+			[`mcp__linear__${SECRET}`, { apiKey: SECRET }],
+			[`Custom${SECRET}`, { x: SECRET }],
+		];
+		const messages = inputs.flatMap(([name, input], i) => [
+			assistant([toolUse(`t${i}`, name, input)]),
+			toolResult(`t${i}`, i % 2 === 1),
 		]);
-		const finished = activityFromMessage(toolResult("t1", true), labels, null);
-		expect(finished).toEqual([
+		const out = drafts(messages);
+		expect(out).toHaveLength(inputs.length * 2);
+		expect(JSON.stringify(out)).not.toContain(SECRET);
+		expect(JSON.stringify(out)).not.toContain("alice");
+		expect(
+			out.filter((d) => d.kind === "tool_started").map((d) => d.text),
+		).toEqual([
+			"Command",
+			"Code search",
+			"File search",
+			"Web search",
+			"Web page fetch",
+			"Subagent",
+			"File read",
+			"File edit",
+			"Integration tool",
+			"Tool",
+		]);
+		expect(toolLabel("constructor")).toBe("Tool");
+		expect(toolLabel(undefined)).toBe("Tool");
+	});
+
+	it("never shows Claude thinking, redacted thinking or signatures", () => {
+		const out = drafts([
+			assistant([
+				{
+					type: "thinking",
+					thinking: `${SECRET}-raw-thought`,
+					signature: `${SECRET}-sig`,
+				},
+				{ type: "redacted_thinking", data: `${SECRET}-redacted` },
+				{ type: "text", text: "visible answer text" },
+			]),
+			// A thinking delta or other system message is not a summary either.
 			{
-				kind: "tool_finished",
-				toolId: "t1",
-				text: "Command: Run tests",
-				outcome: "failed",
-			},
+				type: "stream_event",
+				event: { delta: { thinking: SECRET } },
+			} as unknown as SDKMessage,
+			{
+				type: "system",
+				subtype: "status",
+				summary: [SECRET],
+			} as unknown as SDKMessage,
 		]);
-		expect(JSON.stringify(finished)).not.toContain("OUTPUT-SECRET");
-		// A finish is reported once; an unknown id is ignored.
-		expect(activityFromMessage(toolResult("t1"), labels, null)).toEqual([]);
-		expect(activityFromMessage(toolResult("nope"), labels, null)).toEqual([]);
+		expect(out).toEqual([]);
 	});
 
-	it("labels Codex-mapped commands (first line, credentials masked)", () => {
-		const labels = new Map<string, string>();
-		const [entry] = activityFromMessage(
+	it("shows only the provider's typed summary, bounded in UTF-8 bytes", () => {
+		const cjk = "推".repeat(2000);
+		const out = drafts([summary(["Checked the failing test.", 42, "  ", cjk])]);
+		expect(out.map((d) => d.kind)).toEqual(["reasoning", "reasoning"]);
+		expect(out[0]?.text).toBe("Checked the failing test.");
+		expect(Buffer.byteLength(out[1]!.text, "utf8")).toBeLessThanOrEqual(
+			MAX_ACTIVITY_TEXT_BYTES,
+		);
+		expect(drafts([summary("not an array")])).toEqual([]);
+	});
+
+	it("drops malformed or oversized tool ids and caps work per message", () => {
+		const huge = "x".repeat(1_000_000);
+		const one = extractActivityEvents(
 			assistant([
-				{
-					type: "tool_use",
-					id: "item_1",
-					name: "Bash",
-					input: {
-						command:
-							'curl -H "Authorization: Bearer abc123" https://x --token=hunter2 && echo\nsecond line',
-					},
-				},
+				toolUse(huge, "Bash"),
+				toolUse("ok bad", "Bash"),
+				toolUse("ok", "Bash"),
 			]),
-			labels,
-			null,
 		);
-		expect(entry?.text).toBe(
-			'Command: curl -H "Authorization: *** *** https://x --token=*** && echo',
+		expect(one.events).toEqual([{ kind: "start", id: "ok", label: "Command" }]);
+		expect(one.overflow).toBe(2);
+		const bulk = extractActivityEvents(
+			assistant(
+				Array.from({ length: 1000 }, (_, i) => toolUse(`t${i}`, "Read")),
+			),
 		);
-		expect(entry?.text).not.toContain("abc123");
-		expect(entry?.text).not.toContain("hunter2");
-		expect(entry?.text).not.toContain("second line");
+		expect(bulk.events).toHaveLength(MAX_EVENTS_PER_MESSAGE);
+		expect(bulk.overflow).toBe(1000 - MAX_EVENTS_PER_MESSAGE);
 	});
 
-	it("keeps paths workspace-relative and never shows MCP arguments", () => {
-		expect(
-			toolLabel("Read", { file_path: "/ws/jira-x/src/a.ts" }, "/ws/jira-x"),
-		).toBe("Read: src/a.ts");
-		expect(
-			toolLabel("Read", { file_path: "/Users/me/.ssh/id_rsa" }, "/ws/jira-x"),
-		).toBe("Read: id_rsa");
-		expect(
-			toolLabel(
-				"mcp__linear__save_issue",
-				{ apiKey: "SECRET", body: "x" },
-				null,
-			),
-		).toBe("Tool linear/save_issue");
-		expect(
-			toolLabel("WebFetch", { url: "https://example.com/a?k=SECRET" }, null),
-		).toBe("Fetch: example.com");
-		expect(
-			toolLabel("Edit", { file_path: "a.ts", old_string: "SECRET" }, null),
-		).toBe("Edit: a.ts");
-		expect(toolLabel("X".repeat(500), {}, null).length).toBeLessThanOrEqual(
-			200,
-		);
-		expect(redact("export API_KEY=abcdef")).toBe("export API_KEY=***");
+	it("correlates once: duplicate starts/finishes, foreign and interleaved ids", () => {
+		const out = drafts([
+			assistant([toolUse("a", "Bash"), toolUse("b", "Read")]),
+			assistant([toolUse("a", "Bash")]),
+			toolResult("b"),
+			toolResult("ghost"),
+			toolResult("a", true),
+			toolResult("a"),
+			// A repeated normalized pair (e.g. a re-sent completion) is the same step.
+			assistant([toolUse("a", "Bash")]),
+			toolResult("a"),
+		]);
+		expect(out.map((d) => [d.kind, d.toolId, d.outcome])).toEqual([
+			["tool_started", "a", undefined],
+			["tool_started", "b", undefined],
+			["tool_finished", "b", "succeeded"],
+			["tool_finished", "a", "failed"],
+		]);
 	});
 
-	it("shows thinking summaries truncated, drops redacted thinking and subagent steps", () => {
-		const labels = new Map<string, string>();
-		const drafts = activityFromMessage(
-			assistant([
-				{ type: "thinking", thinking: "x".repeat(5000), signature: "sig" },
-				{ type: "redacted_thinking", data: "opaque" },
-			]),
-			labels,
-			null,
+	it("re-bounds restored entries", () => {
+		const restored = restoreActivity([
+			{ seq: 1, at: "x", kind: "reasoning", text: "ok" },
+			{ seq: 2, at: "x", kind: "reasoning", text: "推".repeat(1000) },
+			{
+				seq: 3,
+				at: "x",
+				kind: "tool_started",
+				toolId: "y".repeat(500),
+				text: "Command",
+			},
+			{ seq: 4, at: "x", kind: "other", text: "?" },
+			...Array.from({ length: 200 }, (_, i) => ({
+				seq: 10 + i,
+				at: "x",
+				kind: "reasoning",
+				text: "推".repeat(300),
+			})),
+		]);
+		expect(restored.length).toBeLessThanOrEqual(MAX_ACTIVITY_ENTRIES);
+		expect(Buffer.byteLength(JSON.stringify(restored))).toBeLessThanOrEqual(
+			MAX_ACTIVITY_WINDOW_BYTES,
 		);
-		expect(drafts).toHaveLength(1);
-		expect(drafts[0]?.kind).toBe("reasoning");
-		expect(drafts[0]?.text.length).toBeLessThanOrEqual(1024);
-		expect(JSON.stringify(drafts)).not.toContain("opaque");
-		expect(
-			activityFromMessage(
-				assistant([{ type: "tool_use", id: "s1", name: "Read", input: {} }], {
-					parent_tool_use_id: "task-1",
-				}),
-				labels,
-				null,
-			),
-		).toEqual([]);
+		expect(restored.at(-1)?.seq).toBe(209);
+		expect(restoreActivity("junk")).toEqual([]);
 	});
 });
 
 // ---------------------------------------------------------------------------
-// Service: durable, bounded, withheld, fenced
+// Service: durable, staged, bounded, withheld, fenced
 
 const CTX = "11111111-1111-4111-8111-111111111111";
 const TASK = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -196,6 +262,12 @@ const create = (): JiraSendRequest => ({
 	issue,
 	authorizedRepositoryIds: ["repo-a"],
 	text: "Investigate.",
+});
+const followup = (): JiraSendRequest => ({
+	...create(),
+	kind: "followup",
+	messageId: "msg-2",
+	text: "And the other case.",
 });
 const ref = (authorizedRepositoryIds = ["repo-a"]) => ({
 	version: 2 as const,
@@ -246,6 +318,7 @@ class FakeRunner implements IAgentRunner {
 
 let home: string;
 let runners: FakeRunner[];
+let journal: JiraAgentJournal;
 const repo = {
 	id: "repo-a",
 	name: "Repo A",
@@ -255,7 +328,7 @@ const repo = {
 } as RepositoryConfig;
 
 async function makeService() {
-	const journal = new JiraAgentJournal(home, logger);
+	journal = new JiraAgentJournal(home, logger);
 	await journal.load();
 	return new JiraAgentTaskService({
 		journal,
@@ -281,12 +354,16 @@ const journalFile = () =>
 	JSON.parse(
 		readFileSync(join(home, "jira-agent", "contexts", `${CTX}.json`), "utf8"),
 	);
+const started = async () => {
+	await vi.waitFor(() => expect(runner()?.prompts.length).toBe(1));
+};
 
 beforeEach(() => {
 	home = mkdtempSync(join(tmpdir(), "jira-activity-test-"));
 	runners = [];
 });
 afterEach(() => {
+	vi.restoreAllMocks();
 	rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
@@ -294,16 +371,11 @@ describe("task activity", () => {
 	it("is durable, ordered with progress, withheld with output and survives completion", async () => {
 		const svc = await makeService();
 		await svc.send(create());
-		await vi.waitFor(() => expect(runner()?.prompts.length).toBe(1));
+		await started();
 		runner().onMessage(
 			assistant([
 				{ type: "text", text: "Checking." },
-				{
-					type: "tool_use",
-					id: "t1",
-					name: "Read",
-					input: { file_path: `/ws/jira-${CTX}/a.ts` },
-				},
+				toolUse("t1", "Read", { file_path: SECRET }),
 			]),
 		);
 		runner().onMessage(toolResult("t1"));
@@ -312,67 +384,177 @@ describe("task activity", () => {
 		);
 		const snap = await svc.get(ref());
 		expect(snap.activity.map((a) => [a.kind, a.text, a.outcome])).toEqual([
-			["tool_started", "Read: a.ts", undefined],
-			["tool_finished", "Read: a.ts", "succeeded"],
+			["tool_started", "File read", undefined],
+			["tool_finished", "File read", "succeeded"],
 		]);
-		// One sequence orders progress and activity together.
 		const seqs = [...snap.progress, ...snap.activity].map((e) => e.seq);
 		expect(new Set(seqs).size).toBe(seqs.length);
-		expect(journalFile().tasks[0].activity).toHaveLength(2);
+		expect(JSON.stringify(journalFile())).not.toContain(SECRET);
 		runner().finish("Done.");
 		await vi.waitFor(async () =>
 			expect((await svc.get(ref())).state).toBe("completed"),
 		);
 		expect((await svc.get(ref())).activity).toHaveLength(2);
-		// Output and activity are withheld together.
 		const withheld = await svc.get(ref([]));
 		expect(withheld.contentWithheld).toBe(true);
 		expect(withheld.activity).toEqual([]);
-		// A restarted runtime reads it back from the journal.
 		const reloaded = await makeService();
 		expect((await reloaded.get(ref())).activity).toHaveLength(2);
 	});
 
-	it("is bounded to the newest entries", async () => {
+	it("a reasoning summary is activity only: the final answer stays the result", async () => {
 		const svc = await makeService();
 		await svc.send(create());
-		await vi.waitFor(() => expect(runner()?.prompts.length).toBe(1));
-		for (let i = 0; i < MAX_ACTIVITY_ENTRIES + 15; i++)
-			runner().onMessage(
-				assistant([
-					{
-						type: "tool_use",
-						id: `t${i}`,
-						name: "Grep",
-						input: { pattern: `p${i}` },
-					},
-				]),
-			);
+		await started();
+		runner().onMessage(summary(["Looked at the parser."]));
+		runner().finish("The answer.");
+		await vi.waitFor(async () =>
+			expect((await svc.get(ref())).state).toBe("completed"),
+		);
+		const snap = await svc.get(ref());
+		expect(snap.result).toBe("The answer.");
+		expect(snap.activity.map((a) => a.text)).toEqual(["Looked at the parser."]);
+		expect(snap.progress.map((p) => p.text)).not.toContain(
+			"Looked at the parser.",
+		);
+	});
+
+	it("a summary without an answer can't complete the task", async () => {
+		const svc = await makeService();
+		await svc.send(create());
+		await started();
+		runner().onMessage(summary(["Thought about it."]));
+		runner().stop();
+		await vi.waitFor(async () =>
+			expect((await svc.get(ref())).state).toBe("failed"),
+		);
+	});
+
+	it("bounds a single bulk message and a burst of messages, and marks the gap", async () => {
+		const svc = await makeService();
+		await svc.send(create());
+		await started();
+		runner().onMessage(
+			assistant(
+				Array.from({ length: 1000 }, (_, i) => toolUse(`bulk${i}`, "Read")),
+			),
+		);
+		for (let i = 0; i < 400; i++)
+			runner().onMessage(assistant([toolUse(`burst${i}`, "Grep")]));
 		await vi.waitFor(async () => {
 			const activity = (await svc.get(ref())).activity;
-			expect(activity).toHaveLength(MAX_ACTIVITY_ENTRIES);
-			expect(activity.at(-1)?.text).toBe(
-				`Search code: p${MAX_ACTIVITY_ENTRIES + 14}`,
-			);
+			expect(activity.length).toBe(MAX_ACTIVITY_ENTRIES);
 		});
+		const all = (await svc.get(ref())).activity;
+		expect(Buffer.byteLength(JSON.stringify(all))).toBeLessThanOrEqual(
+			MAX_ACTIVITY_WINDOW_BYTES,
+		);
+		// Ordered, monotonic sequence ids even after drops and eviction.
+		const seqs = all.map((a) => a.seq);
+		expect([...seqs].sort((a, b) => a - b)).toEqual(seqs);
+		const file = journalFile();
+		const kinds = file.tasks[0].activity.map((a: { kind: string }) => a.kind);
+		expect(
+			kinds.every((k: string) => k === "tool_started" || k === "gap"),
+		).toBe(true);
+	});
+
+	it("records a gap when a message carried more than it could take", async () => {
+		const svc = await makeService();
+		await svc.send(create());
+		await started();
+		runner().onMessage(
+			assistant(Array.from({ length: 25 }, (_, i) => toolUse(`t${i}`, "Read"))),
+		);
+		await vi.waitFor(async () =>
+			expect((await svc.get(ref())).activity.length).toBe(
+				MAX_EVENTS_PER_MESSAGE + 1,
+			),
+		);
+		expect((await svc.get(ref())).activity[0]).toMatchObject({
+			kind: "gap",
+			text: GAP_TEXT,
+		});
+	});
+
+	it("a failed start write publishes nothing, then retries in order (no orphan finish)", async () => {
+		const svc = await makeService();
+		await svc.send(create());
+		await started();
+		const save = journal.save.bind(journal);
+		let failNext = true;
+		vi.spyOn(journal, "save").mockImplementation(async (record) => {
+			if (failNext) {
+				failNext = false;
+				throw new Error("disk full (synthetic)");
+			}
+			return save(record);
+		});
+		runner().onMessage(assistant([toolUse("s1", "Bash")]));
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect((await svc.get(ref())).activity).toEqual([]);
+		runner().onMessage(toolResult("s1"));
+		await vi.waitFor(async () =>
+			expect((await svc.get(ref())).activity.map((a) => a.kind)).toEqual([
+				"tool_started",
+				"tool_finished",
+			]),
+		);
+	});
+
+	it("a failed finish write keeps the correlation so the retry still pairs", async () => {
+		const svc = await makeService();
+		await svc.send(create());
+		await started();
+		runner().onMessage(assistant([toolUse("f1", "Bash")]));
+		await vi.waitFor(async () =>
+			expect((await svc.get(ref())).activity).toHaveLength(1),
+		);
+		const save = journal.save.bind(journal);
+		let failNext = true;
+		vi.spyOn(journal, "save").mockImplementation(async (record) => {
+			if (failNext) {
+				failNext = false;
+				throw new Error("disk full (synthetic)");
+			}
+			return save(record);
+		});
+		runner().onMessage(toolResult("f1", true));
+		await vi.waitFor(
+			async () =>
+				expect((await svc.get(ref())).activity.map((a) => a.outcome)).toEqual([
+					undefined,
+					"failed",
+				]),
+			{ timeout: 3000 },
+		);
+	});
+
+	it("ignores callbacks from a runner that is no longer current", async () => {
+		const svc = await makeService();
+		await svc.send(create());
+		await started();
+		const first = runner();
+		await svc.send(followup());
+		first.finish("First answer.");
+		await vi.waitFor(() => expect(runners).toHaveLength(2));
+		await vi.waitFor(() => expect(runner().prompts.length).toBe(1));
+		first.onMessage(assistant([toolUse("stale", "Bash")]));
+		runner().onMessage(assistant([toolUse("fresh", "Read")]));
+		await vi.waitFor(async () =>
+			expect((await svc.get(ref())).activity.map((a) => a.toolId)).toEqual([
+				"fresh",
+			]),
+		);
 	});
 
 	it("records nothing after a cancel fence", async () => {
 		const svc = await makeService();
 		await svc.send(create());
-		await vi.waitFor(() => expect(runner()?.prompts.length).toBe(1));
+		await started();
 		const r = runner();
 		await svc.cancel(ref());
-		r.onMessage(
-			assistant([
-				{
-					type: "tool_use",
-					id: "late",
-					name: "Bash",
-					input: { command: "ls" },
-				},
-			]),
-		);
+		r.onMessage(assistant([toolUse("late", "Bash")]));
 		await new Promise((resolve) => setTimeout(resolve, 30));
 		const snap = await svc.get(ref());
 		expect(snap.state).toBe("canceled");
@@ -382,7 +564,7 @@ describe("task activity", () => {
 	it("loads journals written before activity existed", async () => {
 		const svc = await makeService();
 		await svc.send(create());
-		await vi.waitFor(() => expect(runner()?.prompts.length).toBe(1));
+		await started();
 		runner().finish("Done.");
 		await vi.waitFor(async () =>
 			expect((await svc.get(ref())).state).toBe("completed"),

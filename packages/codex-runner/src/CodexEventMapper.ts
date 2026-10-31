@@ -317,6 +317,8 @@ export class CodexEventMapper {
 			case "item-completed": {
 				if (event.item.type === "agent_message") {
 					this.emitAssistantMessage(event.item.text);
+				} else if (event.item.type === "reasoning") {
+					this.emitReasoningSummary(event.item.summary);
 				} else {
 					this.emitToolMessagesForItem(event.item, true);
 				}
@@ -513,6 +515,26 @@ export class CodexEventMapper {
 		};
 		this.pushAndEmit(userMessage);
 		this.emittedToolUseIds.delete(projection.toolUseId);
+	}
+
+	/**
+	 * A provider-written reasoning summary, as its own `system` message
+	 * (subtype `cyrus_reasoning_summary`). It is not assistant text: it never
+	 * sets `lastAssistantText`, so it can't become (or stand in for) the final
+	 * answer, and it is not added to the transcript used for results.
+	 * Consumers that don't know the subtype ignore it.
+	 */
+	private emitReasoningSummary(summary: string[] | undefined): void {
+		if (!summary || summary.length === 0) {
+			return;
+		}
+		this.ctx.emitMessage({
+			type: "system",
+			subtype: "cyrus_reasoning_summary",
+			summary: [...summary],
+			uuid: crypto.randomUUID(),
+			session_id: this.ctx.getSessionId(),
+		} as unknown as SDKMessage);
 	}
 
 	private emitAssistantMessage(text: string): void {

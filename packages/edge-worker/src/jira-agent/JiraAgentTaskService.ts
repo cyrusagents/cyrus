@@ -9,9 +9,13 @@ import type {
 import type { RepositoryRoutingResult } from "../RepositoryRouter.js";
 import { setRunnerStartGuard } from "../RunnerConcurrency.js";
 import {
-	activityFromMessage,
+	ActivityCorrelation,
+	type ActivityDraft,
+	type ActivityEvent,
+	boundActivityWindow,
+	extractActivityEvents,
+	GAP_TEXT,
 	type JiraActivityEntry,
-	MAX_ACTIVITY_ENTRIES,
 } from "./JiraActivity.js";
 import {
 	isUuid,
@@ -246,14 +250,28 @@ interface LiveTask {
 	sessionId: string | null;
 	workspacePath: string | null;
 	lastProcessCapture: number;
-	/** Labels of this task's tool starts awaiting their finish (display only). */
-	toolLabels: Map<string, string>;
+	/** Progress/activity awaiting its journal commit (bounded). */
+	output: {
+		pending: PendingOutput[];
+		dropped: number;
+		queued: boolean;
+		failures: number;
+		retryTimer: ReturnType<typeof setTimeout> | null;
+		/** Committed correlation of the current runner's tool ids. */
+		correlation: ActivityCorrelation | null;
+	};
 }
+
+type PendingOutput =
+	| { runner: IAgentRunner; at: string; kind: "progress"; text: string }
+	| { runner: IAgentRunner; at: string; kind: "event"; event: ActivityEvent };
 
 export const MAX_TEXT_BYTES = 32 * 1024;
 const MAX_PROGRESS_ENTRY = 2 * 1024;
 const MAX_PROGRESS_ENTRIES = 20;
-const MAX_OPEN_TOOLS = 200;
+const MAX_PENDING_OUTPUT = 200;
+const MAX_OUTPUT_RETRIES = 5;
+const OUTPUT_RETRY_MS = 1_000;
 
 export const DEADLINE_MESSAGE =
 	"Cyrus stopped this task after reaching its 50-minute time limit.";
@@ -1080,7 +1098,14 @@ export class JiraAgentTaskService {
 			sessionId: null,
 			workspacePath: null,
 			lastProcessCapture: 0,
-			toolLabels: new Map(),
+			output: {
+				pending: [],
+				dropped: 0,
+				queued: false,
+				failures: 0,
+				retryTimer: null,
+				correlation: null,
+			},
 		};
 		this.lives.set(taskId, live);
 		live.deadlineTimer = setTimeout(() => {
@@ -1104,6 +1129,7 @@ export class JiraAgentTaskService {
 		live.done = this.runTask(live).finally(() => {
 			if (live.deadlineTimer) clearTimeout(live.deadlineTimer);
 			if (live.graceTimer) clearTimeout(live.graceTimer);
+			if (live.output.retryTimer) clearTimeout(live.output.retryTimer);
 			this.lives.delete(taskId);
 		});
 	}
@@ -1359,53 +1385,28 @@ export class JiraAgentTaskService {
 		message: SDKMessage,
 	): void {
 		// Late output after a fence (cancel/deadline/shutdown) never changes
-		// the task: it cannot resurrect or complete a stopped task.
-		if (live.fence) return;
+		// the task: it cannot resurrect or complete a stopped task. Nor can a
+		// runner that is no longer this task's current runner.
+		if (live.fence || live.runner !== runner) return;
 		this.captureProcesses(live);
 		const sessionId = (message as { session_id?: unknown }).session_id;
 		if (typeof sessionId === "string" && sessionId.length > 0) {
 			live.sessionId = sessionId;
 		}
 		const text = assistantText(message);
-		const drafts = activityFromMessage(
-			message,
-			live.toolLabels,
-			live.workspacePath,
-		);
-		if (live.toolLabels.size > MAX_OPEN_TOOLS) {
-			// Unfinished starts are only display state; drop the oldest.
-			const oldest = live.toolLabels.keys().next().value as string;
-			live.toolLabels.delete(oldest);
+		const { events, overflow } = extractActivityEvents(message);
+		const at = new Date().toISOString();
+		const items: PendingOutput[] = [];
+		if (text) items.push({ runner, at, kind: "progress", text });
+		for (const event of events)
+			items.push({ runner, at, kind: "event", event });
+		live.output.dropped += overflow;
+		for (const item of items) {
+			if (live.output.pending.length < MAX_PENDING_OUTPUT)
+				live.output.pending.push(item);
+			else live.output.dropped++;
 		}
-		if (text || drafts.length > 0) {
-			const at = new Date().toISOString();
-			// Progress and activity are published only once they are durable.
-			this.withLock(live.contextId, async () => {
-				if (live.fence) return;
-				await this.commitTask(live.contextId, live.taskId, (t) => {
-					if (TERMINAL_STATES.has(t.state)) return;
-					if (text) {
-						t.progress.push({
-							seq: t.nextSeq++,
-							at,
-							text: truncateUtf8(text, MAX_PROGRESS_ENTRY),
-						});
-						if (t.progress.length > MAX_PROGRESS_ENTRIES) {
-							t.progress.splice(0, t.progress.length - MAX_PROGRESS_ENTRIES);
-						}
-					}
-					for (const draft of drafts)
-						t.activity.push({ seq: t.nextSeq++, at, ...draft });
-					if (t.activity.length > MAX_ACTIVITY_ENTRIES) {
-						t.activity.splice(0, t.activity.length - MAX_ACTIVITY_ENTRIES);
-					}
-				});
-			}).catch((error) =>
-				this.logger.warn(
-					`[JiraAgent] Progress for ${live.taskId} not saved (not shown): ${errorText(error)}`,
-				),
-			);
-		}
+		if (items.length > 0 || overflow > 0) this.scheduleOutputFlush(live);
 		const result = resultOf(message);
 		if (!result) return;
 		live.lastResult = result;
@@ -1414,6 +1415,96 @@ export class JiraAgentTaskService {
 		).catch((error) =>
 			this.logger.warn(
 				`[JiraAgent] Turn boundary for ${live.taskId} failed: ${errorText(error)}`,
+			),
+		);
+	}
+
+	/**
+	 * Commit queued progress and activity. At most one flush is queued per
+	 * task; it takes everything pending when it runs, so the lock chain holds
+	 * O(1) work per task regardless of message volume. Correlation is staged
+	 * on a copy and kept only after the journal write succeeds; a failed
+	 * write puts the batch back (bounded) and retries, so nothing is shown
+	 * before it is durable and a failed start can't leave an orphan finish.
+	 */
+	private scheduleOutputFlush(live: LiveTask): void {
+		const out = live.output;
+		if (out.queued) return;
+		out.queued = true;
+		this.withLock(live.contextId, async () => {
+			out.queued = false;
+			if (live.fence) {
+				out.pending = [];
+				return;
+			}
+			const batch = out.pending.splice(0);
+			const dropped = out.dropped;
+			out.dropped = 0;
+			if (batch.length === 0 && dropped === 0) return;
+			let staged = out.correlation;
+			const drafts: { at: string; draft?: ActivityDraft; progress?: string }[] =
+				[];
+			if (dropped > 0)
+				drafts.push({
+					at: batch[0]?.at ?? new Date().toISOString(),
+					draft: { kind: "gap", text: GAP_TEXT },
+				});
+			for (const item of batch) {
+				if (item.kind === "progress") {
+					drafts.push({ at: item.at, progress: item.text });
+					continue;
+				}
+				// Tool ids are scoped to the runner that reported them.
+				if (!staged || staged.runner !== item.runner)
+					staged = new ActivityCorrelation(item.runner);
+				else if (staged === out.correlation) staged = staged.clone();
+				for (const draft of staged.apply([item.event]))
+					drafts.push({ at: item.at, draft });
+			}
+			try {
+				await this.commitTask(live.contextId, live.taskId, (t) => {
+					if (TERMINAL_STATES.has(t.state)) return;
+					for (const d of drafts) {
+						if (d.progress !== undefined) {
+							t.progress.push({
+								seq: t.nextSeq++,
+								at: d.at,
+								text: truncateUtf8(d.progress, MAX_PROGRESS_ENTRY),
+							});
+						} else if (d.draft) {
+							t.activity.push({ seq: t.nextSeq++, at: d.at, ...d.draft });
+						}
+					}
+					if (t.progress.length > MAX_PROGRESS_ENTRIES)
+						t.progress.splice(0, t.progress.length - MAX_PROGRESS_ENTRIES);
+					t.activity = boundActivityWindow(t.activity);
+				});
+				out.correlation = staged;
+				out.failures = 0;
+			} catch (error) {
+				// Nothing was published; retry the same batch (bounded).
+				out.pending.unshift(...batch);
+				out.dropped += dropped;
+				const excess = out.pending.length - MAX_PENDING_OUTPUT;
+				if (excess > 0) {
+					out.pending.splice(MAX_PENDING_OUTPUT);
+					out.dropped += excess;
+				}
+				out.failures++;
+				this.logger.warn(
+					`[JiraAgent] Progress for ${live.taskId} not saved (not shown, will retry): ${errorText(error)}`,
+				);
+				if (out.failures <= MAX_OUTPUT_RETRIES && !out.retryTimer) {
+					out.retryTimer = setTimeout(() => {
+						out.retryTimer = null;
+						if (!live.fence) this.scheduleOutputFlush(live);
+					}, OUTPUT_RETRY_MS);
+					out.retryTimer.unref?.();
+				}
+			}
+		}).catch((error) =>
+			this.logger.warn(
+				`[JiraAgent] Progress flush for ${live.taskId} failed: ${errorText(error)}`,
 			),
 		);
 	}
