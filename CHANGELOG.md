@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - Feedback sent with `linear_agent_give_feedback` now reaches child sessions that were restored after a restart. Before, it was dropped with a `not found in any repository` error and the child never resumed. ([#1562](https://github.com/cyrusagents/cyrus/pull/1562))
 
 ### Security
+- Updated Axios to `1.21.0` and its `follow-redirects` dependency to `1.16.2`, fixing a high-severity custom credential disclosure advisory and restoring a zero-advisory audit. ([CYPACK-1608](https://linear.app/ceedar/issue/CYPACK-1608/address-open-security-patches-for-cyrus-cli), [#1569](https://github.com/cyrusagents/cyrus/pull/1569))
 - Patched high-severity Zod collection-validation and body-parser compressed-body denial-of-service vulnerabilities plus fast-uri URL handling issues, while keeping upgraded Cursor session state under the Cyrus home directory. ([CYPACK-1603](https://linear.app/ceedar/issue/CYPACK-1603/address-open-security-patches-for-cyrus-cli), [#1563](https://github.com/cyrusagents/cyrus/pull/1563))
 - Updated Fastify to `5.12.7` across the CLI dependency graph, fixing a header-schema validation bypass and restoring a zero-advisory audit. ([CYPACK-1597](https://linear.app/ceedar/issue/CYPACK-1597/address-open-security-patches-for-cyrus-cli), [#1555](https://github.com/cyrusagents/cyrus/pull/1555))
 
