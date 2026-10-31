@@ -6,7 +6,7 @@ Date: October 31, 2026, ~03:25 UTC (receipt written 03:27:20 UTC). Functional he
 
 **What ran for real**
 - The F1 EdgeWorker, idle-upgraded to `1897b4252`, ran on port 3674 against the existing isolated Cyrus home and disposable repository, using native Codex authentication and `gpt-6.1-sol`. The fixture, auth and target were unchanged.
-- Hosted ran its actual HTTP A2A boundary, service, migration-backed PGlite ledger and authenticated runtime HTTP bridge.
+- Hosted's A2A Request/Response handler and service ran in-process under Bun (not a deployed route), with a local PGlite ledger built from the actual Jira migrations. The only real network hop was the authenticated runtime HTTP bridge to the F1 runtime. Config refresh was a no-op and the bridge target was set to the isolated runtime URL.
 
 **What was simulated**
 - The Forge invocation token, signed with the test key.
@@ -31,7 +31,7 @@ Context `38697c80-e8a5-4477-9200-e89fd325d5f1`, task `2277a2a0-7b6b-488c-92af-aa
 5. `SubscribeToTask` on the finished task returned plain JSON (`application/json`), code -32004.
 6. Retrying the same `SendStreamingMessage` (new JSON-RPC id) returned the same task.
 7. The runtime journal held exactly one task, containing `tool_started` and `tool_finished` activity.
-8. No stream was left active afterwards.
+8. The driver's process-local `activeStreamCount()` returned 0 after the streams ended. Other counters, remote processes and runtime/model shutdown weren't sampled, and the runtime stays running by design.
 
 **Recorded in the receipt but not asserted by the driver:**
 - The task had 2 tool starts and 2 finishes. Assertion 7 only checks that each kind is present.
@@ -39,7 +39,9 @@ Context `38697c80-e8a5-4477-9200-e89fd325d5f1`, task `2277a2a0-7b6b-488c-92af-aa
   - first stream: task (SUBMITTED), status WORKING ×2, activity artifact created (`append:false`), status WORKING;
   - resumed stream: task (WORKING), then activity appends (`append:true`) interleaved with WORKING statuses, the result artifact (`append:false`), and finally `statusUpdate` COMPLETED.
 
-  This shows append-only activity updates after reconnect and the final artifact before the terminal status. It is receipt evidence, not an assertion.
+  The receipt keeps only event kind, state and `append` flags, not artifact IDs, text or `lastChunk`. So it directly shows that `append: true` updates were observed after the reconnect, and that a non-append artifact update came just before COMPLETED. It doesn't show the content of the appends, or that they avoided duplicated text.
+
+  That last non-append update is consistent with the source path, which emits the `result-<taskId>` artifact before the terminal status. Identifying it as the result artifact is an inference from source plus event order; neither the driver nor the receipt identifies or checks it. The result itself is verified directly by the final `GetTask` (assertion 4).
 
 **Not observed:**
 - No reasoning-summary entry appeared. Codex returned no nonempty `summary[]`, so this run proves tool lifecycle activity only, not reasoning summaries.
@@ -47,7 +49,7 @@ Context `38697c80-e8a5-4477-9200-e89fd325d5f1`, task `2277a2a0-7b6b-488c-92af-aa
 ## Harness correction during the drive
 
 The first run used the test helper's default synthetic FIT lifetime of 25 seconds:
-- Hosted's conservative stream cutoff (15 s before `exp`) correctly closed the resumed stream about 10 s in.
+- Hosted's 15-second expiry margin left a stream window of about 10 seconds with the 25-second fixture token, and closed the resumed stream there as designed.
 - The roughly 19-second task was still running at that point.
 - That driver didn't resubscribe and couldn't detect early EOF, so it timed out after 120 s (0 pass, 4 assertions).
 
