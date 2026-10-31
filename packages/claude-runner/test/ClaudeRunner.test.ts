@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the Claude SDK
@@ -129,6 +130,7 @@ describe("ClaudeRunner", () => {
 					cwd: "/tmp/test",
 					systemPrompt: { type: "preset", preset: "claude_code" },
 					settingSources: ["user", "project", "local"],
+					permissionMode: "default",
 					env: expect.objectContaining({
 						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
 						CLAUDE_CODE_ENABLE_TASKS: "true",
@@ -165,6 +167,48 @@ describe("ClaudeRunner", () => {
 			);
 		});
 
+		it("should apply inline MCP servers after file servers with the same name", async () => {
+			vi.mocked(readFileSync).mockReturnValue(
+				JSON.stringify({
+					mcpServers: {
+						shared: { command: "from-file" },
+						fileOnly: { command: "file-only" },
+					},
+				}),
+			);
+			const runnerWithMcp = new ClaudeRunner({
+				...defaultConfig,
+				mcpConfigPath: "/tmp/mcp.json",
+				mcpConfig: {
+					shared: { command: "from-inline" },
+					inlineOnly: { command: "inline-only" },
+				},
+			});
+			mockQuery.mockImplementation(async function* () {
+				yield {
+					type: "assistant",
+					message: { content: [{ type: "text", text: "Hello!" }] },
+					parent_tool_use_id: null,
+					session_id: "test-session",
+				} as any;
+			});
+
+			await runnerWithMcp.start("test");
+
+			expect(mockQuery).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.objectContaining({
+						mcpServers: {
+							shared: { command: "from-inline" },
+							fileOnly: { command: "file-only" },
+							inlineOnly: { command: "inline-only" },
+						},
+						strictMcpConfig: true,
+					}),
+				}),
+			);
+		});
+
 		it("should handle workspace configuration properly", async () => {
 			const runnerWithWorkspace = new ClaudeRunner({
 				...defaultConfig,
@@ -191,6 +235,7 @@ describe("ClaudeRunner", () => {
 					cwd: "/tmp/test",
 					systemPrompt: { type: "preset", preset: "claude_code" },
 					settingSources: ["user", "project", "local"],
+					permissionMode: "default",
 					env: expect.objectContaining({
 						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
 						CLAUDE_CODE_ENABLE_TASKS: "true",
@@ -230,6 +275,7 @@ describe("ClaudeRunner", () => {
 					cwd: "/tmp/test",
 					systemPrompt: "You are a helpful assistant",
 					settingSources: ["user", "project", "local"],
+					permissionMode: "default",
 					env: expect.objectContaining({
 						CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
 						CLAUDE_CODE_ENABLE_TASKS: "true",
