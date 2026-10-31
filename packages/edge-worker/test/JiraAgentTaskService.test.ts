@@ -687,7 +687,20 @@ describe("cancellation", () => {
 		expect(final.progress.map((p) => p.text)).toEqual([
 			"Working in Repo A, chosen by your workspace's default repository.",
 		]);
+		// The settled context admits a new task. Only B's fake settles on
+		// stop, so the test can end B's execution before the fixture home is
+		// removed (A keeps its never-settle-on-stop behaviour above).
+		runnerOpts = { ...runnerOpts, settleOnStop: true };
 		await svc.send(create({ taskId: TASK_B, messageId: "m2" }));
+		await started(2);
+		await svc.cancel({
+			authorizedRepositoryIds: ["repo-a"],
+			version: 2,
+			taskId: TASK_B,
+			contextId: CTX,
+			binding,
+		});
+		await vi.waitFor(() => expect(svc.liveCount()).toBe(0));
 	});
 
 	it("a stop that never settles stays canceling and keeps the context reserved", async () => {
