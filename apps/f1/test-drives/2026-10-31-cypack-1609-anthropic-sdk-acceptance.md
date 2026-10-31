@@ -84,7 +84,7 @@ Fresh test repo: `/private/tmp/cyrus-1570-f1-repo`; server port 3600.
 - [x] Lint passes with 14 existing warnings; dependency audit reports zero advisories.
 - [x] Receipt validator: 13/13 tests pass; no provider calls.
 
-F1 control-plane setup is partial validation, not an end-to-end pass. Final-head CI and immutable package preparation are recorded with this report's companion artifact; authenticated acceptance remains held until an actual successful receipt is attached.
+F1 control-plane setup is partial validation, not an end-to-end pass. Final-head CI must additionally pass; this report's companion artifact records immutable package preparation. Authenticated acceptance remains held until an actual successful receipt is attached.
 
 ## Prepared immutable package artifact
 
