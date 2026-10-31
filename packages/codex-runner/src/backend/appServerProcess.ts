@@ -20,6 +20,8 @@ export interface AppServerProcessLease {
 	registerThread(threadId: string, handler: AppServerThreadHandler): void;
 	unregisterThread(threadId: string, handler: AppServerThreadHandler): void;
 	release(): void;
+	/** Only an exclusive owner may terminate this process. */
+	close(): Promise<void>;
 }
 
 interface AppServerProcessManagerOptions {
@@ -28,9 +30,11 @@ interface AppServerProcessManagerOptions {
 }
 
 interface LaunchOptions {
+	isolated?: boolean;
 	command: string;
 	args: string[];
 	env?: Record<string, string>;
+	cwd?: string;
 	requestTimeoutMs?: number;
 }
 
@@ -47,6 +51,7 @@ class PooledAppServerProcess {
 	private startPromise: Promise<void> | null = null;
 	private leaseCount = 0;
 	private disposed = false;
+	private closePromise: Promise<void> | null = null;
 	private idleTimer: ReturnType<typeof setTimeout> | null = null;
 	private readonly threadHandlers = new Map<string, AppServerThreadHandler>();
 
@@ -105,6 +110,7 @@ class PooledAppServerProcess {
 					this.threadHandlers.delete(threadId);
 				}
 			},
+			close: () => this.close(),
 			release: () => {
 				if (released) {
 					return;
@@ -115,7 +121,12 @@ class PooledAppServerProcess {
 		};
 	}
 
-	async close(): Promise<void> {
+	close(): Promise<void> {
+		this.closePromise ??= this.closeClient();
+		return this.closePromise;
+	}
+
+	private async closeClient(): Promise<void> {
 		this.markDisposed();
 		const client = this.client;
 		this.client = null;
@@ -133,6 +144,7 @@ class PooledAppServerProcess {
 
 		const client = this.clientFactory({
 			binaryPath: this.launchOptions.command,
+			cwd: this.launchOptions.cwd,
 			args: this.launchOptions.args,
 			...(this.launchOptions.env ? { env: this.launchOptions.env } : {}),
 			...(this.launchOptions.requestTimeoutMs !== undefined
@@ -155,7 +167,8 @@ class PooledAppServerProcess {
 				capabilities: { experimentalApi: true },
 			})
 			.then(() => undefined)
-			.catch((error) => {
+			.catch(async (error) => {
+				await client.close();
 				// Failed to initialize — tear down so the pool re-creates cleanly.
 				if (this.client === client) {
 					this.client = null;
@@ -196,7 +209,7 @@ class PooledAppServerProcess {
 			return { chatgptAuthToken: null };
 		}
 		if (/approval/i.test(method)) {
-			return { decision: "accept" };
+			return { decision: this.launchOptions.isolated ? "cancel" : "accept" };
 		}
 		return {};
 	}
@@ -204,7 +217,6 @@ class PooledAppServerProcess {
 	private onProcessGone(): void {
 		const handlers = [...new Set(this.threadHandlers.values())];
 		this.markDisposed();
-		this.client = null;
 		for (const handler of handlers) {
 			handler.onProcessGone();
 		}
@@ -283,11 +295,21 @@ export class AppServerProcessManager {
 		this.idleCloseMs = options?.idleCloseMs ?? DEFAULT_IDLE_CLOSE_MS;
 	}
 
+	/** A private pool keeps cancellation independent of every other runner. */
+	fork(): AppServerProcessManager {
+		return new AppServerProcessManager(this.clientFactory, {
+			requestTimeoutMs: this.requestTimeoutMs,
+			idleCloseMs: 0,
+		});
+	}
+
 	async acquire(config: ResolvedCodexConfig): Promise<AppServerProcessLease> {
 		const { command, args } = resolveCodexAppServerLaunch(config.codexPath);
 		const launchOptions: LaunchOptions = {
 			command,
 			args,
+			isolated: config.isolatedProcess,
+			cwd: config.isolatedProcess ? config.workingDirectory : undefined,
 			...(config.env ? { env: config.env } : {}),
 			...(this.requestTimeoutMs !== undefined
 				? { requestTimeoutMs: this.requestTimeoutMs }
@@ -343,6 +365,8 @@ function extractThreadId(params: unknown): string | undefined {
 function buildLaunchKey(options: LaunchOptions): string {
 	return JSON.stringify({
 		command: options.command,
+		isolated: options.isolated,
+		cwd: options.cwd,
 		args: options.args,
 		env: options.env ? sortRecord(options.env) : null,
 		requestTimeoutMs: options.requestTimeoutMs ?? null,

@@ -252,3 +252,70 @@ describe("capRunnerStarts", () => {
 		expect(addStreamMessage).toHaveBeenCalledWith("follow-up");
 	});
 });
+
+describe("stop before spawn (cancellation-aware admission)", () => {
+	function stoppable(streaming: boolean) {
+		const fake = fakeRunner(streaming);
+		const stop = vi.fn();
+		(fake.runner as unknown as { stop: () => void }).stop = stop;
+		return { ...fake, stop };
+	}
+
+	it("a runner stopped while queued for a slot never starts and takes no slot", async () => {
+		const semaphore = new SessionSemaphore(1);
+		const holder = stoppable(true);
+		const queued = stoppable(true);
+		const held = capRunnerStarts(holder.runner, semaphore);
+		const waiting = capRunnerStarts(queued.runner, semaphore);
+
+		const first = held.startStreaming!("a");
+		await settled();
+		const second = waiting.startStreaming!("b");
+		await settled();
+		expect(semaphore.waiting).toBe(1);
+
+		waiting.stop();
+		expect(queued.stop).toHaveBeenCalledTimes(1);
+		await expect(second).resolves.toMatchObject({
+			sessionId: null,
+			isRunning: false,
+		});
+		expect(semaphore.waiting).toBe(0);
+
+		holder.streamingGate.resolve(sessionInfo("a"));
+		await first;
+		await settled();
+		expect(queued.startedStreaming).not.toHaveBeenCalled();
+		expect(semaphore.active).toBe(0);
+	});
+
+	it("stop racing the slot grant is re-checked inside the slot before spawning", async () => {
+		const semaphore = new SessionSemaphore(1);
+		await semaphore.acquire(); // another session holds the only slot
+		const queued = stoppable(false);
+		const waiting = capRunnerStarts(queued.runner, semaphore);
+		const second = waiting.start("b");
+		await settled();
+		expect(semaphore.waiting).toBe(1);
+		// The slot is handed to the queued gate synchronously; stop lands
+		// before the gate's continuation runs.
+		semaphore.release();
+		expect(semaphore.waiting).toBe(0);
+		waiting.stop();
+		await expect(second).resolves.toMatchObject({ sessionId: null });
+		expect(queued.started).not.toHaveBeenCalled();
+		expect(semaphore.active).toBe(0);
+	});
+
+	it("a stopped runner that was never started does not start later", async () => {
+		const semaphore = new SessionSemaphore(2);
+		const r = stoppable(false);
+		const wrapped = capRunnerStarts(r.runner, semaphore);
+		wrapped.stop();
+		await expect(wrapped.start("x")).resolves.toMatchObject({
+			sessionId: null,
+		});
+		expect(r.started).not.toHaveBeenCalled();
+		expect(semaphore.active).toBe(0);
+	});
+});

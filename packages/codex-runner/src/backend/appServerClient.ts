@@ -35,6 +35,7 @@ export interface AppServerClientOptions {
 	binaryPath: string;
 	args?: string[];
 	env?: Record<string, string>;
+	cwd?: string;
 	/** Optional logger; defaults to console. */
 	logger?: Pick<typeof console, "warn" | "error">;
 	/**
@@ -81,6 +82,7 @@ export class AppServerClient extends EventEmitter {
 	private notificationHandler: NotificationHandler | null = null;
 	private serverRequestHandler: ServerRequestHandler | null = null;
 	private closed = false;
+	private closePromise: Promise<void> | null = null;
 	private readonly logger: Pick<typeof console, "warn" | "error">;
 
 	constructor(private readonly options: AppServerClientOptions) {
@@ -103,6 +105,7 @@ export class AppServerClient extends EventEmitter {
 		const args = this.options.args ?? ["app-server", "--listen", "stdio://"];
 		const child = spawn(this.options.binaryPath, args, {
 			stdio: ["pipe", "pipe", "pipe"],
+			cwd: this.options.cwd,
 			// Run in its own process group (POSIX) so teardown can signal the whole
 			// tree at once. We launch codex via the `@openai/codex` Node bin shim,
 			// which spawns the native binary as a grandchild; killing only the shim
@@ -189,39 +192,61 @@ export class AppServerClient extends EventEmitter {
 		this.write({ jsonrpc: "2.0", method, params });
 	}
 
-	async close(): Promise<void> {
+	close(): Promise<void> {
+		this.closePromise ??= this.closeOwnedProcess().catch(() => {
+			// Unknown process state is not a completed close. Keep all callers
+			// waiting (and Jira fenced) until an operator reconciles/restarts.
+			this.logger.error(
+				"[AppServerClient] owned process termination could not be confirmed",
+			);
+			return new Promise<never>(() => {});
+		});
+		return this.closePromise;
+	}
+
+	private async closeOwnedProcess(): Promise<void> {
 		this.closed = true;
 		this.rl?.close();
 		this.rl = null;
 		const child = this.child;
-		this.child = null;
-		if (child && !child.killed) {
-			this.terminateChild(child);
-		}
 		this.failAllPending(new Error("app-server client closed"));
-	}
-
-	/**
-	 * Terminate the child and any grandchildren. On POSIX the child was spawned
-	 * `detached`, so it leads its own process group; signalling the negative pid
-	 * reaps the whole group (the Node bin shim + the native codex binary) at
-	 * once. Falls back to a direct kill if the group is already gone or on
-	 * Windows (no process groups).
-	 */
-	private terminateChild(child: ChildProcessWithoutNullStreams): void {
-		try {
-			if (process.platform !== "win32" && typeof child.pid === "number") {
-				process.kill(-child.pid, "SIGTERM");
-				return;
+		if (!child?.pid) return;
+		const pid = child.pid;
+		const target = process.platform === "win32" ? pid : -pid;
+		const alive = () => {
+			try {
+				process.kill(target, 0);
+				return true;
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
+				// Darwin can return EPERM while a group contains only exiting
+				// zombies. Keep waiting; only ESRCH confirms absence.
+				if ((error as NodeJS.ErrnoException).code === "EPERM") return true;
+				throw error;
 			}
-		} catch {
-			// Group already dead or unavailable — fall through to a direct kill.
+		};
+		const signal = (value: NodeJS.Signals) => {
+			try {
+				process.kill(target, value);
+			} catch (error) {
+				if (
+					!["ESRCH", "EPERM"].includes(
+						(error as NodeJS.ErrnoException).code ?? "",
+					)
+				)
+					throw error;
+			}
+		};
+		// Cancellation is not settled until the owned process group is gone.
+		// Retain the promise while a child ignores TERM; never release a Jira
+		// execution slot merely because a signal or interrupt was sent.
+		if (alive()) signal("SIGTERM");
+		const deadline = Date.now() + 1_000;
+		while (alive()) {
+			if (Date.now() >= deadline) signal("SIGKILL");
+			await new Promise((resolve) => setTimeout(resolve, 20));
 		}
-		try {
-			child.kill();
-		} catch {
-			// best-effort
-		}
+		this.child = null;
 	}
 
 	private write(message: unknown): void {

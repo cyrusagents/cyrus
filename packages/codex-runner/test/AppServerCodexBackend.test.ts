@@ -27,6 +27,7 @@ class FakeClient extends EventEmitter implements IAppServerClient {
 	closeCalls = 0;
 	responses: Record<string, unknown | ((params: unknown) => unknown)> = {
 		initialize: {},
+		"account/read": { account: { type: "chatgpt" }, requiresOpenaiAuth: true },
 		"thread/start": { thread: { id: "thread-1" } },
 		"thread/resume": { thread: { id: "thread-resumed" } },
 		"turn/start": { turn: { id: "turn-1" } },
@@ -196,6 +197,7 @@ describe("AppServerCodexBackend", () => {
 		};
 		// `permissions` and `sandbox` are mutually exclusive — only permissions is set.
 		expect(params.permissions).toBe("cyrus-sandbox");
+		expect(params.config?.default_permissions).toBe("cyrus-sandbox");
 		expect(params.sandbox).toBeUndefined();
 		expect(params.config?.sandbox_workspace_write).toBeUndefined();
 		expect(params.config?.permissions).toEqual({
@@ -549,4 +551,163 @@ describe("AppServerClient request timeout", () => {
 			await client.close();
 		}
 	});
+});
+
+describe("isolated Codex ownership", () => {
+	const clean = {
+		config: {
+			mcp_servers: {},
+			features: {
+				apps: false,
+				plugins: false,
+				hooks: false,
+				skill_mcp_dependency_install: false,
+			},
+		},
+		layers: [],
+	};
+	const isolated = {
+		...baseConfig,
+		isolatedProcess: true,
+		codexPath: "/bin/true",
+	};
+	it("keeps cancellation pending until its exclusive client closes, preserving another runner", async () => {
+		const clients: FakeClient[] = [];
+		const manager = new AppServerProcessManager(() => {
+			const client = new FakeClient();
+			client.responses["config/read"] = clean;
+			clients.push(client);
+			return client;
+		});
+		const one = new AppServerCodexBackend(manager);
+		const two = new AppServerCodexBackend(manager);
+		await one.open(isolated);
+		await two.open(isolated);
+		expect(clients).toHaveLength(2);
+		let finish!: () => void;
+		clients[0]!.close = vi.fn(
+			() =>
+				new Promise<void>((r) => {
+					finish = r;
+				}),
+		);
+		const turn = one.runTurn([{ type: "text", text: "hold" }]);
+		let settled = false;
+		void turn
+			.catch(() => {})
+			.then(() => {
+				settled = true;
+			});
+		const closing = one.close();
+		await vi.waitFor(() => expect(clients[0]!.close).toHaveBeenCalled());
+		expect(settled).toBe(false);
+		expect(clients[1]!.closeCalls).toBe(0);
+		finish();
+		await closing;
+		await turn.catch(() => {});
+		await two.close();
+	});
+	it.each([
+		{
+			...clean,
+			config: {
+				...clean.config,
+				mcp_servers: { ambient: { command: "forbidden" } },
+			},
+		},
+		{ ...clean, layers: [{ name: { type: "project" }, disabledReason: null }] },
+		{
+			...clean,
+			config: {
+				...clean.config,
+				features: { ...clean.config.features, apps: true },
+			},
+		},
+	])("refuses ambient config before starting a thread", async (effective) => {
+		const client = new FakeClient();
+		client.responses["config/read"] = effective;
+		const backend = new AppServerCodexBackend(() => client);
+		await expect(backend.open(isolated)).rejects.toThrow("inherited MCP");
+		expect(client.lastRequest("thread/start")).toBeUndefined();
+		expect(client.closeCalls).toBe(1);
+	});
+	it("retains the startup lease through confirmed close after a leader exit", async () => {
+		const client = new FakeClient();
+		client.responses["config/read"] = clean;
+		let finish!: () => void;
+		client.close = vi.fn(
+			() =>
+				new Promise<void>((r) => {
+					finish = r;
+				}),
+		);
+		client.responses["thread/start"] = () => {
+			client.emit("exit");
+			throw new Error("leader exited");
+		};
+		const backend = new AppServerCodexBackend(() => client);
+		let settled = false;
+		const opening = backend.open(isolated).catch(() => {
+			settled = true;
+		});
+		await vi.waitFor(() => expect(client.close).toHaveBeenCalled());
+		expect(settled).toBe(false);
+		finish();
+		await opening;
+	});
+});
+
+it("refuses unsupported isolated process platforms without closing a shared manager", async () => {
+	const manager = new AppServerProcessManager(() => new FakeClient());
+	const close = vi.spyOn(manager, "closeAll");
+	const backend = new AppServerCodexBackend(manager);
+	const platform = vi
+		.spyOn(process, "platform", "get")
+		.mockReturnValue("win32");
+	try {
+		await expect(
+			backend.open({ ...baseConfig, isolatedProcess: true }),
+		).rejects.toThrow("POSIX");
+		await backend.close();
+		expect(close).not.toHaveBeenCalled();
+	} finally {
+		platform.mockRestore();
+	}
+});
+
+it("declines unexpected approval requests in an isolated Jira process", async () => {
+	const client = new FakeClient();
+	const manager = new AppServerProcessManager(() => client, { idleCloseMs: 0 });
+	const lease = await manager.acquire({
+		...baseConfig,
+		isolatedProcess: true,
+		codexPath: "/bin/true",
+	});
+	expect(
+		client.serverRequestHandler?.("item/commandExecution/requestApproval", {}),
+	).toEqual({ decision: "cancel" });
+	expect(
+		client.serverRequestHandler?.("item/fileChange/requestApproval", {}),
+	).toEqual({ decision: "cancel" });
+	lease.release();
+	await manager.closeAll();
+});
+
+it("reports missing Jira auth before any thread or turn starts", async () => {
+	const client = new FakeClient();
+	client.responses["account/read"] = {
+		account: null,
+		requiresOpenaiAuth: true,
+	};
+	const backend = new AppServerCodexBackend(() => client);
+	await expect(
+		backend.open({
+			...baseConfig,
+			isolatedProcess: true,
+			codexPath: "/bin/true",
+		}),
+	).rejects.toThrow("<Cyrus home>/jira-agent/codex");
+	expect(client.lastRequest("thread/start")).toBeUndefined();
+	expect(client.lastRequest("turn/start")).toBeUndefined();
+	expect(client.closeCalls).toBe(1);
 });
