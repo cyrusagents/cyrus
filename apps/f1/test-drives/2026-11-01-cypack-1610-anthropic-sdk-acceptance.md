@@ -40,9 +40,15 @@ Runner tarball SHA-256: `e917683e0dd6bdbf9f61c428ba384ed9dd50cf7c4c43792551974aa
 
 ## Current identity diagnosis and required receipt
 
-At `2026-11-01T16:12:39Z`, supported `claude auth status` under OS user `agentops` reported the intended `connor@ceedar.io` account, `claude.ai` auth, first-party provider, organization `685559cd-fcf8-43cb-8a0e-eb20cd18cead`, and Max subscription. This confirms the stored login record but not live token freshness. The latest bounded provider attempt remains the `2026-11-01T07:47Z` `401 OAuth access token has expired`, before either tool. No later successful receipt was found in CYPACK-1610 or either current PR.
+At `2026-11-01T16:17:48Z`, supported `auth status` from the prepared consumer's exact bundled 2.1.316 binary, run as OS user `agentops` from the consumer directory, reported the intended `connor@ceedar.io` account, `claude.ai` auth, first-party provider, organization `685559cd-fcf8-43cb-8a0e-eb20cd18cead`, Max subscription, and config directory `/Users/agentops/.claude`. This confirms the stored login record but not live token freshness. The latest bounded provider attempt remains the `2026-11-01T07:47Z` `401 OAuth access token has expired`, before either tool. No later successful receipt was found in CYPACK-1610 or either current PR.
 
-The supported same-account action is `claude auth login --claudeai --email connor@ceedar.io`, run interactively as `agentops`. No alternate account, API key, blind retry, or runtime restart is permitted. After human confirmation, one bounded run of `scripts/verify-runner-runtime.mjs` must prove, in order:
+The interactive PATH binary is an older 2.1.280 build and must not be used. The exact supported same-store action is:
+
+`/private/tmp/cypack-1610-runner.rCA8Fd/consumer/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude auth login --claudeai --email connor@ceedar.io`
+
+Read-only inspection confirmed that executable is the consumer-resolved `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.316` binary (SHA-256 `64c327e92b2c5e0f78c0a980c5a518121e1f0d140ca771ca5dd4488d1a2dcb3f`) and that its help supports both flags. No `CLAUDE_CONFIG_DIR`, secure-storage override, Claude auth variable, endpoint override, or provider selector is active; user, consumer, and managed settings add no such override. It therefore uses the same default `agentops` configuration namespace as the installed runner. Per Anthropic's [credential-management documentation](https://code.claude.com/docs/en/authentication#credential-management), macOS uses Keychain primarily and a mode-0600 `.credentials.json` fallback; metadata-only inspection found that fallback at `/Users/agentops/.claude/.credentials.json`, without reading it. This evidence establishes the shared default store namespace without claiming whether Keychain or the fallback supplied the active token.
+
+The `--email` flag pre-populates rather than enforces the browser identity. The human must complete the flow as `connor@ceedar.io`; before any provider request, the same absolute binary's read-only `auth status` must reconfirm `agentops`, `firstParty`, `claude.ai`, `connor@ceedar.io`, and organization `685559cd-fcf8-43cb-8a0e-eb20cd18cead`. No alternate account, API key, blind retry, or runtime restart is permitted. After that confirmation, one bounded run of `scripts/verify-runner-runtime.mjs` must prove, in order:
 
 1. real installed-package `Read(package.json)` with a successful tool result;
 2. foreground `Bash(pwd)` with timeout exactly `10000` and a successful tool result;
