@@ -1,4 +1,5 @@
 import type { SDKMessage } from "cyrus-core";
+import { MAX_TOOL_DETAIL_BYTES, toolDetail } from "./JiraToolDetails.js";
 
 /**
  * Jira-visible activity derived from a runner's normalized SDK messages
@@ -6,11 +7,10 @@ import type { SDKMessage } from "cyrus-core";
  * `tool_use` / `tool_result` shapes).
  *
  * What may leave the runtime is deliberately narrow:
- * - Tools are shown only by a FIXED label chosen from the tool's kind
- *   ("Command", "File edit", ... or "Tool"). No tool input (command, path,
- *   pattern, query, URL, description), no tool name, no output and no MCP
- *   argument is ever copied: a blacklist cannot protect free-form text.
- * - A finish says only succeeded/failed.
+ * - Known tools include their name and a bounded, redacted selected input
+ *   (command, path, pattern, query, URL or task description). Arbitrary
+ *   argument objects and tool output are never copied. See JiraToolDetails.
+ * - A finish retains the same sanitized detail and says succeeded/failed.
  * - Reasoning is shown ONLY when the provider itself labels the text a
  *   public summary: Codex app-server `reasoning.summary[]`, carried by
  *   CodexEventMapper as a distinct `system`/`cyrus_reasoning_summary`
@@ -36,8 +36,11 @@ export interface JiraActivityEntry {
 	kind: JiraActivityKind;
 	/** Runner tool-use id (bounded), pairing a start with its finish. */
 	toolId?: string;
-	/** Fixed tool label, provider reasoning summary, or the gap notice. */
+	/** Tool label, provider reasoning summary, or the gap notice. */
 	text: string;
+	/** Recognized tool name and selected redacted input; no raw argument object. */
+	toolName?: string;
+	detail?: string;
 	/** Tool finishes only. */
 	outcome?: "succeeded" | "failed";
 }
@@ -46,7 +49,13 @@ export type ActivityDraft = Omit<JiraActivityEntry, "seq" | "at">;
 
 /** A normalized runner event, before correlation. */
 export type ActivityEvent =
-	| { kind: "start"; id: string; label: string }
+	| {
+			kind: "start";
+			id: string;
+			label: string;
+			toolName?: string;
+			detail?: string;
+	  }
 	| { kind: "finish"; id: string; failed: boolean }
 	| { kind: "summary"; text: string };
 
@@ -163,7 +172,18 @@ export function extractActivityEvents(message: SDKMessage): {
 				overflow++;
 				continue;
 			}
-			add({ kind: "start", id: block.id, label: toolLabel(block.name) });
+			const name =
+				typeof block.name === "string" && Object.hasOwn(TOOL_LABELS, block.name)
+					? block.name
+					: undefined;
+			const detail = toolDetail(block.name, block.input);
+			add({
+				kind: "start",
+				id: block.id,
+				label: toolLabel(block.name),
+				...(name ? { toolName: name } : {}),
+				...(detail ? { detail } : {}),
+			});
 		} else if (m.type === "user" && block.type === "tool_result") {
 			if (!validId(block.tool_use_id)) {
 				overflow++;
@@ -188,7 +208,10 @@ export function extractActivityEvents(message: SDKMessage): {
 export class ActivityCorrelation {
 	constructor(
 		readonly runner: unknown,
-		private open = new Map<string, string>(),
+		private open = new Map<
+			string,
+			{ label: string; toolName?: string; detail?: string }
+		>(),
 		private done: string[] = [],
 	) {}
 
@@ -214,7 +237,12 @@ export class ActivityCorrelation {
 			} else if (event.kind === "start") {
 				// A repeated start (open or already finished) is the same step.
 				if (this.open.has(event.id) || this.done.includes(event.id)) continue;
-				this.open.set(event.id, event.label);
+				const display = {
+					label: event.label,
+					...(event.toolName ? { toolName: event.toolName } : {}),
+					...(event.detail ? { detail: event.detail } : {}),
+				};
+				this.open.set(event.id, display);
 				while (this.open.size > MAX_OPEN) {
 					this.open.delete(this.open.keys().next().value as string);
 				}
@@ -222,11 +250,13 @@ export class ActivityCorrelation {
 					kind: "tool_started",
 					toolId: event.id,
 					text: event.label,
+					...(event.toolName ? { toolName: event.toolName } : {}),
+					...(event.detail ? { detail: event.detail } : {}),
 				});
 			} else {
-				const label = this.open.get(event.id);
+				const display = this.open.get(event.id);
 				// Only finishes of starts that were recorded, once.
-				if (label === undefined) continue;
+				if (display === undefined) continue;
 				this.open.delete(event.id);
 				this.done.push(event.id);
 				if (this.done.length > MAX_DONE)
@@ -234,7 +264,9 @@ export class ActivityCorrelation {
 				drafts.push({
 					kind: "tool_finished",
 					toolId: event.id,
-					text: label,
+					text: display.label,
+					...(display.toolName ? { toolName: display.toolName } : {}),
+					...(display.detail ? { detail: display.detail } : {}),
 					outcome: event.failed ? "failed" : "succeeded",
 				});
 			}
@@ -258,6 +290,15 @@ export function boundActivityWindow(
 export function isActivityEntry(value: unknown): value is JiraActivityEntry {
 	if (!value || typeof value !== "object") return false;
 	const e = value as Record<string, unknown>;
+	if (e.detail !== undefined || e.toolName !== undefined) {
+		if (
+			(e.kind !== "tool_started" && e.kind !== "tool_finished") ||
+			typeof e.toolName !== "string" ||
+			!Object.hasOwn(TOOL_LABELS, e.toolName)
+		)
+			return false;
+	}
+
 	return (
 		Number.isSafeInteger(e.seq) &&
 		typeof e.at === "string" &&
@@ -268,6 +309,12 @@ export function isActivityEntry(value: unknown): value is JiraActivityEntry {
 			e.kind === "gap") &&
 		typeof e.text === "string" &&
 		utf8Bytes(e.text) <= MAX_ACTIVITY_TEXT_BYTES &&
+		(e.detail === undefined ||
+			(typeof e.detail === "string" &&
+				utf8Bytes(e.detail) <= MAX_TOOL_DETAIL_BYTES)) &&
+		(e.toolName === undefined ||
+			(typeof e.toolName === "string" &&
+				Object.hasOwn(TOOL_LABELS, e.toolName))) &&
 		(e.toolId === undefined ||
 			(typeof e.toolId === "string" && e.toolId.length <= MAX_TOOL_ID)) &&
 		(e.outcome === undefined ||

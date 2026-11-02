@@ -88,7 +88,7 @@ const drafts = (messages: SDKMessage[]) => {
 };
 
 describe("what activity may contain", () => {
-	it("uses fixed labels: no input, tool name or output reaches a start or finish", () => {
+	it("redacts known credentials and never forwards arbitrary arguments or output", () => {
 		const inputs: [string, unknown][] = [
 			[
 				"Bash",
@@ -175,7 +175,9 @@ describe("what activity may contain", () => {
 				toolUse("ok", "Bash"),
 			]),
 		);
-		expect(one.events).toEqual([{ kind: "start", id: "ok", label: "Command" }]);
+		expect(one.events).toEqual([
+			{ kind: "start", id: "ok", label: "Command", toolName: "Bash" },
+		]);
 		expect(one.overflow).toBe(2);
 		const bulk = extractActivityEvents(
 			assistant(
@@ -359,10 +361,12 @@ const started = async () => {
 };
 
 beforeEach(() => {
+	vi.stubEnv("JIRA_DETAIL_TEST_SECRET", SECRET);
 	home = mkdtempSync(join(tmpdir(), "jira-activity-test-"));
 	runners = [];
 });
 afterEach(() => {
+	vi.unstubAllEnvs();
 	vi.restoreAllMocks();
 	rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
@@ -375,7 +379,7 @@ describe("task activity", () => {
 		runner().onMessage(
 			assistant([
 				{ type: "text", text: "Checking." },
-				toolUse("t1", "Read", { file_path: SECRET }),
+				toolUse("t1", "Read", { file_path: "src/parser.ts", unused: SECRET }),
 			]),
 		);
 		runner().onMessage(toolResult("t1"));
@@ -399,7 +403,11 @@ describe("task activity", () => {
 		expect(withheld.contentWithheld).toBe(true);
 		expect(withheld.activity).toEqual([]);
 		const reloaded = await makeService();
-		expect((await reloaded.get(ref())).activity).toHaveLength(2);
+		expect((await reloaded.get(ref())).activity).toEqual(snap.activity);
+		expect(snap.activity.map((a) => [a.toolName, a.detail])).toEqual([
+			["Read", "src/parser.ts"],
+			["Read", "src/parser.ts"],
+		]);
 	});
 
 	it("a reasoning summary is activity only: the final answer stays the result", async () => {
