@@ -270,6 +270,31 @@ describe("WebhookIpValidator", () => {
 			expect(validator.validate("8.8.8.8", "github")).toBe(false);
 		});
 
+		// GitHub's 2026-10-29 announcement added three /28 webhook ranges.
+		it.each([
+			"9.234.98.160",
+			"9.234.98.175",
+			"9.234.98.176",
+			"9.234.98.191",
+			"9.234.106.48",
+			"9.234.106.63",
+		])("allows newly published GitHub range boundary %s", (ip) => {
+			const validator = new WebhookIpValidator();
+			expect(validator.validate(ip, "github")).toBe(true);
+			expect(validator.validate(`::ffff:${ip}`, "github")).toBe(true);
+		});
+
+		it.each([
+			"9.234.98.159",
+			"9.234.98.192",
+			"9.234.106.47",
+			"9.234.106.64",
+		])("rejects addresses outside the new GitHub ranges: %s", (ip) => {
+			const validator = new WebhookIpValidator();
+			expect(validator.validate(ip, "github")).toBe(false);
+			expect(validator.validate(`::ffff:${ip}`, "github")).toBe(false);
+		});
+
 		it("handles IPv4-mapped IPv6 addresses", () => {
 			const validator = new WebhookIpValidator();
 			// Linear IP in IPv6-mapped form
