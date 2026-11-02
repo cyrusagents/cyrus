@@ -1,8 +1,8 @@
-# CYPACK-1610 Anthropic SDK compatibility and runtime acceptance
+# CYPACK-1613 Anthropic SDK compatibility and runtime acceptance
 
-**Date:** 2026-11-01. **Status: HELD — the required authenticated installed-package receipt has not passed.**
+**Date:** 2026-11-02. **Status: HELD — the required authenticated installed-package receipt has not passed.**
 
-[cyrus#1571](https://github.com/cyrusagents/cyrus/pull/1571) and [cyrus-hosted#1302](https://github.com/cyrusagents/cyrus-hosted/pull/1302) remain drafts. Green CI, package mocks, option-forwarding tests, tool-name extraction, and the failed provider request are not runtime acceptance.
+[cyrus#1575](https://github.com/cyrusagents/cyrus/pull/1575) and [cyrus-hosted#1309](https://github.com/cyrusagents/cyrus-hosted/pull/1309) remain drafts. Green CI, package mocks, option-forwarding tests, tool-name extraction, and the failed provider request are not runtime acceptance.
 
 ## Reviewed ranges and sources
 
@@ -26,25 +26,25 @@ No additional opt-outs are introduced: the accepted upstream defaults do not con
 
 ## Prepared installed-package provenance
 
-The clean consumer prepared from reviewed heads `cyrus@641e779ce89957a9d95f53271ff309f27b2dc3f3` and `cyrus-hosted@91b2a6b232df21a4fa732daad1ff12093888445b` resolves:
+The clean consumer prepared for CYPACK-1613 from reviewed heads `cyrus@b0289765c90848d7ef020b264754a0e91f2b9101` and `cyrus-hosted@635170b68` resolves the packages below. The runner tarball was packed with the published core prerelease version so its `workspace:*` dependency resolves to the exact replacement artifact.
 
 | Package | Version | Integrity |
 | --- | --- | --- |
-| `cyrus-claude-runner` | `0.2.74` | `sha512-5Oo1b4rto2IJT9T8aJaGl3qOSP6osYe5tYcrW7il4E19BogQGLNVYmCq7npr2Qw3XJ4U2ePGY/ct95xWtNAvHg==` |
-| `cyrus-core` | `0.2.75-test.12` | `sha512-VdBKcqg/k4EkVIPgIwl9kqF6xbn2OVHBctEDXBnyx0Vf7J9Bg1SzRUsG+GLZclNoOYYOQqiolA6n/IA0/ntXWg==` |
+| `cyrus-claude-runner` | `0.2.74` | `sha512-u9rjm6VJjqyKPm5o4AZht0eSEtmjJsFOc+hIteIuwyPTI8WPJIv9jzWo2S1pe23pXdDxgSHm8QRUDN7aiE4vJw==` |
+| `cyrus-core` | `0.2.75-test.13` | `sha512-/u4v6o3xBtJAGqWxW+0iDPiaH5GMV2khkptiuWUbNGRuvP7SVsmf8cCchb96ussk7R/rVQSR8iJbHaDrPoUvQA==` |
 | `@anthropic-ai/claude-agent-sdk` | `0.3.316` | `sha512-mCMr0que5kIy80JslJub6WFDB2+GYRGWNeVgSZaBpkBwXrr4wnRMnnGHitkA2BEJ5QP5xWyc6YH/6do/edxCWg==` |
 | `@anthropic-ai/sdk` | `1.3.0` | `sha512-k7z9BlLLPxfZH+ov7dS6EnaN/wiZeV8YNT1LZfrpAHIy7oY7pHr4UzirF9f2OlHtFEnRBOX+AZQ91Y5fK+TPTw==` |
 | `@anthropic-ai/claude-agent-sdk-darwin-arm64` | `0.3.316` | `sha512-1I1oJ/YGqq4pFQvJqycD2e8pbsUQLLR+DwEzG9jQAGCoSKkxP1TBfHpjSik/0byCixyzpYObrYXPC0PKBIR91g==` |
 
-Runner tarball SHA-256: `e917683e0dd6bdbf9f61c428ba384ed9dd50cf7c4c43792551974aa31333c0f5`. Consumer lock SHA-256: `d755c5e8736d9a62f9667ebc52052982d79945803bf513e725b5a4a7bbb7c027`.
+Runner tarball SHA-256: `627bb73ddfb4058fd912c6e5fa6fc478fd885c2565fec84165c9a0de70dd6c3b`. Consumer lock SHA-256: `cea40b81fbe98373e8c66dc0aba0250d90d3d06d06bcf7ba41ff84027ee59d1a`. The installed permission contract passes in all six supported provider/telemetry configurations.
 
 ## Current identity diagnosis and required receipt
 
-At `2026-11-01T16:17:48Z`, supported `auth status` from the prepared consumer's exact bundled 2.1.316 binary, run as OS user `agentops` from the consumer directory, reported the intended `connor@ceedar.io` account, `claude.ai` auth, first-party provider, organization `685559cd-fcf8-43cb-8a0e-eb20cd18cead`, Max subscription, and config directory `/Users/agentops/.claude`. This confirms the stored login record but not live token freshness. The latest bounded provider attempt remains the `2026-11-01T07:47Z` `401 OAuth access token has expired`, before either tool. No later successful receipt was found in CYPACK-1610 or either current PR.
+At `2026-11-02T07:34:36Z`, supported `auth status` from the CYPACK-1613 consumer's exact bundled 2.1.316 binary, run as OS user `agentops` from the consumer directory, reported the intended `connor@ceedar.io` account, `claude.ai` auth, first-party provider, organization `685559cd-fcf8-43cb-8a0e-eb20cd18cead`, Max subscription, and config directory `/Users/agentops/.claude`. This confirms the stored login record but not live token freshness. The latest bounded provider attempt remains the `2026-11-01T07:47Z` `401 OAuth access token has expired`, before either tool. No later successful receipt was found in CYPACK-1610, CYPACK-1613, or either current replacement PR.
 
 The interactive PATH binary is an older 2.1.280 build and must not be used. The exact supported same-store action is:
 
-`/private/tmp/cypack-1610-runner.rCA8Fd/consumer/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude auth login --claudeai --email connor@ceedar.io`
+`/private/tmp/cypack-1613-runner.GY6Eyd/consumer/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude auth login --claudeai --email connor@ceedar.io`
 
 Read-only inspection confirmed that executable is the consumer-resolved `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.316` binary (SHA-256 `64c327e92b2c5e0f78c0a980c5a518121e1f0d140ca771ca5dd4488d1a2dcb3f`) and that its help supports both flags. No `CLAUDE_CONFIG_DIR`, secure-storage override, Claude auth variable, endpoint override, or provider selector is active; user, consumer, and managed settings add no such override. It therefore uses the same default `agentops` configuration namespace as the installed runner. Per Anthropic's [credential-management documentation](https://code.claude.com/docs/en/authentication#credential-management), macOS uses Keychain primarily and a mode-0600 `.credentials.json` fallback; metadata-only inspection found that fallback at `/Users/agentops/.claude/.credentials.json`, without reading it. This evidence establishes the shared default store namespace without claiming whether Keychain or the fallback supplied the active token.
 
@@ -55,4 +55,4 @@ The `--email` flag pre-populates rather than enforces the browser identity. The 
 3. exact final text `SDK_RUNTIME_OK`;
 4. a non-error terminal success result, completion callback, no pending work, inactive runner, and clean stop.
 
-Until that receipt exists, both PRs remain drafts and CYPACK-1610 remains In Progress. No event publication or second owner is part of this acceptance path.
+Until that receipt exists, both replacement PRs remain drafts and CYPACK-1613 remains In Progress. No event publication or second owner is part of this acceptance path.
