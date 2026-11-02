@@ -575,12 +575,13 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 
 			// Parse MCP config - merge file(s) and inline configs
 			let mcpServers = {};
+			const noMcp = this.config.disableMcpDiscovery === true;
 
 			// Build list of config paths to load (in order of precedence)
 			const configPaths: string[] = [];
 
 			// Auto-detect .mcp.json in working directory (base config)
-			if (this.config.workingDirectory) {
+			if (this.config.workingDirectory && !noMcp) {
 				const autoMcpPath = join(this.config.workingDirectory, ".mcp.json");
 				if (existsSync(autoMcpPath)) {
 					try {
@@ -597,7 +598,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 			}
 
 			// Add explicitly configured paths (these will extend/override the base config)
-			if (this.config.mcpConfigPath) {
+			if (this.config.mcpConfigPath && !noMcp) {
 				const explicitPaths = Array.isArray(this.config.mcpConfigPath)
 					? this.config.mcpConfigPath
 					: [this.config.mcpConfigPath];
@@ -621,7 +622,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 			}
 
 			// Finally, merge inline config (overrides file config for same server names)
-			if (this.config.mcpConfig) {
+			if (this.config.mcpConfig && !noMcp) {
 				mcpServers = { ...mcpServers, ...this.config.mcpConfig };
 				this.logger.debug(
 					`Final MCP servers after merge: ${Object.keys(mcpServers).join(", ")}`,
@@ -719,7 +720,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// `mcpServers` by default. Operators may opt out to let Claude
 					// Code also load project/user settings, plugins, and authenticated
 					// claude.ai connectors.
-					strictMcpConfig: this.config.strictMcpConfig ?? true,
+					strictMcpConfig: noMcp ? true : (this.config.strictMcpConfig ?? true),
 					hooks: this.buildHooksWithPendingWorkRecorder(),
 					...(this.config.plugins?.length && { plugins: this.config.plugins }),
 					...(this.config.skills !== undefined && {

@@ -24,6 +24,8 @@ export type CodexConfigOverrides = { [key: string]: CodexConfigValue };
  * Configuration for CodexRunner.
  */
 export interface CodexRunnerConfig extends AgentRunnerConfig {
+	/** Use an exclusive process and await its teardown before settlement. */
+	isolatedProcess?: boolean;
 	/** Path to codex CLI binary (defaults to `codex` in PATH) */
 	codexPath?: string;
 	/**
@@ -36,6 +38,8 @@ export interface CodexRunnerConfig extends AgentRunnerConfig {
 	 * If omitted, CodexRunner applies a safe default for known model constraints.
 	 */
 	modelReasoningEffort?: ModelReasoningEffort;
+	/** Ask the provider for a public reasoning summary, never raw reasoning. */
+	reasoningSummary?: "auto" | "concise" | "detailed" | "none";
 	/** Sandbox mode for Codex shell/tool execution */
 	sandbox?: SandboxMode;
 	/** Approval policy for Codex tool/shell execution */
