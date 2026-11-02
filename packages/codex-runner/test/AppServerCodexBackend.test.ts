@@ -252,6 +252,34 @@ describe("AppServerCodexBackend", () => {
 		await turnDone;
 	});
 
+	it.each([
+		undefined,
+		"auto",
+		"concise",
+	] as const)("preserves the public summary preference %s on resumed and subsequent turns", async (reasoningSummary) => {
+		const { backend, client } = makeBackend();
+		await backend.open({
+			...baseConfig,
+			codexPath: "/bin/true",
+			resumeSessionId: "thread-resumed",
+			reasoningSummary,
+		});
+		for (const text of ["first", "follow-up"]) {
+			const done = backend.runTurn([{ type: "text", text }]);
+			await Promise.resolve();
+			expect(client.lastRequest("turn/start")?.params).toEqual({
+				threadId: "thread-resumed",
+				input: [{ type: "text", text }],
+				...(reasoningSummary ? { summary: reasoningSummary } : {}),
+			});
+			client.push("turn/completed", {
+				threadId: "thread-resumed",
+				turn: { id: "turn-1", status: "completed" },
+			});
+			await done;
+		}
+	});
+
 	it("resumes a thread when resumeSessionId is set", async () => {
 		const { backend, client } = makeBackend();
 		await backend.open({

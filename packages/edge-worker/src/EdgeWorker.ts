@@ -1181,6 +1181,7 @@ export class EdgeWorker extends EventEmitter {
 							new CodexRunner({
 								...config,
 								isolatedProcess: true,
+								reasoningSummary: "auto",
 								codexHome: join(this.cyrusHome, "jira-agent", "codex"),
 								sandbox: "workspace-write",
 								sandboxSettings: {

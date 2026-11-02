@@ -50,6 +50,7 @@ export class AppServerCodexBackend
 	};
 	/** Structured-output schema for turns, captured at open() for turn/start. */
 	private outputSchema: unknown;
+	private reasoningSummary: ResolvedCodexConfig["reasoningSummary"];
 
 	/** Resolver for the in-flight {@link runTurn} promise. */
 	private turnResolve: (() => void) | null = null;
@@ -104,6 +105,7 @@ export class AppServerCodexBackend
 		this.isolated = config.isolatedProcess === true;
 		if (this.isolated) this.processManager = this.processManager.fork();
 		this.outputSchema = config.outputSchema;
+		this.reasoningSummary = config.reasoningSummary;
 		const appServer = await this.processManager.acquire(config);
 		this.appServer = appServer;
 
@@ -182,6 +184,9 @@ export class AppServerCodexBackend
 				{
 					threadId: this.threadId,
 					input: this.toProtocolInput(input),
+					...(this.reasoningSummary !== undefined
+						? { summary: this.reasoningSummary }
+						: {}),
 					...(this.outputSchema !== undefined
 						? { outputSchema: this.outputSchema }
 						: {}),

@@ -38,6 +38,8 @@ export interface CodexRunnerConfig extends AgentRunnerConfig {
 	 * If omitted, CodexRunner applies a safe default for known model constraints.
 	 */
 	modelReasoningEffort?: ModelReasoningEffort;
+	/** Ask the provider for a public reasoning summary, never raw reasoning. */
+	reasoningSummary?: "auto" | "concise" | "detailed" | "none";
 	/** Sandbox mode for Codex shell/tool execution */
 	sandbox?: SandboxMode;
 	/** Approval policy for Codex tool/shell execution */

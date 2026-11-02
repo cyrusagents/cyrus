@@ -135,6 +135,7 @@ export interface ResolvedCodexConfig {
 	approvalPolicy: ApprovalMode;
 	skipGitRepoCheck: boolean;
 	modelReasoningEffort?: ModelReasoningEffort;
+	reasoningSummary?: "auto" | "concise" | "detailed" | "none";
 	webSearchMode?: WebSearchMode;
 	/** Maps to Codex `developer_instructions` (appended system prompt). */
 	developerInstructions?: string;

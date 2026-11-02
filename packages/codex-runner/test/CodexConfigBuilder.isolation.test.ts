@@ -42,6 +42,7 @@ it("suppresses discovery and keeps native auth while replacing ambient config in
 		workingDirectory: home,
 		codexHome: home,
 		isolatedProcess: true,
+		reasoningSummary: "auto",
 		disableMcpDiscovery: true,
 		mcpConfig: { explicit: { command: "do-not-run" } },
 		configOverrides: { mcp_servers: { explicit: { command: "do-not-run" } } },
@@ -56,6 +57,7 @@ it("suppresses discovery and keeps native auth while replacing ambient config in
 		},
 	});
 	expect(config.env?.CODEX_HOME).toBe(home);
+	expect(config.reasoningSummary).toBe("auto");
 	expect(config.env?.CYRUS_API_KEY).toBe("");
 	expect(readFileSync(join(home, "auth.json"), "utf8")).toBe(
 		"synthetic-auth-marker",

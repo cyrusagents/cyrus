@@ -52,6 +52,7 @@ export class CodexConfigBuilder {
 			approvalPolicy: this.config.askForApproval || "never",
 			skipGitRepoCheck: this.config.skipGitRepoCheck ?? true,
 			modelReasoningEffort: reasoningEffort,
+			reasoningSummary: this.config.reasoningSummary,
 			webSearchMode,
 			developerInstructions:
 				(this.config.appendSystemPrompt ?? "").trim() || undefined,
