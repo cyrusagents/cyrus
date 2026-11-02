@@ -21,3 +21,9 @@ Each Jira Codex invocation owns a separate app-server process, with no shared pr
 Jira Codex disables repository MCP discovery, native apps, plugins, hooks and automatic skill MCP installation. Before starting or resuming a thread, it rejects inherited native MCP servers or an enabled project configuration layer, and explicitly marks the task path untrusted so Codex cannot automatically enable repository configuration. A native filesystem profile limits tools to the worktree, necessary Git metadata and platform temporary paths; it does not grant access to the Codex authentication home or other conversations. Cyrus integration secrets are blanked in the child environment.
 
 Confirmed process-group teardown currently requires macOS or Linux. Isolated Jira Codex execution is refused on Windows before a process is started. Existing non-Jira runner selection and shared process pooling are preserved.
+
+## Public progress
+
+Jira Codex turns explicitly request the provider's public reasoning summaries (`summary: auto`). When the model emits one, Cyrus publishes it as a reasoning-summary activity. Raw reasoning content, signatures and raw reasoning deltas are never published, and summaries do not replace the final answer. Models may omit summaries for a turn.
+
+The matching Hosted connector streams completed tool kinds/outcomes and public summaries as expandable response sections, then appends the answer. Running tool state remains in plain live progress. Tool arguments, commands, paths and output are not included in these sections. Snapshots retain a bounded recent activity window; they are not a complete execution audit.
