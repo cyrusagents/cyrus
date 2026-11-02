@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { validateRuntimeReceipt } from "./verify-runner-runtime-receipt.mjs";
 
 const packageRoot = resolve(
 	process.argv[2] ?? assert.fail("Pass the installed runner package directory"),
@@ -82,52 +83,23 @@ try {
 	clearTimeout(watchdog);
 }
 
-const toolUses = messages.flatMap((message) =>
-	message.type === "assistant" && Array.isArray(message.message?.content)
-		? message.message.content.filter((block) => block.type === "tool_use")
-		: [],
-);
-const toolResults = messages.flatMap((message) =>
-	message.type === "user" && Array.isArray(message.message?.content)
-		? message.message.content.filter((block) => block.type === "tool_result")
-		: [],
-);
 const result = messages.findLast((message) => message.type === "result");
 const init = messages.find(
 	(message) => message.type === "system" && message.subtype === "init",
 );
-const readUse = toolUses.find((tool) => tool.name === "Read");
-const bashUse = toolUses.find((tool) => tool.name === "Bash");
-const readResult = toolResults.find(
-	(block) => block.tool_use_id === readUse?.id,
-);
-const bashResult = toolResults.find(
-	(block) => block.tool_use_id === bashUse?.id,
-);
-const text = messages
-	.flatMap((message) =>
-		message.type === "assistant" && Array.isArray(message.message?.content)
-			? message.message.content
-					.filter((block) => block.type === "text")
-					.map((block) => block.text)
-			: [],
-	)
-	.join("")
-	.trim();
+const { bashResult, bashUse, readResult, readUse, text } =
+	validateRuntimeReceipt(messages);
 
 assert.deepEqual(
 	callbackErrors.map((error) => error.message),
 	[],
 	"Runner emitted an error callback",
 );
-assert.ok(readUse, "Claude did not invoke Read");
 assert.match(
 	String(readUse.input?.file_path ?? ""),
 	/package\.json$/,
 	"Read did not target package.json",
 );
-assert.ok(readResult, "Read did not return a tool result");
-assert.ok(bashUse, "Claude did not invoke Bash");
 assert.equal(bashUse.input?.command, "pwd", "Bash command was not exactly pwd");
 assert.equal(
 	bashUse.input?.timeout,
@@ -139,7 +111,6 @@ assert.equal(
 	false,
 	"Bash ran in the background",
 );
-assert.ok(bashResult, "Bash did not return a tool result");
 assert.ok(result, "Claude did not emit a terminal result");
 assert.equal(result.subtype, "success");
 assert.equal(result.is_error, false);
@@ -166,12 +137,14 @@ console.log(
 			elapsedMs: Date.now() - startedAt,
 			read: {
 				filePath: readUse.input.file_path,
+				isError: readResult.is_error,
 				resultReceived: true,
 			},
 			bash: {
 				command: bashUse.input.command,
 				timeout: bashUse.input.timeout,
 				foreground: true,
+				isError: bashResult.is_error,
 				resultReceived: true,
 			},
 			finalText: text,

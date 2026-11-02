@@ -26,7 +26,7 @@ No additional opt-outs are introduced: the accepted upstream defaults do not con
 
 ## Prepared installed-package provenance
 
-The clean consumer prepared for CYPACK-1613 from reviewed heads `cyrus@b0289765c90848d7ef020b264754a0e91f2b9101` and `cyrus-hosted@635170b68` resolves the packages below. The runner tarball was packed with the published core prerelease version so its `workspace:*` dependency resolves to the exact replacement artifact.
+The clean consumer prepared for CYPACK-1613 from reviewed heads `cyrus@b0289765c90848d7ef020b264754a0e91f2b9101` and `cyrus-hosted@635170b68` resolved the packages below. The runner tarball was packed with the published core prerelease version so its `workspace:*` dependency resolved to the exact replacement artifact. These hashes retain its provenance; that transient install is no longer present and must be regenerated from the current reviewed head before the final runtime receipt.
 
 | Package | Version | Integrity |
 | --- | --- | --- |
@@ -38,17 +38,38 @@ The clean consumer prepared for CYPACK-1613 from reviewed heads `cyrus@b0289765c
 
 Runner tarball SHA-256: `627bb73ddfb4058fd912c6e5fa6fc478fd885c2565fec84165c9a0de70dd6c3b`. Consumer lock SHA-256: `cea40b81fbe98373e8c66dc0aba0250d90d3d06d06bcf7ba41ff84027ee59d1a`. The installed permission contract passes in all six supported provider/telemetry configurations.
 
+## Retained same-store human-login fixture
+
+The matching CYPACK-1610 consumer found by the independent reviewer has been relocated intact from `/private/tmp` and retained until acceptance at:
+
+`/Users/agentops/.cyrus/CYPACK-1613/attachments/retained-auth-fixture`
+
+Its consumer resolves `@anthropic-ai/claude-agent-sdk@0.3.316`, `@anthropic-ai/sdk@1.3.0`, and `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.316`. It contains `cyrus-core@0.2.75-test.12`, so it is suitable only for the supported same-store human login; it is **not** the final current-source/package runtime receipt. Its runner tarball SHA-256 is `e917683e0dd6bdbf9f61c428ba384ed9dd50cf7c4c43792551974aa31333c0f5`; its consumer lock SHA-256 is `d755c5e8736d9a62f9667ebc52052982d79945803bf513e725b5a4a7bbb7c027`.
+
+At `2026-11-02T16:02:26Z`, consumer-relative module resolution selected this exact executable:
+
+`/Users/agentops/.cyrus/CYPACK-1613/attachments/retained-auth-fixture/consumer/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude`
+
+Read-only evidence from that absolute path:
+
+- `--version`: `2.1.316 (Claude Code)`.
+- SHA-256: `64c327e92b2c5e0f78c0a980c5a518121e1f0d140ca771ca5dd4488d1a2dcb3f`.
+- `auth login --help`: supports `--claudeai` and `--email <email>`.
+- `auth status`: `loggedIn: true`, `authMethod: claude.ai`, `apiProvider: firstParty`, `email: connor@ceedar.io`, organization `685559cd-fcf8-43cb-8a0e-eb20cd18cead`, Max subscription, config directory `/Users/agentops/.claude`.
+
+The command ran as OS user `agentops`; neither `CLAUDE_CONFIG_DIR` nor `ANTHROPIC_API_KEY` was set. The absolute executable therefore uses the same default `agentops` store reported by `auth status`, while avoiding the unrelated PATH Claude Code 2.1.280. No login, credential or secret read, auth/provider change, provider request, or runtime restart was performed while retaining and inspecting this fixture.
+
 ## Current identity diagnosis and required receipt
 
-At `2026-11-02T07:34:36Z`, supported `auth status` from the CYPACK-1613 consumer's exact bundled 2.1.316 binary, run as OS user `agentops` from the consumer directory, reported the intended `connor@ceedar.io` account, `claude.ai` auth, first-party provider, organization `685559cd-fcf8-43cb-8a0e-eb20cd18cead`, Max subscription, and config directory `/Users/agentops/.claude`. This confirms the stored login record but not live token freshness. The latest bounded provider attempt remains the `2026-11-01T07:47Z` `401 OAuth access token has expired`, before either tool. No later successful receipt was found in CYPACK-1610, CYPACK-1613, or either current replacement PR.
+The retained fixture's supported `auth status` confirms the stored login record but not live token freshness. The latest bounded provider attempt remains the `2026-11-01T07:47Z` `401 OAuth access token has expired`, before either tool. No later successful receipt was found in CYPACK-1610, CYPACK-1613, or either current replacement PR.
 
 The interactive PATH binary is an older 2.1.280 build and must not be used. The exact supported same-store action is:
 
-`/private/tmp/cypack-1613-runner.GY6Eyd/consumer/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude auth login --claudeai --email connor@ceedar.io`
+`/Users/agentops/.cyrus/CYPACK-1613/attachments/retained-auth-fixture/consumer/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude auth login --claudeai --email connor@ceedar.io`
 
-Read-only inspection confirmed that executable is the consumer-resolved `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.316` binary (SHA-256 `64c327e92b2c5e0f78c0a980c5a518121e1f0d140ca771ca5dd4488d1a2dcb3f`) and that its help supports both flags. No `CLAUDE_CONFIG_DIR`, secure-storage override, Claude auth variable, endpoint override, or provider selector is active; user, consumer, and managed settings add no such override. It therefore uses the same default `agentops` configuration namespace as the installed runner. Per Anthropic's [credential-management documentation](https://code.claude.com/docs/en/authentication#credential-management), macOS uses Keychain primarily and a mode-0600 `.credentials.json` fallback; metadata-only inspection found that fallback at `/Users/agentops/.claude/.credentials.json`, without reading it. This evidence establishes the shared default store namespace without claiming whether Keychain or the fallback supplied the active token.
+The retained evidence above confirms that executable is the consumer-resolved `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.316` binary and that it uses the default `agentops` configuration namespace. This establishes the shared store namespace without inspecting or claiming which credential backend supplied the active token.
 
-The `--email` flag pre-populates rather than enforces the browser identity. The human must complete the flow as `connor@ceedar.io`; before any provider request, the same absolute binary's read-only `auth status` must reconfirm `agentops`, `firstParty`, `claude.ai`, `connor@ceedar.io`, and organization `685559cd-fcf8-43cb-8a0e-eb20cd18cead`. No alternate account, API key, blind retry, or runtime restart is permitted. After that confirmation, one bounded run of `scripts/verify-runner-runtime.mjs` must prove, in order:
+The `--email` flag pre-populates rather than enforces the browser identity. The human must complete the flow as `connor@ceedar.io`; before any provider request, the same absolute binary's read-only `auth status` must reconfirm `agentops`, `firstParty`, `claude.ai`, `connor@ceedar.io`, and organization `685559cd-fcf8-43cb-8a0e-eb20cd18cead`. No alternate account, API key, blind retry, or runtime restart is permitted. After that confirmation, regenerate the clean consumer from the current reviewed CYPACK-1613 source/package artifact (including `cyrus-core@0.2.75-test.13`) and run `scripts/verify-runner-runtime.mjs` once against that installation. The verifier now rejects errored Read or Bash results and enforces this event order before emitting `PASS`:
 
 1. real installed-package `Read(package.json)` with a successful tool result;
 2. foreground `Bash(pwd)` with timeout exactly `10000` and a successful tool result;
