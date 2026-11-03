@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-mcp-tools",
-	"version": "0.2.74",
+	"version": "0.2.75",
 	"description": "Runner-neutral MCP tool servers for Cyrus",
 	"repository": {
 		"type": "git",

@@ -4,6 +4,11 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.75] - 2026-11-03
+
+### Changed
+- Recorded release verification for the combined v0.2.74 and v0.2.75 payload; v0.2.74 passed its dry run but was never published, so its changes first ship in v0.2.75. ([CYPACK-1618](https://linear.app/ceedar/issue/CYPACK-1618/run-a-release))
+
 ## [0.2.74] - 2026-10-21
 
 ### Added
