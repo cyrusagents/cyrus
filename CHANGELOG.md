@@ -74,7 +74,7 @@ _v0.2.74 was prepared but never published to npm. Its changes, listed under 0.2.
 - cyrus-edge-worker@0.2.75
 
 #### cyrus-ai
-- cyrus-ai@0.2.75 ([CYPACK-1618](https://linear.app/ceedar/issue/CYPACK-1618/run-a-release))
+- cyrus-ai@0.2.75 ([CYPACK-1618](https://linear.app/ceedar/issue/CYPACK-1618/run-a-release), [#1579](https://github.com/cyrusagents/cyrus/pull/1579))
 
 ## [0.2.74] - 2026-10-21 (not published)
 
