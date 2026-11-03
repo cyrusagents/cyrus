@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.75] - 2026-11-03
+
+_v0.2.74 was prepared but never published to npm. Its changes, listed under 0.2.74 below, are first published in this release._
+
 ### Changed
 - Moved the Cyrus Inbox plugin package to a separately maintained private repository. The CLI, runtime and `post_message_to_codex` tool are unchanged. ([#1558](https://github.com/cyrusagents/cyrus/pull/1558))
 
@@ -19,7 +23,60 @@ All notable changes to this project will be documented in this file.
 - Patched high-severity Zod collection-validation and body-parser compressed-body denial-of-service vulnerabilities plus fast-uri URL handling issues, while keeping upgraded Cursor session state under the Cyrus home directory. ([CYPACK-1603](https://linear.app/ceedar/issue/CYPACK-1603/address-open-security-patches-for-cyrus-cli), [#1563](https://github.com/cyrusagents/cyrus/pull/1563))
 - Updated Fastify to `5.12.7` across the CLI dependency graph, fixing a header-schema validation bypass and restoring a zero-advisory audit. ([CYPACK-1597](https://linear.app/ceedar/issue/CYPACK-1597/address-open-security-patches-for-cyrus-cli), [#1555](https://github.com/cyrusagents/cyrus/pull/1555))
 
-## [0.2.74] - 2026-10-21
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.75
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.75
+
+#### cyrus-core
+- cyrus-core@0.2.75
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.75
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.75
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.75
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.75
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.75
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.75
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.75
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.75
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.75
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.75
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.75
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.75
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.75
+
+#### cyrus-ai
+- cyrus-ai@0.2.75 ([CYPACK-1618](https://linear.app/ceedar/issue/CYPACK-1618/run-a-release), [#1579](https://github.com/cyrusagents/cyrus/pull/1579))
+
+## [0.2.74] - 2026-10-21 (not published)
 
 ### Added
 - Added the operator-configurable `codexSandboxMode` for issue and chat sessions, retaining `workspace-write` by default and supporting opt-in native read-only or full host access without browser-specific integrations. ([#1521](https://github.com/cyrusagents/cyrus/pull/1521))
