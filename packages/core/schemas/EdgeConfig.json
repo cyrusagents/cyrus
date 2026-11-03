@@ -552,6 +552,10 @@
 		"codexDefaultModel": {
 			"type": "string"
 		},
+		"codexSandboxMode": {
+			"type": "string",
+			"enum": ["read-only", "workspace-write", "danger-full-access"]
+		},
 		"cursorDefaultModel": {
 			"type": "string"
 		},
@@ -1017,6 +1021,12 @@
 				},
 				"systemWideCert": {
 					"type": "boolean"
+				},
+				"writablePaths": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				},
 				"logRequests": {
 					"type": "boolean"

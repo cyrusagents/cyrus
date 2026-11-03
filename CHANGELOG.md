@@ -4,10 +4,91 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Moved the Cyrus Inbox plugin package to a separately maintained private repository. The CLI, runtime and `post_message_to_codex` tool are unchanged. ([#1558](https://github.com/cyrusagents/cyrus/pull/1558))
+
 ### Fixed
 - Managed GitHub commands now refuse removed, expired or unreadable installation credentials instead of falling back to stale session or cached authentication; unmanaged self-host authentication is preserved. ([CYPACK-1522](https://linear.app/ceedar/issue/CYPACK-1522), [#1487](https://github.com/cyrusagents/cyrus/pull/1487))
+- GitHub webhook deliveries from the three newly published IP ranges are now accepted by the fallback allowlist, preventing affected GitHub mentions from being rejected. ([CYPACK-1611](https://linear.app/ceedar/issue/CYPACK-1611), [#1573](https://github.com/cyrusagents/cyrus/pull/1573))
+- If the Cloudflare tunnel process exits unexpectedly after connecting, Cyrus now restarts it automatically instead of staying unreachable until you restart Cyrus. Restarts back off from 1 second up to 60 seconds between attempts. After 10 consecutive failed restarts Cyrus stops retrying and logs an error asking you to restart it. Stopping Cyrus, or a tunnel that fails during startup, no longer leaves a `cloudflared` process running. ([#1566](https://github.com/cyrusagents/cyrus/pull/1566))
+- Label routing now respects a repository's `teamKeys`. An issue labeled `Design` in one Linear team no longer routes to another team's repository that routes its own `Design` label, and no longer starts a multi-repository session against both. Repositories without `teamKeys` keep matching their routing labels across the whole workspace. ([#1393](https://github.com/cyrusagents/cyrus/issues/1393), [#1532](https://github.com/cyrusagents/cyrus/pull/1532))
+- Feedback sent with `linear_agent_give_feedback` now reaches child sessions that were restored after a restart. Before, it was dropped with a `not found in any repository` error and the child never resumed. ([#1562](https://github.com/cyrusagents/cyrus/pull/1562))
+
+### Security
+- Updated Axios to `1.21.0` and its `follow-redirects` dependency to `1.16.2`, fixing a high-severity custom credential disclosure advisory and restoring a zero-advisory audit. ([CYPACK-1608](https://linear.app/ceedar/issue/CYPACK-1608/address-open-security-patches-for-cyrus-cli), [#1569](https://github.com/cyrusagents/cyrus/pull/1569))
+- Patched high-severity Zod collection-validation and body-parser compressed-body denial-of-service vulnerabilities plus fast-uri URL handling issues, while keeping upgraded Cursor session state under the Cyrus home directory. ([CYPACK-1603](https://linear.app/ceedar/issue/CYPACK-1603/address-open-security-patches-for-cyrus-cli), [#1563](https://github.com/cyrusagents/cyrus/pull/1563))
+- Updated Fastify to `5.12.7` across the CLI dependency graph, fixing a header-schema validation bypass and restoring a zero-advisory audit. ([CYPACK-1597](https://linear.app/ceedar/issue/CYPACK-1597/address-open-security-patches-for-cyrus-cli), [#1555](https://github.com/cyrusagents/cyrus/pull/1555))
+
+## [0.2.74] - 2026-10-21
+
+### Added
+- Added the operator-configurable `codexSandboxMode` for issue and chat sessions, retaining `workspace-write` by default and supporting opt-in native read-only or full host access without browser-specific integrations. ([#1521](https://github.com/cyrusagents/cyrus/pull/1521))
+- Codex sessions, and Claude sessions with the sandbox enabled, can now write to extra whitelisted paths (e.g. `~/.supabase`) while staying sandboxed — list them in `sandbox.writablePaths` in `config.json` and/or the `CYRUS_SANDBOX_WRITABLE_PATHS` env var. ([CYPACK-1591](https://linear.app/ceedar/issue/CYPACK-1591/need-to-enable-whitelisted-sandbox-paths-for-codex-harness), [#1547](https://github.com/cyrusagents/cyrus/pull/1547))
+- Add the explicit-destination `post_message_to_codex` tool and reusable Cyrus Inbox plugin for authorized dot/Cloud Work subscriptions, with stable message keys and honest queue receipts. ([CYHOST-1356](https://linear.app/ceedar/issue/CYHOST-1356), [#1535](https://github.com/cyrusagents/cyrus/pull/1535))
+
+### Fixed
+- Repository-selection replies that Linear turns into a markdown link (for example a pasted GitHub URL) now match the chosen repository instead of falling back to the first one.
 - Codex sessions can use `gpt-6.1-sol` with ChatGPT accounts now that the bundled CLI and SDK have been updated to 0.159.2. ([#1512](https://github.com/cyrusagents/cyrus/issues/1512), [#1514](https://github.com/cyrusagents/cyrus/pull/1514))
-- Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. (CYHOST-909)
+- Persist a hosted workspace's validated self-host listener port during `cyrus auth`, and advertise support before non-default tunnel configuration. Older hosted responses retain existing behavior. ([CYHOST-909](https://linear.app/ceedar/issue/CYHOST-909), [#1519](https://github.com/cyrusagents/cyrus/pull/1519))
+
+### Security
+- Updated the MCP SDK to prevent cross-origin redirects from forwarding credentials and to isolate experimental tasks by session. Patched the test tooling's Windows editor-launch vulnerability before publication. ([CYPACK-1592](https://linear.app/ceedar/issue/CYPACK-1592/run-a-release), [#1550](https://github.com/cyrusagents/cyrus/pull/1550))
+- Refreshed Axios's compatible `follow-redirects` dependency to `1.16.1`, fixing two credential-disclosure advisories without adding an override. ([CYPACK-1592](https://linear.app/ceedar/issue/CYPACK-1592/run-a-release), [#1548](https://github.com/cyrusagents/cyrus/pull/1548))
+- Patched critical proxy trust-subnet spoofing and high-severity source-map denial-of-service advisories in the Cyrus CLI dependency graph, restoring a zero-advisory audit. ([CYPACK-1567](https://linear.app/ceedar/issue/CYPACK-1567/address-open-security-patches-for-cyrus-cli), [#1531](https://github.com/cyrusagents/cyrus/pull/1531))
+- Patched high-severity RSA signature-forgery and brace-pattern stack-exhaustion advisories in the Cyrus CLI dependency graph, restoring a zero-advisory audit. ([CYPACK-1558](https://linear.app/ceedar/issue/CYPACK-1558/address-open-security-patches-for-cyrus-cli), [#1524](https://github.com/cyrusagents/cyrus/pull/1524))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.74
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.74
+
+#### cyrus-core
+- cyrus-core@0.2.74
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.74
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.74
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.74
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.74
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.74
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.74
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.74
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.74
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.74
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.74
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.74
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.74
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.74
+
+#### cyrus-ai
+- cyrus-ai@0.2.74 ([CYPACK-1592](https://linear.app/ceedar/issue/CYPACK-1592/run-a-release), [#1548](https://github.com/cyrusagents/cyrus/pull/1548))
 
 ## [0.2.73] - 2026-09-30
 

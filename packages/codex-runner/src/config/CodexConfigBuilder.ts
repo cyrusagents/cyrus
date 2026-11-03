@@ -83,7 +83,10 @@ export class CodexConfigBuilder {
 	private getAdditionalDirectories(): string[] {
 		const workingDirectory = this.config.workingDirectory;
 		const uniqueDirectories = new Set<string>();
-		for (const directory of this.config.allowedDirectories || []) {
+		for (const directory of [
+			...(this.config.allowedDirectories || []),
+			...(this.config.writableRoots || []),
+		]) {
 			if (!directory || directory === workingDirectory) {
 				continue;
 			}

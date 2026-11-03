@@ -102,6 +102,7 @@ describe("WorkerService", () => {
 			claudeDefaultFallbackModel: "sonnet",
 			geminiDefaultModel: "gemini-2.5-pro",
 			codexDefaultModel: "gpt-5.3-codex",
+			codexSandboxMode: "read-only",
 			cursorDefaultModel: "composer-2",
 			cursorDefaultFallbackModel: "gpt-5.4",
 			opencodeDefaultModel: "anthropic/claude-sonnet-4.5",

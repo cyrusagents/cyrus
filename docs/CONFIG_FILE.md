@@ -211,6 +211,8 @@ Routes Linear issues with specific labels to this repository. This is useful whe
 
 Example: `["backend", "api"]` - Only process issues that have the "backend" or "api" label
 
+When the repository also sets `teamKeys`, its routing labels only match issues from those teams, so two teams can each route a label with the same name to their own repository. A repository without `teamKeys` matches its routing labels across the whole workspace.
+
 ---
 
 ## Routing Priority Order
@@ -524,6 +526,28 @@ Sets default allowed tools for each prompt type across all repositories. Reposit
 Path to a script that runs for all repositories when creating new worktrees. See the main README for details on setup scripts.
 
 ---
+
+### `codexSandboxMode`
+
+Controls Codex command execution for issue and chat sessions. Accepted values:
+
+- `workspace-write` (default): retain the existing sandbox and Cyrus filesystem profile when configured.
+- `read-only`: use Codex's native read-only sandbox.
+- `danger-full-access`: use Codex's native unrestricted mode. Every command in the session can access host files and network; Cyrus filesystem grants and egress sandbox restrictions do not constrain this mode.
+
+```json
+{
+  "codexSandboxMode": "workspace-write"
+}
+```
+
+This is an operator setting, independent of `sandbox.enabled`, which controls the
+egress proxy. It applies only to Codex; other runners and approval policy are
+unchanged. Config reloads affect newly constructed runners, not commands already
+in progress. Removing the field restores `workspace-write` for new runners.
+Selecting `read-only` or full access takes precedence over a generated filesystem
+profile and uses the corresponding native Codex mode.
+
 
 ## Tool Configuration Priority
 

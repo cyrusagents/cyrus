@@ -148,14 +148,17 @@ describe("AppServerCodexBackend", () => {
 		});
 	});
 
-	it("omits sandbox_workspace_write for non-workspace-write modes", async () => {
+	it.each([
+		"read-only",
+		"danger-full-access",
+	] as const)("serializes native %s without workspace-write overrides", async (mode) => {
 		const { backend, client } = makeBackend();
 		await backend.open({
 			...baseConfig,
 			codexPath: "/bin/true",
 			sandbox: {
 				kind: "workspace-mode",
-				mode: "read-only",
+				mode,
 				writableRoots: [],
 				networkAccess: false,
 			},
@@ -164,7 +167,7 @@ describe("AppServerCodexBackend", () => {
 			sandbox?: string;
 			config?: { sandbox_workspace_write?: Record<string, unknown> };
 		};
-		expect(params.sandbox).toBe("read-only");
+		expect(params.sandbox).toBe(mode);
 		expect(params.config?.sandbox_workspace_write).toBeUndefined();
 	});
 

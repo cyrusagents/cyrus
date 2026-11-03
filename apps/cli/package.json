@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-ai",
-	"version": "0.2.73",
+	"version": "0.2.74",
 	"description": "AI-powered Linear issue automation using Claude",
 	"main": "dist/src/app.js",
 	"types": "dist/src/app.d.ts",
@@ -50,19 +50,19 @@
 		"cyrus-edge-worker": "workspace:*",
 		"cyrus-slack-event-transport": "workspace:*",
 		"dotenv": "^16.5.0",
-		"express": "^5.2.1",
-		"fastify": "^5.12.5",
+		"express": "^5.3.0",
+		"fastify": "^5.12.7",
 		"file-type": "^21.0.0",
 		"fs-extra": "^11.3.0",
 		"node-fetch": "^2.7.0",
 		"open": "^10.0.0",
-		"zod": "^4.3.5"
+		"zod": "^4.6.7"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
-		"@vitest/ui": "^4.1.11",
-		"nodemon": "^3.1.14",
 		"@typescript/native-preview": "7.0.0-dev.20260707.2",
-		"vitest": "^4.1.11"
+		"@vitest/ui": "^4.1.12",
+		"vite": "^8.3.4",
+		"vitest": "^4.1.12"
 	}
 }

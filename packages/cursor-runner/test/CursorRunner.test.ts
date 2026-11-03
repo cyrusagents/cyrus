@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -79,12 +80,28 @@ vi.mock("@cursor/sdk", () => ({
 	},
 }));
 
+const sqliteMock = vi.hoisted(() => {
+	const dispose = vi.fn().mockResolvedValue(undefined);
+	const store = { dispose };
+	return {
+		dispose,
+		store,
+		open: vi.fn().mockResolvedValue(store),
+	};
+});
+
+vi.mock("@cursor/sdk/sqlite", () => ({
+	SqliteLocalAgentStore: { open: sqliteMock.open },
+}));
+
 let CursorRunner: typeof import("../src/CursorRunner.js").CursorRunner;
 let tempDirs: string[];
 
 beforeEach(async () => {
 	sdkMock.create.mockReset();
 	sdkMock.resume.mockReset();
+	sqliteMock.dispose.mockClear();
+	sqliteMock.open.mockReset().mockResolvedValue(sqliteMock.store);
 	tempDirs = [];
 	({ CursorRunner } = await import("../src/CursorRunner.js"));
 });
@@ -193,6 +210,33 @@ describe("CursorRunner (SDK adapter)", () => {
 		expect(assistant).toBeDefined();
 		const result = messages[messages.length - 1];
 		expect(result?.type).toBe("result");
+	});
+
+	it("uses a cyrusHome-scoped SQLite store for Agent.create", async () => {
+		const workspace = tempWorkspace();
+		const cyrusHome = tempWorkspace();
+		sdkMock.__install({ events: [] });
+
+		const runner = new CursorRunner({ cyrusHome, workingDirectory: workspace });
+		await runner.start("hi");
+
+		const stateKey = crypto
+			.createHash("sha256")
+			.update(workspace)
+			.digest("hex");
+		expect(sqliteMock.open).toHaveBeenCalledWith({
+			workspaceRef: workspace,
+			stateRoot: join(cyrusHome, "cursor-sdk-state", stateKey),
+		});
+		expect(sdkMock.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				local: expect.objectContaining({
+					cwd: workspace,
+					store: sqliteMock.store,
+				}),
+			}),
+		);
+		expect(sqliteMock.dispose).toHaveBeenCalledOnce();
 	});
 
 	it("accumulates token usage from turn-ended deltas into the result message", async () => {
@@ -492,6 +536,16 @@ describe("CursorRunner (SDK adapter)", () => {
 		await runner.start("continue");
 		expect(sdkMock.resume).toHaveBeenCalledTimes(1);
 		expect(sdkMock.create).not.toHaveBeenCalled();
+		expect(sdkMock.resume).toHaveBeenCalledWith(
+			"agent-resumed",
+			expect.objectContaining({
+				local: expect.objectContaining({
+					cwd: workspace,
+					store: sqliteMock.store,
+				}),
+			}),
+		);
+		expect(sqliteMock.dispose).toHaveBeenCalledOnce();
 	});
 
 	it("emits an error result when SDK send throws", async () => {

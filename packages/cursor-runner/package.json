@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-cursor-runner",
-	"version": "0.2.73",
+	"version": "0.2.74",
 	"description": "Cursor Agent CLI process wrapper for Cyrus",
 	"repository": {
 		"type": "git",
@@ -21,14 +21,14 @@
 		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
-		"@cursor/sdk": "^1.0.19",
+		"@cursor/sdk": "^1.1.0",
 		"cyrus-core": "workspace:*",
 		"cyrus-simple-agent-runner": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
 		"@typescript/native-preview": "7.0.0-dev.20260707.2",
-		"vitest": "^4.1.11"
+		"vitest": "^4.1.12"
 	},
 	"publishConfig": {
 		"access": "public"

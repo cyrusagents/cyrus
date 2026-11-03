@@ -22,15 +22,15 @@ import type {
 	SDKThinkingMessage as CursorSDKThinkingMessage,
 	SDKToolUseMessage as CursorSDKToolUseMessage,
 	SDKUserMessageEvent as CursorSDKUserMessageEvent,
+	LocalAgentStore,
 	Run,
 	SDKAgent,
 } from "@cursor/sdk";
 // `@cursor/sdk` is loaded lazily inside `start()` rather than at module top
-// level. Its transitive deps (`@connectrpc/connect-node` -> `undici@7.x`,
-// `sqlite3@5.x`) crash at import time on Node 18 (no global `File`) and on
-// Node versions without prebuilt sqlite3 bindings. Lazy-loading lets edge-
-// worker tests that mock the cursor runner load on every supported Node
-// version, and only pays the import cost when a Cursor session actually
+// level. Its native/runtime dependencies can fail at import time on unsupported
+// Node versions or when a compatible SQLite binding is unavailable. Lazy-loading
+// lets edge-worker tests that mock the cursor runner load on every supported
+// Node version, and only pays the import cost when a Cursor session actually
 // starts.
 import type {
 	IAgentRunner,
@@ -468,6 +468,8 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 		this.setupLogging(initialSessionId);
 
 		const workspace = resolve(this.config.workingDirectory || cwd());
+		let localStore: (LocalAgentStore & { dispose(): Promise<void> }) | null =
+			null;
 
 		try {
 			this.installPermissionsArtifacts(workspace);
@@ -486,15 +488,27 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 			const apiKey = this.config.cursorApiKey ?? process.env.CURSOR_API_KEY;
 			const normalizedModel = normalizeCursorModel(this.config.model);
 			const mcpServers = mapCyrusMcpToSdk(this.config.mcpConfig);
+			const stateRoot = join(
+				this.config.cyrusHome,
+				"cursor-sdk-state",
+				crypto.createHash("sha256").update(workspace).digest("hex"),
+			);
+			const { SqliteLocalAgentStore } = await import("@cursor/sdk/sqlite");
+			localStore = await SqliteLocalAgentStore.open({
+				workspaceRef: workspace,
+				stateRoot,
+			});
+			console.log(
+				`[CursorRunner] Opened Cursor SDK state store at ${stateRoot}`,
+			);
 
 			const sandboxEnabled = Boolean(this.config.sandboxSettings?.enabled);
 			const baseAgentOptions = {
 				apiKey,
 				...(normalizedModel ? { model: { id: normalizedModel } } : {}),
 				local: {
-					// `cwd` is passed as a string[] per Cyrus convention; the SDK
-					// types accept `string | string[]`.
-					cwd: [workspace],
+					cwd: workspace,
+					store: localStore,
 					settingSources: ["project" as const],
 					// SDK ≥1.0.11 auto-discovers the bundled `cursorsandbox`
 					// helper from the platform-specific optionalDependency
@@ -574,6 +588,16 @@ export class CursorRunner extends EventEmitter implements IAgentRunner {
 			this.finalizeSession(caughtError);
 		} catch (error) {
 			this.finalizeSession(error);
+		} finally {
+			if (localStore) {
+				try {
+					await localStore.dispose();
+				} catch (error) {
+					console.warn(
+						`[CursorRunner] Failed to close Cursor SDK state store: ${normalizeError(error)}`,
+					);
+				}
+			}
 		}
 
 		return this.sessionInfo;

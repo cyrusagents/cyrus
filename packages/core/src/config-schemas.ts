@@ -280,6 +280,19 @@ export const SandboxConfigSchema = z.object({
 	systemWideCert: z.boolean().optional(),
 
 	/**
+	 * Extra filesystem paths agent sessions may write to, in addition to the
+	 * session worktree (e.g. `~/.supabase`). Sandbox containment is kept —
+	 * these paths are added as writable roots rather than loosening the
+	 * sandbox. Codex applies them whether or not the egress proxy is
+	 * `enabled`; Claude applies them when `enabled` is true (OS sandbox
+	 * allowRead/allowWrite plus matching Read/Edit/Write tool permissions).
+	 * `~/` is expanded; non-absolute entries are ignored. Merged
+	 * with the `CYRUS_SANDBOX_WRITABLE_PATHS` env var (comma- or
+	 * path-delimiter-separated).
+	 */
+	writablePaths: z.array(z.string()).optional(),
+
+	/**
 	 * Log all proxied requests (method, URL, domain, status).
 	 * @default true
 	 */
@@ -399,6 +412,11 @@ export const EdgeConfigSchema = z.object({
 
 	/** Default Codex model to use across all repositories (e.g., "gpt-6-astra", "gpt-5.5", "gpt-5.3-codex") */
 	codexDefaultModel: z.string().optional(),
+
+	/** Codex command sandbox mode. Defaults to workspace-write; full host access is opt-in. */
+	codexSandboxMode: z
+		.enum(["read-only", "workspace-write", "danger-full-access"])
+		.optional(),
 
 	/** Default Cursor model to use across all repositories (e.g., "composer-2", "gpt-5.4") */
 	cursorDefaultModel: z.string().optional(),

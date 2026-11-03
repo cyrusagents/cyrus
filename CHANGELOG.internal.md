@@ -4,6 +4,14 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.74] - 2026-10-21
+
+### Added
+- Documented native Codex command exceptions and the distinction between runner sandbox modes, egress-proxy settings, and writable directories. ([#1521](https://github.com/cyrusagents/cyrus/pull/1521))
+
+### Changed
+- Recorded release coverage for Codex issue sessions, sandbox mode selection, writable-root enforcement on an isolated host, and inbox publication transport. ([CYPACK-1592](https://linear.app/ceedar/issue/CYPACK-1592/run-a-release), [#1548](https://github.com/cyrusagents/cyrus/pull/1548), [#1551](https://github.com/cyrusagents/cyrus/pull/1551))
+
 ## [0.2.73] - 2026-09-29
 
 ### Changed

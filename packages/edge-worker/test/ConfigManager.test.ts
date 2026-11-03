@@ -20,6 +20,37 @@ const repo: RepositoryConfig = {
 };
 
 describe("ConfigManager", () => {
+	it("reloads the Codex mode and restores the default when the field is removed", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cyrus-codex-mode-"));
+		const path = join(dir, "config.json");
+		const manager = new ConfigManager(
+			{ repositories: [repo] },
+			logger,
+			path,
+			new Map([[repo.id, repo]]),
+		);
+		const changed = vi.fn();
+		manager.on("configChanged", (event) => {
+			changed(event);
+			manager.setConfig(event.newConfig);
+		});
+		try {
+			for (const mode of ["danger-full-access", "read-only", undefined]) {
+				await writeFile(
+					path,
+					JSON.stringify({ repositories: [repo], codexSandboxMode: mode }),
+				);
+				await (manager as any).handleConfigChange();
+				expect(changed.mock.lastCall?.[0].newConfig.codexSandboxMode).toBe(
+					mode,
+				);
+			}
+			expect(changed).toHaveBeenCalledTimes(3);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	let tempDir: string | undefined;
 
 	afterEach(async () => {
