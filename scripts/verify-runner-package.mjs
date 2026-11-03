@@ -36,14 +36,16 @@ const fixture = mkdtempSync(join(tmpdir(), "runner-package-check-"));
 // Let the runner's asynchronous log streams finish before deleting their files.
 process.once("exit", () => rmSync(fixture, { recursive: true, force: true }));
 try {
-	for (const additionalEnv of [
+	const configurations = [
 		{},
 		{ CLAUDE_CODE_USE_BEDROCK: "1" },
 		{ CLAUDE_CODE_USE_VERTEX: "1" },
 		{ CLAUDE_CODE_USE_FOUNDRY: "1" },
+		{ CLAUDE_CODE_USE_MANTLE: "1" },
 		{ DISABLE_TELEMETRY: "1" },
 		{ DO_NOT_TRACK: "1" },
-	]) {
+	];
+	for (const additionalEnv of configurations) {
 		captured = undefined;
 		const runner = new ClaudeRunner({
 			workingDirectory: fixture,
@@ -72,7 +74,7 @@ try {
 		}
 	}
 	console.log(
-		`${manifest.name}@${manifest.version}: installed permission contract PASS (6 configurations)`,
+		`${manifest.name}@${manifest.version}: installed permission contract PASS (${configurations.length} configurations)`,
 	);
 } finally {
 	mock.restoreAll();

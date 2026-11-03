@@ -5,7 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Changed
-- Added installed-package permission-contract coverage and hardened the runtime receipt to require ordered successful Read and Bash results for the Agent SDK 0.3.317 update. ([CYPACK-1617](https://linear.app/ceedar/issue/CYPACK-1617/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1578](https://github.com/cyrusagents/cyrus/pull/1578))
+- Added installed-package permission-contract coverage and a retained [compatibility and acceptance record](apps/f1/test-drives/2026-11-03-cypack-1617-anthropic-sdk-acceptance.md) for the Agent SDK 0.3.317 update. The runtime receipt now requires ordered successful Read and Bash results and rejects post-result session write loss. ([CYPACK-1617](https://linear.app/ceedar/issue/CYPACK-1617/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1578](https://github.com/cyrusagents/cyrus/pull/1578))
 
 ## [0.2.74] - 2026-10-21
 

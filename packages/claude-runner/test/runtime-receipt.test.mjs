@@ -66,3 +66,18 @@ test("rejects the success text before the successful Bash result", () => {
 		/Final text preceded the successful Bash result/,
 	);
 });
+
+test("rejects a post-result session write loss", () => {
+	const messages = validReceipt();
+	messages.push({
+		error_code: "ENOSPC",
+		lost: ["transcript"],
+		session_id: "runtime-receipt",
+		subtype: "session_writes_lost",
+		type: "system",
+		uuid: "writes-lost",
+	});
+	expect(() => validateRuntimeReceipt(messages)).toThrow(
+		/runtime receipt is not durable/,
+	);
+});

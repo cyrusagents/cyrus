@@ -139,10 +139,17 @@ describe("Cyrus permission policy", () => {
 		);
 		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_FORK_SUBAGENT");
 		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_AUTO_COMPACT_WINDOW");
+		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_MODEL_CATALOG");
+		expect(options?.env).not.toHaveProperty(
+			"CLAUDE_CODE_DISABLE_NESTED_SESSION_ID",
+		);
 		expect(options).not.toHaveProperty("agents");
 		expect(options?.hooks?.UserPromptSubmit).toEqual([
 			{ matcher: ".*", hooks: [promptHook], timeout: 0.25 },
 		]);
+		expect(options?.hooks?.UserPromptSubmit?.[0]).not.toHaveProperty(
+			"onFailure",
+		);
 		expect(options?.hooks?.Stop).toEqual([
 			{ matcher: ".*", hooks: [stopHook], timeout: 0.25 },
 			expect.objectContaining({
@@ -150,6 +157,9 @@ describe("Cyrus permission policy", () => {
 				hooks: [expect.any(Function)],
 			}),
 		]);
+		expect(
+			options?.hooks?.Stop?.every((matcher) => matcher.onFailure === undefined),
+		).toBe(true);
 	});
 });
 

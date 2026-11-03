@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 
 export function validateRuntimeReceipt(messages) {
+	assert.equal(
+		messages.some(
+			(message) =>
+				message.type === "system" && message.subtype === "session_writes_lost",
+		),
+		false,
+		"Claude reported session writes lost; the runtime receipt is not durable",
+	);
+
 	const events = messages.flatMap((message, messageIndex) =>
 		Array.isArray(message.message?.content)
 			? message.message.content.map((block, blockIndex) => ({
