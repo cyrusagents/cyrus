@@ -85,7 +85,7 @@ describe("handleGitHubTokens", () => {
 		// Executable bit set
 		expect(statSync(scriptPath).mode & 0o111).not.toBe(0);
 
-		expect(mockedExecFileSync).toHaveBeenCalledTimes(4);
+		expect(mockedExecFileSync).toHaveBeenCalledTimes(3);
 		expect(mockedExecFileSync).toHaveBeenNthCalledWith(
 			1,
 			"git",
@@ -123,32 +123,19 @@ describe("handleGitHubTokens", () => {
 		);
 	});
 
-	it("refreshes gh CLI auth with the first pushed token", async () => {
-		const payload = validPayload();
-		const response = await handleGitHubTokens(payload, cyrusHome);
-		expect(response.success).toBe(true);
-		if (response.success) {
-			expect(response.data?.ghAuthConfigured).toBe(true);
+	it("never saves managed tokens into native gh hosts or keyring storage", async () => {
+		for (const payload of [validPayload(), { tokens: [] }]) {
+			const response = await handleGitHubTokens(payload, cyrusHome);
+			expect(response.success).toBe(true);
+			if (response.success) expect(response.data?.ghAuthConfigured).toBe(false);
 		}
-		expect(mockedExecFileSync).toHaveBeenNthCalledWith(
-			4,
-			"gh",
-			["auth", "login", "--with-token"],
-			expect.objectContaining({ input: payload.tokens[0].token }),
+		expect(mockedExecFileSync.mock.calls.every(([cmd]) => cmd === "git")).toBe(
+			true,
 		);
-	});
-
-	it("succeeds even when gh CLI auth fails (gh not installed)", async () => {
-		// First 3 calls (git config) succeed; the gh call throws.
-		mockedExecFileSync.mockImplementation((cmd: unknown) => {
-			if (cmd === "gh") throw new Error("gh: command not found");
-			return Buffer.from("");
-		});
-		const response = await handleGitHubTokens(validPayload(), cyrusHome);
-		expect(response.success).toBe(true);
-		if (response.success) {
-			expect(response.data?.ghAuthConfigured).toBe(false);
-		}
+		expect(existsSync(join(cyrusHome, "github-auth-managed"))).toBe(true);
+		expect(
+			existsSync(join(cyrusHome, "scripts", "managed-github-auth.cjs")),
+		).toBe(true);
 	});
 
 	it("is idempotent across repeated pushes", async () => {
@@ -156,9 +143,18 @@ describe("handleGitHubTokens", () => {
 		const second = await handleGitHubTokens(validPayload(), cyrusHome);
 		expect(first.success).toBe(true);
 		expect(second.success).toBe(true);
-		// Each push re-runs the same replace-all + add + gh auth sequence
-		// (3 git calls + 1 gh call each)
-		expect(mockedExecFileSync).toHaveBeenCalledTimes(8);
+		// Each push re-runs the same git configuration sequence
+		// (3 git calls each)
+		expect(mockedExecFileSync).toHaveBeenCalledTimes(6);
+	});
+
+	it("fails delivery when the managed resolver cannot be installed", async () => {
+		mkdirSync(join(cyrusHome, "scripts", "gh-cyrus.cjs"), { recursive: true });
+		const response = await handleGitHubTokens({ tokens: [] }, cyrusHome);
+		expect(response).toEqual({
+			success: false,
+			error: "Failed to configure managed gh authentication",
+		});
 	});
 
 	it("rejects a payload without a tokens array", async () => {
@@ -238,15 +234,15 @@ exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
 		return wrapperPath;
 	}
 
-	it("rewrites an old strip-everything wrapper to honor CYRUS_GH_TOKEN", () => {
+	it("rewrites an old wrapper with a fail-closed resolver fence", () => {
 		const wrapperPath = writeWrapper(OLD_WRAPPER);
 
 		expect(ensureGhWrapperSupportsCyrusToken(home)).toBe(true);
 
 		const updated = readFileSync(wrapperPath, "utf8");
-		expect(updated).toContain("CYRUS_GH_TOKEN");
-		expect(updated).toContain('GH_TOKEN="$CYRUS_GH_TOKEN"');
-		expect(updated).toContain("-u GITHUB_TOKEN");
+		expect(updated).toContain("github-auth-managed");
+		expect(updated).toContain("exit 1");
+		expect(updated).not.toContain("CYRUS_GH_TOKEN");
 		expect(statSync(wrapperPath).mode & 0o111).not.toBe(0);
 	});
 
@@ -261,6 +257,14 @@ exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
 
 		expect(ensureGhWrapperSupportsCyrusToken(home)).toBe(true);
 		expect(readFileSync(wrapperPath, "utf8")).toContain("gh-cyrus.cjs");
+	});
+
+	it("upgrades a first-generation resolver wrapper that could fall back to cached auth", () => {
+		const wrapper = writeWrapper(
+			'#!/bin/sh\nnode "$HOME/.cyrus/scripts/gh-cyrus.cjs" "$@" || exec /usr/bin/gh "$@"\n',
+		);
+		expect(ensureGhWrapperSupportsCyrusToken(home)).toBe(true);
+		expect(readFileSync(wrapper, "utf8")).toContain("Cyrus managed auth v2");
 	});
 
 	it("leaves an already-updated wrapper untouched", () => {
@@ -305,6 +309,6 @@ exec env -u GITHUB_TOKEN -u GH_TOKEN /usr/bin/gh "$@"
 		);
 
 		expect(response.success).toBe(true);
-		expect(readFileSync(wrapperPath, "utf8")).toContain("CYRUS_GH_TOKEN");
+		expect(readFileSync(wrapperPath, "utf8")).toContain("github-auth-managed");
 	});
 });

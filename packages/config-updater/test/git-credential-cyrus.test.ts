@@ -88,7 +88,7 @@ describe("git-credential-cyrus helper script", () => {
 		expect(result.stdout).toBe("username=x-access-token\npassword=ghs_match\n");
 	});
 
-	it("falls back to the single valid token when the org does not match", () => {
+	it("refuses to borrow the single token when the org does not match", () => {
 		writeTokensFile(cyrusHome, [
 			{
 				installationId: "1",
@@ -106,10 +106,10 @@ describe("git-credential-cyrus helper script", () => {
 		);
 
 		expect(result.status).toBe(0);
-		expect(result.stdout).toBe("username=x-access-token\npassword=ghs_solo\n");
+		expect(result.stdout).toBe("quit=true\n");
 	});
 
-	it("exits silently when multiple tokens exist and none match", () => {
+	it("stops subsequent helpers when multiple tokens exist and none match", () => {
 		writeTokensFile(cyrusHome, [
 			{
 				installationId: "1",
@@ -132,7 +132,7 @@ describe("git-credential-cyrus helper script", () => {
 		);
 
 		expect(result.status).toBe(0);
-		expect(result.stdout).toBe("");
+		expect(result.stdout).toBe("quit=true\n");
 		expect(result.stderr).toBe("");
 	});
 
@@ -153,7 +153,7 @@ describe("git-credential-cyrus helper script", () => {
 		);
 
 		expect(result.status).toBe(0);
-		expect(result.stdout).toBe("");
+		expect(result.stdout).toBe("quit=true\n");
 	});
 
 	it("exits silently for non-github.com hosts", () => {
