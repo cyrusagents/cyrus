@@ -5,7 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Changed
-- Added installed-package permission-contract coverage and a retained [compatibility and acceptance record](apps/f1/test-drives/2026-11-04-cypack-1621-anthropic-sdk-acceptance.md) for the Anthropic SDK update. The runtime receipt now requires ordered successful Read and Bash results and rejects post-result session write loss. ([CYPACK-1621](https://linear.app/ceedar/issue/CYPACK-1621/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest))
+- Added installed-package permission-contract coverage and a retained [compatibility and acceptance record](apps/f1/test-drives/2026-11-04-cypack-1621-anthropic-sdk-acceptance.md) for the Anthropic SDK update. The runtime receipt now requires ordered successful Read and Bash results and rejects post-result session write loss. ([CYPACK-1621](https://linear.app/ceedar/issue/CYPACK-1621/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1580](https://github.com/cyrusagents/cyrus/pull/1580))
 
 ## [0.2.75] - 2026-11-03
 

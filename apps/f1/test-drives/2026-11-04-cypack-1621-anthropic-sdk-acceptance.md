@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-04. **Status: HELD — implementation verification is complete; npm publication and authenticated runtime acceptance require restored operator credentials.**
 
-The replacement Cyrus pull request is intentionally a draft until the matching `cyrus-core` test package is published and Hosted is pinned to it. Green unit tests, option-forwarding mocks, generated tool extraction, and a stored Claude login do not substitute for those external gates.
+[cyrus#1580](https://github.com/cyrusagents/cyrus/pull/1580) is intentionally a draft until the matching `cyrus-core` test package is published and Hosted is pinned to it. Green unit tests, option-forwarding mocks, generated tool extraction, and a stored Claude login do not substitute for those external gates.
 
 ## Reviewed ranges and official sources
 
