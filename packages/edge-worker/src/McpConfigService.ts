@@ -29,6 +29,13 @@ export interface McpConfigServiceDeps {
 	getCyrusToolsMcpUrl: () => string;
 	/** Factory that creates CyrusToolsOptions with session callbacks */
 	createCyrusToolsOptions: (parentSessionId?: string) => CyrusToolsOptions;
+	/**
+	 * MCP servers a non-Linear tracker gives its sessions (e.g. Plane tools),
+	 * keyed by server name; undefined when the workspace has none.
+	 */
+	getTrackerMcpServers?: (
+		workspaceId: string,
+	) => Record<string, McpServerConfig> | undefined;
 }
 
 /**
@@ -81,6 +88,7 @@ export class McpConfigService {
 					type: "http",
 					url: "https://atcyrus.com/docs/mcp",
 				},
+				...this.deps.getTrackerMcpServers?.(linearWorkspaceId),
 			};
 			return mcpConfig;
 		}
