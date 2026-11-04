@@ -1,0 +1,38 @@
+{
+	"name": "cyrus-plane-event-transport",
+	"version": "0.2.75",
+	"description": "Plane event transport: Plane agent runs as Cyrus agent sessions",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/cyrusagents/cyrus.git",
+		"directory": "packages/plane-event-transport"
+	},
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsgo",
+		"dev": "tsgo --watch",
+		"typecheck": "tsgo --noEmit",
+		"test": "vitest",
+		"test:run": "vitest run"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.32.1",
+		"cyrus-core": "workspace:*",
+		"fastify": "^5.12.7",
+		"marked": "^16.4.2",
+		"zod": "^4.6.7"
+	},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
+		"vitest": "^4.1.12"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}
