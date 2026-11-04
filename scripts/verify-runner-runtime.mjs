@@ -4,11 +4,13 @@
 //
 // node scripts/verify-runner-runtime.mjs \
 //   /tmp/consumer/node_modules/cyrus-claude-runner \
-//   /tmp/consumer
+//   /tmp/consumer \
+//   /path/to/runtime-provenance.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { verifyRuntimeProvenance } from "./verify-runner-provenance.mjs";
 import { validateRuntimeReceipt } from "./verify-runner-runtime-receipt.mjs";
 
 const packageRoot = resolve(
@@ -17,22 +19,20 @@ const packageRoot = resolve(
 const workingDirectory = resolve(
 	process.argv[3] ?? assert.fail("Pass the clean consumer directory"),
 );
+const provenancePath = resolve(
+	process.argv[4] ?? assert.fail("Pass the retained provenance JSON path"),
+);
 const manifest = JSON.parse(
 	readFileSync(join(packageRoot, "package.json"), "utf8"),
 );
 assert.equal(manifest.name, "cyrus-claude-runner");
-
-for (const name of [
-	"ANTHROPIC_API_KEY",
-	"ANTHROPIC_AUTH_TOKEN",
-	"CLAUDE_CODE_OAUTH_TOKEN",
-]) {
-	assert.equal(
-		Object.hasOwn(process.env, name),
-		false,
-		`${name} would replace the intended existing Claude identity`,
-	);
-}
+const sourceRoot = fileURLToPath(new URL("..", import.meta.url));
+const { expected: provenance } = verifyRuntimeProvenance({
+	packageRoot,
+	provenancePath,
+	sourceRoot,
+	workingDirectory,
+});
 
 process.env.CYRUS_LOG_LEVEL = "ERROR";
 const { ClaudeRunner } = await import(
@@ -112,6 +112,12 @@ assert.equal(
 	"Bash ran in the background",
 );
 assert.ok(result, "Claude did not emit a terminal result");
+assert.ok(init, "Claude did not emit an init message");
+assert.equal(
+	init.claude_code_version,
+	provenance.installed.native.claudeCodeVersion,
+	"Runtime initialized a different Claude Code version",
+);
 assert.equal(result.subtype, "success");
 assert.equal(result.is_error, false);
 assert.equal(text, "SDK_RUNTIME_OK");
@@ -129,8 +135,27 @@ console.log(
 	JSON.stringify(
 		{
 			status: "PASS",
+			provenance: {
+				commit: provenance.source.commit,
+				pullRequest: `${provenance.source.repository}#${provenance.source.pullRequest}`,
+				runnerTarballSha256: provenance.artifacts.runner.sha256,
+				coreTarballSha256: provenance.artifacts.core.sha256,
+				consumerLockSha256: provenance.artifacts.consumerLock.sha256,
+				nativeExecutableSha256: provenance.installed.native.executableSha256,
+			},
 			package: `${manifest.name}@${manifest.version}`,
-			workingDirectory,
+			installed: {
+				agentSdk: `${provenance.installed.agentSdk.name}@${provenance.installed.agentSdk.version}`,
+				apiSdk: `${provenance.installed.apiSdk.name}@${provenance.installed.apiSdk.version}`,
+				native: `${provenance.installed.native.name}@${provenance.installed.native.version}`,
+			},
+			identity: {
+				accountEmailSha256: provenance.identity.accountEmailSha256,
+				apiProvider: provenance.identity.apiProvider,
+				authMethod: provenance.identity.authMethod,
+				osUser: provenance.identity.osUser,
+				subscriptionType: provenance.identity.subscriptionType,
+			},
 			sessionId: runner.getSessionInfo()?.sessionId,
 			claudeCodeVersion: init?.claude_code_version,
 			model: result.modelUsage ? Object.keys(result.modelUsage) : undefined,

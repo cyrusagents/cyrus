@@ -22,6 +22,8 @@ The review used the official [Agent SDK history](https://github.com/anthropics/c
 - **Post-result write loss invalidates acceptance.** The runtime verifier rejects `session_writes_lost`, even if a final result was already emitted.
 - **The removed `file_unchanged` Read output is unused.** Cyrus has no branch for it, and the live receipt requires an ordinary successful `Read(package.json)` result.
 - **Settings and sandbox changes retain Cyrus's explicit policy.** All three settings sources remain enabled, while the EdgeWorker supplies the worktree, approved writable roots, filesystem restrictions, proxy ports, and `allowUnsandboxedCommands: false` when its sandbox is active.
+- **The wider `deniedMcpServers` URL matching applies to every settings source Cyrus loads.** [Claude Code 2.1.318](https://github.com/anthropics/claude-code/releases/tag/v2.1.318) now applies a denied URL to Anthropic-provided servers with the same upstream URL and to cloud/self-hosted connectors with a supplied URL (falling back to connector name otherwise). Both `ClaudeRunner.start()` and EdgeWorker warmup load `user`, `project`, and `local` settings; the EdgeWorker-created local file only sets `includeCoAuthoredBy`. Cyrus does not rewrite `deniedMcpServers`, so an operator deny in any loaded settings source now has the wider upstream effect. `strictMcpConfig` still controls whether non-explicit MCP sources can load; it does not erase those loaded settings. This upstream security tightening is accepted.
+- **Old-session resume no longer preserves pre-2.1.287 thinking.** [Claude Code 2.1.318](https://github.com/anthropics/claude-code/releases/tag/v2.1.318) removed the compatibility fix that preserved earlier thinking when resuming conversations begun on 2.1.286 or older. EdgeWorker warmup passes the persisted `session.claudeSessionId` directly to `startup()`, while normal resume selects that same stored ID and `RunnerConfigBuilder` forwards it to `ClaudeRunner`, which passes it as the SDK `resume` option. Cyrus stores and forwards the session ID but does not persist or reconstruct Claude's thinking blocks, so those old blocks may be dropped on resume. No Cyrus shim is added; visible messages and tool state remain the supported continuity boundary.
 - **Hosted preserves its API client contract across SDK 1.x.** It supplies exactly one API-key credential, uses Bearer authentication and API version `2026-10-21`, and disables SDK-native OpenTelemetry traces and propagation so Sentry remains the application tracing owner.
 - **API SDK 1.4 additions do not expand Hosted call paths.** Hosted uses the SDK only for its Messages validation request and does not call the new analytics, spend-limit, or RBAC surfaces.
 
@@ -42,7 +44,18 @@ Agent SDK `0.3.318` additionally exposes credential expiry, invalid-config start
 - clean packed-consumer installation with lifecycle scripts disabled
 - installed-package permission contract: PASS for all seven configurations
 
-The clean consumer was assembled under `/private/tmp/cypack-1621-runtime-fixture` from the current branch. It is deliberately temporary and contains no retained credentials.
+The clean consumer was assembled under `/private/tmp/cypack-1621-runtime-fixture` from the current branch. A credential-free copy is retained at `/Users/agentops/.cyrus/CYPACK-1621/attachments/retained-runtime-fixture`; prior runtime receipt/session output is excluded. Its safe provenance record contains only source/artifact digests, installed package names and versions, the native executable digest/version, and selected identity fields (`osUser`, login state, auth method, API provider, an account-email digest, and subscription type). It contains no configuration, raw email address, environment values, access tokens, or OAuth material.
+
+The verifier recomputes and requires all of the following before it may contact the provider:
+
+- the local commit is the live head of `cyrusagents/cyrus#1580`, with no tracked changes;
+- packed runner SHA-256 `cc6162660d4e8ee1461d1d20641b0437478516ea19876eda4b2727889047362f` and core SHA-256 `a361bab54d3e02093155eba1a7ed569704ce9ffb22cd9626f280755183e2ef07`, plus their extracted trees matching the installed package trees;
+- retained consumer lock SHA-256 `e7a21dfbb0f2163791cf90ac84a9454b27a86d196d153828bff036587fd9ddb2`;
+- `cyrus-claude-runner@0.2.75`, `cyrus-core@0.2.75`, `@anthropic-ai/claude-agent-sdk@0.3.318`, `@anthropic-ai/sdk@1.4.0`, and `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.318`;
+- Claude Code `2.1.318` and native executable SHA-256 `677a2ea7bf576cedd20e191d973914ed8a41796f53a63b1923381ddc4d5b5e7d`;
+- OS user `agentops`, `claude.ai` authentication, `firstParty` provider, the SHA-256 account identifier for the existing owner, and `max` subscription, with no provider/account override environment variable.
+
+The final-head provenance JSON is generated outside the repository after the final commit, avoiding a self-referential commit hash. `scripts/verify-runner-provenance.mjs` validates it independently without starting a provider request. The authenticated verifier additionally requires the init event to report Claude Code `2.1.318`; logging an optional runtime version is not sufficient.
 
 ## External gates still held
 
@@ -59,7 +72,7 @@ The publication must use the existing authorized npm owner. After it succeeds, H
 
 The exact `0.3.318` installed runtime reached the provider but returned `401 OAuth access token has expired` before either required tool ran. No login, credential read, account/provider change, or retry under another identity was performed.
 
-After the same operator deliberately restores Claude authentication, `scripts/verify-runner-runtime.mjs` must produce, in order:
+After the same operator deliberately restores Claude authentication, `scripts/verify-runner-runtime.mjs` must first pass the exact provenance preflight above, then produce, in order:
 
 1. a successful installed-package `Read(package.json)` result;
 2. a successful foreground `Bash(pwd)` result with timeout exactly `10000`;
