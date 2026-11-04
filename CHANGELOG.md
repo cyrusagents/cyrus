@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Plane support: assign the Cyrus app to a [Plane](https://plane.so) work item and it works the whole item, as with a Linear delegation; mention it in a comment to ask or instruct it. Progress, questions and replies show on the Plane agent run, and follow-up replies in the run's thread reach the running session. Because Plane only shows an agent's progress on paid plans, the agent also keeps a short "Working on it" reply in its thread while it works and removes it when it answers. Sessions get Plane tools to read the work item, download its attachments, comment and mention people, attach the pull requests they open, and change its state. Uses Plane's agent apps, available on Plane Cloud and self-hosted Plane Commercial Edition (including its free plan); enable it with the `PLANE_*` settings described in [docs/PLANE.md](docs/PLANE.md).
+
 ## [0.2.75] - 2026-11-03
 
 _v0.2.74 was prepared but never published to npm. Its changes, listed under 0.2.74 below, are first published in this release._
