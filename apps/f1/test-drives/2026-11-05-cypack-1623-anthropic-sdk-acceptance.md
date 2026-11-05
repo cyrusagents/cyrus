@@ -16,7 +16,7 @@ An [independent exact-head review](https://github.com/cyrusagents/cyrus/pull/158
 
 ## Compatibility dispositions
 
-- **Manual permissions remain explicit on cold and warm sessions.** `ClaudeRunner` passes `permissionMode: "default"` alongside Cyrus's configured allow/deny lists and `canUseTool` callback, and `EdgeWorker` supplies the same mode when it starts an opt-in `WarmQuery`. The warm handle executes the first attached prompt directly, so this startup invariant prevents loaded `permissions.defaultMode: "auto"` or `"acceptEdits"` settings from changing Cyrus's policy. The installed-package contract covers first-party, Bedrock, Vertex, Foundry, Mantle, and telemetry-disabled configurations; the focused warm-session regression covers startup and attached-query handling.
+- **Manual permissions remain explicit.** `ClaudeRunner.start()` passes `permissionMode: "default"` on cold queries alongside Cyrus's configured allow/deny lists and `canUseTool` callback. `EdgeWorker.warmupRecentSessions()` also passes that mode explicitly to `startup()`: an attached `warmSession.query(prompt)` does not receive the cold query options. This prevents loaded `permissions.defaultMode: "auto"` or `"acceptEdits"` from selecting a different mode on either path; explicit deny rules remain a separate control. The installed-package contract covers first-party, Bedrock, Vertex, Foundry, Mantle, and telemetry-disabled configurations.
 - **Default-on fork subagents are accepted.** Cyrus does not inject `CLAUDE_CODE_FORK_SUBAGENT=0`; forks inherit the parent session's tools, permissions, hooks, settings, and sandbox.
 - **Unknown-provider model behavior and the signed provider catalog are accepted.** Cyrus preserves `model` and `fallbackModel`, adds no provider fallback opt-outs, and leaves catalog reachability to the host's outer network policy.
 - **Upstream hook concurrency and compaction precedence are accepted.** Cyrus forwards caller hooks and adds its lifecycle/guardrail hooks without changing upstream concurrency or compaction limits.
@@ -58,6 +58,23 @@ The verifier recomputes and requires all of the following before it may contact 
 - OS user `agentops`, `claude.ai` authentication, `firstParty` provider, the SHA-256 account identifier for the existing owner, and `max` subscription, with no provider/account override environment variable.
 
 The final-head provenance JSON is generated outside the repository after the final commit, avoiding a self-referential commit hash. `scripts/verify-runner-provenance.mjs` validates it independently without starting a provider request. The authenticated verifier additionally requires the init event to report Claude Code `2.1.318`; logging an optional runtime version is not sufficient.
+
+## Warm-session review revision
+
+The focused `packages/edge-worker/test/EdgeWorker.warm-session-permission-mode.test.ts` regression runs the real EdgeWorker warmup and attachment methods and `ClaudeRunner.start()`, with both SDK entry points mocked. For each project and local settings fixture (`permissions.defaultMode: "auto"` and `"acceptEdits"`), the mock reads the fixture when settings sources are supplied and the test verifies:
+
+- `startup()` receives explicit `permissionMode: "default"`, the persisted resume ID, and the configured allow/deny lists;
+- with `CYRUS_ENABLE_WARM_SESSIONS=1`, EdgeWorker consumes the stored warm instance and attaches it to the runner;
+- the attached runner calls that instance's `query(prompt)` without falling through to the cold SDK query;
+- a cold resumed runner separately supplies `permissionMode: "default"` and the persisted resume ID.
+
+The two project-settings cases failed on the missing startup option before the fix and pass with it; the same matrix also covers local settings. This establishes option propagation without a provider request; it does not claim to test SDK permission enforcement or satisfy the authenticated receipt. The F1 protocol remains applicable to session continuation and activity output, but end-to-end execution remains held by the previously documented expired owner authentication. No unrelated F1 drive is substituted.
+
+Revision checks: `pnpm build`, `pnpm typecheck`, `pnpm test:packages:run` (including the four-case settings matrix), `pnpm lint` (14 existing warnings), and `pnpm audit --audit-level low` (zero advisories). These checks must also pass on the final committed head. A fresh isolated consumer at `/private/tmp/pr1583-packed-consumer` installs freshly packed core/runner tarballs with lifecycle scripts disabled; both tarball SHA-256 values match the retained values above because this revision changes only EdgeWorker runtime code. Its seven-configuration installed permission contract passes. The existing tool inventory is unchanged; this revision does not change the SDK pins or tool lists and makes no new provider request for extraction or option propagation.
+
+The final-head provenance JSON and check logs are retained outside the repository to avoid embedding a self-referential commit hash. That preflight verifies the installed core/runner artifacts; it does not exercise the changed EdgeWorker warmup path, which is covered by the focused regression above.
+
+The npm owner check was repeated for this revision and still returned `E401`; registry tags remain `latest=0.2.75` and `test=0.2.75-test.13`. The exact prerelease remains unpublished, the Hosted companion remains absent, and the authenticated ordered Read → foreground Bash → SDK_RUNTIME_OK → non-error result/clean stop receipt remains missing. The PR remains draft.
 
 ## External gates still held
 

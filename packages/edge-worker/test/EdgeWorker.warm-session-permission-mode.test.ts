@@ -7,123 +7,168 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { WarmQuery } from "@anthropic-ai/claude-agent-sdk";
-import { query, startup } from "@anthropic-ai/claude-agent-sdk";
-import { ClaudeRunner } from "cyrus-claude-runner";
+import {
+	type Options,
+	query,
+	startup,
+	type WarmQuery,
+} from "@anthropic-ai/claude-agent-sdk";
+import { ClaudeRunner, type ClaudeRunnerConfig } from "cyrus-claude-runner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EdgeWorker } from "../src/EdgeWorker.js";
 
-vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
-	query: vi.fn(),
+vi.mock("@anthropic-ai/claude-agent-sdk", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@anthropic-ai/claude-agent-sdk")>()),
 	startup: vi.fn(),
+	query: vi.fn(),
 }));
 
-vi.mock("node:fs", async (importOriginal) => ({
-	...(await importOriginal<typeof import("node:fs")>()),
-	createWriteStream: vi.fn(() => ({
-		write: vi.fn(),
-		end: vi.fn(),
-		on: vi.fn(),
-	})),
-}));
+// This is an option-propagation contract at the SDK boundary, not a claim
+// about SDK permission enforcement. Both entry points are mocked: no provider
+// request is needed to detect an omitted permissionMode.
+describe("warm-session manual permission policy", () => {
+	let fixture: string;
+	const runners: ClaudeRunner[] = [];
 
-const roots: string[] = [];
+	afterEach(() => {
+		for (const runner of runners.splice(0)) runner.stop();
+		vi.unstubAllEnvs();
+		vi.restoreAllMocks();
+		vi.resetAllMocks();
+		if (fixture) rmSync(fixture, { recursive: true, force: true });
+	});
 
-afterEach(() => {
-	vi.clearAllMocks();
-	for (const root of roots.splice(0)) {
-		rmSync(root, { force: true, recursive: true });
-	}
-});
-
-describe("EdgeWorker warm-session permission policy", () => {
-	it("keeps default mode through startup and the attached query when settings request auto modes", async () => {
-		const root = mkdtempSync(join(tmpdir(), "cyrus-warm-permission-mode-"));
-		roots.push(root);
-		mkdirSync(join(root, ".claude"));
-		const settingsPath = join(root, ".claude", "settings.json");
-		const localSettingsPath = join(root, ".claude", "settings.local.json");
+	it.each(
+		["auto", "acceptEdits"].flatMap((defaultMode) =>
+			["settings.json", "settings.local.json"].map((settingsFile) => ({
+				defaultMode,
+				settingsFile,
+			})),
+		),
+	)("supplies default at warm startup and cold query with $defaultMode in $settingsFile", async ({
+		defaultMode,
+		settingsFile,
+	}) => {
+		// Logging is unrelated to this SDK boundary contract.
+		vi.spyOn(ClaudeRunner.prototype as any, "setupLogging").mockImplementation(
+			() => {},
+		);
+		fixture = mkdtempSync(join(tmpdir(), "cyrus-warm-permissions-"));
+		const settingsDir = join(fixture, ".claude");
+		mkdirSync(settingsDir);
+		const settingsPath = join(settingsDir, settingsFile);
 		writeFileSync(
 			settingsPath,
-			JSON.stringify({ permissions: { defaultMode: "auto" } }),
+			JSON.stringify({ permissions: { defaultMode } }),
 		);
-		writeFileSync(
-			localSettingsPath,
-			JSON.stringify({ permissions: { defaultMode: "acceptEdits" } }),
-		);
+		vi.stubEnv("CYRUS_ENABLE_WARM_SESSIONS", "1");
+		vi.stubEnv("CYRUS_LOG_LEVEL", "ERROR");
 
-		const attachedQuery = vi.fn(async function* () {});
-		const warmQuery = {
-			query: attachedQuery,
-			close: vi.fn(),
-			[Symbol.asyncDispose]: vi.fn(),
-		} as unknown as WarmQuery;
-		vi.mocked(startup).mockResolvedValue(warmQuery);
+		const loadedModes: string[] = [];
+		const captureSettings = (options: Options) => {
+			expect(options.cwd).toBe(fixture);
+			expect(options.settingSources).toEqual(["user", "project", "local"]);
+			// Model loading project/local settings at each mocked SDK entry.
+			const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+			loadedModes.push(settings.permissions.defaultMode);
+		};
+		const warmQuery = vi.fn(() => (async function* () {})());
+		const warm = { query: warmQuery, close: vi.fn() } as unknown as WarmQuery;
+		vi.mocked(startup).mockImplementation(async ({ options }) => {
+			captureSettings(options!);
+			return warm;
+		});
+		vi.mocked(query).mockImplementation(({ options }) => {
+			captureSettings(options!);
+			return (async function* () {})() as ReturnType<typeof query>;
+		});
 
+		const repo = { id: "repo", name: "test", linearWorkspaceId: "workspace" };
 		const session = {
-			id: "agent-session-1",
-			claudeSessionId: "claude-session-1",
-			workspace: { path: root },
+			id: "agent-session",
+			claudeSessionId: "persisted-claude-session",
+			workspace: { path: fixture },
 			updatedAt: 1,
-			issueContext: { issueIdentifier: "CYPACK-1623" },
 		};
-		const repository = {
-			id: "repo-1",
-			name: "Cyrus",
-			linearWorkspaceId: "workspace-1",
-		};
-		const worker = Object.create(EdgeWorker.prototype) as EdgeWorker &
-			Record<string, any>;
-		worker.agentSessionManager = {
-			getAllSessions: vi.fn(() => [session]),
-		};
-		worker.sessionRepositories = new Map([[session.id, repository.id]]);
-		worker.repositories = new Map([[repository.id, repository]]);
-		worker.mcpConfigService = {
-			buildMcpConfig: vi.fn(() => ({})),
-			buildMergedMcpConfigPath: vi.fn(() => undefined),
-		};
-		worker.config = { linearMcpConfigs: [], strictMcpConfig: true };
-		worker.warmInstances = new Map();
-		worker.logger = {
-			debug: vi.fn(),
-			info: vi.fn(),
-		};
-		worker.buildAllowedTools = vi.fn(() => ["Read", "Bash(pwd)"]);
-		worker.buildDisallowedTools = vi.fn(() => ["Write"]);
-
-		await worker.warmupRecentSessions(1);
-
-		expect(startup).toHaveBeenCalledExactlyOnceWith({
-			options: expect.objectContaining({
-				resume: session.claudeSessionId,
-				cwd: root,
-				permissionMode: "default",
-				settingSources: ["user", "project", "local"],
-				allowedTools: ["Read", "Bash(pwd)"],
-				disallowedTools: ["Write"],
-			}),
-		});
-		expect(worker.warmInstances.get(session.id)).toBe(warmQuery);
-
-		const runner = new ClaudeRunner({
-			workingDirectory: root,
-			cyrusHome: root,
-			warmSession: worker.warmInstances.get(session.id),
-			allowedTools: ["Read", "Bash(pwd)"],
+		const config: ClaudeRunnerConfig = {
+			workingDirectory: fixture,
+			cyrusHome: fixture,
+			allowedTools: ["Read"],
 			disallowedTools: ["Write"],
+			resumeSessionId: session.claudeSessionId,
+		};
+		const logger = { debug: vi.fn(), info: vi.fn(), withContext: vi.fn() };
+		logger.withContext.mockReturnValue(logger);
+		// Isolate warmup/attachment from unrelated webhook and server setup,
+		// but execute the real EdgeWorker methods and real ClaudeRunner.start.
+		const worker = Object.assign(Object.create(EdgeWorker.prototype), {
+			config: {},
+			cyrusHome: fixture,
+			logger,
+			agentSessionManager: { getAllSessions: () => [session] },
+			sessionRepositories: new Map([[session.id, repo.id]]),
+			repositories: new Map([[repo.id, repo]]),
+			warmInstances: new Map(),
+			mcpConfigService: {
+				buildMcpConfig: () => ({}),
+				buildMergedMcpConfigPath: vi.fn(),
+			},
+			buildAllowedTools: () => config.allowedTools,
+			buildDisallowedTools: () => config.disallowedTools,
+			skillsPluginResolver: {
+				resolve: async () => [],
+				discoverSkillNames: async () => [],
+			},
+			runnerConfigBuilder: {
+				buildIssueConfig: () => ({
+					config: { ...config },
+					runnerType: "claude",
+				}),
+			},
 		});
-		await runner.start("Use the attached warm query");
 
-		expect(attachedQuery).toHaveBeenCalledExactlyOnceWith(
-			"Use the attached warm query",
+		await worker.warmupRecentSessions();
+		expect(startup).toHaveBeenCalledTimes(1);
+		const startupOptions = vi.mocked(startup).mock.calls[0]![0].options!;
+		expect(startupOptions.permissionMode).toBe("default");
+		expect(startupOptions.resume).toBe(session.claudeSessionId);
+		expect(startupOptions.allowedTools).toEqual(["Read"]);
+		expect(startupOptions.disallowedTools).toEqual(["Write"]);
+		expect(worker.warmInstances.get(session.id)).toBe(warm);
+
+		const attached = await worker.buildAgentRunnerConfig(
+			session,
+			repo,
+			session.id,
+			undefined,
+			["Read"],
+			[],
+			["Write"],
+			session.claudeSessionId,
+			undefined,
+			undefined,
+			undefined,
+			"workspace",
+			{ repositoryId: repo.id, repoPaths: [fixture] },
 		);
+		expect(attached.config.warmSession).toBe(warm);
+		expect(worker.warmInstances.has(session.id)).toBe(false);
+		const warmRunner = new ClaudeRunner(attached.config);
+		runners.push(warmRunner);
+		await warmRunner.start("Resume warm session");
+		expect(warmQuery).toHaveBeenCalledExactlyOnceWith("Resume warm session");
 		expect(query).not.toHaveBeenCalled();
-		expect(JSON.parse(readFileSync(settingsPath, "utf8"))).toEqual({
-			permissions: { defaultMode: "auto" },
-		});
-		expect(JSON.parse(readFileSync(localSettingsPath, "utf8"))).toEqual({
-			permissions: { defaultMode: "acceptEdits" },
-		});
+		expect(warmRunner.isRunning()).toBe(false);
+
+		const coldRunner = new ClaudeRunner(config);
+		runners.push(coldRunner);
+		await coldRunner.start("Resume cold session");
+		expect(query).toHaveBeenCalledTimes(1);
+		const coldCall = vi.mocked(query).mock.calls[0]![0];
+		expect(coldCall.prompt).toBe("Resume cold session");
+		expect(coldCall.options?.permissionMode).toBe("default");
+		expect(coldCall.options?.resume).toBe(session.claudeSessionId);
+		expect(coldRunner.isRunning()).toBe(false);
+		expect(loadedModes).toEqual([defaultMode, defaultMode]);
 	});
 });
