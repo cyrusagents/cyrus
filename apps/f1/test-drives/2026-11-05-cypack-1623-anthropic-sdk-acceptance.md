@@ -12,6 +12,8 @@
 
 The review used the official [Agent SDK history](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md), [Claude Code history](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md), and [API SDK history](https://github.com/anthropics/anthropic-sdk-typescript/blob/main/CHANGELOG.md).
 
+An [independent exact-head review](https://github.com/cyrusagents/cyrus/pull/1583#pullrequestreview-5787999783) of `c8564ebd302853b1b0336ed88a31d32c414363b4` identified that opt-in warm sessions also need the explicit manual permission mode at `startup()`, because their attached first query bypasses `ClaudeRunner.start()` option construction. The correction and focused regression below close that compatibility gap without a provider call.
+
 ## Compatibility dispositions
 
 - **Manual permissions remain explicit on cold and warm sessions.** `ClaudeRunner` passes `permissionMode: "default"` alongside Cyrus's configured allow/deny lists and `canUseTool` callback, and `EdgeWorker` supplies the same mode when it starts an opt-in `WarmQuery`. The warm handle executes the first attached prompt directly, so this startup invariant prevents loaded `permissions.defaultMode: "auto"` or `"acceptEdits"` settings from changing Cyrus's policy. The installed-package contract covers first-party, Bedrock, Vertex, Foundry, Mantle, and telemetry-disabled configurations; the focused warm-session regression covers startup and attached-query handling.
