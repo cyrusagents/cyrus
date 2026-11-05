@@ -7,7 +7,7 @@ const expectedProvenance = () => ({
 	artifacts: {
 		consumerLock: {
 			sha256:
-				"e7a21dfbb0f2163791cf90ac84a9454b27a86d196d153828bff036587fd9ddb2",
+				"aab96b4a73ab8ceef592814246e9944b686c9be3d72991ced010055b1e2259ab",
 		},
 		core: {
 			path: "packages/cyrus-core-0.2.75.tgz",
@@ -18,7 +18,7 @@ const expectedProvenance = () => ({
 		runner: {
 			path: "packages/cyrus-claude-runner-0.2.75.tgz",
 			sha256:
-				"cc6162660d4e8ee1461d1d20641b0437478516ea19876eda4b2727889047362f",
+				"91f5ed141cd8ef2c344408fc32b94f0c7327c2d04388734e0c8bf7e460186ced",
 			treeSha256,
 		},
 	},
@@ -47,7 +47,7 @@ const expectedProvenance = () => ({
 	schemaVersion: 1,
 	source: {
 		commit,
-		pullRequest: 1580,
+		pullRequest: 1583,
 		repository: "cyrusagents/cyrus",
 	},
 });
@@ -76,7 +76,7 @@ const observedProvenance = (expected) => ({
 	source: {
 		commit,
 		prHead: commit,
-		pullRequest: 1580,
+		pullRequest: 1583,
 		repository: "cyrusagents/cyrus",
 		trackedClean: true,
 	},

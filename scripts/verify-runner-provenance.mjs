@@ -18,11 +18,11 @@ const FULL_GIT_SHA = /^[a-f0-9]{40}$/;
 const REQUIRED_PROVENANCE = {
 	artifacts: {
 		consumerLockSha256:
-			"e7a21dfbb0f2163791cf90ac84a9454b27a86d196d153828bff036587fd9ddb2",
+			"aab96b4a73ab8ceef592814246e9944b686c9be3d72991ced010055b1e2259ab",
 		coreSha256:
 			"a361bab54d3e02093155eba1a7ed569704ce9ffb22cd9626f280755183e2ef07",
 		runnerSha256:
-			"cc6162660d4e8ee1461d1d20641b0437478516ea19876eda4b2727889047362f",
+			"91f5ed141cd8ef2c344408fc32b94f0c7327c2d04388734e0c8bf7e460186ced",
 	},
 	identity: {
 		accountEmailSha256:
@@ -42,7 +42,7 @@ const REQUIRED_PROVENANCE = {
 			"677a2ea7bf576cedd20e191d973914ed8a41796f53a63b1923381ddc4d5b5e7d",
 		runner: ["cyrus-claude-runner", "0.2.75"],
 	},
-	source: { pullRequest: 1580, repository: "cyrusagents/cyrus" },
+	source: { pullRequest: 1583, repository: "cyrusagents/cyrus" },
 };
 
 function run(command, args, options = {}) {

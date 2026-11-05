@@ -1,8 +1,8 @@
-# CYPACK-1621 Anthropic SDK compatibility and runtime acceptance
+# CYPACK-1623 Anthropic SDK compatibility and runtime acceptance
 
-**Date:** 2026-11-04. **Status: HELD — implementation verification is complete; npm publication and authenticated runtime acceptance require restored operator credentials.**
+**Date:** 2026-11-05. **Status: IN PROGRESS — implementation verification is complete; npm publication, Hosted pinning, and final installed-package checks are pending.**
 
-[cyrus#1580](https://github.com/cyrusagents/cyrus/pull/1580) is intentionally a draft until the matching `cyrus-core` test package is published and Hosted is pinned to it. Green unit tests, option-forwarding mocks, generated tool extraction, and a stored Claude login do not substitute for those external gates.
+[cyrus#1583](https://github.com/cyrusagents/cyrus/pull/1583) supersedes closed predecessor #1580 and remains a draft until the matching `cyrus-core` test package is published and Hosted is pinned to it. Green unit tests, option-forwarding mocks, generated tool extraction, and a stored Claude login do not substitute for those external gates.
 
 ## Reviewed ranges and official sources
 
@@ -44,13 +44,13 @@ Agent SDK `0.3.318` additionally exposes credential expiry, invalid-config start
 - clean packed-consumer installation with lifecycle scripts disabled
 - installed-package permission contract: PASS for all seven configurations
 
-The clean consumer was assembled under `/private/tmp/cypack-1621-runtime-fixture` from the current branch. A credential-free copy is retained at `/Users/agentops/.cyrus/CYPACK-1621/attachments/retained-runtime-fixture`; prior runtime receipt/session output is excluded. Its safe provenance record contains only source/artifact digests, installed package names and versions, the native executable digest/version, and selected identity fields (`osUser`, login state, auth method, API provider, an account-email digest, and subscription type). It contains no configuration, raw email address, environment values, access tokens, or OAuth material.
+The clean consumer is assembled under `/private/tmp/cypack-1623-runtime-fixture-v2` from the current branch. A credential-free copy will be retained in the CYPACK-1623 attachments directory; runtime receipt/session output is excluded. Its safe provenance record contains only source/artifact digests, installed package names and versions, the native executable digest/version, and selected identity fields (`osUser`, login state, auth method, API provider, an account-email digest, and subscription type). It contains no configuration, raw email address, environment values, access tokens, or OAuth material.
 
 The verifier recomputes and requires all of the following before it may contact the provider:
 
-- the local commit is the live head of `cyrusagents/cyrus#1580`, with no tracked changes;
-- packed runner SHA-256 `cc6162660d4e8ee1461d1d20641b0437478516ea19876eda4b2727889047362f` and core SHA-256 `a361bab54d3e02093155eba1a7ed569704ce9ffb22cd9626f280755183e2ef07`, plus their extracted trees matching the installed package trees;
-- retained consumer lock SHA-256 `e7a21dfbb0f2163791cf90ac84a9454b27a86d196d153828bff036587fd9ddb2`;
+- the local commit is the live head of `cyrusagents/cyrus#1583`, with no tracked changes;
+- packed runner SHA-256 `91f5ed141cd8ef2c344408fc32b94f0c7327c2d04388734e0c8bf7e460186ced` and core SHA-256 `a361bab54d3e02093155eba1a7ed569704ce9ffb22cd9626f280755183e2ef07`, plus their extracted trees matching the installed package trees;
+- retained consumer lock SHA-256 `aab96b4a73ab8ceef592814246e9944b686c9be3d72991ced010055b1e2259ab`;
 - `cyrus-claude-runner@0.2.75`, `cyrus-core@0.2.75`, `@anthropic-ai/claude-agent-sdk@0.3.318`, `@anthropic-ai/sdk@1.5.0`, and `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.318`;
 - Claude Code `2.1.318` and native executable SHA-256 `677a2ea7bf576cedd20e191d973914ed8a41796f53a63b1923381ddc4d5b5e7d`;
 - OS user `agentops`, `claude.ai` authentication, `firstParty` provider, the SHA-256 account identifier for the existing owner, and `max` subscription, with no provider/account override environment variable.
@@ -70,9 +70,7 @@ The publication must use the existing authorized npm owner. After it succeeds, H
 
 ### Authenticated installed-package receipt
 
-The exact `0.3.318` installed runtime reached the provider but returned `401 OAuth access token has expired` before either required tool ran. No login, credential read, account/provider change, or retry under another identity was performed.
-
-After the same operator deliberately restores Claude authentication, `scripts/verify-runner-runtime.mjs` must first pass the exact provenance preflight above, then produce, in order:
+After the final source commit is pushed, `scripts/verify-runner-runtime.mjs` must first pass the exact provenance preflight above, then produce, in order:
 
 1. a successful installed-package `Read(package.json)` result;
 2. a successful foreground `Bash(pwd)` result with timeout exactly `10000`;
