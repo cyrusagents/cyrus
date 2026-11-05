@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { execSync } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { LinearClient } from "@linear/sdk";
@@ -143,6 +143,12 @@ import {
 } from "cyrus-mcp-tools";
 import { OpenCodeRunner } from "cyrus-opencode-runner";
 import {
+	PlaneAgentRunCoordinator,
+	PlaneApiClient,
+	PlaneEventTransport,
+	PlaneIssueTrackerService,
+} from "cyrus-plane-event-transport";
+import {
 	SlackEventTransport,
 	type SlackWebhookEvent,
 } from "cyrus-slack-event-transport";
@@ -233,6 +239,8 @@ export class EdgeWorker extends EventEmitter {
 	private gitLabEventTransport: GitLabEventTransport | null = null; // GitLab event transport for forwarded GitLab webhooks
 	private slackEventTransport: SlackEventTransport | null = null;
 	private zulipEventTransport: ZulipEventTransport | null = null;
+	private planeIssueTracker: PlaneIssueTrackerService | null = null; // Plane agent runs (PLANE_* env vars)
+	private planeEventTransport: PlaneEventTransport | null = null;
 	private zulipChatSessionHandler: ChatSessionHandler<ZulipWebhookEvent> | null =
 		null;
 	private chatSessionHandler: ChatSessionHandler<SlackWebhookEvent> | null =
@@ -561,6 +569,16 @@ export class EdgeWorker extends EventEmitter {
 			}
 		}
 
+		// Plane is configured by env vars; its repositories use the tracker's
+		// workspace key as their linearWorkspaceId.
+		this.planeIssueTracker = this.createPlaneIssueTracker();
+		if (this.planeIssueTracker) {
+			this.issueTrackers.set(
+				this.planeIssueTracker.workspaceKey,
+				this.planeIssueTracker,
+			);
+		}
+
 		// Create activity sinks per workspace (one per workspace, mirrors issueTrackers)
 		for (const [workspaceId, issueTracker] of this.issueTrackers) {
 			this.activitySinks.set(
@@ -611,6 +629,10 @@ export class EdgeWorker extends EventEmitter {
 			getCyrusToolsMcpUrl: () => this.getCyrusToolsMcpUrl(),
 			createCyrusToolsOptions: (parentSessionId) =>
 				this.createCyrusToolsOptions(parentSessionId),
+			getTrackerMcpServers: (workspaceId) =>
+				this.planeIssueTracker?.workspaceKey === workspaceId
+					? { plane: this.planeIssueTracker.toolsMcpServerConfig() }
+					: undefined,
 		});
 		this.runnerConfigBuilder = new RunnerConfigBuilder(
 			this.toolPermissionResolver,
@@ -896,6 +918,7 @@ export class EdgeWorker extends EventEmitter {
 		this.registerGitLabEventTransport();
 		this.registerSlackEventTransport();
 		this.registerZulipEventTransport();
+		this.registerPlaneEventTransport();
 
 		// 3. Create and register ConfigUpdater (both platforms)
 		this.configUpdater = new ConfigUpdater(
@@ -1181,6 +1204,107 @@ export class EdgeWorker extends EventEmitter {
 	> {
 		return [this.chatSessionHandler, this.zulipChatSessionHandler].filter(
 			(handler) => handler !== null,
+		);
+	}
+
+	/**
+	 * Plane (self-hosted or cloud) agent runs. Enabled when PLANE_BASE_URL,
+	 * PLANE_WORKSPACE_SLUG, PLANE_CLIENT_ID and PLANE_CLIENT_SECRET are set.
+	 * The app installation id comes from PLANE_APP_INSTALLATION_ID, or from
+	 * the OAuth install redirect (saved to <cyrusHome>/plane-installation.json).
+	 */
+	private createPlaneIssueTracker(): PlaneIssueTrackerService | null {
+		const baseUrl = process.env.PLANE_BASE_URL?.trim().replace(/\/+$/, "");
+		const workspaceSlug = process.env.PLANE_WORKSPACE_SLUG?.trim();
+		const clientId = process.env.PLANE_CLIENT_ID?.trim();
+		const clientSecret = process.env.PLANE_CLIENT_SECRET?.trim();
+		if (!baseUrl || !workspaceSlug || !clientId || !clientSecret) {
+			return null;
+		}
+		const appInstallationId =
+			process.env.PLANE_APP_INSTALLATION_ID?.trim() ||
+			this.readPlaneInstallations()[workspaceSlug] ||
+			"";
+		const api = new PlaneApiClient({
+			baseUrl,
+			workspaceSlug,
+			clientId,
+			clientSecret,
+			appInstallationId,
+		});
+		return new PlaneIssueTrackerService(api, `plane-${workspaceSlug}`);
+	}
+
+	private planeInstallationsPath(): string {
+		return join(this.cyrusHome, "plane-installation.json");
+	}
+
+	private readPlaneInstallations(): Record<string, string> {
+		try {
+			return JSON.parse(readFileSync(this.planeInstallationsPath(), "utf8"));
+		} catch {
+			return {};
+		}
+	}
+
+	/**
+	 * Register the Plane webhook (agent runs) and OAuth install routes, if
+	 * Plane is configured. Plane's agent events become Linear-shaped agent
+	 * session webhooks, so they go through the same handling as Linear's.
+	 */
+	private registerPlaneEventTransport(): void {
+		const tracker = this.planeIssueTracker;
+		if (!tracker) {
+			return;
+		}
+		const webhookSecret = process.env.PLANE_WEBHOOK_SECRET?.trim() || "";
+		if (!webhookSecret) {
+			this.logger.warn(
+				"PLANE_WEBHOOK_SECRET is not set: Plane webhooks are accepted unsigned. Only do this on a local test instance.",
+			);
+		}
+
+		const coordinator = new PlaneAgentRunCoordinator({
+			tracker,
+			isKnownSession: (runId) =>
+				Boolean(this.agentSessionManager.getSession(runId)) ||
+				this.repositoryRouter.hasPendingSelection(runId),
+			dispatch: (webhook) =>
+				this.handleWebhook(
+					webhook as unknown as Webhook,
+					Array.from(this.repositories.values()),
+				),
+		});
+
+		this.planeEventTransport = new PlaneEventTransport({
+			fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
+			webhookSecret,
+			onInstall: (query) => {
+				const installationId = query.app_installation_id!;
+				tracker.api.setAppInstallationId(installationId);
+				const installations = this.readPlaneInstallations();
+				installations[tracker.api.workspaceSlug] = installationId;
+				writeFileSync(
+					this.planeInstallationsPath(),
+					JSON.stringify(installations, null, 2),
+					{ mode: 0o600 },
+				);
+				this.logger.info(
+					`Plane app installed in ${tracker.api.workspaceSlug} (installation ${installationId})`,
+				);
+				return `Cyrus is installed in the Plane workspace "${tracker.api.workspaceSlug}". You can close this tab.`;
+			},
+		});
+		this.planeEventTransport.on("event", (payload) => {
+			void coordinator.handle(payload);
+		});
+		this.planeEventTransport.on("error", (error: Error) => {
+			this.handleError(error);
+		});
+		this.planeEventTransport.register();
+
+		this.logger.info(
+			`✅ Plane event transport registered for ${tracker.api.baseUrl} (workspace ${tracker.api.workspaceSlug}, key ${tracker.workspaceKey})${tracker.api.isInstalled ? "" : " — app not installed yet"}`,
 		);
 	}
 
@@ -2862,6 +2986,7 @@ ${taskSection}`;
 	async stop(): Promise<void> {
 		// Stop config file watcher
 		await this.configManager.stop();
+		this.planeIssueTracker?.dispose();
 
 		try {
 			await this.savePersistedState();

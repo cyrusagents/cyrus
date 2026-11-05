@@ -40,6 +40,10 @@ export const releasePackages = [
 		name: "cyrus-zulip-event-transport",
 	},
 	{
+		directory: "packages/plane-event-transport",
+		name: "cyrus-plane-event-transport",
+	},
+	{
 		directory: "packages/simple-agent-runner",
 		name: "cyrus-simple-agent-runner",
 	},
