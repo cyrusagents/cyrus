@@ -7378,9 +7378,9 @@ ${input.userComment}
 						(repoConfig.model as string | undefined) ||
 						"claude-opus-4-6";
 
-					// Build allowed/disallowed tools — same as what buildAgentRunnerConfig() uses.
-					// Without these, startup() inherits the user's defaultMode ("default"),
-					// which causes macOS permission prompts for file writes.
+					// Build the same permission policy that the live runner uses. WarmQuery
+					// handles the first prompt directly, so these startup options cannot rely
+					// on ClaudeRunner.start() to override loaded settings.defaultMode.
 					const allowedTools = this.buildAllowedTools(repo);
 					const disallowedTools = this.buildDisallowedTools(repo);
 
@@ -7393,6 +7393,7 @@ ${input.userComment}
 							...(allowedTools.length > 0 && { allowedTools }),
 							...(disallowedTools.length > 0 && { disallowedTools }),
 							settingSources: ["user", "project", "local"],
+							permissionMode: "default",
 							strictMcpConfig: this.config.strictMcpConfig ?? true,
 							// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally not set here;
 							// see CYPACK-1108 and ClaudeRunner.start() for context.
