@@ -34,7 +34,7 @@ const REQUIRED_PROVENANCE = {
 	},
 	installed: {
 		agentSdk: ["@anthropic-ai/claude-agent-sdk", "0.3.318"],
-		apiSdk: ["@anthropic-ai/sdk", "1.4.0"],
+		apiSdk: ["@anthropic-ai/sdk", "1.5.0"],
 		core: ["cyrus-core", "0.2.75"],
 		native: ["@anthropic-ai/claude-agent-sdk-darwin-arm64", "0.3.318"],
 		nativeClaudeCodeVersion: "2.1.318",

@@ -6,8 +6,8 @@
 
 ## Reviewed ranges and official sources
 
-- Cyrus: Agent SDK `0.3.281` → `0.3.318`; API SDK `0.128.0` → `1.4.0`.
-- Hosted effective range: Agent SDK `0.3.268` → `0.3.318`; API SDK `0.125.0` → `1.4.0`.
+- Cyrus: Agent SDK `0.3.281` → `0.3.318`; API SDK `0.128.0` → `1.5.0`.
+- Hosted effective range: Agent SDK `0.3.268` → `0.3.318`; API SDK `0.125.0` → `1.5.0`.
 - Bundled runtime: Claude Code `2.1.318`; native package `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.318`.
 
 The review used the official [Agent SDK history](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md), [Claude Code history](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md), and [API SDK history](https://github.com/anthropics/anthropic-sdk-typescript/blob/main/CHANGELOG.md).
@@ -25,7 +25,7 @@ The review used the official [Agent SDK history](https://github.com/anthropics/c
 - **The wider `deniedMcpServers` URL matching applies to every settings source Cyrus loads.** [Claude Code 2.1.318](https://github.com/anthropics/claude-code/releases/tag/v2.1.318) now applies a denied URL to Anthropic-provided servers with the same upstream URL and to cloud/self-hosted connectors with a supplied URL (falling back to connector name otherwise). Both `ClaudeRunner.start()` and EdgeWorker warmup load `user`, `project`, and `local` settings; the EdgeWorker-created local file only sets `includeCoAuthoredBy`. Cyrus does not rewrite `deniedMcpServers`, so an operator deny in any loaded settings source now has the wider upstream effect. `strictMcpConfig` still controls whether non-explicit MCP sources can load; it does not erase those loaded settings. This upstream security tightening is accepted.
 - **Old-session resume no longer preserves pre-2.1.287 thinking.** [Claude Code 2.1.318](https://github.com/anthropics/claude-code/releases/tag/v2.1.318) removed the compatibility fix that preserved earlier thinking when resuming conversations begun on 2.1.286 or older. EdgeWorker warmup passes the persisted `session.claudeSessionId` directly to `startup()`, while normal resume selects that same stored ID and `RunnerConfigBuilder` forwards it to `ClaudeRunner`, which passes it as the SDK `resume` option. Cyrus stores and forwards the session ID but does not persist or reconstruct Claude's thinking blocks, so those old blocks may be dropped on resume. No Cyrus shim is added; visible messages and tool state remain the supported continuity boundary.
 - **Hosted preserves its API client contract across SDK 1.x.** It supplies exactly one API-key credential, uses Bearer authentication and API version `2026-10-21`, and disables SDK-native OpenTelemetry traces and propagation so Sentry remains the application tracing owner.
-- **API SDK 1.4 additions do not expand Hosted call paths.** Hosted uses the SDK only for its Messages validation request and does not call the new analytics, spend-limit, or RBAC surfaces.
+- **API SDK 1.5 additions do not expand Hosted call paths.** Hosted uses the SDK only for its Messages validation request and does not call the new analytics, spend-limit, RBAC, workspace-filter, or error-detail surfaces.
 
 Agent SDK `0.3.318` additionally exposes credential expiry, invalid-config startup diagnostics, queued-message/model-change interruption fixes, progress-summary waiting, and optional push-notification status while reaching Claude Code `2.1.318`. No Cyrus compatibility shim is required for those additions.
 
@@ -51,7 +51,7 @@ The verifier recomputes and requires all of the following before it may contact 
 - the local commit is the live head of `cyrusagents/cyrus#1580`, with no tracked changes;
 - packed runner SHA-256 `cc6162660d4e8ee1461d1d20641b0437478516ea19876eda4b2727889047362f` and core SHA-256 `a361bab54d3e02093155eba1a7ed569704ce9ffb22cd9626f280755183e2ef07`, plus their extracted trees matching the installed package trees;
 - retained consumer lock SHA-256 `e7a21dfbb0f2163791cf90ac84a9454b27a86d196d153828bff036587fd9ddb2`;
-- `cyrus-claude-runner@0.2.75`, `cyrus-core@0.2.75`, `@anthropic-ai/claude-agent-sdk@0.3.318`, `@anthropic-ai/sdk@1.4.0`, and `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.318`;
+- `cyrus-claude-runner@0.2.75`, `cyrus-core@0.2.75`, `@anthropic-ai/claude-agent-sdk@0.3.318`, `@anthropic-ai/sdk@1.5.0`, and `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.318`;
 - Claude Code `2.1.318` and native executable SHA-256 `677a2ea7bf576cedd20e191d973914ed8a41796f53a63b1923381ddc4d5b5e7d`;
 - OS user `agentops`, `claude.ai` authentication, `firstParty` provider, the SHA-256 account identifier for the existing owner, and `max` subscription, with no provider/account override environment variable.
 

@@ -33,7 +33,7 @@ const expectedProvenance = () => ({
 	},
 	installed: {
 		agentSdk: { name: "@anthropic-ai/claude-agent-sdk", version: "0.3.318" },
-		apiSdk: { name: "@anthropic-ai/sdk", version: "1.4.0" },
+		apiSdk: { name: "@anthropic-ai/sdk", version: "1.5.0" },
 		core: { name: "cyrus-core", version: "0.2.75" },
 		native: {
 			claudeCodeVersion: "2.1.318",
