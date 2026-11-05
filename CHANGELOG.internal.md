@@ -5,7 +5,7 @@ This changelog documents internal development changes, refactors, tooling update
 ## [Unreleased]
 
 ### Changed
-- Added installed-package permission-contract coverage and a retained [compatibility and acceptance record](apps/f1/test-drives/2026-11-05-cypack-1623-anthropic-sdk-acceptance.md) for the Anthropic SDK update. The runtime receipt binds the reviewed source, packed and installed artifacts, exact SDK/native versions, and intended Claude identity before requiring ordered successful Read and Bash results; it also rejects post-result session write loss. ([CYPACK-1623](https://linear.app/ceedar/issue/CYPACK-1623/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1583](https://github.com/cyrusagents/cyrus/pull/1583))
+- Added installed-package and warm-session permission-contract coverage plus a retained [compatibility and acceptance record](apps/f1/test-drives/2026-11-05-cypack-1623-anthropic-sdk-acceptance.md) for the Anthropic SDK update. Cold and opt-in warm sessions now explicitly retain Cyrus's manual permission mode even when loaded settings request `auto` or `acceptEdits`. The runtime receipt binds the reviewed source, packed and installed artifacts, exact SDK/native versions, and intended Claude identity before requiring ordered successful Read and Bash results; it also rejects post-result session write loss. ([CYPACK-1623](https://linear.app/ceedar/issue/CYPACK-1623/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1583](https://github.com/cyrusagents/cyrus/pull/1583))
 
 ## [0.2.75] - 2026-11-03
 

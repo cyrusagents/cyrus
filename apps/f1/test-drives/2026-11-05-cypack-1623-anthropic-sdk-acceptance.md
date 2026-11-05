@@ -14,7 +14,7 @@ The review used the official [Agent SDK history](https://github.com/anthropics/c
 
 ## Compatibility dispositions
 
-- **Manual permissions remain explicit.** `ClaudeRunner` now always passes `permissionMode: "default"` alongside Cyrus's configured allow/deny lists and `canUseTool` callback. The installed-package contract covers first-party, Bedrock, Vertex, Foundry, Mantle, and telemetry-disabled configurations.
+- **Manual permissions remain explicit on cold and warm sessions.** `ClaudeRunner` passes `permissionMode: "default"` alongside Cyrus's configured allow/deny lists and `canUseTool` callback, and `EdgeWorker` supplies the same mode when it starts an opt-in `WarmQuery`. The warm handle executes the first attached prompt directly, so this startup invariant prevents loaded `permissions.defaultMode: "auto"` or `"acceptEdits"` settings from changing Cyrus's policy. The installed-package contract covers first-party, Bedrock, Vertex, Foundry, Mantle, and telemetry-disabled configurations; the focused warm-session regression covers startup and attached-query handling.
 - **Default-on fork subagents are accepted.** Cyrus does not inject `CLAUDE_CODE_FORK_SUBAGENT=0`; forks inherit the parent session's tools, permissions, hooks, settings, and sandbox.
 - **Unknown-provider model behavior and the signed provider catalog are accepted.** Cyrus preserves `model` and `fallbackModel`, adds no provider fallback opt-outs, and leaves catalog reachability to the host's outer network policy.
 - **Upstream hook concurrency and compaction precedence are accepted.** Cyrus forwards caller hooks and adds its lifecycle/guardrail hooks without changing upstream concurrency or compaction limits.
