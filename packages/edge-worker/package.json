@@ -42,6 +42,7 @@
 		"cyrus-github-event-transport": "workspace:*",
 		"cyrus-gitlab-event-transport": "workspace:*",
 		"cyrus-linear-event-transport": "workspace:*",
+		"cyrus-plane-event-transport": "workspace:*",
 		"cyrus-mcp-tools": "workspace:*",
 		"cyrus-opencode-runner": "workspace:*",
 		"cyrus-simple-agent-runner": "workspace:*",
