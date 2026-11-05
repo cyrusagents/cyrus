@@ -121,7 +121,7 @@ describe("complete package bundle", () => {
 	beforeEach(() => {
 		for (let index = 0; index < graph.length; index++) pack(index);
 	});
-	it("archives all 17 packages with exact identities, source/workflow provenance and independently verifiable hashes", () => {
+	it("archives all 18 packages with exact identities, source/workflow provenance and independently verifiable hashes", () => {
 		const result = build();
 		expect(result.stderr).toBe("");
 		expect(result.status).toBe(0);
@@ -130,7 +130,7 @@ describe("complete package bundle", () => {
 		);
 		expect(manifest.sourceSha).toBe(sourceSha);
 		expect(manifest.workflowSha).toBe(workflowSha);
-		expect(manifest.packages).toHaveLength(17);
+		expect(manifest.packages).toHaveLength(18);
 		for (const [index, entry] of manifest.packages.entries()) {
 			expect(entry.name).toBe(graph[index].name);
 			expect(entry.version).toBe(version);
@@ -311,7 +311,7 @@ describe("generated installer isolation", () => {
 		}
 		expect(npm.args).toContain("--global");
 		expect(npm.args[npm.args.indexOf("--prefix") + 1]).toBe(prefix);
-		expect(npm.args.filter((s: string) => s.endsWith(".tgz"))).toHaveLength(17);
+		expect(npm.args.filter((s: string) => s.endsWith(".tgz"))).toHaveLength(18);
 		for (const directory of [
 			prefix,
 			join(prefix, "test-home"),
