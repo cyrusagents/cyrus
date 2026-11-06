@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.2.76] - 2026-11-05
+## [0.2.76] - 2026-11-06
 
 ### Changed
 - Updated `@anthropic-ai/claude-agent-sdk` from `0.3.281` to [`0.3.318`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03318), bringing Claude sessions to Claude Code 2.1.318, and updated `@anthropic-ai/sdk` from `^0.128.0` to [`^1.5.0`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.5.0). Cyrus explicitly retains its existing manual permission policy for both cold and pre-warmed resumed sessions, even when loaded settings select auto or accept-edits mode; the accumulated SDK update also improves queued-message interruption, hook failure reporting, sandbox/settings controls, task and session metadata, write-loss reporting, and typed API error details. ([CYPACK-1623](https://linear.app/ceedar/issue/CYPACK-1623/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1583](https://github.com/cyrusagents/cyrus/pull/1583))
