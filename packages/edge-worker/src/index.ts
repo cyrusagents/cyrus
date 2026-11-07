@@ -19,6 +19,7 @@ export { AskUserQuestionHandler } from "./AskUserQuestionHandler.js";
 export type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 export { LiveChatRepositoryProvider } from "./ChatRepositoryProvider.js";
 export type {
+	ChatAccessDecision,
 	ChatPlatformAdapter,
 	ChatPlatformName,
 	ChatSessionHandlerDeps,

@@ -432,6 +432,16 @@
 											},
 											"required": ["email"],
 											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"slackId": {
+													"type": "string"
+												}
+											},
+											"required": ["slackId"],
+											"additionalProperties": false
 										}
 									]
 								}
@@ -461,6 +471,16 @@
 												}
 											},
 											"required": ["email"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"slackId": {
+													"type": "string"
+												}
+											},
+											"required": ["slackId"],
 											"additionalProperties": false
 										}
 									]
@@ -703,6 +723,16 @@
 								},
 								"required": ["email"],
 								"additionalProperties": false
+							},
+							{
+								"type": "object",
+								"properties": {
+									"slackId": {
+										"type": "string"
+									}
+								},
+								"required": ["slackId"],
+								"additionalProperties": false
 							}
 						]
 					}
@@ -732,6 +762,16 @@
 									}
 								},
 								"required": ["email"],
+								"additionalProperties": false
+							},
+							{
+								"type": "object",
+								"properties": {
+									"slackId": {
+										"type": "string"
+									}
+								},
+								"required": ["slackId"],
 								"additionalProperties": false
 							}
 						]

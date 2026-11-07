@@ -10,8 +10,8 @@ export type AccessCheckResult =
 /**
  * Default message shown when a user is blocked and blockBehavior is 'comment'.
  * Supports template variables:
- * - {{userName}} - The user's display name
- * - {{userId}} - The user's Linear ID
+ * - {{userName}} - The user's display name (an @mention on Slack)
+ * - {{userId}} - The user's Linear or Slack ID
  */
 export const DEFAULT_BLOCK_MESSAGE =
 	"{{userName}}, you are not authorized to delegate issues to this agent.";
@@ -39,7 +39,38 @@ function userMatchesIdentifier(
 		// Case-insensitive email comparison
 		return userEmail?.toLowerCase() === identifier.email.toLowerCase();
 	}
+	// A slackId entry only ever matches a Slack user (see checkSlackAccess)
 	return false;
+}
+
+/**
+ * Checks if an identifier is a Slack user ID entry.
+ * @param identifier - The identifier to inspect
+ * @returns true if the identifier is a `{ slackId }` object
+ */
+function isSlackIdentifier(
+	identifier: UserIdentifier,
+): identifier is { slackId: string } {
+	return typeof identifier === "object" && "slackId" in identifier;
+}
+
+/**
+ * Checks if a Slack user matches any slackId entry in a list.
+ * @param slackUserId - The user's Slack ID (e.g. "U012AB3CD")
+ * @param identifiers - List of identifiers to check against
+ * @returns true if any slackId entry equals the user's Slack ID
+ */
+function slackUserMatchesAny(
+	slackUserId: string | undefined,
+	identifiers: UserIdentifier[],
+): boolean {
+	return (
+		slackUserId !== undefined &&
+		identifiers.some(
+			(identifier) =>
+				isSlackIdentifier(identifier) && identifier.slackId === slackUserId,
+		)
+	);
 }
 
 /**
@@ -60,9 +91,12 @@ function userMatchesAny(
 }
 
 /**
- * User access control manager for Linear user whitelisting/blacklisting.
+ * User access control manager for user whitelisting/blacklisting.
  *
- * Access Check Logic:
+ * Linear delegations go through checkAccess, Slack sessions through
+ * checkSlackAccess; both share the same configured lists.
+ *
+ * Access Check Logic (Linear):
  * 1. Build effective blocklist: global blockedUsers + repo blockedUsers (union)
  * 2. Check if user matches any entry in effective blocklist -> BLOCKED
  * 3. Determine effective allowlist:
@@ -152,13 +186,55 @@ export class UserAccessControl {
 	}
 
 	/**
+	 * Check if a Slack user is allowed to prompt the agent.
+	 *
+	 * Slack sessions are not bound to a repository, so only the global config
+	 * applies. Only `{ slackId }` entries match a Slack user: an allowlist
+	 * without any does not restrict Slack, an empty one still denies everyone.
+	 * @param slackUserId - The user's Slack ID (e.g. "U012AB3CD")
+	 * @returns AccessCheckResult indicating if access is allowed
+	 */
+	checkSlackAccess(slackUserId: string | undefined): AccessCheckResult {
+		const blockedUsers = this.globalConfig?.blockedUsers ?? [];
+		if (slackUserMatchesAny(slackUserId, blockedUsers)) {
+			return { allowed: false, reason: "User is in blocklist" };
+		}
+
+		const allowedUsers = this.globalConfig?.allowedUsers;
+		if (allowedUsers === undefined) {
+			return { allowed: true };
+		}
+
+		if (allowedUsers.length === 0) {
+			return {
+				allowed: false,
+				reason: "No users are allowed (empty allowlist)",
+			};
+		}
+
+		if (!allowedUsers.some(isSlackIdentifier)) {
+			return { allowed: true };
+		}
+
+		if (!slackUserMatchesAny(slackUserId, allowedUsers)) {
+			return { allowed: false, reason: "User is not in allowlist" };
+		}
+
+		return { allowed: true };
+	}
+
+	/**
 	 * Get the effective block behavior for a repository.
 	 * Repo config overrides global config.
-	 * @param repositoryId - The repository ID
+	 * @param repositoryId - The repository ID; omit for sessions not bound to a
+	 *   repository (chat sessions), which use the global config only
 	 * @returns 'silent' or 'comment'
 	 */
-	getBlockBehavior(repositoryId: string): "silent" | "comment" {
-		const repoConfig = this.repoConfigs.get(repositoryId);
+	getBlockBehavior(repositoryId?: string): "silent" | "comment" {
+		const repoConfig =
+			repositoryId === undefined
+				? undefined
+				: this.repoConfigs.get(repositoryId);
 
 		// Repo blockBehavior overrides global
 		if (repoConfig?.blockBehavior !== undefined) {
@@ -176,11 +252,15 @@ export class UserAccessControl {
 	/**
 	 * Get the effective block message for a repository.
 	 * Repo config overrides global config.
-	 * @param repositoryId - The repository ID
+	 * @param repositoryId - The repository ID; omit for sessions not bound to a
+	 *   repository (chat sessions), which use the global config only
 	 * @returns The block message to display
 	 */
-	getBlockMessage(repositoryId: string): string {
-		const repoConfig = this.repoConfigs.get(repositoryId);
+	getBlockMessage(repositoryId?: string): string {
+		const repoConfig =
+			repositoryId === undefined
+				? undefined
+				: this.repoConfigs.get(repositoryId);
 
 		// Repo blockMessage overrides global
 		if (repoConfig?.blockMessage !== undefined) {
