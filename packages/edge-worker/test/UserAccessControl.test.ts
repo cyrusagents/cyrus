@@ -8,7 +8,7 @@ import {
 /**
  * Test Suite for UserAccessControl
  *
- * Tests the user whitelisting/blacklisting functionality for Linear users.
+ * Tests the user whitelisting/blacklisting functionality for Linear and Slack users.
  */
 
 // ============================================================================
@@ -399,6 +399,202 @@ describe("UserAccessControl", () => {
 				);
 				expect(result4.allowed).toBe(false);
 			});
+
+			it("never matches a Linear user against a slackId entry", () => {
+				const accessControl = createAccessControl(
+					{
+						allowedUsers: [{ slackId: "U012AB3CD" }],
+						blockedUsers: [{ slackId: "U999BLOCK" }],
+					},
+					new Map(),
+				);
+
+				// A Linear ID equal to a blocked Slack ID is not blocked by it
+				const blocked = accessControl.checkAccess(
+					"U999BLOCK",
+					"user@example.com",
+					"repo-1",
+				);
+				expect(blocked.allowed).toBe(false);
+				if (!blocked.allowed) {
+					expect(blocked.reason).toBe("User is not in allowlist");
+				}
+
+				// A Linear ID equal to an allowed Slack ID is not let in either
+				const allowed = accessControl.checkAccess(
+					"U012AB3CD",
+					"user@example.com",
+					"repo-1",
+				);
+				expect(allowed.allowed).toBe(false);
+			});
+		});
+	});
+
+	// ============================================================================
+	// TESTS: checkSlackAccess
+	// ============================================================================
+
+	describe("checkSlackAccess", () => {
+		describe("when no access control is configured", () => {
+			it("allows all Slack users when no access control configured", () => {
+				const accessControl = createAccessControl(undefined, new Map());
+
+				expect(accessControl.checkSlackAccess("U012AB3CD").allowed).toBe(true);
+				expect(accessControl.checkSlackAccess(undefined).allowed).toBe(true);
+			});
+		});
+
+		describe("blocklist behavior", () => {
+			it("blocks user in global blocklist by Slack ID", () => {
+				const accessControl = createAccessControl(
+					{ blockedUsers: [{ slackId: "U999BLOCK" }] },
+					new Map(),
+				);
+
+				const result = accessControl.checkSlackAccess("U999BLOCK");
+
+				expect(result.allowed).toBe(false);
+				if (!result.allowed) {
+					expect(result.reason).toBe("User is in blocklist");
+				}
+			});
+
+			it("allows user not in blocklist", () => {
+				const accessControl = createAccessControl(
+					{ blockedUsers: [{ slackId: "U999BLOCK" }] },
+					new Map(),
+				);
+
+				expect(accessControl.checkSlackAccess("U012AB3CD").allowed).toBe(true);
+			});
+
+			it("ignores Linear identifiers in blocklist", () => {
+				const accessControl = createAccessControl(
+					{ blockedUsers: ["U999BLOCK", { id: "U999BLOCK" }] },
+					new Map(),
+				);
+
+				expect(accessControl.checkSlackAccess("U999BLOCK").allowed).toBe(true);
+			});
+
+			it("ignores repo-specific blocklist", () => {
+				const repoConfigs = new Map<
+					string,
+					UserAccessControlConfig | undefined
+				>([["repo-1", { blockedUsers: [{ slackId: "U999BLOCK" }] }]]);
+				const accessControl = createAccessControl(undefined, repoConfigs);
+
+				expect(accessControl.checkSlackAccess("U999BLOCK").allowed).toBe(true);
+			});
+		});
+
+		describe("allowlist behavior", () => {
+			it("allows user in global allowlist by Slack ID", () => {
+				const accessControl = createAccessControl(
+					{ allowedUsers: [{ slackId: "U012AB3CD" }] },
+					new Map(),
+				);
+
+				expect(accessControl.checkSlackAccess("U012AB3CD").allowed).toBe(true);
+			});
+
+			it("blocks user not in allowlist when allowlist has Slack entries", () => {
+				const accessControl = createAccessControl(
+					{ allowedUsers: [{ slackId: "U012AB3CD" }] },
+					new Map(),
+				);
+
+				const result = accessControl.checkSlackAccess("U999OTHER");
+
+				expect(result.allowed).toBe(false);
+				if (!result.allowed) {
+					expect(result.reason).toBe("User is not in allowlist");
+				}
+				expect(accessControl.checkSlackAccess(undefined).allowed).toBe(false);
+			});
+
+			it("allows all Slack users when allowlist has no Slack entries", () => {
+				const accessControl = createAccessControl(
+					{ allowedUsers: ["usr_1", { id: "usr_2" }, { email: "a@b.com" }] },
+					new Map(),
+				);
+
+				expect(accessControl.checkSlackAccess("U012AB3CD").allowed).toBe(true);
+				expect(accessControl.checkSlackAccess("usr_1").allowed).toBe(true);
+			});
+
+			it("blocks all users when allowlist is empty", () => {
+				const accessControl = createAccessControl(
+					{ allowedUsers: [] },
+					new Map(),
+				);
+
+				const result = accessControl.checkSlackAccess("U012AB3CD");
+
+				expect(result.allowed).toBe(false);
+				if (!result.allowed) {
+					expect(result.reason).toBe("No users are allowed (empty allowlist)");
+				}
+			});
+
+			it("ignores repo-specific allowlist", () => {
+				const repoConfigs = new Map<
+					string,
+					UserAccessControlConfig | undefined
+				>([["repo-1", { allowedUsers: [{ slackId: "U012AB3CD" }] }]]);
+				const accessControl = createAccessControl(undefined, repoConfigs);
+
+				expect(accessControl.checkSlackAccess("U999OTHER").allowed).toBe(true);
+			});
+
+			it("handles mix of Linear and Slack identifiers", () => {
+				const accessControl = createAccessControl(
+					{
+						allowedUsers: [
+							"usr_1",
+							{ email: "lead@company.com" },
+							{ slackId: "U012AB3CD" },
+						],
+					},
+					new Map(),
+				);
+
+				expect(accessControl.checkSlackAccess("U012AB3CD").allowed).toBe(true);
+				expect(accessControl.checkSlackAccess("U999OTHER").allowed).toBe(false);
+
+				// Linear matching is unchanged by the Slack entry
+				expect(
+					accessControl.checkAccess("usr_1", undefined, "repo-1").allowed,
+				).toBe(true);
+				expect(
+					accessControl.checkAccess("usr_9", "lead@company.com", "repo-1")
+						.allowed,
+				).toBe(true);
+				expect(
+					accessControl.checkAccess("usr_9", "dev@company.com", "repo-1")
+						.allowed,
+				).toBe(false);
+			});
+		});
+
+		describe("blocklist takes precedence over allowlist", () => {
+			it("blocks user even if in allowlist when also in blocklist", () => {
+				const accessControl = createAccessControl(
+					{
+						allowedUsers: [{ slackId: "U012AB3CD" }],
+						blockedUsers: [{ slackId: "U012AB3CD" }],
+					},
+					new Map(),
+				);
+
+				const result = accessControl.checkSlackAccess("U012AB3CD");
+
+				expect(result.allowed).toBe(false);
+				if (!result.allowed) {
+					expect(result.reason).toBe("User is in blocklist");
+				}
+			});
 		});
 	});
 
@@ -407,6 +603,22 @@ describe("UserAccessControl", () => {
 	// ============================================================================
 
 	describe("getBlockBehavior", () => {
+		it("uses the global config only when no repository is given", () => {
+			const repoConfigs = new Map<string, UserAccessControlConfig | undefined>([
+				["repo-1", { blockBehavior: "comment" }],
+			]);
+
+			expect(
+				createAccessControl(
+					{ blockBehavior: "comment" },
+					repoConfigs,
+				).getBlockBehavior(),
+			).toBe("comment");
+			expect(
+				createAccessControl(undefined, repoConfigs).getBlockBehavior(),
+			).toBe("silent");
+		});
+
 		it("returns silent by default when not configured", () => {
 			const accessControl = createAccessControl(undefined, new Map());
 
@@ -457,6 +669,22 @@ describe("UserAccessControl", () => {
 	// ============================================================================
 
 	describe("getBlockMessage", () => {
+		it("uses the global config only when no repository is given", () => {
+			const repoConfigs = new Map<string, UserAccessControlConfig | undefined>([
+				["repo-1", { blockMessage: "Repo message" }],
+			]);
+
+			expect(
+				createAccessControl(
+					{ blockMessage: "Global message" },
+					repoConfigs,
+				).getBlockMessage(),
+			).toBe("Global message");
+			expect(
+				createAccessControl(undefined, repoConfigs).getBlockMessage(),
+			).toBe(DEFAULT_BLOCK_MESSAGE);
+		});
+
 		it("returns default message when not configured", () => {
 			const accessControl = createAccessControl(undefined, new Map());
 

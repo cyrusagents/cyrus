@@ -86,6 +86,28 @@ describe("EdgeConfigSchema", () => {
 		}
 	});
 
+	it("accepts Slack user IDs alongside Linear identifiers in userAccessControl", () => {
+		const config = {
+			userAccessControl: {
+				allowedUsers: [
+					"usr_1",
+					{ id: "usr_2" },
+					{ email: "lead@company.com" },
+					{ slackId: "U012AB3CD" },
+				],
+				blockedUsers: [{ slackId: "U999BLOCK" }],
+			},
+			repositories: [baseRepository],
+		};
+
+		const result = EdgeConfigSchema.safeParse(config);
+
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.userAccessControl).toEqual(config.userAccessControl);
+		}
+	});
+
 	it("rejects non-object OpenCode config at global and repository levels", () => {
 		const globalResult = EdgeConfigSchema.safeParse({
 			repositories: [baseRepository],

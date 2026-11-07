@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `userAccessControl` now applies to Slack: add `{ "slackId": "U012AB3CD" }` entries to `allowedUsers` or `blockedUsers`, and only listed users can start or continue a Slack session. Everyone else is ignored silently by default, or answered with the block message on an @mention when `blockBehavior` is `"comment"`. Lists without Slack entries leave Slack unchanged. See [User Access Control](docs/CONFIG_FILE.md#user-access-control). ([#1587](https://github.com/cyrusagents/cyrus/issues/1587))
+
+### Fixed
+- Slack thread replies in threads Cyrus was never mentioned in no longer get the 👀 receipt reaction; ignored messages leave no trace. ([#1544](https://github.com/cyrusagents/cyrus/issues/1544))
+
 ## [0.2.76] - 2026-11-06
 
 ### Changed
