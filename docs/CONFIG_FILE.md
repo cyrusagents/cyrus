@@ -295,7 +295,7 @@ Can be configured at the global level or per-repository.
 
 **Properties:**
 
-- **`allowedUsers`** (array) - Users allowed to delegate issues. If specified, ONLY these users can trigger sessions. Omit to allow everyone.
+- **`allowedUsers`** (array) - Users allowed to delegate issues. If specified, only these users can trigger Linear sessions; Slack is restricted only when the list has `slackId` entries (see below). Omit to allow everyone.
 - **`blockedUsers`** (array) - Users blocked from delegating issues. Takes precedence over allowedUsers.
 - **`blockBehavior`** (string) - What happens when a blocked user tries to delegate:
   - `"silent"` (default) - Ignore the webhook quietly

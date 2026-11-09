@@ -33,13 +33,12 @@ export const UserIdentifierSchema = z.union([
  */
 export const UserAccessControlConfigSchema = z.object({
 	/**
-	 * Users allowed to delegate issues.
-	 * If specified, ONLY these users can trigger Cyrus sessions.
-	 * Empty array means no one is allowed (effectively disables Cyrus).
+	 * Users allowed to delegate issues or prompt the agent from Slack.
+	 * If specified, only these users can trigger Linear sessions. Slack
+	 * sessions are restricted only when the list contains `slackId` entries;
+	 * a list without any leaves Slack open to every user.
+	 * Empty array means no one is allowed on either (effectively disables Cyrus).
 	 * Omitting this field means everyone is allowed (unless blocked).
-	 *
-	 * Slack sessions are only restricted by an empty list or by `slackId`
-	 * entries; a list without any leaves Slack open.
 	 */
 	allowedUsers: z.array(UserIdentifierSchema).optional(),
 
