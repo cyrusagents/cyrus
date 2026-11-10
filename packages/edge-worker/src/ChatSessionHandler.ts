@@ -25,6 +25,17 @@ import type { RunnerConfigBuilder } from "./RunnerConfigBuilder.js";
 /** Platform identifiers supported by the session manager */
 export type ChatPlatformName = "slack" | "linear" | "github" | "zulip";
 
+/** Outcome of an adapter's access check for an inbound event. */
+export type ChatAccessDecision =
+	| { allowed: true }
+	| {
+			allowed: false;
+			/** Why the user was denied, for logs */
+			reason: string;
+			/** Notice to post back to the thread; omitted to deny silently */
+			reply?: string;
+	  };
+
 export interface ChatPlatformAdapter<TEvent> {
 	readonly platformName: ChatPlatformName;
 
@@ -41,6 +52,21 @@ export interface ChatPlatformAdapter<TEvent> {
 	 * (the behaviour for platforms where every event is an explicit invocation).
 	 */
 	isSessionInitiatingEvent?(event: TEvent): boolean;
+
+	/**
+	 * Whether the user behind this event may prompt the agent. Runs before
+	 * anything visible happens, so a denied event leaves no trace unless the
+	 * decision carries a `reply`, which is posted through `notifyBlocked`.
+	 *
+	 * Optional — when omitted, every event is allowed.
+	 */
+	checkAccess?(event: TEvent): ChatAccessDecision;
+
+	/**
+	 * Post the `reply` of a denying `checkAccess` decision to the thread.
+	 * Required for adapters whose `checkAccess` can return a reply.
+	 */
+	notifyBlocked?(event: TEvent, reply: string): Promise<void>;
 
 	/** Derive a unique thread key for session tracking (e.g., "C123:1704110400.000100") */
 	getThreadKey(event: TEvent): string;
@@ -200,6 +226,38 @@ export class ChatSessionHandler<TEvent> {
 				`Processing ${this.adapter.platformName} webhook: ${this.adapter.getEventId(event)}`,
 			);
 
+			const threadKey = this.adapter.getThreadKey(event);
+			const existingSessionId = this.threadSessions.get(threadKey);
+
+			// Only events explicitly allowed to start a session may do so for an
+			// unbound thread — e.g. a Slack @mention. A plain follow-up message in
+			// an unbound thread must be ignored, otherwise every message in any
+			// channel Cyrus can see would spin up a session. Decided before the
+			// receipt acknowledgement so an ignored message leaves no trace.
+			if (
+				!existingSessionId &&
+				this.adapter.isSessionInitiatingEvent?.(event) === false
+			) {
+				this.logger.info(
+					`Ignoring non-initiating ${this.adapter.platformName} event for unbound thread ${threadKey}`,
+				);
+				return;
+			}
+
+			// Access control also runs before the acknowledgement: a user who may
+			// not prompt the agent gets silence or the configured notice, never a
+			// receipt reaction.
+			const access = this.adapter.checkAccess?.(event) ?? { allowed: true };
+			if (!access.allowed) {
+				this.logger.info(
+					`Dropping ${this.adapter.platformName} event ${this.adapter.getEventId(event)} for thread ${threadKey}: ${access.reason}`,
+				);
+				if (access.reply !== undefined) {
+					await this.notifyBlocked(event, access.reply);
+				}
+				return;
+			}
+
 			// Fire-and-forget acknowledgement (e.g., emoji reaction)
 			this.adapter.acknowledgeReceipt(event).catch((err: unknown) => {
 				this.logger.warn(
@@ -208,10 +266,8 @@ export class ChatSessionHandler<TEvent> {
 			});
 
 			const taskInstructions = this.adapter.extractTaskInstructions(event);
-			const threadKey = this.adapter.getThreadKey(event);
 
 			// Check if there's already an active session for this thread
-			const existingSessionId = this.threadSessions.get(threadKey);
 			if (existingSessionId) {
 				const existingSession =
 					this.sessionManager.getSession(existingSessionId);
@@ -280,20 +336,6 @@ export class ChatSessionHandler<TEvent> {
 				this.logger.info(
 					`Previous session ${existingSessionId} for thread ${threadKey} has no runner, creating new session`,
 				);
-			}
-
-			// No session exists for this thread. Only events explicitly allowed to
-			// start a session may do so — e.g. a Slack @mention. A plain follow-up
-			// message in an unbound thread must be ignored, otherwise every message
-			// in any channel Cyrus can see would spin up a session.
-			if (
-				!existingSessionId &&
-				this.adapter.isSessionInitiatingEvent?.(event) === false
-			) {
-				this.logger.info(
-					`Ignoring non-initiating ${this.adapter.platformName} event for unbound thread ${threadKey}`,
-				);
-				return;
 			}
 
 			// Create an empty workspace directory for this thread
@@ -412,6 +454,23 @@ export class ChatSessionHandler<TEvent> {
 			);
 		} finally {
 			this.deps.onWebhookEnd();
+		}
+	}
+
+	/** Post a block notice, logging rather than failing the event if it cannot be posted */
+	private async notifyBlocked(event: TEvent, reply: string): Promise<void> {
+		if (!this.adapter.notifyBlocked) {
+			this.logger.warn(
+				`${this.adapter.platformName} adapter denied an event with a reply but cannot post it`,
+			);
+			return;
+		}
+		try {
+			await this.adapter.notifyBlocked(event, reply);
+		} catch (error) {
+			this.logger.warn(
+				`Failed to post ${this.adapter.platformName} block notice: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 	}
 

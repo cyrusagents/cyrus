@@ -15,14 +15,17 @@ export type RunnerType = z.infer<typeof RunnerTypeSchema>;
 /**
  * User identifier for access control matching.
  * Supports multiple formats for flexibility:
- * - String: treated as user ID (e.g., "usr_abc123")
- * - Object with id: explicit user ID match
- * - Object with email: email-based match
+ * - String: treated as Linear user ID (e.g., "usr_abc123")
+ * - Object with id: explicit Linear user ID match
+ * - Object with email: email-based match (Linear)
+ * - Object with slackId: Slack user ID match (e.g., "U012AB3CD"); only
+ *   consulted for Slack sessions, never for Linear delegations
  */
 export const UserIdentifierSchema = z.union([
-	z.string(), // Treated as user ID
-	z.object({ id: z.string() }), // Explicit user ID
+	z.string(), // Treated as Linear user ID
+	z.object({ id: z.string() }), // Explicit Linear user ID
 	z.object({ email: z.string() }), // Email address
+	z.object({ slackId: z.string() }), // Slack user ID
 ]);
 
 /**
@@ -30,9 +33,11 @@ export const UserIdentifierSchema = z.union([
  */
 export const UserAccessControlConfigSchema = z.object({
 	/**
-	 * Users allowed to delegate issues.
-	 * If specified, ONLY these users can trigger Cyrus sessions.
-	 * Empty array means no one is allowed (effectively disables Cyrus).
+	 * Users allowed to delegate issues or prompt the agent from Slack.
+	 * If specified, only these users can trigger Linear sessions. Slack
+	 * sessions are restricted only when the list contains `slackId` entries;
+	 * a list without any leaves Slack open to every user.
+	 * Empty array means no one is allowed on either (effectively disables Cyrus).
 	 * Omitting this field means everyone is allowed (unless blocked).
 	 */
 	allowedUsers: z.array(UserIdentifierSchema).optional(),

@@ -287,7 +287,7 @@ Note: Linear MCP tools (`mcp__linear`) are always included automatically. Slack 
 
 ## User Access Control
 
-Control which Linear users can delegate issues to Cyrus. Supports both global configuration and per-repository overrides.
+Control which users can delegate issues to Cyrus from Linear, and which can prompt it from Slack. Supports both global configuration and per-repository overrides.
 
 ### `userAccessControl` (object)
 
@@ -295,23 +295,24 @@ Can be configured at the global level or per-repository.
 
 **Properties:**
 
-- **`allowedUsers`** (array) - Users allowed to delegate issues. If specified, ONLY these users can trigger sessions. Omit to allow everyone.
+- **`allowedUsers`** (array) - Users allowed to delegate issues. If specified, only these users can trigger Linear sessions; Slack is restricted only when the list has `slackId` entries (see below). Omit to allow everyone.
 - **`blockedUsers`** (array) - Users blocked from delegating issues. Takes precedence over allowedUsers.
 - **`blockBehavior`** (string) - What happens when a blocked user tries to delegate:
   - `"silent"` (default) - Ignore the webhook quietly
   - `"comment"` - Post a message explaining the user is not authorized
 - **`blockMessage`** (string) - Custom message when blockBehavior is "comment". Supports template variables:
-  - `{{userName}}` - The user's display name
-  - `{{userId}}` - The user's Linear ID
+  - `{{userName}}` - The user's display name (on Slack, an @mention of the user)
+  - `{{userId}}` - The user's Linear or Slack ID
 
   Default: `"{{userName}}, you are not authorized to delegate issues to this agent."`
 
 **User Identifiers:**
 
-Users can be specified in three formats:
+Users can be specified in four formats:
 - String (treated as Linear user ID): `"usr_abc123"`
 - Object with ID: `{ "id": "usr_abc123" }`
 - Object with email: `{ "email": "user@example.com" }` (case-insensitive)
+- Object with Slack ID: `{ "slackId": "U012AB3CD" }` (Slack sessions only)
 
 **Example - Global configuration:**
 
@@ -351,6 +352,31 @@ Users can be specified in three formats:
 - **blockedUsers**: Repository config EXTENDS global (merged/additive)
 - **blockBehavior**: Repository config OVERRIDES global
 - **blockMessage**: Repository config OVERRIDES global
+
+### Slack sessions
+
+The same lists gate who can start or continue a Slack session, keyed by the Slack user ID on the message (`U012AB3CD`, shown under "Copy member ID" in a Slack profile):
+
+- Only `{ "slackId": ... }` entries match a Slack user. An `allowedUsers` list restricts Linear whenever it is present; it restricts Slack only when it contains Slack entries or is empty, so a Linear-only list leaves Slack open.
+- Slack sessions are not bound to a repository, so only the global `userAccessControl` applies; repository-level lists are ignored for Slack.
+- A user who fails the check cannot prompt the agent. With `"silent"` (default) nothing happens, not even the receipt reaction. With `"comment"` their @mention is answered with the block message; their thread replies are still dropped silently. Their messages remain visible to the agent as thread context, like any other message in the thread.
+- Threads Cyrus was never mentioned in are ignored either way.
+- `"comment"` suits a single worker. When several workers share one Slack app, keep the default `"silent"`, or every worker that does not list the author posts a notice.
+- Changes to the lists take effect after a restart.
+
+Several workers can share one Slack app, for example one per engineer running on their own machine. Each worker lists its owner, so only that worker answers the owner's mentions:
+
+```json
+{
+  "userAccessControl": {
+    "allowedUsers": [
+      { "id": "usr_alice" },
+      { "slackId": "U012ALICE" }
+    ]
+  },
+  "repositories": [...]
+}
+```
 
 ---
 

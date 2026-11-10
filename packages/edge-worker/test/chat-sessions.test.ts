@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { getReadOnlyTools } from "cyrus-claude-runner";
-import type { RepositoryConfig } from "cyrus-core";
+import type { RepositoryConfig, UserAccessControlConfig } from "cyrus-core";
 import {
 	type SlackMessageAttachment,
 	SlackMessageService,
@@ -10,7 +10,10 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
 import { LiveChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
-import type { ChatPlatformAdapter } from "../src/ChatSessionHandler.js";
+import type {
+	ChatAccessDecision,
+	ChatPlatformAdapter,
+} from "../src/ChatSessionHandler.js";
 import { ChatSessionHandler } from "../src/ChatSessionHandler.js";
 import type { RunnerConfigBuilder } from "../src/RunnerConfigBuilder.js";
 import {
@@ -20,6 +23,7 @@ import {
 	SLACK_NO_RESPONSE_SENTINEL,
 	SlackChatAdapter,
 } from "../src/SlackChatAdapter.js";
+import { UserAccessControl } from "../src/UserAccessControl.js";
 import { TEST_CYRUS_CHAT } from "./test-dirs.js";
 
 function createMockRunnerConfigBuilder(): RunnerConfigBuilder {
@@ -348,6 +352,182 @@ describe("ChatSessionHandler session-initiation gate", () => {
 		expect(createRunner).toHaveBeenCalledTimes(1);
 		expect(handler.listThreads()).toHaveLength(1);
 	});
+
+	it("leaves no receipt acknowledgement on an ignored event", async () => {
+		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+			"unbound-thread",
+		);
+		adapter.isSessionInitiatingEvent = () => false;
+		const acknowledge = vi
+			.spyOn(adapter, "acknowledgeReceipt")
+			.mockResolvedValue(undefined);
+
+		const { handler } = buildHandler(adapter);
+		await handler.handleEvent({
+			eventId: "follow-up",
+			threadKey: "unbound-thread",
+		} as any);
+
+		expect(acknowledge).not.toHaveBeenCalled();
+	});
+});
+
+describe("ChatSessionHandler access gate", () => {
+	/**
+	 * Handler whose runner is idle after each event. With `streaming`, the
+	 * runner stays live so follow-ups inject into it mid-turn.
+	 */
+	function buildHandler(
+		adapter: ChatPlatformAdapter<TestEvent>,
+		{ streaming = false } = {},
+	) {
+		const injected: string[] = [];
+		let running = false;
+		const createRunner = vi.fn(() => {
+			running = streaming;
+			return {
+				supportsStreamingInput: streaming,
+				start: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
+				startStreaming: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
+				stop: vi.fn(),
+				isRunning: vi.fn(() => running),
+				isStreaming: vi.fn(() => streaming),
+				addStreamMessage: vi.fn((prompt: string) => injected.push(prompt)),
+				getMessages: vi.fn().mockReturnValue([]),
+			} as any;
+		});
+		const onWebhookEnd = vi.fn();
+		const handler = new ChatSessionHandler(adapter, {
+			cyrusHome: TEST_CYRUS_CHAT,
+			chatRepositoryProvider: createStaticProvider([]),
+			runnerConfigBuilder: createMockRunnerConfigBuilder(),
+			createRunner,
+			onWebhookStart: vi.fn(),
+			onWebhookEnd,
+			onStateChange: vi.fn().mockResolvedValue(undefined),
+			onClaudeError: vi.fn(),
+		});
+		return { handler, createRunner, injected, onWebhookEnd };
+	}
+
+	/** Adapter with spies on everything the gate may touch */
+	function buildAdapter(threadKey: string) {
+		const adapter: ChatPlatformAdapter<TestEvent> = new TestChatAdapter(
+			threadKey,
+		);
+		const acknowledge = vi
+			.spyOn(adapter, "acknowledgeReceipt")
+			.mockResolvedValue(undefined);
+		const notifyBlocked = vi.fn().mockResolvedValue(undefined);
+		adapter.notifyBlocked = notifyBlocked;
+		return { adapter, acknowledge, notifyBlocked };
+	}
+
+	const DENIED = {
+		allowed: false as const,
+		reason: "User is not in allowlist (Slack user U999)",
+	};
+	const DENIED_WITH_REPLY = { ...DENIED, reply: "<@U999>, not authorized." };
+
+	it("starts a session and acknowledges when the user is allowed", async () => {
+		const { adapter, acknowledge, notifyBlocked } = buildAdapter("thread");
+		adapter.checkAccess = () => ({ allowed: true });
+
+		const { handler, createRunner } = buildHandler(adapter);
+		await handler.handleEvent({ eventId: "mention", threadKey: "thread" });
+
+		expect(createRunner).toHaveBeenCalledTimes(1);
+		expect(acknowledge).toHaveBeenCalledTimes(1);
+		expect(notifyBlocked).not.toHaveBeenCalled();
+	});
+
+	it("drops a denied event without any visible trace (silent)", async () => {
+		const { adapter, acknowledge, notifyBlocked } = buildAdapter("thread");
+		adapter.checkAccess = () => DENIED;
+
+		const { handler, createRunner, onWebhookEnd } = buildHandler(adapter);
+		await handler.handleEvent({ eventId: "mention", threadKey: "thread" });
+
+		expect(createRunner).not.toHaveBeenCalled();
+		expect(handler.listThreads()).toHaveLength(0);
+		expect(acknowledge).not.toHaveBeenCalled();
+		expect(notifyBlocked).not.toHaveBeenCalled();
+		expect(onWebhookEnd).toHaveBeenCalledTimes(1);
+	});
+
+	it("posts only the block notice for a denied event (comment)", async () => {
+		const { adapter, acknowledge, notifyBlocked } = buildAdapter("thread");
+		adapter.checkAccess = () => DENIED_WITH_REPLY;
+
+		const { handler, createRunner } = buildHandler(adapter);
+		const event = { eventId: "mention", threadKey: "thread" };
+		await handler.handleEvent(event);
+
+		expect(notifyBlocked).toHaveBeenCalledTimes(1);
+		expect(notifyBlocked).toHaveBeenCalledWith(event, DENIED_WITH_REPLY.reply);
+		expect(createRunner).not.toHaveBeenCalled();
+		expect(acknowledge).not.toHaveBeenCalled();
+	});
+
+	it("posts no notice for a non-initiating event in an unbound thread", async () => {
+		const { adapter, acknowledge, notifyBlocked } = buildAdapter("unbound");
+		// A plain reply in a thread Cyrus is not bound to
+		adapter.isSessionInitiatingEvent = () => false;
+		adapter.checkAccess = () => DENIED_WITH_REPLY;
+
+		const { handler, createRunner } = buildHandler(adapter);
+		await handler.handleEvent({ eventId: "reply", threadKey: "unbound" });
+
+		expect(createRunner).not.toHaveBeenCalled();
+		expect(notifyBlocked).not.toHaveBeenCalled();
+		expect(acknowledge).not.toHaveBeenCalled();
+	});
+
+	it("keeps a denied user out of a session the worker owns", async () => {
+		const { adapter, acknowledge, notifyBlocked } = buildAdapter("thread");
+		let decision: ChatAccessDecision = { allowed: true };
+		adapter.checkAccess = () => decision;
+
+		const { handler, createRunner, injected } = buildHandler(adapter, {
+			streaming: true,
+		});
+		await handler.handleEvent({ eventId: "mention", threadKey: "thread" });
+		expect(createRunner).toHaveBeenCalledTimes(1);
+		expect(acknowledge).toHaveBeenCalledTimes(1);
+
+		// A follow-up from someone who may not prompt the agent is not injected
+		decision = DENIED;
+		await handler.handleEvent({ eventId: "reply-1", threadKey: "thread" });
+		expect(injected).toHaveLength(0);
+		expect(acknowledge).toHaveBeenCalledTimes(1);
+		expect(notifyBlocked).not.toHaveBeenCalled();
+
+		// The notice is posted when the decision carries one
+		decision = DENIED_WITH_REPLY;
+		await handler.handleEvent({ eventId: "reply-2", threadKey: "thread" });
+		expect(injected).toHaveLength(0);
+		expect(notifyBlocked).toHaveBeenCalledTimes(1);
+
+		// The owner keeps talking to their session
+		decision = { allowed: true };
+		await handler.handleEvent({ eventId: "reply-3", threadKey: "thread" });
+		expect(injected).toHaveLength(1);
+		expect(createRunner).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not fail the event when the block notice cannot be posted", async () => {
+		const { adapter, notifyBlocked } = buildAdapter("thread");
+		adapter.checkAccess = () => DENIED_WITH_REPLY;
+		notifyBlocked.mockRejectedValue(new Error("slack is down"));
+
+		const { handler, onWebhookEnd } = buildHandler(adapter);
+		await expect(
+			handler.handleEvent({ eventId: "mention", threadKey: "thread" }),
+		).resolves.toBeUndefined();
+
+		expect(notifyBlocked).toHaveBeenCalledTimes(1);
+		expect(onWebhookEnd).toHaveBeenCalledTimes(1);
+	});
 });
 
 describe("ChatSessionHandler processed acknowledgement", () => {
@@ -565,6 +745,145 @@ describe("SlackChatAdapter session initiation", () => {
 				upstreamGated: true,
 			} as any),
 		).toBe(true);
+	});
+});
+
+describe("SlackChatAdapter access control", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+		delete process.env.SLACK_BOT_TOKEN;
+	});
+
+	const slackEvent = (
+		eventType: "app_mention" | "message",
+		user: string | undefined,
+	) =>
+		({
+			eventType,
+			eventId: "Ev1",
+			teamId: "T1",
+			slackBotToken: "xoxb-test",
+			payload: {
+				type: eventType,
+				user,
+				channel: "C1",
+				text: "<@UBOT> hello",
+				ts: "1700000000.000200",
+				thread_ts: "1700000000.000100",
+				event_ts: "1700000000.000200",
+			},
+		}) as SlackWebhookEvent;
+
+	const adapterWith = (config?: UserAccessControlConfig) =>
+		new SlackChatAdapter(createStaticProvider([]), undefined, {
+			userAccessControl: new UserAccessControl(config, new Map()),
+		});
+
+	it("allows everyone when no access control is wired in", () => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		expect(adapter.checkAccess(slackEvent("app_mention", "U1"))).toEqual({
+			allowed: true,
+		});
+	});
+
+	it("denies silently by default", () => {
+		const adapter = adapterWith({ allowedUsers: [{ slackId: "U1" }] });
+
+		expect(adapter.checkAccess(slackEvent("app_mention", "U1"))).toEqual({
+			allowed: true,
+		});
+
+		const denied = adapter.checkAccess(slackEvent("app_mention", "U2"));
+		expect(denied.allowed).toBe(false);
+		if (!denied.allowed) {
+			expect(denied.reason).toMatch(/not in allowlist/);
+			expect(denied.reply).toBeUndefined();
+		}
+	});
+
+	it("renders the block message as an @mention when blockBehavior is comment", () => {
+		const defaults = adapterWith({
+			allowedUsers: [{ slackId: "U1" }],
+			blockBehavior: "comment",
+		});
+		expect(defaults.checkAccess(slackEvent("app_mention", "U2"))).toMatchObject(
+			{
+				allowed: false,
+				reply:
+					"<@U2>, you are not authorized to delegate issues to this agent.",
+			},
+		);
+
+		const custom = adapterWith({
+			allowedUsers: [{ slackId: "U1" }],
+			blockBehavior: "comment",
+			blockMessage: "Sorry {{userName}} ({{userId}}), ask your lead.",
+		});
+		expect(custom.checkAccess(slackEvent("app_mention", "U2"))).toMatchObject({
+			allowed: false,
+			reply: "Sorry <@U2> (U2), ask your lead.",
+		});
+	});
+
+	it("drops a denied thread reply silently even when blockBehavior is comment", () => {
+		const adapter = adapterWith({
+			allowedUsers: [{ slackId: "U1" }],
+			blockBehavior: "comment",
+		});
+
+		const denied = adapter.checkAccess(slackEvent("message", "U2"));
+		expect(denied.allowed).toBe(false);
+		if (!denied.allowed) {
+			expect(denied.reply).toBeUndefined();
+		}
+	});
+
+	it("posts no notice for a mention without an author", () => {
+		const adapter = adapterWith({
+			allowedUsers: [{ slackId: "U1" }],
+			blockBehavior: "comment",
+		});
+
+		const denied = adapter.checkAccess(slackEvent("app_mention", undefined));
+		expect(denied.allowed).toBe(false);
+		if (!denied.allowed) {
+			expect(denied.reply).toBeUndefined();
+		}
+	});
+
+	it("posts the block notice in the thread", async () => {
+		const adapter = adapterWith({ blockBehavior: "comment" });
+		const postSpy = vi
+			.spyOn(SlackMessageService.prototype, "postMessage")
+			.mockResolvedValue({} as any);
+
+		await adapter.notifyBlocked(
+			slackEvent("app_mention", "U2"),
+			"<@U2>, not authorized.",
+		);
+
+		expect(postSpy).toHaveBeenCalledTimes(1);
+		expect(postSpy.mock.calls[0]?.[0]).toMatchObject({
+			token: "xoxb-test",
+			channel: "C1",
+			text: "<@U2>, not authorized.",
+			thread_ts: "1700000000.000100",
+		});
+	});
+
+	it("does not post the block notice without a bot token", async () => {
+		const adapter = adapterWith({ blockBehavior: "comment" });
+		const postSpy = vi
+			.spyOn(SlackMessageService.prototype, "postMessage")
+			.mockResolvedValue({} as any);
+
+		const event = {
+			...slackEvent("app_mention", "U2"),
+			slackBotToken: undefined,
+		};
+		await adapter.notifyBlocked(event, "<@U2>, not authorized.");
+
+		expect(postSpy).not.toHaveBeenCalled();
 	});
 });
 

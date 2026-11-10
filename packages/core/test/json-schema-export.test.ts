@@ -92,6 +92,13 @@ describe("JSON Schema export", () => {
 			expect(uac.properties).toHaveProperty("blockMessage");
 		});
 
+		it("includes slackId among the user identifier shapes", () => {
+			const uac = schema.properties.userAccessControl;
+			expect(uac.properties.allowedUsers.items.anyOf).toContainEqual(
+				expect.objectContaining({ required: ["slackId"] }),
+			);
+		});
+
 		it("represents promptDefaults with prompt type keys", () => {
 			const pd = schema.properties.promptDefaults;
 			expect(pd.type).toBe("object");

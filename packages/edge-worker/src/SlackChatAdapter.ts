@@ -8,7 +8,11 @@ import {
 	type SlackWebhookEvent,
 } from "cyrus-slack-event-transport";
 import type { ChatRepositoryProvider } from "./ChatRepositoryProvider.js";
-import type { ChatPlatformAdapter } from "./ChatSessionHandler.js";
+import type {
+	ChatAccessDecision,
+	ChatPlatformAdapter,
+} from "./ChatSessionHandler.js";
+import type { UserAccessControl } from "./UserAccessControl.js";
 
 /**
  * Sentinel the agent emits when it has decided a Slack message does not warrant
@@ -57,6 +61,7 @@ export class SlackChatAdapter
 	private repositoryProvider: ChatRepositoryProvider;
 	private repositoryRoutingContext: string;
 	private behavioursPageUrl: string;
+	private userAccessControl: UserAccessControl | undefined;
 	private logger: ILogger;
 	private selfBotId: string | undefined;
 
@@ -73,11 +78,18 @@ export class SlackChatAdapter
 			 * from this base and BEHAVIOURS_PAGE_ROUTE.
 			 */
 			cyrusAppBaseUrl?: string;
+			/**
+			 * Access control shared with the Linear path. Only the global
+			 * `{ slackId }` entries apply to Slack sessions; see
+			 * UserAccessControl.checkSlackAccess.
+			 */
+			userAccessControl?: UserAccessControl;
 		},
 	) {
 		this.repositoryProvider = repositoryProvider;
 		this.repositoryRoutingContext =
 			options?.repositoryRoutingContext?.trim() || "";
+		this.userAccessControl = options?.userAccessControl;
 		const appBaseUrl = options?.cyrusAppBaseUrl?.trim().replace(/\/+$/, "");
 		this.behavioursPageUrl = appBaseUrl
 			? `${appBaseUrl}${BEHAVIOURS_PAGE_ROUTE}`
@@ -134,6 +146,58 @@ export class SlackChatAdapter
 	 */
 	isSessionInitiatingEvent(event: SlackWebhookEvent): boolean {
 		return event.eventType === "app_mention" || event.upstreamGated === true;
+	}
+
+	/**
+	 * Apply the global `userAccessControl` to the Slack user behind this event.
+	 * With `blockBehavior: "comment"` a denied @mention carries the block
+	 * message, with `{{userName}}` rendered as an @mention of the user. Denied
+	 * thread replies are always dropped silently: thread following forwards
+	 * every reply in a bound thread, and answering each one would spam it.
+	 */
+	checkAccess(event: SlackWebhookEvent): ChatAccessDecision {
+		if (!this.userAccessControl) {
+			return { allowed: true };
+		}
+
+		const slackUserId = event.payload.user;
+		const result = this.userAccessControl.checkSlackAccess(slackUserId);
+		if (result.allowed) {
+			return { allowed: true };
+		}
+
+		const reason = `${result.reason} (Slack user ${slackUserId ?? "unknown"})`;
+		if (
+			event.eventType !== "app_mention" ||
+			// A mention without an author (bot or workflow post) gets no notice
+			!slackUserId ||
+			this.userAccessControl.getBlockBehavior() === "silent"
+		) {
+			return { allowed: false, reason };
+		}
+
+		const reply = this.userAccessControl
+			.getBlockMessage()
+			.replace(/\{\{userName\}\}/g, `<@${slackUserId}>`)
+			.replace(/\{\{userId\}\}/g, slackUserId);
+		return { allowed: false, reason, reply };
+	}
+
+	async notifyBlocked(event: SlackWebhookEvent, reply: string): Promise<void> {
+		const token = this.getSlackBotToken(event);
+		if (!token) {
+			this.logger.warn(
+				"Cannot post Slack block notice: no slackBotToken available",
+			);
+			return;
+		}
+
+		await new SlackMessageService().postMessage({
+			token,
+			channel: event.payload.channel,
+			text: reply,
+			thread_ts: event.payload.thread_ts || event.payload.ts,
+		});
 	}
 
 	getThreadKey(event: SlackWebhookEvent): string {
