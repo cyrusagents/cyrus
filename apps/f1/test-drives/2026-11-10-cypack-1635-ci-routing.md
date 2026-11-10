@@ -1,6 +1,7 @@
 # CYPACK-1635: CI failure continuation
 
-Run: 2026-11-10. Script: `apps/f1/github-ci-routing-drive.mjs`.
+Run: 2026-11-10, repeated after rebasing on main `325010bd` (SDK update).
+Implementation commit: `a199d74f`. Script: `apps/f1/github-ci-routing-drive.mjs`.
 Scope: actual local HTTP endpoint, EdgeWorker transport registration, existing
 AgentSessionManager sessions, and actual `prepareCiPrompt` streaming path.
 GitHub API and the runner are deterministic fixtures. No live provider or model.

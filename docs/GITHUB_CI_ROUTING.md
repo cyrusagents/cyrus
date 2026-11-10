@@ -1,5 +1,8 @@
 # GitHub CI failures (CYPACK-1635)
 
+Companion PRs: [runtime #1590](https://github.com/cyrusagents/cyrus/pull/1590) and
+[Hosted #1347](https://github.com/cyrusagents/cyrus-hosted/pull/1347).
+
 This change routes CI failures into one existing Cyrus session. It does not create
 an issue, select a default repository/session, or act on app-authored review comments.
 Historical customer request: [CYR-5](https://linear.app/ceedar/issue/CYR-5/cicd-feedback-cyrus-feature-suggestion).
