@@ -1,3 +1,4 @@
+export { type GitHubCiFailure, parseGitHubCiFailure } from "./ci-failure.js";
 export type { GitHubAppTokenProviderConfig } from "./GitHubAppTokenProvider.js";
 export {
 	createAppJwt,

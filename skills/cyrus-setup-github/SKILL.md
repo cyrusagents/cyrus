@@ -157,9 +157,13 @@ Construct the manifest, substituting `AGENT_NAME`, `HOMEPAGE_URL`, and `CYRUS_BA
     "contents": "write",
     "issues": "write",
     "pull_requests": "write",
-    "repository_hooks": "write"
+    "repository_hooks": "write",
+    "statuses": "read",
+    "checks": "read"
   },
   "default_events": [
+    "status",
+    "check_run",
     "issue_comment",
     "pull_request_review",
     "pull_request_review_comment",

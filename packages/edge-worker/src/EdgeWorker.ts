@@ -168,6 +168,7 @@ import { ChatSessionHandler } from "./ChatSessionHandler.js";
 import { ConfigManager, type RepositoryChanges } from "./ConfigManager.js";
 import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { EgressProxy } from "./EgressProxy.js";
+import { GitHubCiRouter } from "./GitHubCiRouter.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { McpConfigService } from "./McpConfigService.js";
@@ -984,6 +985,90 @@ export class EdgeWorker extends EventEmitter {
 	 * Register the GitHub event transport for receiving forwarded GitHub webhooks from CYHOST.
 	 * This creates a /github-webhook endpoint that handles @cyrusagent mentions on GitHub PRs.
 	 */
+	private async prepareCiPrompt(
+		session: CyrusAgentSession,
+		repository: RepositoryConfig,
+		prompt: string,
+	): Promise<() => Promise<void>> {
+		if (this.agentSessionManager.getSession(session.id) !== session) {
+			throw new Error("CI continuation unavailable for this session origin");
+		}
+		if (session.status === "error")
+			throw new Error(
+				"CI cannot resume an errored or stopped session automatically",
+			);
+		const runner = session.agentRunner;
+		if (runner?.isRunning()) {
+			if (!runner.supportsStreamingInput || !runner.addStreamMessage) {
+				throw new Error(
+					"CI session is busy; redeliver after its turn completes",
+				);
+			}
+			return async () => {
+				runner.addStreamMessage!(prompt);
+			};
+		}
+		const resumeId =
+			session.claudeSessionId ??
+			session.geminiSessionId ??
+			session.codexSessionId ??
+			session.cursorSessionId ??
+			session.opencodeSessionId;
+		if (!resumeId) throw new Error("CI session has no resumable runner");
+		if (!existsSync(session.workspace.path))
+			throw new Error("CI workspace no longer exists");
+		if (
+			session.issueContext?.trackerId !== "github" &&
+			!session.id.startsWith("github-")
+		) {
+			const workspaceId = requireLinearWorkspaceId(repository);
+			return async () => {
+				// A user may have resumed the session during GitHub validation.
+				if (session.agentRunner?.isRunning())
+					throw new Error("CI session became busy");
+				await this.resumeAgentSession(
+					session,
+					repository,
+					session.id,
+					this.agentSessionManager,
+					prompt,
+					"",
+					false,
+					[],
+					workspaceId,
+					50,
+				);
+			};
+		}
+		const { config, runnerType } = await this.buildAgentRunnerConfig(
+			session,
+			repository,
+			session.id,
+			undefined,
+			this.toolPermissionResolver.buildGithubAllowedTools(repository),
+			[
+				repository.repositoryPath,
+				...Object.values(session.workspace.repoPaths ?? {}),
+			],
+			this.buildDisallowedTools(repository),
+			resumeId,
+			undefined,
+			undefined,
+			50,
+			undefined,
+			this.buildSkillSessionContext(repository, undefined, session),
+			"github",
+		);
+		return async () => {
+			if (session.agentRunner?.isRunning())
+				throw new Error("CI session became busy");
+			const resumed = this.createRunnerForType(runnerType, config);
+			this.agentSessionManager.addAgentRunner(session.id, resumed);
+			await this.savePersistedState();
+			await resumed.start(prompt);
+		};
+	}
+
 	private registerGitHubEventTransport(): void {
 		// Use direct GitHub signature verification only when BOTH:
 		// 1. GITHUB_WEBHOOK_SECRET is set (we have the secret to verify)
@@ -1001,7 +1086,25 @@ export class EdgeWorker extends EventEmitter {
 			? process.env.GITHUB_WEBHOOK_SECRET!
 			: process.env.CYRUS_API_KEY || "";
 
+		const ciRouter = new GitHubCiRouter({
+			home: this.cyrusHome,
+			repositories: () => [...this.repositories.values()],
+			sessions: () => this.getAllKnownSessions(),
+			token: (repository, installationToken) =>
+				this.resolveGitHubToken(
+					{ installationToken } as GitHubWebhookEvent,
+					repository,
+				),
+			prepare: (session, repository, prompt) =>
+				this.prepareCiPrompt(session, repository, prompt),
+			onDispatchError: (sessionId) =>
+				this.logger.error(
+					`CI dispatch failed for session ${sessionId}; inspect ci-dispatch journal before redelivery`,
+				),
+		});
 		this.gitHubEventTransport = new GitHubEventTransport({
+			handleCiFailure: (failure, context) =>
+				ciRouter.handle(failure, context.installationToken),
 			fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
 			verificationMode,
 			secret,
