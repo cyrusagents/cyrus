@@ -587,6 +587,19 @@ export const EdgeConfigSchema = z.object({
 	 * and no agent session. Defaults to true if not specified.
 	 */
 	prReviewTrigger: z.boolean().optional(),
+	/** Explicit GitHub App review grants, scoped to the receiving installation and organization. */
+	githubReviewAppPolicies: z
+		.array(
+			z.object({
+				installationId: z.string().regex(/^\d+$/),
+				organization: z.string().min(1),
+				includeSuggestions: z.boolean().optional(),
+				appIds: z.array(
+					z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+				),
+			}),
+		)
+		.optional(),
 
 	/**
 	 * Global user access control settings.

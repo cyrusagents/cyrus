@@ -84,4 +84,39 @@ describe("ConfigManager - prReviewTrigger hot-reload (CYPACK-1273)", () => {
 
 		expect(newConfig.prReviewTrigger).toBe(false);
 	});
+	it("hot-reloads and revokes GitHub app policies when removed", async () => {
+		const policy = [
+			{
+				installationId: "123",
+				organization: "Grain",
+				appIds: [42],
+				includeSuggestions: true,
+			},
+		];
+		const manager = makeManager({
+			...baseConfig,
+			githubReviewAppPolicies: policy,
+		});
+		vi.mocked(readFile).mockResolvedValue(
+			JSON.stringify({ repositories: baseConfig.repositories }) as any,
+		);
+		expect(
+			(await (manager as any).loadConfigSafely()).githubReviewAppPolicies,
+		).toEqual([]);
+		expect(
+			(manager as any).detectGlobalConfigChanges({
+				...baseConfig,
+				githubReviewAppPolicies: [],
+			}),
+		).toBe(true);
+		vi.mocked(readFile).mockResolvedValue(
+			JSON.stringify({
+				repositories: baseConfig.repositories,
+				githubReviewAppPolicies: policy,
+			}) as any,
+		);
+		expect(
+			(await (manager as any).loadConfigSafely()).githubReviewAppPolicies,
+		).toEqual(policy);
+	});
 });
