@@ -62,6 +62,7 @@ const RELOAD_MERGED_KEYS = [
 	"slackThreadFollowing",
 	"prReviewTrigger",
 	"ciFailureTrigger",
+	"githubReviewAppPolicies",
 	"userAccessControl",
 	"sandbox",
 ] as const satisfies readonly (keyof EdgeConfig)[];
@@ -379,6 +380,7 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.prReviewTrigger ?? this.config.prReviewTrigger,
 				// Removing the opt-in from config.json disables future CI dispatches.
 				ciFailureTrigger: parsedConfig.ciFailureTrigger === true,
+				githubReviewAppPolicies: parsedConfig.githubReviewAppPolicies ?? [],
 				userAccessControl:
 					parsedConfig.userAccessControl ?? this.config.userAccessControl,
 				stripeCustomerId:

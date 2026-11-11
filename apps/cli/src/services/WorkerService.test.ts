@@ -127,6 +127,9 @@ describe("WorkerService", () => {
 			slackThreadFollowing: false,
 			prReviewTrigger: false,
 			ciFailureTrigger: true,
+			githubReviewAppPolicies: [
+				{ installationId: "123", organization: "Grain", appIds: [42] },
+			],
 			userAccessControl: { allowedUsers: ["usr_1"] },
 			promptDefaults: { debugger: { allowedTools: ["Read"] } },
 			sandbox: { enabled: false },

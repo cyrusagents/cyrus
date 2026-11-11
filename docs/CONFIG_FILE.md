@@ -641,3 +641,27 @@ Each repository configuration includes these required fields:
 - `linearWorkspaceId` - Linear workspace UUID (references a key in `linearWorkspaces`)
 
 These fields are managed automatically during setup. For self-hosted instances, use the `cyrus self-auth-linear` and `cyrus self-add-repo` commands.
+
+### GitHub App review requests
+
+Starting with the planned `cyrus-ai` 0.2.77 release, `githubReviewAppPolicies` grants selected GitHub Apps permission to trigger change-request reviews. No apps are allowed by default. Hosted manages these policies per organization; self-managed configurations can set them explicitly:
+
+```json
+{
+  "prReviewTrigger": true,
+  "githubReviewAppPolicies": [
+    {
+      "installationId": "123456",
+      "organization": "your-org",
+      "appIds": [20150]
+    }
+  ]
+}
+```
+
+Set `includeSuggestions: true` on an organization policy to also process submitted `COMMENTED` reviews with inline findings from its allowed apps. It defaults to false. Cyrus verifies the reviewer and fetches that review’s findings as one batch; status comments, reactions, empty reviews and human commented reviews do not trigger it. The master `prReviewTrigger` still applies.
+
+
+`installationId` is the receiving Cyrus installation. `appIds` contains GitHub **App IDs**, not installation IDs or bot user IDs. The runtime matches both installation and organization, verifies the review author's Bot node and GitHub App identity, and only acts on `changes_requested` reviews when `prReviewTrigger` permits them. Unverifiable apps, self reviews, and API errors are denied. Comment @mention behavior is unchanged. An empty or removed policy list revokes access on config reload.
+
+For discovery in Hosted, the Cyrus GitHub App owner must set **Permissions & events → Organization permissions → Administration → Read-only** (`organization_administration: read`) and save. This is not repository Administration. An owner of **each organization** must then accept the new permission request under that organization's installed GitHub Apps settings; one organization's approval does not cover others. Keep the existing **Pull request review** webhook subscription enabled. Newly generated manifests include the permission; existing app registrations require a manual settings update. Manual App ID entry remains available if discovery is unavailable or approval is pending.

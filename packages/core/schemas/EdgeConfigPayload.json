@@ -688,6 +688,35 @@
 		"prReviewTrigger": {
 			"type": "boolean"
 		},
+		"githubReviewAppPolicies": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"installationId": {
+						"type": "string",
+						"pattern": "^\\d+$"
+					},
+					"organization": {
+						"type": "string",
+						"minLength": 1
+					},
+					"includeSuggestions": {
+						"type": "boolean"
+					},
+					"appIds": {
+						"type": "array",
+						"items": {
+							"type": "integer",
+							"exclusiveMinimum": 0,
+							"maximum": 9007199254740991
+						}
+					}
+				},
+				"required": ["installationId", "organization", "appIds"],
+				"additionalProperties": false
+			}
+		},
 		"ciFailureTrigger": {
 			"type": "boolean"
 		},
