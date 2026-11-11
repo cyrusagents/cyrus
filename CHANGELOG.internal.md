@@ -4,6 +4,8 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.77] - 2026-11-11
+
 ### Changed
 - Release packaging: set all 18 coordinated public workspace packages, including `cyrus-ai`, to **0.2.77**, matching the Hosted GitHub App review minimum. Publication remains a separate release step. ([CYPACK-1636](https://linear.app/ceedar/issue/CYPACK-1636), [#1591](https://github.com/cyrusagents/cyrus/pull/1591))
 
