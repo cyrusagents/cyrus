@@ -28,6 +28,21 @@ describe("handleCyrusConfig", () => {
 		delete process.env.CYRUS_WORKTREES_DIR;
 	});
 
+	it.each([
+		true,
+		false,
+		undefined,
+	])("preserves CI opt-in %s in pushed config without requesting a restart", async (ciFailureTrigger) => {
+		const result = await handleCyrusConfig(
+			{ repositories: [], ciFailureTrigger },
+			cyrusHome,
+		);
+		expect(result.success).toBe(true);
+		const saved = JSON.parse(mockWriteFileSync.mock.calls[0]![1] as string);
+		expect(saved.ciFailureTrigger).toBe(ciFailureTrigger);
+		expect(result.data).toMatchObject({ restartCyrus: false });
+	});
+
 	it("defaults repository workspaceBaseDir to cyrusHome/worktrees", async () => {
 		const result = await handleCyrusConfig(
 			{

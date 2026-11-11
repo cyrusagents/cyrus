@@ -710,35 +710,7 @@ export class EdgeWorker extends EventEmitter {
 			});
 		}
 
-		// Start config file watcher via ConfigManager
-		this.configManager.on(
-			"configChanged",
-			async (changes: RepositoryChanges) => {
-				const strictMcpConfigChanged =
-					(this.config.strictMcpConfig ?? true) !==
-					(changes.newConfig.strictMcpConfig ?? true);
-				if (strictMcpConfigChanged) {
-					for (const warmSession of this.warmInstances.values()) {
-						warmSession.close();
-					}
-					this.warmInstances.clear();
-				}
-				this.updateLinearWorkspaceTokens(changes.newConfig);
-				await this.removeDeletedRepositories(changes.removed);
-				await this.updateModifiedRepositories(changes.modified);
-				await this.addNewRepositories(changes.added);
-				// Live-update sandbox / egress proxy settings
-				await this.applySandboxConfigChanges(changes.newConfig);
-				this.config = EdgeWorker.normalizeConfigPaths(changes.newConfig);
-				this.configManager.setConfig(changes.newConfig);
-				this.runnerSelectionService.setConfig(changes.newConfig);
-				this.toolPermissionResolver.setConfig(changes.newConfig);
-				this.runnerSlots.setLimit(
-					changes.newConfig.maxConcurrentSessions ?? Number.POSITIVE_INFINITY,
-				);
-			},
-		);
-		this.configManager.startConfigWatcher();
+		this.startConfigWatcher();
 
 		// Start egress proxy if sandbox is enabled.
 		// The proxy intercepts Bash-spawned subprocess traffic only (git, gh, npm, etc.).
@@ -1087,6 +1059,7 @@ export class EdgeWorker extends EventEmitter {
 			: process.env.CYRUS_API_KEY || "";
 
 		const ciRouter = new GitHubCiRouter({
+			enabled: () => this.config.ciFailureTrigger === true,
 			home: this.cyrusHome,
 			repositories: () => [...this.repositories.values()],
 			sessions: () => this.getAllKnownSessions(),
@@ -3285,6 +3258,39 @@ ${taskSection}`;
 		} catch {
 			return false;
 		}
+	}
+
+	/** Register live configuration updates before watching the file. */
+	private startConfigWatcher(): void {
+		// Start config file watcher via ConfigManager
+		this.configManager.on(
+			"configChanged",
+			async (changes: RepositoryChanges) => {
+				const strictMcpConfigChanged =
+					(this.config.strictMcpConfig ?? true) !==
+					(changes.newConfig.strictMcpConfig ?? true);
+				if (strictMcpConfigChanged) {
+					for (const warmSession of this.warmInstances.values()) {
+						warmSession.close();
+					}
+					this.warmInstances.clear();
+				}
+				this.updateLinearWorkspaceTokens(changes.newConfig);
+				await this.removeDeletedRepositories(changes.removed);
+				await this.updateModifiedRepositories(changes.modified);
+				await this.addNewRepositories(changes.added);
+				// Live-update sandbox / egress proxy settings
+				await this.applySandboxConfigChanges(changes.newConfig);
+				this.config = EdgeWorker.normalizeConfigPaths(changes.newConfig);
+				this.configManager.setConfig(changes.newConfig);
+				this.runnerSelectionService.setConfig(changes.newConfig);
+				this.toolPermissionResolver.setConfig(changes.newConfig);
+				this.runnerSlots.setLimit(
+					changes.newConfig.maxConcurrentSessions ?? Number.POSITIVE_INFINITY,
+				);
+			},
+		);
+		this.configManager.startConfigWatcher();
 	}
 
 	/**

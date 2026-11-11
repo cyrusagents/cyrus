@@ -688,6 +688,9 @@
 		"prReviewTrigger": {
 			"type": "boolean"
 		},
+		"ciFailureTrigger": {
+			"type": "boolean"
+		},
 		"userAccessControl": {
 			"type": "object",
 			"properties": {
