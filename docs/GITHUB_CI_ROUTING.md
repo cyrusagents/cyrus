@@ -61,8 +61,21 @@ Hosted also checks the setting before minting installation tokens or forwarding.
 A sync failure is shown as saved but pending; the stored setting is not falsely
 rolled back in the UI, and the existing stale-config recovery applies. Manual edits
 to a Hosted-managed config file apply locally but can be overwritten by the next
-Hosted config push; use the saved team setting for a lasting choice. Older runtime
-versions must be upgraded before enabling, since they do not implement this gate.
+Hosted config push; use the saved team setting for a lasting choice.
+
+Hosted uses the existing tunnel version monitor and changelog-link pattern to show
+self-hosted teams their current CLI version and the required **v0.2.77**. Enabling
+is blocked in the UI and in the paid/admin server action until an active runtime
+reports a compatible version; unknown versions fail closed. Turning off is always
+allowed. A manual version refresh and normal polling unlock the control after an
+upgrade; cached tunnel responses retain the last successfully checked version.
+Cloud runtimes do not get this user-managed upgrade gate.
+
+**Release coordination:** v0.2.77 is the planned first CLI release containing this
+feature, not a release performed by this PR. Keep
+`MIN_CI_FAILURE_TRIGGER_VERSION` aligned with the actual first feature release
+before shipping Hosted. The comparison uses Hosted's existing semver convention
+(including prereleases of the required core version).
 
 ## Runtime association
 
