@@ -79,3 +79,31 @@ describe("submitted review findings", () => {
 		expect(formatReviewFindings(result)).toContain("### README.md\n");
 	});
 });
+
+it("accepts the legacy position-only response returned for Codex review 5863629400", async () => {
+	const comment = {
+		id: 1,
+		pull_request_review_id: 7,
+		user: { id: 8 },
+		commit_id: "head",
+		path: "README.md",
+		position: 5,
+		original_position: 5,
+		diff_hunk:
+			"@@ -23,7 +23,7 @@\n+   git clone https://github.com/example/repo.git",
+		body: "Add a blank line after cloning",
+		html_url: "https://github.com/grain/repo/pull/1#discussion_r1",
+	};
+	const result = await loadReviewFindings(scope, "token", async () =>
+		Response.json([comment]),
+	);
+	expect(result).toHaveLength(1);
+	expect(result[0].line).toBeNull();
+	expect(formatReviewFindings(result)).toContain(comment.diff_hunk);
+	expect(formatReviewFindings(result)).toContain(comment.body);
+	expect(
+		await loadReviewFindings(scope, "token", async () =>
+			Response.json([{ ...comment, position: null }]),
+		),
+	).toEqual([]);
+});

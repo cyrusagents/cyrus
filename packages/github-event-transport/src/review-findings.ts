@@ -5,6 +5,7 @@ export interface ReviewFinding {
 	id: number;
 	path: string;
 	line: number | null;
+	diffHunk?: string;
 	body: string;
 	html_url: string;
 }
@@ -54,7 +55,9 @@ export async function loadReviewFindings(
 				typeof comment.body !== "string" ||
 				!comment.body.trim() ||
 				typeof comment.html_url !== "string" ||
-				(comment.line == null && comment.subject_type !== "file")
+				(comment.line == null &&
+					comment.position == null &&
+					comment.subject_type !== "file")
 			)
 				continue;
 			findings.set(comment.id, {
@@ -63,6 +66,8 @@ export async function loadReviewFindings(
 				line: comment.line ?? null,
 				body: comment.body,
 				html_url: comment.html_url,
+				diffHunk:
+					typeof comment.diff_hunk === "string" ? comment.diff_hunk : undefined,
 			});
 		}
 		if (comments.length < 100) return [...findings.values()];
@@ -74,7 +79,7 @@ export function formatReviewFindings(findings: ReviewFinding[]): string {
 	return findings
 		.map(
 			(finding) =>
-				`### ${finding.path}${finding.line === null ? "" : `:${finding.line}`}\n${finding.html_url}\n\n${finding.body}`,
+				`### ${finding.path}${finding.line === null ? "" : `:${finding.line}`}\n${finding.html_url}\n${finding.diffHunk ? `\nDiff context:\n${finding.diffHunk}\n` : ""}\n${finding.body}`,
 		)
 		.join("\n\n");
 }

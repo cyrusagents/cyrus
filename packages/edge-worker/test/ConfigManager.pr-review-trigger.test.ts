@@ -86,7 +86,12 @@ describe("ConfigManager - prReviewTrigger hot-reload (CYPACK-1273)", () => {
 	});
 	it("hot-reloads and revokes GitHub app policies when removed", async () => {
 		const policy = [
-			{ installationId: "123", organization: "Grain", appIds: [42] },
+			{
+				installationId: "123",
+				organization: "Grain",
+				appIds: [42],
+				includeSuggestions: true,
+			},
 		];
 		const manager = makeManager({
 			...baseConfig,
