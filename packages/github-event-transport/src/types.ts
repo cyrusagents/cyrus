@@ -95,6 +95,7 @@ export interface GitHubCommentWebhookEvent {
  * GitHub user object (minimal)
  */
 export interface GitHubUser {
+	node_id?: string;
 	login: string;
 	id: number;
 	avatar_url: string;

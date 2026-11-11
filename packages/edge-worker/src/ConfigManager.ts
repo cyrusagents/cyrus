@@ -61,6 +61,7 @@ const RELOAD_MERGED_KEYS = [
 	"maxConcurrentSessions",
 	"slackThreadFollowing",
 	"prReviewTrigger",
+	"githubReviewAppPolicies",
 	"userAccessControl",
 	"sandbox",
 ] as const satisfies readonly (keyof EdgeConfig)[];
@@ -376,6 +377,7 @@ export class ConfigManager extends EventEmitter {
 				// otherwise keep current or default to true
 				prReviewTrigger:
 					parsedConfig.prReviewTrigger ?? this.config.prReviewTrigger,
+				githubReviewAppPolicies: parsedConfig.githubReviewAppPolicies ?? [],
 				userAccessControl:
 					parsedConfig.userAccessControl ?? this.config.userAccessControl,
 				stripeCustomerId:

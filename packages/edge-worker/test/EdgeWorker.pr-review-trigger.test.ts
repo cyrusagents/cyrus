@@ -342,4 +342,89 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		await vi.waitFor(() => expect(secondRunner.start).toHaveBeenCalledOnce());
 		expect(firstRunner.completeStream).toHaveBeenCalledOnce();
 	});
+	function appEvent() {
+		const event = createPrReviewEvent();
+		event.payload.review.user = {
+			id: 999,
+			node_id: "BOT_node",
+			type: "Bot",
+			login: "reviewer[bot]",
+		};
+		event.payload.pull_request.user = { id: 111, login: "cyrusagent[bot]" };
+		event.payload.repository.owner.type = "Organization";
+		return event;
+	}
+	function allowApp(worker: EdgeWorker) {
+		(worker as any).config.githubReviewAppPolicies = [
+			{ installationId: "55555", organization: "testorg", appIds: [42] },
+		];
+	}
+	function mockAppIdentity() {
+		return vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(
+				Response.json({
+					data: {
+						node: {
+							__typename: "Bot",
+							databaseId: 999,
+							login: "reviewer",
+							url: "https://github.com/apps/reviewer",
+						},
+					},
+				}),
+			)
+			.mockResolvedValueOnce(Response.json({ id: 42, slug: "reviewer" }));
+	}
+	it("accepts a verified allowlisted app review", async () => {
+		edgeWorker = createWorker(true);
+		allowApp(edgeWorker);
+		mockAppIdentity();
+		await (edgeWorker as any).handleGitHubWebhook(appEvent());
+		expect(mockGitHubCommentService.postIssueComment).toHaveBeenCalled();
+	});
+	it("denies apps by default without acknowledgement or identity lookup", async () => {
+		edgeWorker = createWorker(true);
+		const request = vi.spyOn(globalThis, "fetch");
+		await (edgeWorker as any).handleGitHubWebhook(appEvent());
+		expect(request).not.toHaveBeenCalled();
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+	});
+	it("does not let an allowed app bypass the disabled PR review trigger", async () => {
+		edgeWorker = createWorker(false);
+		allowApp(edgeWorker);
+		await (edgeWorker as any).handleGitHubWebhook(appEvent());
+		expect((edgeWorker as any).resolveGitHubToken).not.toHaveBeenCalled();
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+	});
+	it("denies a verified app that is absent from the allowlist", async () => {
+		edgeWorker = createWorker(true);
+		allowApp(edgeWorker);
+		mockAppIdentity();
+		(edgeWorker as any).config.githubReviewAppPolicies[0].appIds = [43];
+		await (edgeWorker as any).handleGitHubWebhook(appEvent());
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+	});
+	it("isolates grants by org and installation and prevents self reviews", async () => {
+		edgeWorker = createWorker(true);
+		allowApp(edgeWorker);
+		for (const kind of ["org", "installation", "self"]) {
+			const event = appEvent();
+			if (kind === "org") event.payload.repository.owner.login = "other";
+			if (kind === "installation") event.payload.installation.id = 123;
+			if (kind === "self") event.payload.pull_request.user.id = 999;
+			await (edgeWorker as any).handleGitHubWebhook(event);
+		}
+		expect((edgeWorker as any).resolveGitHubToken).not.toHaveBeenCalled();
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+	});
+	it("fails closed on provider errors", async () => {
+		edgeWorker = createWorker(true);
+		allowApp(edgeWorker);
+		vi.spyOn(globalThis, "fetch").mockRejectedValue(
+			new Error("Provider unavailable"),
+		);
+		await (edgeWorker as any).handleGitHubWebhook(appEvent());
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+	});
 });

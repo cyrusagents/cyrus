@@ -33,6 +33,10 @@ export {
 	isPullRequestReviewPayload,
 	stripMention,
 } from "./github-webhook-utils.js";
+export {
+	allowedReviewAppIds,
+	resolveReviewAppId,
+} from "./review-app-identity.js";
 export type {
 	GitHubComment,
 	GitHubCommentEventType,

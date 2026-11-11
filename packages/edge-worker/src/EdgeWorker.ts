@@ -85,6 +85,7 @@ import {
 import { CursorRunner } from "cyrus-cursor-runner";
 import { GeminiRunner } from "cyrus-gemini-runner";
 import {
+	allowedReviewAppIds,
 	extractCommentAuthor,
 	extractCommentBody,
 	extractCommentId,
@@ -107,6 +108,7 @@ import {
 	isIssueCommentPayload,
 	isPullRequestReviewCommentPayload,
 	isPullRequestReviewPayload,
+	resolveReviewAppId,
 	stripMention,
 } from "cyrus-github-event-transport";
 import type { GitLabWebhookEvent } from "cyrus-gitlab-event-transport";
@@ -1542,7 +1544,11 @@ export class EdgeWorker extends EventEmitter {
 
 			// Skip comments from the bot itself to prevent infinite loops
 			const botUsername = process.env.GITHUB_BOT_USERNAME;
-			if (botUsername && commentAuthor === botUsername) {
+			if (
+				botUsername &&
+				(commentAuthor === botUsername ||
+					commentAuthor === `${botUsername}[bot]`)
+			) {
 				this.logger.debug(
 					`Ignoring comment from bot user @${botUsername} on ${repoFullName}#${prNumber}`,
 				);
@@ -1568,6 +1574,38 @@ export class EdgeWorker extends EventEmitter {
 					`PR review trigger is disabled, ignoring pull_request_review on ${repoFullName}#${prNumber}`,
 				);
 				return;
+			}
+
+			// App reviews default to denied, including direct signed deliveries.
+			// Resolve identity again here; forwarding headers are not covered by GitHub's signature.
+			if (
+				isPullRequestReviewPayload(event.payload) &&
+				event.payload.review.user.type === "Bot"
+			) {
+				if (event.payload.review.user.id === event.payload.pull_request.user.id)
+					return;
+				const ids = allowedReviewAppIds(
+					this.config.githubReviewAppPolicies,
+					event.payload.installation?.id.toString(),
+					event.payload.repository.owner,
+				);
+				if (ids.length === 0) return;
+				try {
+					const token = await this.resolveGitHubToken(event);
+					const appId = token
+						? await resolveReviewAppId(event.payload.review.user, token)
+						: null;
+					if (!appId || !ids.includes(appId)) return;
+					// Never accept reviews from the app used to run Cyrus itself.
+					const selfLogin = process.env.GITHUB_APP_SLUG;
+					if (selfLogin && commentAuthor === `${selfLogin}[bot]`) return;
+				} catch (error) {
+					this.logger.warn(
+						"Could not verify GitHub review app; ignoring review",
+						error instanceof Error ? error : new Error(String(error)),
+					);
+					return;
+				}
 			}
 
 			// Only trigger on comments that mention the bot (when configured)
