@@ -4,7 +4,10 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.77] - 2026-11-11
+
 ### Changed
+- Recorded v0.2.77 release verification, including a live F1 drive of Claude Code 2.1.322 tool use and session resume. ([CYPACK-1638](https://linear.app/ceedar/issue/CYPACK-1638/run-a-release), [#1593](https://github.com/cyrusagents/cyrus/pull/1593))
 - Release packaging: set all 18 coordinated public workspace packages, including `cyrus-ai`, to **0.2.77**, matching the Hosted GitHub App review minimum. Publication remains a separate release step. ([CYPACK-1636](https://linear.app/ceedar/issue/CYPACK-1636), [#1591](https://github.com/cyrusagents/cyrus/pull/1591))
 
 ## [0.2.76] - 2026-11-06

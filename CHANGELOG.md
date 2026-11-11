@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.77] - 2026-11-11
+
 ### Changed
 - **GitHub App settings update required:** in the Cyrus app’s **Permissions & events → Organization permissions**, set **Administration to Read-only** (`organization_administration: read`, not repository Administration) and save. **An owner of each installed organization must separately accept the permission update** under Organization Settings → GitHub Apps → Installed GitHub Apps → Cyrus → Review request, then click **Refresh** in Hosted. Keep the existing **Pull request review** webhook subscription enabled; no new subscription is needed. New setup manifests request the permission, but existing app registrations must be updated manually. ([CYPACK-1636](https://linear.app/ceedar/issue/CYPACK-1636), [#1591](https://github.com/cyrusagents/cyrus/pull/1591))
 - **Fable 5.2 support** — Claude sessions can now use `claude-fable-5-2`. Updated `@anthropic-ai/claude-agent-sdk` from `0.3.318` to [`0.3.322`](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03322), bringing Claude sessions to Claude Code 2.1.322 with fixes for resumed warm sessions, hook decisions, worktree skill reloads, MCP server replacement, and transcript saves; updated `@anthropic-ai/sdk` from `^1.5.0` to [`^1.7.0`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.7.0), adding current Admin API errors, models, organization webhooks, and reporting filters. The bundled Claude tool registry remains unchanged at 30 tools. ([CYPACK-1634](https://linear.app/ceedar/issue/CYPACK-1634/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1589](https://github.com/cyrusagents/cyrus/pull/1589))
@@ -14,6 +16,62 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Slack thread replies in threads Cyrus was never mentioned in no longer get the 👀 receipt reaction; ignored messages leave no trace. ([#1544](https://github.com/cyrusagents/cyrus/issues/1544))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.77
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.77
+
+#### cyrus-core
+- cyrus-core@0.2.77
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.77
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.77
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.77
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.77
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.77
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.77
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.77
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.77
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.77
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.77
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.77
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.77
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.77
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.77
+
+#### cyrus-ai
+- cyrus-ai@0.2.77
 
 ## [0.2.76] - 2026-11-06
 
