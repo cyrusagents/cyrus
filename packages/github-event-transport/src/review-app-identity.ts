@@ -70,19 +70,22 @@ export interface GitHubReviewAppPolicy {
 	installationId: string;
 	organization: string;
 	appIds: number[];
+	includeSuggestions?: boolean;
 }
 
 export function allowedReviewAppIds(
 	policies: GitHubReviewAppPolicy[] | undefined,
 	installationId: string | undefined,
 	owner: { login: string; type: string },
+	suggestions = false,
 ): number[] {
 	if (owner.type !== "Organization" || !installationId) return [];
 	return (
 		policies?.find(
 			(policy) =>
 				policy.installationId === installationId &&
-				policy.organization.toLowerCase() === owner.login.toLowerCase(),
+				policy.organization.toLowerCase() === owner.login.toLowerCase() &&
+				(!suggestions || policy.includeSuggestions === true),
 		)?.appIds ?? []
 	);
 }

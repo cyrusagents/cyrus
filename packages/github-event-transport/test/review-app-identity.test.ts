@@ -119,3 +119,45 @@ describe("review App identity", () => {
 		).toEqual([]);
 	});
 });
+
+it("requires an explicit suggestion opt-in in the matching organization and installation", () => {
+	const policies = [
+		{
+			installationId: "123",
+			organization: "grain",
+			appIds: [42],
+			includeSuggestions: true,
+		},
+		{ installationId: "456", organization: "other", appIds: [42] },
+	];
+	expect(
+		allowedReviewAppIds(
+			policies,
+			"123",
+			{ login: "grain", type: "Organization" },
+			true,
+		),
+	).toEqual([42]);
+	expect(
+		allowedReviewAppIds(
+			policies,
+			"456",
+			{ login: "other", type: "Organization" },
+			true,
+		),
+	).toEqual([]);
+	expect(
+		allowedReviewAppIds(policies, "456", {
+			login: "other",
+			type: "Organization",
+		}),
+	).toEqual([42]);
+	expect(
+		allowedReviewAppIds(
+			policies,
+			"456",
+			{ login: "grain", type: "Organization" },
+			true,
+		),
+	).toEqual([]);
+});

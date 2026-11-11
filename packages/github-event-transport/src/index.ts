@@ -37,6 +37,7 @@ export {
 	allowedReviewAppIds,
 	resolveReviewAppId,
 } from "./review-app-identity.js";
+export { formatReviewFindings, loadReviewFindings } from "./review-findings.js";
 export type {
 	GitHubComment,
 	GitHubCommentEventType,

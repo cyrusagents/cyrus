@@ -701,6 +701,9 @@
 						"type": "string",
 						"minLength": 1
 					},
+					"includeSuggestions": {
+						"type": "boolean"
+					},
 					"appIds": {
 						"type": "array",
 						"items": {

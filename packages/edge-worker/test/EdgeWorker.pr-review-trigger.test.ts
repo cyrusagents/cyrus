@@ -427,4 +427,144 @@ describe("EdgeWorker - PR review trigger gate (CYPACK-1273)", () => {
 		await (edgeWorker as any).handleGitHubWebhook(appEvent());
 		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
 	});
+	function suggestionEvent() {
+		const event = appEvent();
+		event.payload.review.state = "commented";
+		event.payload.review.body = "Codex review receipt (not the finding)";
+		event.payload.pull_request.head.sha = "abc123";
+		return event;
+	}
+	function suggestionWorker() {
+		const worker = createWorker(true);
+		allowApp(worker);
+		(worker as any).config.githubReviewAppPolicies[0].includeSuggestions = true;
+		(worker as any).createGitHubWorkspace = vi.fn().mockResolvedValue({
+			path: "/test/workspaces/PR-42",
+			isGitWorktree: true,
+		});
+		mockAgentSessionManager.getSession.mockReturnValue({ metadata: {} });
+		(worker as any).buildAgentRunnerConfig = vi
+			.fn()
+			.mockResolvedValue({ config: {}, runnerType: "claude" });
+		const runner = {
+			start: vi.fn().mockResolvedValue({ sessionId: "suggestion-session" }),
+		};
+		(worker as any).createRunnerForType = vi.fn().mockReturnValue(runner);
+		(worker as any).postGitHubReply = vi.fn().mockResolvedValue(undefined);
+		(worker as any).savePersistedState = vi.fn().mockResolvedValue(undefined);
+		return { worker, runner };
+	}
+	function suggestionFindings() {
+		return [1, 2].map((id) => ({
+			id,
+			pull_request_review_id: 777,
+			user: { id: 999 },
+			commit_id: "abc123",
+			path: `file-${id}.ts`,
+			line: 10,
+			body: `Finding ${id}`,
+			html_url: `https://github.com/testorg/my-repo/pull/42#discussion_r${id}`,
+		}));
+	}
+	function mockSuggestion(findings = suggestionFindings()) {
+		return vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+			if (String(url).endsWith("/graphql"))
+				return Response.json({
+					data: {
+						node: {
+							__typename: "Bot",
+							databaseId: 999,
+							login: "reviewer",
+							url: "https://github.com/apps/reviewer",
+						},
+					},
+				});
+			if (String(url).includes("/apps/reviewer"))
+				return Response.json({ id: 42, slug: "reviewer" });
+			return Response.json(findings);
+		});
+	}
+	it("runs one batch containing both inline findings and deduplicates review deliveries", async () => {
+		const { worker, runner } = suggestionWorker();
+		mockSuggestion();
+		const event = suggestionEvent();
+		await Promise.all([
+			(worker as any).handleGitHubWebhook(event),
+			(worker as any).handleGitHubWebhook({
+				...event,
+				deliveryId: "retry-delivery",
+			}),
+		]);
+		await (worker as any).handleGitHubWebhook({
+			...event,
+			deliveryId: "later-retry",
+		});
+		expect(runner.start).toHaveBeenCalledOnce();
+		const prompt = runner.start.mock.calls[0][0];
+		expect(prompt).toContain("Finding 1");
+		expect(prompt).toContain("Finding 2");
+		expect(prompt).toContain("file-2.ts:10");
+		expect(prompt).not.toContain("Codex review receipt");
+		expect(mockGitHubCommentService.postIssueComment).toHaveBeenCalledOnce();
+		expect(
+			mockGitHubCommentService.postIssueComment.mock.calls[0][0].body,
+		).toContain("review suggestions");
+	});
+	it("queues a suggestion once, then revalidates and processes it as one batch", async () => {
+		const { worker, runner } = suggestionWorker();
+		mockSuggestion();
+		(worker as any).activeGitHubPrSessions.add("github:testorg/my-repo#42");
+		await (worker as any).handleGitHubWebhook(suggestionEvent());
+		await (worker as any).handleGitHubWebhook({
+			...suggestionEvent(),
+			deliveryId: "retry",
+		});
+		expect(runner.start).not.toHaveBeenCalled();
+		expect(
+			(worker as any).queuedGitHubPrEvents.get("github:testorg/my-repo#42"),
+		).toHaveLength(1);
+		(worker as any).advanceGitHubPrQueue("github:testorg/my-repo#42");
+		await vi.waitFor(() => expect(runner.start).toHaveBeenCalledOnce());
+	});
+	it.each([
+		"opt-out",
+		"trigger-off",
+		"other-org",
+		"other-installation",
+		"human",
+		"stale",
+		"approved",
+		"edited",
+		"denied-app",
+	])("ignores %s suggestions", async (kind) => {
+		const { worker, runner } = suggestionWorker();
+		mockSuggestion();
+		const event = suggestionEvent();
+		if (kind === "opt-out")
+			delete (worker as any).config.githubReviewAppPolicies[0]
+				.includeSuggestions;
+		if (kind === "trigger-off") (worker as any).config.prReviewTrigger = false;
+		if (kind === "other-org") event.payload.repository.owner.login = "other";
+		if (kind === "other-installation") event.payload.installation.id = 123;
+		if (kind === "human") event.payload.review.user.type = "User";
+		if (kind === "stale") event.payload.review.commit_id = "old";
+		if (kind === "approved") event.payload.review.state = "approved";
+		if (kind === "edited") event.payload.action = "edited";
+		if (kind === "denied-app")
+			(worker as any).config.githubReviewAppPolicies[0].appIds = [43];
+		await (worker as any).handleGitHubWebhook(event);
+		expect(runner.start).not.toHaveBeenCalled();
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+	});
+	it("ignores empty app reviews, but retries a later delivery if findings become available", async () => {
+		const { worker, runner } = suggestionWorker();
+		const request = mockSuggestion([]);
+		await (worker as any).handleGitHubWebhook(suggestionEvent());
+		expect(runner.start).not.toHaveBeenCalled();
+		expect(mockGitHubCommentService.postIssueComment).not.toHaveBeenCalled();
+		request.mockRestore();
+		mockSuggestion();
+		await (worker as any).handleGitHubWebhook(suggestionEvent());
+		expect(runner.start).toHaveBeenCalledOnce();
+	});
 });
