@@ -2,6 +2,7 @@
 
 **Date:** 2026-11-11
 **Issue:** [CYPACK-1638](https://linear.app/ceedar/issue/CYPACK-1638)
+**Release PR:** [#1593](https://github.com/cyrusagents/cyrus/pull/1593)
 **Tested source:** `bf0f56e62ac50dc94f52383059fd8e1790d258f0`; the only uncommitted changes in the worktree are the two changelog-section moves (`CHANGELOG.md`, `CHANGELOG.internal.md`) that promote the `[Unreleased]` entries into a `[0.2.77]` section — no source files were modified.
 **Previous published release:** `v0.2.76`
 **Result:** PASS for the release checks described below. This does not assert npm publication; that remains a separate gate.
