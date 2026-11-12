@@ -15,6 +15,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Route failed GitHub commit statuses (including Semaphore) and completed failing checks to the existing responsible Cyrus session, with current-revision validation, durable deduplication and bounded automatic attempts. CI continuation is opt-in via live `ciFailureTrigger` config (no restart), with escaped XML context and a Hosted Behaviour toggle. ([CYPACK-1635](https://linear.app/ceedar/issue/CYPACK-1635), [#1590](https://github.com/cyrusagents/cyrus/pull/1590))
 
+### Technical Details
+- Stabilized CI routing tests by waiting for durable dispatch completion instead of fixed delays, including slow dispatches and the per-PR attempt limit across session changes. Production concurrency guards are unchanged. ([CYPACK-1635](https://linear.app/ceedar/issue/CYPACK-1635), [#1590](https://github.com/cyrusagents/cyrus/pull/1590))
+
 ## [0.2.77] - 2026-11-11
 
 ### Changed

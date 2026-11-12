@@ -152,9 +152,29 @@ describe("CI authenticated handoff and durable session routing", () => {
 			},
 		});
 	}
+	async function waitForDispatches() {
+		const root = join(home, "ci-dispatch");
+		await vi.waitFor(
+			async () => {
+				const directories = await readdir(root).catch((error) => {
+					if (error.code === "ENOENT") return [];
+					throw error;
+				});
+				for (const directory of directories) {
+					const dir = join(root, directory);
+					for (const file of await readdir(dir)) {
+						if (!file.endsWith(".json")) continue;
+						const entry = JSON.parse(await readFile(join(dir, file), "utf8"));
+						expect(["completed", "failed"]).toContain(entry.state);
+					}
+				}
+			},
+			{ timeout: 5000 },
+		);
+	}
 	afterEach(async () => {
 		await Promise.all(servers.splice(0).map((s) => s.close()));
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		await waitForDispatches();
 		await rm(home, { recursive: true, force: true });
 	});
 	it.each([
@@ -308,7 +328,7 @@ describe("CI authenticated handoff and durable session routing", () => {
 	});
 	it("deduplicates redelivery, status updates, different checks and process restart", async () => {
 		expect((await deliver()).json().outcome).toBe("accepted");
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		await waitForDispatches();
 		router = newRouter();
 		expect((await deliver()).json().outcome).toBe("duplicate_revision");
 		statuses[0].id = 11;
@@ -342,18 +362,27 @@ describe("CI authenticated handoff and durable session routing", () => {
 		).toBe("failed");
 		expect(runner).toHaveBeenCalledTimes(1);
 	});
-	it("caps automation at three distinct heads even when the session changes", async () => {
+	it.each([
+		false,
+		true,
+	])("caps automation at three distinct heads (change session: %s)", async (changeSession) => {
+		// Completion may take longer than the old 20ms test delay on CI.
+		runner.mockImplementation(
+			() => new Promise((resolve) => setTimeout(resolve, 75)),
+		);
 		for (let i = 0; i < 4; i++) {
+			if (changeSession) sessions[0]!.id = `responsible-session-${i}`;
 			const head = String(i + 1).repeat(40);
 			pr.head.sha = head;
 			const response = await deliver("status", {
 				...statusPayload(),
 				sha: head,
 			});
+			expect(response.statusCode).toBe(200);
 			expect(response.json().outcome).toBe(
 				i < 3 ? "accepted" : "automatic_attempt_limit",
 			);
-			await new Promise((resolve) => setTimeout(resolve, 20));
+			await waitForDispatches();
 		}
 		expect(runner).toHaveBeenCalledTimes(3);
 	});
