@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.78-staging.0] - 2026-11-12
+
 ### Changed
 
 - **Action required: update GitHub App settings for CI failure routing.** The App owner must update the App delivering the webhooks: the Hosted operator for Hosted/proxied delivery, or the operator of a fully self-hosted App. Existing Apps are **not** updated automatically by upgrading Cyrus. ([CYPACK-1635](https://linear.app/ceedar/issue/CYPACK-1635), [#1590](https://github.com/cyrusagents/cyrus/pull/1590))
@@ -17,6 +19,27 @@ All notable changes to this project will be documented in this file.
 
 ### Technical Details
 - Stabilized CI routing tests by waiting for durable dispatch completion instead of fixed delays, including slow dispatches and the per-PR attempt limit across session changes. Production concurrency guards are unchanged. ([CYPACK-1635](https://linear.app/ceedar/issue/CYPACK-1635), [#1590](https://github.com/cyrusagents/cyrus/pull/1590))
+
+### Packages
+
+- cyrus-cloudflare-tunnel-client@0.2.78-staging.0
+- cyrus-mcp-tools@0.2.78-staging.0
+- cyrus-core@0.2.78-staging.0
+- cyrus-claude-runner@0.2.78-staging.0
+- cyrus-config-updater@0.2.78-staging.0
+- cyrus-linear-event-transport@0.2.78-staging.0
+- cyrus-github-event-transport@0.2.78-staging.0
+- cyrus-gitlab-event-transport@0.2.78-staging.0
+- cyrus-slack-event-transport@0.2.78-staging.0
+- cyrus-zulip-event-transport@0.2.78-staging.0
+- cyrus-plane-event-transport@0.2.78-staging.0
+- cyrus-simple-agent-runner@0.2.78-staging.0
+- cyrus-opencode-runner@0.2.78-staging.0
+- cyrus-codex-runner@0.2.78-staging.0
+- cyrus-cursor-runner@0.2.78-staging.0
+- cyrus-gemini-runner@0.2.78-staging.0
+- cyrus-edge-worker@0.2.78-staging.0
+- cyrus-ai@0.2.78-staging.0
 
 ## [0.2.77] - 2026-11-11
 

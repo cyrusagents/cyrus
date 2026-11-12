@@ -4,6 +4,11 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.78-staging.0] - 2026-11-12
+
+### Changed
+- Package the current main branch for the dedicated staging npm test channel.
+
 ## [0.2.77] - 2026-11-11
 
 ### Changed

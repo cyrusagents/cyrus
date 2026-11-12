@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-plane-event-transport",
-	"version": "0.2.77",
+	"version": "0.2.78-staging.0",
 	"description": "Plane event transport: Plane agent runs as Cyrus agent sessions",
 	"repository": {
 		"type": "git",
