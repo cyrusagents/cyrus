@@ -54,7 +54,7 @@ does **not** cancel a turn already dispatched; re-enabling does not reset the jo
 or replay ignored events. Redeliver a still-current failed event if needed.
 
 For **Hosted-managed cloud or proxied self-host runtimes**, use Agent → Behaviours →
-**CI Failure Trigger**. The admin-only setting saves
+**CI feedback**. The admin-only setting saves
 `teams.ci_failure_trigger_enabled` (new migration, NOT NULL, default false) and pushes
 `ciFailureTrigger` through the canonical config builder to the live runtime watcher.
 Hosted also checks the setting before minting installation tokens or forwarding.
@@ -181,7 +181,7 @@ Journal retention is indefinite for this version; deleting it removes deduplicat
 ## Configuration and rollout (not performed by this PR)
 
 - Apply the Hosted opt-in column migration and deploy/release the companion runtime
-  **before** enabling CI Failure Trigger for
+  **before** enabling CI feedback for
   existing installations; old runtimes produce visible 503 responses.
 - GitHub App repository permissions: **Commit statuses: Read**, **Checks: Read**,
   **Pull requests: Read** (existing write suffices), and existing metadata access.
