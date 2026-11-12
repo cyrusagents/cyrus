@@ -114,6 +114,10 @@ Construct the manifest, substituting `<AGENT_NAME>`, `<AGENT_DESCRIPTION>`, and 
                 "message.im"
             ]
         },
+        "interactivity": {
+            "is_enabled": true,
+            "request_url": "<CYRUS_BASE_URL>/slack-interactive"
+        },
         "org_deploy_enabled": false,
         "socket_mode_enabled": false,
         "token_rotation_enabled": false
