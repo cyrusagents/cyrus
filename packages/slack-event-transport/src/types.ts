@@ -30,6 +30,14 @@ export interface SlackEventTransportConfig {
 	 * its `app_mention`. Omitted ⇒ always enabled.
 	 */
 	isThreadFollowingEnabled?: () => boolean;
+	/**
+	 * Path for the interactivity endpoint (Block Kit clicks, modal submissions).
+	 * Defaults to `/slack-interactive`. Interactivity is delivered straight from
+	 * Slack, so it only works when the transport verifies signatures directly.
+	 */
+	interactivePath?: string;
+	/** Path for the slash command endpoint. Defaults to `/slack-command`. */
+	commandPath?: string;
 }
 
 /**
@@ -40,6 +48,8 @@ export interface SlackEventTransportEvents {
 	event: (event: SlackWebhookEvent) => void;
 	/** Emitted when a unified internal message is received */
 	message: (message: InternalMessage) => void;
+	/** Emitted when a signed interactive payload (block action or slash command) arrives */
+	interactive: (event: SlackInteractiveEvent) => void;
 	/** Emitted when an error occurs */
 	error: (error: Error) => void;
 }
@@ -268,4 +278,112 @@ export interface SlackEventEnvelope {
 	event_time: number;
 	/** Challenge string (only for url_verification) */
 	challenge?: string;
+}
+
+// ============================================================================
+// Interactivity Payload Types
+// ============================================================================
+// Slack sends interactivity form-encoded as `payload=<json>` to the app's
+// Interactivity Request URL, and slash commands as plain form fields.
+// - https://api.slack.com/interactivity/handling
+// - https://api.slack.com/interactivity/slash-commands
+
+/**
+ * One clicked Block Kit element inside a `block_actions` payload.
+ */
+export interface SlackBlockActionElement {
+	/** Identifier the app set when building the block. */
+	action_id: string;
+	/** Element kind, e.g. "button". */
+	type: string;
+	/** `value` carried by buttons and overflow options. */
+	value?: string;
+	/** Block that contained the element. */
+	block_id?: string;
+	/** When the click happened. */
+	action_ts?: string;
+}
+
+/**
+ * Slack `block_actions` payload.
+ * @see https://api.slack.com/reference/interaction-payloads/block-actions
+ */
+export interface SlackBlockActionsPayload {
+	/** Payload kind - always "block_actions". */
+	type: "block_actions";
+	/** Single-use ID for opening modals. */
+	trigger_id: string;
+	/** URL for responding to the interaction after the 3 second ack window. */
+	response_url?: string;
+	/** Workspace the click happened in. */
+	team?: { id: string; domain?: string };
+	/** User who clicked. */
+	user: SlackUser;
+	/** Channel of the message that carried the element. */
+	channel?: SlackChannel;
+	/** Where the message lives (channel_id, message_ts, thread_ts). */
+	container?: {
+		type?: string;
+		channel_id?: string;
+		message_ts?: string;
+		thread_ts?: string;
+	};
+	/** Message that carried the element. */
+	message?: { ts?: string; thread_ts?: string; text?: string };
+	/** Elements the user interacted with. */
+	actions: SlackBlockActionElement[];
+}
+
+/**
+ * Slack slash command payload.
+ *
+ * Slack posts these as form fields rather than JSON, and includes no `type`
+ * field; the transport adds `type: "slash_command"` when normalizing so
+ * consumers can discriminate the union.
+ * @see https://api.slack.com/interactivity/slash-commands
+ */
+export interface SlackSlashCommandPayload {
+	/** Payload kind, added by this transport. */
+	type: "slash_command";
+	/** The command as registered, including the leading slash. */
+	command: string;
+	/** Everything the user typed after the command, untrimmed. */
+	text: string;
+	/** Single-use ID for opening modals. */
+	trigger_id: string;
+	/** URL for a delayed response. */
+	response_url: string;
+	/** User who ran the command. */
+	user_id: string;
+	/** Channel the command was run in. */
+	channel_id: string;
+	/** Channel name, when Slack includes it. */
+	channel_name?: string;
+	/** Workspace the command was run in. */
+	team_id: string;
+	/** Thread the command was run in, when run inside a thread. */
+	thread_ts?: string;
+}
+
+/** Union of the interactive payloads this transport understands. */
+export type SlackInteractivePayload =
+	| SlackBlockActionsPayload
+	| SlackSlashCommandPayload;
+
+/** Payload kinds emitted by the interactive routes. */
+export type SlackInteractiveType = SlackInteractivePayload["type"];
+
+/**
+ * Verified interactive payload emitted to listeners. Interactivity only arrives
+ * through direct signature verification, so there is no `upstreamGated` flag.
+ */
+export interface SlackInteractiveEvent {
+	/** Payload kind. */
+	eventType: SlackInteractiveType;
+	/** The verified payload. */
+	payload: SlackInteractivePayload;
+	/** Slack Bot token for API access. */
+	slackBotToken?: string;
+	/** Workspace/team ID, when the payload carries one. */
+	teamId?: string;
 }

@@ -51,7 +51,16 @@ Construct the manifest, substituting `<AGENT_NAME>`, `<AGENT_DESCRIPTION>`, and 
         "bot_user": {
             "display_name": "<AGENT_NAME>",
             "always_online": true
-        }
+        },
+        "slash_commands": [
+            {
+                "command": "/cyrus",
+                "url": "<CYRUS_BASE_URL>/slack-command",
+                "description": "Stop the run in this thread",
+                "usage_hint": "stop",
+                "should_escape": false
+            }
+        ]
     },
     "oauth_config": {
         "redirect_urls": [
@@ -113,6 +122,10 @@ Construct the manifest, substituting `<AGENT_NAME>`, `<AGENT_DESCRIPTION>`, and 
                 "message.mpim",
                 "message.im"
             ]
+        },
+        "interactivity": {
+            "is_enabled": true,
+            "request_url": "<CYRUS_BASE_URL>/slack-interactive"
         },
         "org_deploy_enabled": false,
         "socket_mode_enabled": false,

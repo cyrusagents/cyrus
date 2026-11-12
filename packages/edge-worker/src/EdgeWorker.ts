@@ -153,7 +153,10 @@ import {
 	PlaneIssueTrackerService,
 } from "cyrus-plane-event-transport";
 import {
+	type SlackBlockActionsPayload,
 	SlackEventTransport,
+	type SlackInteractiveEvent,
+	type SlackSlashCommandPayload,
 	type SlackWebhookEvent,
 } from "cyrus-slack-event-transport";
 import {
@@ -199,6 +202,13 @@ import {
 	SkillsPluginResolver,
 } from "./SkillsPluginResolver.js";
 import { SlackChatAdapter } from "./SlackChatAdapter.js";
+import {
+	parseSlackControlCommand,
+	SLACK_COMMAND,
+	SLACK_STOP_ACTION_ID,
+	threadKeyFromBlockActions,
+	threadKeyFromSlashCommand,
+} from "./SlackInteractions.js";
 import { resolveSandboxWritablePaths } from "./sandboxWritablePaths.js";
 import type { IActivitySink } from "./sinks/IActivitySink.js";
 import { LinearActivitySink } from "./sinks/LinearActivitySink.js";
@@ -1474,12 +1484,176 @@ export class EdgeWorker extends EventEmitter {
 		this.slackEventTransport.on("error", (error: Error) => {
 			this.handleError(error);
 		});
+		this.slackEventTransport.on(
+			"interactive",
+			(event: SlackInteractiveEvent) => {
+				this.handleSlackInteractive(event).catch((error: unknown) => {
+					this.handleError(
+						error instanceof Error ? error : new Error(String(error)),
+					);
+				});
+			},
+		);
 
 		this.slackEventTransport.register();
 
 		this.logger.info(
 			`Slack event transport registered (${slackVerificationMode} mode)`,
 		);
+	}
+
+	/**
+	 * Handle a Slack control: a clicked Block Kit button or a slash command.
+	 *
+	 * Only signed interactivity reaches this point — the transport has verified
+	 * the payload and acked Slack inside its three second window, so everything
+	 * here happens after the ack and is reported back through `response_url`.
+	 */
+	private async handleSlackInteractive(
+		event: SlackInteractiveEvent,
+	): Promise<void> {
+		if (event.eventType === "slash_command") {
+			await this.handleSlackSlashCommand(
+				event.payload as SlackSlashCommandPayload,
+			);
+			return;
+		}
+
+		await this.handleSlackBlockActions(
+			event.payload as SlackBlockActionsPayload,
+		);
+	}
+
+	/**
+	 * Handle a slash command, currently only `/<command> stop`.
+	 */
+	private async handleSlackSlashCommand(
+		payload: SlackSlashCommandPayload,
+	): Promise<void> {
+		if (payload.command !== SLACK_COMMAND) {
+			await this.replyToSlackInteraction(
+				payload.response_url,
+				`Unknown command \`${payload.command}\`.`,
+			);
+			return;
+		}
+
+		const control = parseSlackControlCommand(payload.text);
+		if (!control) {
+			await this.replyToSlackInteraction(
+				payload.response_url,
+				`Usage: \`${SLACK_COMMAND} stop\` — stops the run in this thread.`,
+			);
+			return;
+		}
+
+		const threadKey = threadKeyFromSlashCommand(payload);
+		if (!threadKey) {
+			// Cyrus only works in threads, so a command typed into the channel
+			// composer has no session to address.
+			await this.replyToSlackInteraction(
+				payload.response_url,
+				`Run \`${SLACK_COMMAND} stop\` inside the thread you want to stop.`,
+			);
+			return;
+		}
+
+		await this.stopSlackThread(threadKey, payload.response_url);
+	}
+
+	/**
+	 * Handle a clicked Block Kit element, currently only the stop button.
+	 */
+	private async handleSlackBlockActions(
+		payload: SlackBlockActionsPayload,
+	): Promise<void> {
+		const actionIds = (payload.actions ?? []).map((action) => action.action_id);
+		if (!actionIds.includes(SLACK_STOP_ACTION_ID)) {
+			this.logger.debug(
+				`Ignoring Slack block action: ${actionIds.join(", ") || "none"}`,
+			);
+			return;
+		}
+
+		const threadKey = threadKeyFromBlockActions(payload);
+		if (!threadKey) {
+			await this.replyToSlackInteraction(
+				payload.response_url,
+				"That button is not attached to a thread Cyrus can stop.",
+			);
+			return;
+		}
+
+		await this.stopSlackThread(threadKey, payload.response_url);
+	}
+
+	/**
+	 * Stop the chat session bound to a Slack thread and tell the user what
+	 * happened. Shared by the button and the slash command.
+	 */
+	private async stopSlackThread(
+		threadKey: string,
+		responseUrl?: string,
+	): Promise<void> {
+		if (!this.chatSessionHandler) {
+			this.logger.warn(
+				"Slack stop request received before chat sessions exist",
+			);
+			await this.replyToSlackInteraction(
+				responseUrl,
+				"Cyrus is not ready to stop runs on this host.",
+			);
+			return;
+		}
+
+		const result = this.chatSessionHandler.stopThread(threadKey);
+		this.logger.info(
+			`Slack stop for thread ${threadKey}: ${result.status}${
+				result.status === "stopped" ? ` (session ${result.sessionId})` : ""
+			}`,
+		);
+
+		await this.replyToSlackInteraction(
+			responseUrl,
+			result.status === "stopped"
+				? "Stopped this run."
+				: "There is no run to stop in this thread.",
+		);
+	}
+
+	/**
+	 * Answer an interaction through Slack's `response_url`.
+	 *
+	 * The transport has already acked with an empty 200, so this is the visible
+	 * reply. Failures are logged, never thrown: the session stop has already
+	 * happened and must not be reported as failed because Slack was unreachable.
+	 */
+	private async replyToSlackInteraction(
+		responseUrl: string | undefined,
+		text: string,
+	): Promise<void> {
+		if (!responseUrl) {
+			this.logger.debug(`No Slack response_url to answer with: ${text}`);
+			return;
+		}
+
+		try {
+			const response = await fetch(responseUrl, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ response_type: "ephemeral", text }),
+			});
+			if (!response.ok) {
+				this.logger.warn(
+					`Slack rejected the interaction reply with HTTP ${response.status}`,
+				);
+			}
+		} catch (error) {
+			this.logger.warn(
+				"Failed to answer Slack interaction",
+				error instanceof Error ? error : new Error(String(error)),
+			);
+		}
 	}
 
 	/**

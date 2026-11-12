@@ -4,6 +4,10 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Added
+- Slack now has working controls: `/cyrus stop` in a thread, and a click on a `cyrus_stop` button, stop the session bound to that thread through `ChatSessionHandler.stopThread` and answer through `response_url`. The setup manifest registers the slash command and a click target exists for a future acknowledgement message. ([#1595](https://github.com/cyrusagents/cyrus/pull/1595))
+- Slack interactivity and slash command payloads are now received instead of dropped: the transport answers `/slack-interactive` (`block_actions`) and `/slack-command`, verifies both with the Slack signing secret, and emits them as a typed `interactive` event. Nothing consumes the event yet, so no user-visible behaviour changes; the setup manifest enables interactivity so a follow-up can wire actions such as stopping a running session. ([#1595](https://github.com/cyrusagents/cyrus/pull/1595))
+
 ## [0.2.77] - 2026-11-11
 
 ### Changed

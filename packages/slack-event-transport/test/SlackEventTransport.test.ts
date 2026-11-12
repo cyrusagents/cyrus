@@ -18,6 +18,7 @@ function createMockFastify() {
 		string,
 		(request: unknown, reply: unknown) => Promise<void>
 	> = {};
+	const parsers = new Set<string>();
 	return {
 		post: vi.fn((path: string, ...args: unknown[]) => {
 			const handler = (args.length === 1 ? args[0] : args[1]) as (
@@ -26,7 +27,12 @@ function createMockFastify() {
 			) => Promise<void>;
 			routes[path] = handler;
 		}),
+		addContentTypeParser: vi.fn((type: string) => {
+			parsers.add(type);
+		}),
+		hasContentTypeParser: vi.fn((type: string) => parsers.has(type)),
 		routes,
+		parsers,
 	};
 }
 
@@ -830,6 +836,183 @@ describe("SlackEventTransport", () => {
 			expect(reply.send).toHaveBeenCalledWith({
 				error: "Missing Slack signature headers",
 			});
+		});
+	});
+
+	describe("interactivity", () => {
+		const signingSecret = "test-slack-signing-secret";
+
+		function buildTransport(mode: "direct" | "proxy" = "direct") {
+			const config: SlackEventTransportConfig = {
+				fastifyServer:
+					mockFastify as unknown as SlackEventTransportConfig["fastifyServer"],
+				verificationMode: mode,
+				secret: signingSecret,
+			};
+			const transport = new SlackEventTransport(config);
+			transport.register();
+			return transport;
+		}
+
+		function createFormRequest(form: Record<string, string>) {
+			const rawBody = new URLSearchParams(form).toString();
+			return {
+				body: rawBody,
+				rawBody,
+				headers: {} as Record<string, string>,
+			};
+		}
+
+		async function callRoute(
+			path: string,
+			request: ReturnType<typeof createFormRequest>,
+			sign = true,
+		) {
+			if (sign) {
+				const { timestamp, signature } = signSlackRequest(
+					request.rawBody,
+					signingSecret,
+				);
+				request.headers["x-slack-request-timestamp"] = timestamp;
+				request.headers["x-slack-signature"] = signature;
+			}
+			const reply = createMockReply();
+			const handler = mockFastify.routes[path];
+			expect(handler).toBeDefined();
+			await handler(request, reply);
+			return reply;
+		}
+
+		const blockActionsPayload = {
+			type: "block_actions",
+			trigger_id: "trigger-1",
+			team: { id: "T0001", domain: "trinity" },
+			user: { id: "U1234567890", name: "jiwon" },
+			channel: { id: "C9876543210" },
+			container: {
+				type: "message",
+				channel_id: "C9876543210",
+				message_ts: "1704110400.000100",
+				thread_ts: "1704110400.000100",
+			},
+			message: { ts: "1704110400.000100", thread_ts: "1704110400.000100" },
+			actions: [{ action_id: "cyrus_stop", type: "button", value: "stop" }],
+		};
+
+		it("registers the interactive and command endpoints with a form parser", () => {
+			buildTransport();
+
+			expect(mockFastify.routes["/slack-interactive"]).toBeDefined();
+			expect(mockFastify.routes["/slack-command"]).toBeDefined();
+			expect(mockFastify.addContentTypeParser).toHaveBeenCalledWith(
+				"application/x-www-form-urlencoded",
+				expect.objectContaining({ parseAs: "string" }),
+				expect.any(Function),
+			);
+		});
+
+		it("emits a block action with the clicked action ids", async () => {
+			const transport = buildTransport();
+			const listener = vi.fn();
+			transport.on("interactive", listener);
+
+			const request = createFormRequest({
+				payload: JSON.stringify(blockActionsPayload),
+			});
+			const reply = await callRoute("/slack-interactive", request);
+
+			expect(reply.code).toHaveBeenCalledWith(200);
+			expect(listener).toHaveBeenCalledTimes(1);
+			const event = listener.mock.calls[0][0];
+			expect(event.eventType).toBe("block_actions");
+			expect(event.teamId).toBe("T0001");
+			expect(event.payload.actions[0].action_id).toBe("cyrus_stop");
+		});
+
+		it("normalizes a slash command into a typed payload", async () => {
+			const transport = buildTransport();
+			const listener = vi.fn();
+			transport.on("interactive", listener);
+
+			const request = createFormRequest({
+				command: "/cyrus",
+				text: "status",
+				trigger_id: "trigger-2",
+				response_url: "https://hooks.slack.com/commands/1",
+				user_id: "U1234567890",
+				channel_id: "C9876543210",
+				channel_name: "dev",
+				team_id: "T0001",
+				thread_ts: "1704110400.000100",
+			});
+			const reply = await callRoute("/slack-command", request);
+
+			expect(reply.code).toHaveBeenCalledWith(200);
+			expect(reply.send).toHaveBeenCalledWith(
+				expect.objectContaining({ response_type: "ephemeral" }),
+			);
+			const event = listener.mock.calls[0][0];
+			expect(event.eventType).toBe("slash_command");
+			expect(event.payload).toMatchObject({
+				command: "/cyrus",
+				text: "status",
+				thread_ts: "1704110400.000100",
+				channel_name: "dev",
+			});
+		});
+
+		it("ignores interactive payload kinds it does not handle", async () => {
+			const transport = buildTransport();
+			const listener = vi.fn();
+			transport.on("interactive", listener);
+
+			const request = createFormRequest({
+				payload: JSON.stringify({ type: "view_submission", trigger_id: "t" }),
+			});
+			const reply = await callRoute("/slack-interactive", request);
+
+			expect(reply.code).toHaveBeenCalledWith(200);
+			expect(reply.send).toHaveBeenCalledWith(
+				expect.objectContaining({ ignored: true }),
+			);
+			expect(listener).not.toHaveBeenCalled();
+		});
+
+		it("rejects unsigned interactivity", async () => {
+			const transport = buildTransport();
+			const listener = vi.fn();
+			transport.on("interactive", listener);
+
+			const request = createFormRequest({
+				payload: JSON.stringify(blockActionsPayload),
+			});
+			const reply = await callRoute("/slack-interactive", request, false);
+
+			expect(reply.code).toHaveBeenCalledWith(401);
+			expect(listener).not.toHaveBeenCalled();
+		});
+
+		it("refuses interactivity when only proxy verification is available", async () => {
+			const transport = buildTransport("proxy");
+			const listener = vi.fn();
+			transport.on("interactive", listener);
+
+			const request = createFormRequest({
+				payload: JSON.stringify(blockActionsPayload),
+			});
+			const reply = await callRoute("/slack-interactive", request);
+
+			expect(reply.code).toHaveBeenCalledWith(503);
+			expect(listener).not.toHaveBeenCalled();
+		});
+
+		it("rejects a malformed interactivity body", async () => {
+			buildTransport();
+
+			const request = createFormRequest({});
+			const reply = await callRoute("/slack-interactive", request);
+
+			expect(reply.code).toHaveBeenCalledWith(400);
 		});
 	});
 });

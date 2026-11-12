@@ -5,10 +5,12 @@ import { createLogger, type ILogger } from "cyrus-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { SlackMessageTranslator } from "./SlackMessageTranslator.js";
 import type {
+	SlackBlockActionsPayload,
 	SlackEventEnvelope,
 	SlackEventTransportConfig,
 	SlackEventTransportEvents,
 	SlackMessageEvent,
+	SlackSlashCommandPayload,
 	SlackVerificationMode,
 	SlackWebhookEvent,
 } from "./types.js";
@@ -154,6 +156,260 @@ export class SlackEventTransport extends EventEmitter {
 		this.logger.info(
 			`Registered POST /slack-webhook endpoint (${this.config.verificationMode} mode)`,
 		);
+
+		this.registerInteractiveRoutes();
+	}
+
+	/**
+	 * Register the interactivity and slash command endpoints.
+	 *
+	 * Slack posts both as `application/x-www-form-urlencoded` straight at the
+	 * app's configured Request URLs, never through CYHOST, so they are always
+	 * verified against the Slack signing secret.
+	 */
+	private registerInteractiveRoutes(): void {
+		const interactivePath = this.config.interactivePath ?? "/slack-interactive";
+		const commandPath = this.config.commandPath ?? "/slack-command";
+
+		if (!this.ensureFormContentTypeParser()) {
+			this.logger.error(
+				"Slack interactivity routes not registered: the server rejected the form content type parser",
+			);
+			return;
+		}
+
+		const options = { config: { rawBody: true } };
+
+		this.config.fastifyServer.post(
+			interactivePath,
+			options,
+			async (request: FastifyRequest, reply: FastifyReply) => {
+				const secret = this.verifyInteractiveRequest(request, reply);
+				if (secret === null) {
+					return;
+				}
+
+				const payloadJson = this.formField(request, "payload");
+				if (payloadJson === null) {
+					reply.code(400).send({ error: "Missing payload" });
+					return;
+				}
+
+				let payload: SlackBlockActionsPayload;
+				try {
+					payload = JSON.parse(payloadJson);
+				} catch {
+					reply.code(400).send({ error: "Malformed payload" });
+					return;
+				}
+
+				if (payload?.type !== "block_actions") {
+					// view_submission, shortcut, workflow_step and friends are not
+					// handled yet. Ack so Slack stops retrying instead of erroring.
+					this.logger.debug(
+						`Ignoring unsupported interactive payload: ${payload?.type ?? "unknown"}`,
+					);
+					reply.code(200).send({ ok: true, ignored: true });
+					return;
+				}
+
+				this.logger.info(
+					`Received block_actions (trigger: ${payload.trigger_id}, actions: ${payload.actions?.map((action) => action.action_id).join(", ")})`,
+				);
+				this.emit("interactive", {
+					eventType: "block_actions",
+					payload,
+					slackBotToken: this.getSlackBotToken(),
+					teamId: payload.team?.id,
+				});
+				reply.code(200).send({ ok: true });
+			},
+		);
+
+		this.config.fastifyServer.post(
+			commandPath,
+			options,
+			async (request: FastifyRequest, reply: FastifyReply) => {
+				const secret = this.verifyInteractiveRequest(request, reply);
+				if (secret === null) {
+					return;
+				}
+
+				const command = this.formField(request, "command");
+				const triggerId = this.formField(request, "trigger_id");
+				const userId = this.formField(request, "user_id");
+				const channelId = this.formField(request, "channel_id");
+				const teamId = this.formField(request, "team_id");
+				if (
+					command === null ||
+					triggerId === null ||
+					userId === null ||
+					channelId === null ||
+					teamId === null
+				) {
+					reply.code(400).send({ error: "Malformed command payload" });
+					return;
+				}
+
+				const payload: SlackSlashCommandPayload = {
+					type: "slash_command",
+					command,
+					text: this.formField(request, "text") ?? "",
+					trigger_id: triggerId,
+					response_url: this.formField(request, "response_url") ?? "",
+					user_id: userId,
+					channel_id: channelId,
+					team_id: teamId,
+				};
+				const channelName = this.formField(request, "channel_name");
+				if (channelName !== null) {
+					payload.channel_name = channelName;
+				}
+				const threadTs = this.formField(request, "thread_ts");
+				if (threadTs !== null) {
+					payload.thread_ts = threadTs;
+				}
+
+				this.logger.info(
+					`Received slash command ${command} ${payload.text} (trigger: ${triggerId})`,
+				);
+				this.emit("interactive", {
+					eventType: "slash_command",
+					payload,
+					slackBotToken: this.getSlackBotToken(),
+					teamId,
+				});
+				// Slack shows this to the user in place of the command echo.
+				reply.code(200).send({
+					response_type: "ephemeral",
+					text: `${command} received.`,
+				});
+			},
+		);
+
+		this.logger.info(
+			`Registered POST ${interactivePath} and ${commandPath} endpoints (direct only)`,
+		);
+	}
+
+	/**
+	 * Slack posts interactivity form-encoded, which Fastify does not parse by
+	 * default. Registering a string parser keeps the raw body available for
+	 * signature verification. Returns false when the server refuses the parser,
+	 * in which case the interactive routes are skipped rather than left to fail
+	 * with a 415 on every click.
+	 */
+	private ensureFormContentTypeParser(): boolean {
+		const contentType = "application/x-www-form-urlencoded";
+		const server = this.config.fastifyServer;
+
+		if (
+			typeof server.hasContentTypeParser === "function" &&
+			server.hasContentTypeParser(contentType)
+		) {
+			return true;
+		}
+
+		try {
+			server.addContentTypeParser(
+				contentType,
+				{ parseAs: "string" },
+				(_request, body, done) => {
+					done(null, body);
+				},
+			);
+			return true;
+		} catch (error) {
+			const err = new Error(
+				"Failed to register Slack form content type parser",
+			);
+			if (error instanceof Error) {
+				err.cause = error;
+			}
+			this.logger.error("Slack interactivity setup failed", err);
+			return false;
+		}
+	}
+
+	/**
+	 * Verify an interactivity request against the Slack signing secret.
+	 * Returns the secret on success and null after replying, so callers can
+	 * return early.
+	 */
+	private verifyInteractiveRequest(
+		request: FastifyRequest,
+		reply: FastifyReply,
+	): string | null {
+		const { mode, secret } = this.resolveVerification();
+		if (mode !== "direct" || secret === "") {
+			// Interactivity never passes through CYHOST, so there is no Bearer
+			// token to check and no way to trust an unsigned payload.
+			this.logger.error(
+				"Slack interactivity requires SLACK_SIGNING_SECRET with CYRUS_HOST_EXTERNAL=true",
+			);
+			reply
+				.code(503)
+				.send({ error: "Slack signature verification unavailable" });
+			return null;
+		}
+
+		const timestamp = request.headers["x-slack-request-timestamp"];
+		const signature = request.headers["x-slack-signature"];
+		if (
+			typeof timestamp !== "string" ||
+			typeof signature !== "string" ||
+			timestamp === "" ||
+			signature === ""
+		) {
+			reply.code(401).send({ error: "Missing Slack signature headers" });
+			return null;
+		}
+
+		// Reject replays the same way the webhook route does.
+		const requestAge = Math.abs(
+			Math.floor(Date.now() / 1000) - Number.parseInt(timestamp, 10),
+		);
+		if (!Number.isFinite(requestAge) || requestAge > 60 * 5) {
+			reply.code(401).send({ error: "Request timestamp too old" });
+			return null;
+		}
+
+		const rawBody = this.rawBodyOf(request);
+		const expected = `v0=${createHmac("sha256", secret)
+			.update(`v0:${timestamp}:${rawBody}`)
+			.digest("hex")}`;
+		const provided = signature;
+		const matches =
+			provided.length === expected.length &&
+			timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+		if (!matches) {
+			reply.code(401).send({ error: "Invalid webhook signature" });
+			return null;
+		}
+
+		return secret;
+	}
+
+	/** Raw request body as a string, with or without the rawBody option. */
+	private rawBodyOf(request: FastifyRequest): string {
+		const raw = (request as FastifyRequest & { rawBody?: unknown }).rawBody;
+		if (typeof raw === "string") {
+			return raw;
+		}
+		if (Buffer.isBuffer(raw)) {
+			return raw.toString("utf8");
+		}
+		return typeof request.body === "string" ? request.body : "";
+	}
+
+	/** Read one form field from an interactivity request. */
+	private formField(request: FastifyRequest, name: string): string | null {
+		const body = this.rawBodyOf(request);
+		if (body === "") {
+			return null;
+		}
+		const value = new URLSearchParams(body).get(name);
+		return value === null || value === "" ? null : value;
 	}
 
 	/**

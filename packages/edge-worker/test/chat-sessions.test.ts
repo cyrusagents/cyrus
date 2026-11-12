@@ -469,6 +469,25 @@ describe("ChatSessionHandler access gate", () => {
 		expect(acknowledge).not.toHaveBeenCalled();
 	});
 
+	it("stops the session bound to a thread and reports an unbound thread", async () => {
+		const { adapter } = buildAdapter("thread");
+		adapter.checkAccess = () => ({ allowed: true });
+
+		const { handler } = buildHandler(adapter);
+		await handler.handleEvent({ eventId: "mention", threadKey: "thread" });
+
+		const [bound] = handler.listThreads();
+		expect(bound).toBeDefined();
+
+		expect(handler.stopThread("thread")).toEqual({
+			status: "stopped",
+			sessionId: bound.sessionId,
+		});
+		expect(handler.stopThread("other-thread")).toEqual({
+			status: "no-session",
+		});
+	});
+
 	it("posts no notice for a non-initiating event in an unbound thread", async () => {
 		const { adapter, acknowledge, notifyBlocked } = buildAdapter("unbound");
 		// A plain reply in a thread Cyrus is not bound to

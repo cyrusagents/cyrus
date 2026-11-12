@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Stop a running Slack session from the thread it runs in: `/cyrus stop`, or a click on a `cyrus_stop` button. Both stop the session bound to that thread and answer privately. Slack apps created from the updated setup manifest register the command and enable Interactivity; no new scopes are required. ([#1595](https://github.com/cyrusagents/cyrus/pull/1595))
+
 ## [0.2.77] - 2026-11-11
 
 ### Changed

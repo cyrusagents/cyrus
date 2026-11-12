@@ -512,6 +512,30 @@ export class ChatSessionHandler<TEvent> {
 	}
 
 	/**
+	 * Stop the session bound to a chat thread, if any.
+	 *
+	 * Backs platform controls such as a Slack stop command or button, so a run
+	 * can be ended without waiting for it to finish. Follow-ups queued for the
+	 * thread are dropped as well: they were written for the run being stopped.
+	 */
+	stopThread(
+		threadKey: string,
+	): { status: "stopped"; sessionId: string } | { status: "no-session" } {
+		const sessionId = this.threadSessions.get(threadKey);
+		if (!sessionId) {
+			return { status: "no-session" };
+		}
+
+		this.pendingFollowups.delete(threadKey);
+		this.sessionManager.requestSessionStop(sessionId);
+		this.sessionManager.getAgentRunner(sessionId)?.stop();
+		this.logger.info(
+			`Stopped chat session ${sessionId} for thread ${threadKey}`,
+		);
+		return { status: "stopped", sessionId };
+	}
+
+	/**
 	 * Test/inspection: resolve a chat thread to its runner. Returns undefined
 	 * when the thread is unknown or the runner has been disposed.
 	 */
