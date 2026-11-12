@@ -126,6 +126,7 @@ describe("WorkerService", () => {
 			issueUpdateTrigger: false,
 			slackThreadFollowing: false,
 			prReviewTrigger: false,
+			ciFailureTrigger: true,
 			githubReviewAppPolicies: [
 				{ installationId: "123", organization: "Grain", appIds: [42] },
 			],

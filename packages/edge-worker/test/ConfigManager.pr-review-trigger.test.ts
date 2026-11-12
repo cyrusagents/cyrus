@@ -120,3 +120,37 @@ describe("ConfigManager - prReviewTrigger hot-reload (CYPACK-1273)", () => {
 		).toEqual(policy);
 	});
 });
+
+describe("ConfigManager - ciFailureTrigger hot reload", () => {
+	it.each([
+		true,
+		false,
+		undefined,
+	])("reloads %s, with removal disabling the feature", async (value) => {
+		const config = {
+			repositories: [],
+			ciFailureTrigger: true,
+			githubReviewAppPolicies: [],
+		} as unknown as EdgeWorkerConfig;
+		const logger = {
+			info: vi.fn(),
+			warn: vi.fn(),
+			error: vi.fn(),
+			debug: vi.fn(),
+		} as unknown as ILogger;
+		const manager = new ConfigManager(
+			config,
+			logger,
+			"/tmp/config.json",
+			new Map(),
+		);
+		vi.mocked(readFile).mockResolvedValue(
+			JSON.stringify({ repositories: [], ciFailureTrigger: value }),
+		);
+		const newConfig = await (manager as any).loadConfigSafely();
+		expect(newConfig.ciFailureTrigger).toBe(value === true);
+		expect((manager as any).detectGlobalConfigChanges(newConfig)).toBe(
+			value !== true,
+		);
+	});
+});

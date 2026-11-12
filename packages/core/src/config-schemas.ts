@@ -601,6 +601,9 @@ export const EdgeConfigSchema = z.object({
 		)
 		.optional(),
 
+	/** Opt in to continuing existing sessions on GitHub CI failures. Defaults to false. */
+	ciFailureTrigger: z.boolean().optional(),
+
 	/**
 	 * Global user access control settings.
 	 * Applied to all repositories unless overridden.

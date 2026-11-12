@@ -4,6 +4,7 @@
 
 import type { InternalMessage } from "cyrus-core";
 import type { FastifyInstance } from "fastify";
+import type { GitHubCiFailure } from "./ci-failure.js";
 
 /**
  * Verification mode for GitHub webhooks forwarded from CYHOST
@@ -24,6 +25,11 @@ export interface GitHubEventTransportConfig {
 	secret: string;
 	/** Optional IP allowlist for webhook source validation (only used in signature mode) */
 	ipAllowlist?: readonly string[];
+	/** CI uses an awaited acknowledgement, independently of legacy comment events. */
+	handleCiFailure?: (
+		failure: GitHubCiFailure,
+		context: { deliveryId: string; installationToken?: string },
+	) => Promise<{ outcome: string; sessionId?: string }>;
 }
 
 /**

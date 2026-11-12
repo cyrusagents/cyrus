@@ -172,6 +172,7 @@ import { ChatSessionHandler } from "./ChatSessionHandler.js";
 import { ConfigManager, type RepositoryChanges } from "./ConfigManager.js";
 import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { EgressProxy } from "./EgressProxy.js";
+import { GitHubCiRouter } from "./GitHubCiRouter.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { McpConfigService } from "./McpConfigService.js";
@@ -715,35 +716,7 @@ export class EdgeWorker extends EventEmitter {
 			});
 		}
 
-		// Start config file watcher via ConfigManager
-		this.configManager.on(
-			"configChanged",
-			async (changes: RepositoryChanges) => {
-				const strictMcpConfigChanged =
-					(this.config.strictMcpConfig ?? true) !==
-					(changes.newConfig.strictMcpConfig ?? true);
-				if (strictMcpConfigChanged) {
-					for (const warmSession of this.warmInstances.values()) {
-						warmSession.close();
-					}
-					this.warmInstances.clear();
-				}
-				this.updateLinearWorkspaceTokens(changes.newConfig);
-				await this.removeDeletedRepositories(changes.removed);
-				await this.updateModifiedRepositories(changes.modified);
-				await this.addNewRepositories(changes.added);
-				// Live-update sandbox / egress proxy settings
-				await this.applySandboxConfigChanges(changes.newConfig);
-				this.config = EdgeWorker.normalizeConfigPaths(changes.newConfig);
-				this.configManager.setConfig(changes.newConfig);
-				this.runnerSelectionService.setConfig(changes.newConfig);
-				this.toolPermissionResolver.setConfig(changes.newConfig);
-				this.runnerSlots.setLimit(
-					changes.newConfig.maxConcurrentSessions ?? Number.POSITIVE_INFINITY,
-				);
-			},
-		);
-		this.configManager.startConfigWatcher();
+		this.startConfigWatcher();
 
 		// Start egress proxy if sandbox is enabled.
 		// The proxy intercepts Bash-spawned subprocess traffic only (git, gh, npm, etc.).
@@ -990,6 +963,90 @@ export class EdgeWorker extends EventEmitter {
 	 * Register the GitHub event transport for receiving forwarded GitHub webhooks from CYHOST.
 	 * This creates a /github-webhook endpoint that handles @cyrusagent mentions on GitHub PRs.
 	 */
+	private async prepareCiPrompt(
+		session: CyrusAgentSession,
+		repository: RepositoryConfig,
+		prompt: string,
+	): Promise<() => Promise<void>> {
+		if (this.agentSessionManager.getSession(session.id) !== session) {
+			throw new Error("CI continuation unavailable for this session origin");
+		}
+		if (session.status === "error")
+			throw new Error(
+				"CI cannot resume an errored or stopped session automatically",
+			);
+		const runner = session.agentRunner;
+		if (runner?.isRunning()) {
+			if (!runner.supportsStreamingInput || !runner.addStreamMessage) {
+				throw new Error(
+					"CI session is busy; redeliver after its turn completes",
+				);
+			}
+			return async () => {
+				runner.addStreamMessage!(prompt);
+			};
+		}
+		const resumeId =
+			session.claudeSessionId ??
+			session.geminiSessionId ??
+			session.codexSessionId ??
+			session.cursorSessionId ??
+			session.opencodeSessionId;
+		if (!resumeId) throw new Error("CI session has no resumable runner");
+		if (!existsSync(session.workspace.path))
+			throw new Error("CI workspace no longer exists");
+		if (
+			session.issueContext?.trackerId !== "github" &&
+			!session.id.startsWith("github-")
+		) {
+			const workspaceId = requireLinearWorkspaceId(repository);
+			return async () => {
+				// A user may have resumed the session during GitHub validation.
+				if (session.agentRunner?.isRunning())
+					throw new Error("CI session became busy");
+				await this.resumeAgentSession(
+					session,
+					repository,
+					session.id,
+					this.agentSessionManager,
+					prompt,
+					"",
+					false,
+					[],
+					workspaceId,
+					50,
+				);
+			};
+		}
+		const { config, runnerType } = await this.buildAgentRunnerConfig(
+			session,
+			repository,
+			session.id,
+			undefined,
+			this.toolPermissionResolver.buildGithubAllowedTools(repository),
+			[
+				repository.repositoryPath,
+				...Object.values(session.workspace.repoPaths ?? {}),
+			],
+			this.buildDisallowedTools(repository),
+			resumeId,
+			undefined,
+			undefined,
+			50,
+			undefined,
+			this.buildSkillSessionContext(repository, undefined, session),
+			"github",
+		);
+		return async () => {
+			if (session.agentRunner?.isRunning())
+				throw new Error("CI session became busy");
+			const resumed = this.createRunnerForType(runnerType, config);
+			this.agentSessionManager.addAgentRunner(session.id, resumed);
+			await this.savePersistedState();
+			await resumed.start(prompt);
+		};
+	}
+
 	private registerGitHubEventTransport(): void {
 		// Use direct GitHub signature verification only when BOTH:
 		// 1. GITHUB_WEBHOOK_SECRET is set (we have the secret to verify)
@@ -1007,7 +1064,26 @@ export class EdgeWorker extends EventEmitter {
 			? process.env.GITHUB_WEBHOOK_SECRET!
 			: process.env.CYRUS_API_KEY || "";
 
+		const ciRouter = new GitHubCiRouter({
+			enabled: () => this.config.ciFailureTrigger === true,
+			home: this.cyrusHome,
+			repositories: () => [...this.repositories.values()],
+			sessions: () => this.getAllKnownSessions(),
+			token: (repository, installationToken) =>
+				this.resolveGitHubToken(
+					{ installationToken } as GitHubWebhookEvent,
+					repository,
+				),
+			prepare: (session, repository, prompt) =>
+				this.prepareCiPrompt(session, repository, prompt),
+			onDispatchError: (sessionId) =>
+				this.logger.error(
+					`CI dispatch failed for session ${sessionId}; inspect ci-dispatch journal before redelivery`,
+				),
+		});
 		this.gitHubEventTransport = new GitHubEventTransport({
+			handleCiFailure: (failure, context) =>
+				ciRouter.handle(failure, context.installationToken),
 			fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
 			verificationMode,
 			secret,
@@ -3270,6 +3346,39 @@ ${taskSection}`;
 		} catch {
 			return false;
 		}
+	}
+
+	/** Register live configuration updates before watching the file. */
+	private startConfigWatcher(): void {
+		// Start config file watcher via ConfigManager
+		this.configManager.on(
+			"configChanged",
+			async (changes: RepositoryChanges) => {
+				const strictMcpConfigChanged =
+					(this.config.strictMcpConfig ?? true) !==
+					(changes.newConfig.strictMcpConfig ?? true);
+				if (strictMcpConfigChanged) {
+					for (const warmSession of this.warmInstances.values()) {
+						warmSession.close();
+					}
+					this.warmInstances.clear();
+				}
+				this.updateLinearWorkspaceTokens(changes.newConfig);
+				await this.removeDeletedRepositories(changes.removed);
+				await this.updateModifiedRepositories(changes.modified);
+				await this.addNewRepositories(changes.added);
+				// Live-update sandbox / egress proxy settings
+				await this.applySandboxConfigChanges(changes.newConfig);
+				this.config = EdgeWorker.normalizeConfigPaths(changes.newConfig);
+				this.configManager.setConfig(changes.newConfig);
+				this.runnerSelectionService.setConfig(changes.newConfig);
+				this.toolPermissionResolver.setConfig(changes.newConfig);
+				this.runnerSlots.setLimit(
+					changes.newConfig.maxConcurrentSessions ?? Number.POSITIVE_INFINITY,
+				);
+			},
+		);
+		this.configManager.startConfigWatcher();
 	}
 
 	/**

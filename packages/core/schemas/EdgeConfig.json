@@ -723,6 +723,9 @@
 				"additionalProperties": false
 			}
 		},
+		"ciFailureTrigger": {
+			"type": "boolean"
+		},
 		"userAccessControl": {
 			"type": "object",
 			"properties": {

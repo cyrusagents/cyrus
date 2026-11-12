@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import type { TranslationContext } from "cyrus-core";
 import { createLogger, type ILogger, ipMatchesAllowlist } from "cyrus-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { parseGitHubCiFailure } from "./ci-failure.js";
 import { GitHubMessageTranslator } from "./GitHubMessageTranslator.js";
 import type {
 	GitHubEventTransportConfig,
@@ -177,7 +178,7 @@ export class GitHubEventTransport extends EventEmitter {
 				return;
 			}
 
-			this.processAndEmitEvent(request, reply);
+			await this.processAndEmitEvent(request, reply);
 		} catch (error) {
 			const err = new Error("Signature verification failed");
 			if (error instanceof Error) {
@@ -209,7 +210,7 @@ export class GitHubEventTransport extends EventEmitter {
 		}
 
 		try {
-			this.processAndEmitEvent(request, reply);
+			await this.processAndEmitEvent(request, reply);
 		} catch (error) {
 			const err = new Error("Proxy webhook processing failed");
 			if (error instanceof Error) {
@@ -223,10 +224,10 @@ export class GitHubEventTransport extends EventEmitter {
 	/**
 	 * Process the webhook request and emit the appropriate event
 	 */
-	private processAndEmitEvent(
+	private async processAndEmitEvent(
 		request: FastifyRequest,
 		reply: FastifyReply,
-	): void {
+	): Promise<void> {
 		const eventType = request.headers["x-github-event"] as string;
 		const deliveryId =
 			(request.headers["x-github-delivery"] as string) || "unknown";
@@ -236,6 +237,40 @@ export class GitHubEventTransport extends EventEmitter {
 
 		if (!eventType) {
 			reply.code(400).send({ error: "Missing x-github-event header" });
+			return;
+		}
+
+		if (eventType === "status" || eventType === "check_run") {
+			const parsed = parseGitHubCiFailure(eventType, request.body);
+			if (parsed.kind === "invalid" || deliveryId === "unknown") {
+				reply.code(400).send({ error: "Invalid CI webhook" });
+				return;
+			}
+			if (parsed.kind === "ignored") {
+				reply.send({ ciProtocol: 1, outcome: "ignored" });
+				return;
+			}
+			if (!this.config.handleCiFailure) {
+				reply.code(503).send({ error: "CI handler unavailable" });
+				return;
+			}
+			// Await durable acceptance. EventEmitter listeners cannot acknowledge failures.
+			try {
+				const outcome = await this.config.handleCiFailure(parsed.failure, {
+					deliveryId,
+					installationToken,
+				});
+				reply.send({ ciProtocol: 1, ...outcome });
+			} catch {
+				this.logger.warn("CI routing failed; redeliver after recovery", {
+					repositoryId: parsed.failure.repository.id,
+					deliveryId,
+				});
+				reply.code(503).send({
+					ciProtocol: 1,
+					error: "CI delivery failed; redeliver after recovery",
+				});
+			}
 			return;
 		}
 

@@ -61,6 +61,7 @@ describe("JSON Schema export", () => {
 				"strictMcpConfig",
 				"issueUpdateTrigger",
 				"prReviewTrigger",
+				"ciFailureTrigger",
 				"userAccessControl",
 				"promptDefaults",
 				"sandbox",
