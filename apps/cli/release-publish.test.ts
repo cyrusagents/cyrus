@@ -112,6 +112,9 @@ function runScenario(config: Scenario = {}) {
 		PATH: `${directory}/bin:${process.env.PATH}`,
 		FAKE_RELEASE_ROOT: directory,
 		FAKE_CLOCK_TICK: String(config.tick || 10000),
+		// These scenarios execute the stable workflow even during a test-channel build.
+		RELEASE_MODE: "stable",
+		CANDIDATE_SHA: "",
 		REQUESTED_VERSION: "1.2.3",
 		DIST_TAG: "latest",
 		DRY_RUN: String(config.dryRun || false),
