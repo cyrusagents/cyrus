@@ -12,6 +12,7 @@ import type {
 	ChatAccessDecision,
 	ChatPlatformAdapter,
 } from "./ChatSessionHandler.js";
+import { formatSlackThreadKey } from "./SlackInteractions.js";
 import type { UserAccessControl } from "./UserAccessControl.js";
 
 /**
@@ -202,7 +203,7 @@ export class SlackChatAdapter
 
 	getThreadKey(event: SlackWebhookEvent): string {
 		const threadTs = event.payload.thread_ts || event.payload.ts;
-		return `${event.payload.channel}:${threadTs}`;
+		return formatSlackThreadKey(event.payload.channel, threadTs);
 	}
 
 	getEventId(event: SlackWebhookEvent): string {
