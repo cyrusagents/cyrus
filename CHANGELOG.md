@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Updated the Claude runtime's Anthropic API client from `^1.7.0` to [`^1.8.0`](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.8.0), adding Claude Tag analytics metrics and Slack reply-mode settings. [`@anthropic-ai/claude-agent-sdk` 0.3.322](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03322) remains current, and its 30-tool registry is unchanged. ([CYPACK-1640](https://linear.app/ceedar/issue/CYPACK-1640/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1594](https://github.com/cyrusagents/cyrus/pull/1594))
+
 ## [0.2.77] - 2026-11-11
 
 ### Changed
