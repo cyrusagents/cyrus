@@ -68,14 +68,33 @@ nyrus_pids() {
 	pgrep -f -- "node .*$ENTRY" || true
 }
 
-pnpm_cmd() {
+# Make every `pnpm` call use the version from package.json ("packageManager"),
+# including the nested ones in package scripts (`pnpm build` runs `pnpm -r ...`).
+# Without this, a globally installed pnpm of another major version is picked up
+# for the nested calls and refuses to run. A small shim directory in front of
+# PATH forwards `pnpm` to that exact version through corepack (or npx).
+pin_pnpm() {
+	local version shim_dir
+	version="$(node -p "((require('./package.json').packageManager || '').match(/^pnpm@([^+]+)/) || [])[1] || ''")"
+	[ -n "$version" ] || fail "package.json has no \"packageManager\": \"pnpm@x.y.z\" field"
+
+	shim_dir="$(mktemp -d)"
+	# shellcheck disable=SC2064
+	trap "rm -rf '$shim_dir'" EXIT
 	if command -v corepack >/dev/null 2>&1; then
-		corepack pnpm "$@"
-	elif command -v pnpm >/dev/null 2>&1; then
-		pnpm "$@"
+		printf '#!/usr/bin/env bash\nexec corepack pnpm@%s "$@"\n' "$version" > "$shim_dir/pnpm"
+	elif command -v npx >/dev/null 2>&1; then
+		printf '#!/usr/bin/env bash\nexec npx --yes pnpm@%s "$@"\n' "$version" > "$shim_dir/pnpm"
 	else
-		fail "Neither corepack nor pnpm found. Node.js 18+ ships corepack; install Node first."
+		fail "Neither corepack nor npx found. Node.js ships both; install Node first."
 	fi
+	chmod +x "$shim_dir/pnpm"
+	export PATH="$shim_dir:$PATH"
+
+	local actual
+	actual="$(pnpm --version)" || fail "Could not run pnpm $version"
+	[ "$actual" = "$version" ] || fail "pnpm is $actual, expected $version"
+	log "pnpm $actual (from package.json)"
 }
 
 cd "$SITE_PATH"
@@ -96,13 +115,14 @@ else
 	export CI=true          # non-interactive pnpm
 	export HUSKY=0          # no git hooks on the server
 	export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+	pin_pnpm
 
 	log "Installing dependencies ..."
-	pnpm_cmd install --frozen-lockfile
+	pnpm install --frozen-lockfile
 
 	# --- 3. Build ----------------------------------------------------------
 	log "Building ..."
-	pnpm_cmd build
+	pnpm build
 fi
 
 [ -f "$ENTRY" ] || fail "$ENTRY is missing (build failed or not built yet)"

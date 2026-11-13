@@ -8,7 +8,7 @@ nyrus runs as a long-lived Node process on a server managed by [Laravel Forge](h
 
 Install on the server (as `forge`, unless noted):
 
-- Node.js 18 or newer (Forge: server → PHP/Node settings, or NodeSource). pnpm comes through `corepack` using the version in `package.json`.
+- Node.js 18 or newer (Forge: server → PHP/Node settings, or NodeSource). pnpm comes through `corepack` using the version in `package.json`; the deploy script pins that version for all calls, so a globally installed pnpm of another version doesn't get in the way.
 - `git`, `curl`, `jq` and `gh` (GitHub CLI); with sudo: `apt install -y jq gh`
 - Claude Code CLI, signed in (subscription login or `ANTHROPIC_API_KEY`)
 - `gh auth login` as the GitHub bot account that opens the pull requests
