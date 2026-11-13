@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
-- Self-hosted Cyrus behind a reverse proxy (no `CYRUS_HOST_EXTERNAL`, no `CYRUS_API_KEY`) now accepts Slack events verified with `SLACK_SIGNING_SECRET`, instead of rejecting them. Slack webhooks are always rejected when no verification secret is configured.
+- Self-hosted Cyrus behind a reverse proxy (no `CYRUS_HOST_EXTERNAL`, no `CYRUS_API_KEY`) now accepts Slack events verified with `SLACK_SIGNING_SECRET`, instead of rejecting them. Slack webhooks are always rejected when no verification secret is configured. ([#4](https://github.com/teamnovu/nyrus/pull/4))
 
 ## [0.2.78] - 2026-11-12
 
