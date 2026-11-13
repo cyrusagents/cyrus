@@ -48,8 +48,9 @@ describe("AskUserQuestionHandler", () => {
 			);
 
 			expect(result.answered).toBe(false);
+			expect(result.cancelled).toBe(true);
 			expect(result.message).toContain(
-				"Only one question at a time is supported",
+				"only one question at a time is supported",
 			);
 		});
 
@@ -86,8 +87,9 @@ describe("AskUserQuestionHandler", () => {
 			);
 
 			expect(result.answered).toBe(false);
+			expect(result.cancelled).toBe(true);
 			expect(result.message).toContain(
-				"Only one question at a time is supported",
+				"only one question at a time is supported",
 			);
 			// Should not have called createAgentActivity
 			expect(mockCreateAgentActivity).not.toHaveBeenCalled();
@@ -118,7 +120,8 @@ describe("AskUserQuestionHandler", () => {
 			);
 
 			expect(result.answered).toBe(false);
-			expect(result.message).toBe("Operation was cancelled");
+			expect(result.cancelled).toBe(true);
+			expect(result.message).toContain("NOT ANSWERED");
 		});
 
 		it("should reject if issue tracker is not available", async () => {
@@ -149,7 +152,8 @@ describe("AskUserQuestionHandler", () => {
 			);
 
 			expect(result.answered).toBe(false);
-			expect(result.message).toBe("Issue tracker not available");
+			expect(result.cancelled).toBe(true);
+			expect(result.message).toContain("no issue tracker is available");
 		});
 	});
 
@@ -353,7 +357,8 @@ describe("AskUserQuestionHandler", () => {
 
 			const result = await resultPromise;
 			expect(result.answered).toBe(false);
-			expect(result.message).toBe("Operation was cancelled");
+			expect(result.cancelled).toBe(true);
+			expect(result.message).toContain("the session was cancelled");
 		});
 
 		it("should resolve with custom message when cancelPendingQuestion is called", async () => {
@@ -387,7 +392,92 @@ describe("AskUserQuestionHandler", () => {
 
 			const result = await resultPromise;
 			expect(result.answered).toBe(false);
-			expect(result.message).toBe("Custom cancellation reason");
+			expect(result.cancelled).toBe(true);
+			expect(result.message).toContain("Custom cancellation reason");
+		});
+	});
+
+	describe("cancellation is distinguishable from a decline", () => {
+		const q: AskUserQuestionInput = {
+			questions: [
+				{
+					question: "Ship it?",
+					header: "Ship",
+					options: [{ label: "Yes", description: "Proceed" }],
+					multiSelect: false,
+				},
+			],
+		};
+
+		it("marks every unanswered outcome as cancelled, and says so in the message", async () => {
+			const ac = new AbortController();
+			const pending = handler.handleAskUserQuestion(
+				q,
+				"s1",
+				"org-123",
+				ac.signal,
+			);
+			await new Promise((r) => setTimeout(r, 10));
+			handler.cancelPendingQuestion("s1", "the session ended");
+			const result = await pending;
+
+			expect(result.answered).toBe(false);
+			expect(result.cancelled).toBe(true);
+			// The message is the only part the model reads, so it must rule out
+			// the reading that caused this bug: silence as consent.
+			expect(result.message).toContain("not approval");
+			expect(result.message).toContain("the session ended");
+		});
+
+		it("does NOT mark a genuine answer as cancelled", async () => {
+			const ac = new AbortController();
+			const pending = handler.handleAskUserQuestion(
+				q,
+				"s2",
+				"org-123",
+				ac.signal,
+			);
+			await new Promise((r) => setTimeout(r, 10));
+			handler.handleUserResponse("s2", "Yes");
+			const result = await pending;
+
+			expect(result.answered).toBe(true);
+			// Control: if `cancelled` were set unconditionally the assertion above
+			// would still pass, so an answered result must explicitly not carry it.
+			expect(result.cancelled).toBeFalsy();
+		});
+
+		it("marks a replaced question as cancelled rather than declined", async () => {
+			const ac = new AbortController();
+			const first = handler.handleAskUserQuestion(
+				q,
+				"s3",
+				"org-123",
+				ac.signal,
+			);
+			await new Promise((r) => setTimeout(r, 10));
+			// Deliberately not awaited: the second question stays pending by design,
+			// so awaiting it would hang. It is the *first* promise under test.
+			void handler.handleAskUserQuestion(q, "s3", "org-123", ac.signal);
+			const result = await first;
+
+			expect(result.answered).toBe(false);
+			expect(result.cancelled).toBe(true);
+			expect(result.message).toContain("replaced by a newer question");
+		});
+
+		it("marks a rejected multi-question call as cancelled", async () => {
+			const ac = new AbortController();
+			const result = await handler.handleAskUserQuestion(
+				{ questions: [q.questions[0]!, q.questions[0]!] },
+				"s4",
+				"org-123",
+				ac.signal,
+			);
+
+			expect(result.answered).toBe(false);
+			expect(result.cancelled).toBe(true);
+			expect(result.message).toContain("not approval");
 		});
 	});
 
@@ -436,7 +526,8 @@ describe("AskUserQuestionHandler", () => {
 			// First should be cancelled
 			const result1 = await resultPromise1;
 			expect(result1.answered).toBe(false);
-			expect(result1.message).toBe("Replaced by new question");
+			expect(result1.cancelled).toBe(true);
+			expect(result1.message).toContain("replaced by a newer question");
 
 			// Clean up second
 			await new Promise((resolve) => setTimeout(resolve, 10));
@@ -472,7 +563,8 @@ describe("AskUserQuestionHandler", () => {
 			);
 
 			expect(result.answered).toBe(false);
-			expect(result.message).toContain("Failed to present question");
+			expect(result.cancelled).toBe(true);
+			expect(result.message).toContain("could not be posted to Linear");
 			expect(result.message).toContain("API Error");
 		});
 	});
