@@ -41,6 +41,7 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"ListAgents",
 
 	// Web
+	"WebFetch",
 	"WebSearch",
 
 	// Worktree management
@@ -109,6 +110,7 @@ export const SLACK_DEFAULT_ALLOWED_TOOLS = [
 	"Bash(git -C * pull)",
 
 	// Web
+	"WebFetch",
 	"WebSearch",
 
 	// User interaction — Slack chat sessions need to send replies back
@@ -161,6 +163,7 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	"ListAgents",
 
 	// Web
+	"WebFetch",
 	"WebSearch",
 
 	// Worktree management

@@ -26,6 +26,7 @@ export const availableTools = [
 	"ListAgents",
 
 	// Web tools
+	"WebFetch",
 	"WebSearch",
 
 	// MCP resource discovery
@@ -88,6 +89,7 @@ export type ToolName = (typeof availableTools)[number];
  */
 export const readOnlyTools: ToolName[] = [
 	"Read(**)",
+	"WebFetch",
 	"WebSearch",
 	"ListMcpResourcesTool",
 	"ReadMcpResourceDirTool",

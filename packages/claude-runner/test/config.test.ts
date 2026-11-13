@@ -20,6 +20,7 @@ describe("config", () => {
 				"Bash",
 				"Task",
 				"ListAgents",
+				"WebFetch",
 				"WebSearch",
 				"ListMcpResourcesTool",
 				"ReadMcpResourceDirTool",
@@ -47,12 +48,13 @@ describe("config", () => {
 				"Workflow",
 				"ReportFindings",
 			]);
-			expect(availableTools).toHaveLength(32);
+			expect(availableTools).toHaveLength(33);
 		});
 
 		it("should define read-only tools", () => {
 			expect(readOnlyTools).toEqual([
 				"Read(**)",
+				"WebFetch",
 				"WebSearch",
 				"ListMcpResourcesTool",
 				"ReadMcpResourceDirTool",
@@ -68,7 +70,7 @@ describe("config", () => {
 				"LSP",
 				"ToolSearch",
 			]);
-			expect(readOnlyTools).toHaveLength(15);
+			expect(readOnlyTools).toHaveLength(16);
 		});
 
 		it("should define write tools", () => {
@@ -130,6 +132,7 @@ describe("config", () => {
 			expect(tools).toContain("Edit(**)");
 			expect(tools).toContain("Write(**)");
 			expect(tools).toContain("Task");
+			expect(tools).toContain("WebFetch");
 			expect(tools).toContain("WebSearch");
 			expect(tools).toContain("ListMcpResourcesTool");
 			expect(tools).toContain("TaskCreate");
@@ -149,6 +152,7 @@ describe("config", () => {
 			expect(tools).toContain("Read(**)");
 			expect(tools).toContain("Bash"); // For running tests/builds
 			expect(tools).toContain("Task");
+			expect(tools).toContain("WebFetch");
 			expect(tools).toContain("WebSearch");
 			expect(tools).toContain("ReadMcpResourceTool");
 			expect(tools).toContain("TaskCreate"); // For task tracking
@@ -243,6 +247,11 @@ describe("config", () => {
 				expect(readOnlyTools).toContain(tool);
 				expect(writeTools).not.toContain(tool);
 			}
+		});
+
+		it("WebFetch should be read-only", () => {
+			expect(readOnlyTools).toContain("WebFetch");
+			expect(writeTools).not.toContain("WebFetch");
 		});
 
 		it("WebSearch should be read-only", () => {
