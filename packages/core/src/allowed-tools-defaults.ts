@@ -70,6 +70,9 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"LSP",
 	"RemoteTrigger",
 	"ToolSearch",
+	"ListMcpResourcesTool",
+	"ReadMcpResourceDirTool",
+	"ReadMcpResourceTool",
 	"Skill",
 
 	// Design sync
@@ -189,6 +192,9 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	"LSP",
 	"RemoteTrigger",
 	"ToolSearch",
+	"ListMcpResourcesTool",
+	"ReadMcpResourceDirTool",
+	"ReadMcpResourceTool",
 	"Skill",
 
 	// Design sync
