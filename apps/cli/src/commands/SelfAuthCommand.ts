@@ -8,6 +8,7 @@ import {
 } from "cyrus-core";
 import Fastify, { type FastifyInstance } from "fastify";
 import open from "open";
+import { resolveServerHost, serverHostError } from "../config/constants.js";
 import { BaseCommand } from "./ICommand.js";
 
 /**
@@ -17,6 +18,8 @@ import { BaseCommand } from "./ICommand.js";
 export class SelfAuthCommand extends BaseCommand {
 	private server: FastifyInstance | null = null;
 	private callbackPort = parseInt(process.env.CYRUS_SERVER_PORT || "3456", 10);
+	/** Resolved once in `execute` so both listeners bind the same address. */
+	private listenHost = "localhost";
 
 	async execute(_args: string[]): Promise<void> {
 		console.log("\nCyrus Linear Self-Authentication");
@@ -59,14 +62,30 @@ export class SelfAuthCommand extends BaseCommand {
 		console.log(`   Callback port: ${this.callbackPort}`);
 		console.log();
 
+		// Validate before any listener opens, so a rejected configuration never
+		// gets bound.
+		const isExternalHost =
+			process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+		this.listenHost = resolveServerHost(
+			process.env.CYRUS_SERVER_HOST,
+			isExternalHost,
+		);
+		const hostError = serverHostError(this.listenHost, isExternalHost);
+		if (hostError) {
+			this.logError(hostError);
+			process.exit(1);
+		}
+
 		try {
 			if (process.env.CLOUDFLARE_TOKEN) {
 				this.logger.info("Starting cloudflare tunnel...");
 
 				const { SharedApplicationServer } = await import("cyrus-edge-worker");
+				// 2nd arg is the bind address, not a public URL - passing baseUrl
+				// here would break start() on this instance.
 				const sharedApplicationServer = new SharedApplicationServer(
 					this.callbackPort,
-					baseUrl,
+					this.listenHost,
 					false,
 				);
 				await sharedApplicationServer.startCloudflareTunnel(
@@ -187,12 +206,8 @@ export class SelfAuthCommand extends BaseCommand {
 				reject(new Error("Missing authorization code"));
 			});
 
-			const isExternalHost =
-				process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
-			const listenHost = isExternalHost ? "0.0.0.0" : "localhost";
-
 			this.server
-				.listen({ port: this.callbackPort, host: listenHost })
+				.listen({ port: this.callbackPort, host: this.listenHost })
 				.then(() => {
 					console.log(
 						`Waiting for authorization on port ${this.callbackPort}...`,
@@ -247,7 +262,7 @@ export class SelfAuthCommand extends BaseCommand {
 			refresh_token?: string;
 		};
 
-		if (!data.access_token || !data.access_token.startsWith("lin_oauth_")) {
+		if (!data.access_token?.startsWith("lin_oauth_")) {
 			throw new Error("Invalid access token received");
 		}
 

@@ -16,6 +16,12 @@ const edgeWorkerInstances: Array<{
 	start: ReturnType<typeof vi.fn>;
 }> = [];
 
+const mocks = vi.hoisted(() => ({
+	mockSharedApplicationServer: vi.fn(),
+	mockConfigUpdater: vi.fn(),
+	mockSlackEventTransport: vi.fn(),
+}));
+
 vi.mock("cyrus-edge-worker", () => ({
 	EdgeWorker: vi.fn().mockImplementation(function (config: EdgeWorkerConfig) {
 		const instance = {
@@ -27,14 +33,19 @@ vi.mock("cyrus-edge-worker", () => ({
 		edgeWorkerInstances.push(instance);
 		return instance;
 	}),
+	SharedApplicationServer: mocks.mockSharedApplicationServer,
+}));
+
+vi.mock("cyrus-config-updater", () => ({
+	ConfigUpdater: mocks.mockConfigUpdater,
 }));
 
 vi.mock("cyrus-cloudflare-tunnel-client", () => ({
-	getCyrusAppUrl: vi.fn(),
+	getCyrusAppUrl: vi.fn(() => "https://app.example.com"),
 }));
 
 vi.mock("cyrus-slack-event-transport", () => ({
-	SlackEventTransport: vi.fn(),
+	SlackEventTransport: mocks.mockSlackEventTransport,
 }));
 
 const { WorkerService } = await import("./WorkerService.js");
@@ -49,6 +60,35 @@ const repository: RepositoryConfig = {
 describe("WorkerService", () => {
 	beforeEach(() => {
 		edgeWorkerInstances.length = 0;
+		mocks.mockSharedApplicationServer.mockReset();
+		mocks.mockConfigUpdater.mockReset();
+		mocks.mockSlackEventTransport.mockReset();
+
+		mocks.mockSharedApplicationServer.mockImplementation(function () {
+			return {
+				initializeFastify: vi.fn(),
+				getFastifyInstance: vi.fn().mockReturnValue({}),
+				start: vi.fn().mockResolvedValue(undefined),
+				stop: vi.fn().mockResolvedValue(undefined),
+			};
+		});
+		mocks.mockConfigUpdater.mockImplementation(function () {
+			return { register: vi.fn() };
+		});
+		mocks.mockSlackEventTransport.mockImplementation(function () {
+			return { register: vi.fn() };
+		});
+
+		// The bind-address tests read these, so they must not inherit the shell.
+		for (const key of [
+			"CYRUS_HOST_EXTERNAL",
+			"CYRUS_SERVER_HOST",
+			"CYRUS_SERVER_PORT",
+			"CLOUDFLARE_TOKEN",
+			"SLACK_SIGNING_SECRET",
+		]) {
+			vi.stubEnv(key, undefined as unknown as string);
+		}
 	});
 
 	afterEach(() => {
@@ -66,6 +106,8 @@ describe("WorkerService", () => {
 			success: vi.fn(),
 			error: vi.fn(),
 			warn: vi.fn(),
+			raw: vi.fn(),
+			divider: vi.fn(),
 		} as unknown as Logger;
 
 		return new WorkerService(
@@ -221,5 +263,165 @@ describe("WorkerService", () => {
 		});
 
 		expect(config.inferOpenCodeRunnerFromProviderModel).toBe(true);
+	});
+
+	describe("bind address", () => {
+		let service: WorkerService;
+
+		beforeEach(() => {
+			service = createWorkerService({ repositories: [] });
+		});
+
+		/** Host passed positionally as the 2nd arg of `new SharedApplicationServer(port, host)`. */
+		const preWorkerServerHost = (): string =>
+			mocks.mockSharedApplicationServer.mock.calls[0][1];
+
+		/** Host taken from the `EdgeWorkerConfig` handed to `new EdgeWorker(config)`. */
+		const edgeWorkerHost = (): string | undefined =>
+			edgeWorkerInstances[0]?.config.serverHost;
+
+		describe("setup-waiting / idle server", () => {
+			it("falls back to localhost when neither variable is set", async () => {
+				await service.startSetupWaitingMode();
+
+				expect(mocks.mockSharedApplicationServer).toHaveBeenCalledWith(
+					3456,
+					"localhost",
+				);
+			});
+
+			it("falls back to 0.0.0.0 when CYRUS_HOST_EXTERNAL is true", async () => {
+				vi.stubEnv("CYRUS_HOST_EXTERNAL", "true");
+
+				await service.startIdleMode();
+
+				expect(preWorkerServerHost()).toBe("0.0.0.0");
+			});
+
+			it("uses CYRUS_SERVER_HOST when set", async () => {
+				vi.stubEnv("CYRUS_SERVER_HOST", "127.0.0.1");
+
+				await service.startSetupWaitingMode();
+
+				expect(preWorkerServerHost()).toBe("127.0.0.1");
+			});
+
+			it("lets CYRUS_SERVER_HOST override CYRUS_HOST_EXTERNAL", async () => {
+				vi.stubEnv("CYRUS_HOST_EXTERNAL", "true");
+				vi.stubEnv("CYRUS_SERVER_HOST", "127.0.0.1");
+
+				await service.startIdleMode();
+
+				expect(preWorkerServerHost()).toBe("127.0.0.1");
+			});
+		});
+
+		describe("edge worker", () => {
+			const start = () => service.startEdgeWorker({ repositories: [] });
+
+			it("falls back to localhost when neither variable is set", async () => {
+				await start();
+
+				expect(edgeWorkerHost()).toBe("localhost");
+			});
+
+			it("falls back to 0.0.0.0 when CYRUS_HOST_EXTERNAL is true", async () => {
+				vi.stubEnv("CYRUS_HOST_EXTERNAL", "true");
+
+				await start();
+
+				expect(edgeWorkerHost()).toBe("0.0.0.0");
+			});
+
+			it("uses CYRUS_SERVER_HOST when set", async () => {
+				vi.stubEnv("CYRUS_SERVER_HOST", "127.0.0.1");
+
+				await start();
+
+				expect(edgeWorkerHost()).toBe("127.0.0.1");
+			});
+
+			it("lets CYRUS_SERVER_HOST override CYRUS_HOST_EXTERNAL", async () => {
+				// The tunnelled self-host case: bind loopback while keeping
+				// CYRUS_HOST_EXTERNAL=true for direct webhook verification.
+				vi.stubEnv("CYRUS_HOST_EXTERNAL", "true");
+				vi.stubEnv("CYRUS_SERVER_HOST", "127.0.0.1");
+
+				await start();
+
+				expect(edgeWorkerHost()).toBe("127.0.0.1");
+			});
+		});
+
+		describe("non-loopback rejection", () => {
+			it("rejects an override that binds non-loopback outside external mode", async () => {
+				vi.stubEnv("CYRUS_SERVER_HOST", "0.0.0.0");
+
+				await expect(
+					service.startEdgeWorker({ repositories: [] }),
+				).rejects.toThrow("CYRUS_SERVER_HOST=0.0.0.0");
+				// Startup fails before the listener is opened.
+				expect(edgeWorkerInstances).toHaveLength(0);
+				expect(mocks.mockSharedApplicationServer).not.toHaveBeenCalled();
+			});
+
+			it("rejects from the setup-waiting server too", async () => {
+				vi.stubEnv("CYRUS_SERVER_HOST", "192.168.1.10");
+
+				await expect(service.startSetupWaitingMode()).rejects.toThrow(
+					"CYRUS_SERVER_HOST=192.168.1.10",
+				);
+				expect(mocks.mockSharedApplicationServer).not.toHaveBeenCalled();
+			});
+
+			it("rejects a hostname that merely looks like loopback", async () => {
+				vi.stubEnv("CYRUS_SERVER_HOST", "127.example.com");
+
+				await expect(service.startSetupWaitingMode()).rejects.toThrow(
+					"CYRUS_SERVER_HOST=127.example.com",
+				);
+				expect(mocks.mockSharedApplicationServer).not.toHaveBeenCalled();
+			});
+
+			it("does not reject for a loopback override", async () => {
+				vi.stubEnv("CYRUS_SERVER_HOST", "127.0.0.1");
+
+				await service.startSetupWaitingMode();
+
+				expect(mocks.mockSharedApplicationServer).toHaveBeenCalledWith(
+					3456,
+					"127.0.0.1",
+				);
+			});
+
+			it("does not reject when CYRUS_HOST_EXTERNAL makes the public bind intentional", async () => {
+				vi.stubEnv("CYRUS_HOST_EXTERNAL", "true");
+
+				await service.startEdgeWorker({ repositories: [] });
+
+				expect(edgeWorkerInstances).toHaveLength(1);
+			});
+		});
+
+		it("does not change webhook verification mode", async () => {
+			// CYRUS_SERVER_HOST moves the bind address only. Slack direct
+			// verification stays gated on CYRUS_HOST_EXTERNAL alone.
+			vi.stubEnv("CYRUS_SERVER_HOST", "127.0.0.1");
+			vi.stubEnv("SLACK_SIGNING_SECRET", "slack-secret");
+
+			await service.startSetupWaitingMode();
+			expect(mocks.mockSlackEventTransport).not.toHaveBeenCalled();
+
+			await service.stopWaitingServer();
+			vi.stubEnv("CYRUS_HOST_EXTERNAL", "true");
+
+			await service.startSetupWaitingMode();
+			expect(mocks.mockSlackEventTransport).toHaveBeenCalledWith(
+				expect.objectContaining({
+					verificationMode: "direct",
+					secret: "slack-secret",
+				}),
+			);
+		});
 	});
 });

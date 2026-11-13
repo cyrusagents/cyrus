@@ -97,6 +97,8 @@ describe("SelfAuthCommand", () => {
 
 		// Ensure environment-dependent code paths are deterministic
 		delete process.env.CLOUDFLARE_TOKEN;
+		delete process.env.CYRUS_HOST_EXTERNAL;
+		delete process.env.CYRUS_SERVER_HOST;
 
 		// Reset Fastify mock instance
 		mocks.mockFastifyInstance.get.mockReset();
@@ -223,6 +225,73 @@ describe("SelfAuthCommand", () => {
 				"/callback",
 				expect.any(Function),
 			);
+		});
+
+		describe("listen host", () => {
+			/**
+			 * Starts the OAuth flow far enough to reach `server.listen()` and
+			 * returns the options it was called with. `listen` never resolves, so
+			 * the command is left waiting for a callback that never arrives.
+			 */
+			const captureListenOptions = async (): Promise<{
+				port: number;
+				host: string;
+			}> => {
+				mocks.mockFastifyInstance.listen.mockImplementation(
+					() => new Promise(() => {}),
+				);
+
+				void command.execute([]).catch(() => {});
+				await new Promise((resolve) => setTimeout(resolve, 10));
+
+				expect(mocks.mockFastifyInstance.listen).toHaveBeenCalledTimes(1);
+				return mocks.mockFastifyInstance.listen.mock.calls[0][0];
+			};
+
+			it("falls back to localhost when neither variable is set", async () => {
+				expect(await captureListenOptions()).toMatchObject({
+					host: "localhost",
+					port: 3456,
+				});
+			});
+
+			it("falls back to 0.0.0.0 when CYRUS_HOST_EXTERNAL is true", async () => {
+				process.env.CYRUS_HOST_EXTERNAL = "true";
+
+				expect(await captureListenOptions()).toMatchObject({
+					host: "0.0.0.0",
+				});
+			});
+
+			it("uses CYRUS_SERVER_HOST when set", async () => {
+				process.env.CYRUS_SERVER_HOST = "127.0.0.1";
+
+				expect(await captureListenOptions()).toMatchObject({
+					host: "127.0.0.1",
+				});
+			});
+
+			it("lets CYRUS_SERVER_HOST override CYRUS_HOST_EXTERNAL", async () => {
+				// The tunnelled self-host case: bind loopback while keeping
+				// CYRUS_HOST_EXTERNAL=true for direct webhook verification.
+				process.env.CYRUS_HOST_EXTERNAL = "true";
+				process.env.CYRUS_SERVER_HOST = "127.0.0.1";
+
+				expect(await captureListenOptions()).toMatchObject({
+					host: "127.0.0.1",
+				});
+			});
+
+			it("rejects a non-loopback override without CYRUS_HOST_EXTERNAL before listening", async () => {
+				process.env.CYRUS_SERVER_HOST = "0.0.0.0";
+
+				await expect(command.execute([])).rejects.toThrow(
+					"process.exit called",
+				);
+				expect(mockExit).toHaveBeenCalledWith(1);
+				// The callback listener never opens.
+				expect(mocks.mockFastifyInstance.listen).not.toHaveBeenCalled();
+			});
 		});
 
 		it("should open browser with correct OAuth URL", async () => {
