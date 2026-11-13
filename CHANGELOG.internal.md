@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Added
+- Laravel Forge deploy script and setup guide (`deploy/forge/`): installs, builds and smoke-tests the CLI, waits until nyrus is idle so running agent sessions finish, then restarts it under the Forge daemon. ([teamnovu/nyrus#1](https://github.com/teamnovu/nyrus/pull/1))
+
 ## [0.2.78] - 2026-11-12
 
 ### Changed
