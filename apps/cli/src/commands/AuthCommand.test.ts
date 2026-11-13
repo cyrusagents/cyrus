@@ -44,6 +44,8 @@ describe("auth listener port persistence", () => {
 			"CYRUS_API_KEY",
 			"CYRUS_SETUP_PENDING",
 			"CYRUS_SERVER_PORT",
+			"CYRUS_TEAM_ID",
+			"CYRUS_DEVICE_ID",
 		])
 			vi.stubEnv(name, undefined);
 		vi.spyOn(console, "log").mockImplementation(() => {});
@@ -52,6 +54,8 @@ describe("auth listener port persistence", () => {
 			config: {
 				cloudflareToken: "fixture-tunnel",
 				apiKey: "fixture-api",
+				teamId: "fixture-team",
+				deviceId: "fixture-device",
 				serverPort,
 			},
 		});
@@ -67,6 +71,18 @@ describe("auth listener port persistence", () => {
 		} as unknown as Application;
 		await new AuthCommand(app).execute(["fixture-auth"]);
 		expect(start).toHaveBeenCalledOnce();
+		expect(getConfig).toHaveBeenCalledWith(
+			"fixture-auth",
+			expect.objectContaining({
+				hostname: expect.any(String),
+				platform: expect.any(String),
+				arch: expect.any(String),
+				cores: expect.any(Number),
+				memory: expect.any(Number),
+			}),
+		);
+		expect(process.env.CYRUS_TEAM_ID).toBe("fixture-team");
+		expect(process.env.CYRUS_DEVICE_ID).toBe("fixture-device");
 		const env = readFileSync(join(home, ".env"), "utf8");
 		if (serverPort === undefined)
 			expect(env).not.toContain("CYRUS_SERVER_PORT");
