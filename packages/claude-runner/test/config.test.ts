@@ -20,8 +20,10 @@ describe("config", () => {
 				"Bash",
 				"Task",
 				"ListAgents",
-				"WebFetch",
 				"WebSearch",
+				"ListMcpResourcesTool",
+				"ReadMcpResourceDirTool",
+				"ReadMcpResourceTool",
 				"TaskCreate",
 				"TaskUpdate",
 				"TaskGet",
@@ -45,14 +47,16 @@ describe("config", () => {
 				"Workflow",
 				"ReportFindings",
 			]);
-			expect(availableTools).toHaveLength(30);
+			expect(availableTools).toHaveLength(32);
 		});
 
 		it("should define read-only tools", () => {
 			expect(readOnlyTools).toEqual([
 				"Read(**)",
-				"WebFetch",
 				"WebSearch",
+				"ListMcpResourcesTool",
+				"ReadMcpResourceDirTool",
+				"ReadMcpResourceTool",
 				"TaskCreate",
 				"TaskUpdate",
 				"TaskGet",
@@ -64,7 +68,7 @@ describe("config", () => {
 				"LSP",
 				"ToolSearch",
 			]);
-			expect(readOnlyTools).toHaveLength(13);
+			expect(readOnlyTools).toHaveLength(15);
 		});
 
 		it("should define write tools", () => {
@@ -126,8 +130,8 @@ describe("config", () => {
 			expect(tools).toContain("Edit(**)");
 			expect(tools).toContain("Write(**)");
 			expect(tools).toContain("Task");
-			expect(tools).toContain("WebFetch");
 			expect(tools).toContain("WebSearch");
+			expect(tools).toContain("ListMcpResourcesTool");
 			expect(tools).toContain("TaskCreate");
 			expect(tools).toContain("NotebookEdit");
 			expect(tools).toContain("Skill");
@@ -145,8 +149,8 @@ describe("config", () => {
 			expect(tools).toContain("Read(**)");
 			expect(tools).toContain("Bash"); // For running tests/builds
 			expect(tools).toContain("Task");
-			expect(tools).toContain("WebFetch");
 			expect(tools).toContain("WebSearch");
+			expect(tools).toContain("ReadMcpResourceTool");
 			expect(tools).toContain("TaskCreate"); // For task tracking
 			expect(tools).toContain("Skill"); // For Skills functionality
 
@@ -230,9 +234,15 @@ describe("config", () => {
 			expect(writeTools).not.toContain("Task");
 		});
 
-		it("WebFetch should be read-only", () => {
-			expect(readOnlyTools).toContain("WebFetch");
-			expect(writeTools).not.toContain("WebFetch");
+		it("MCP resource tools should be read-only", () => {
+			for (const tool of [
+				"ListMcpResourcesTool",
+				"ReadMcpResourceDirTool",
+				"ReadMcpResourceTool",
+			] as const) {
+				expect(readOnlyTools).toContain(tool);
+				expect(writeTools).not.toContain(tool);
+			}
 		});
 
 		it("WebSearch should be read-only", () => {
