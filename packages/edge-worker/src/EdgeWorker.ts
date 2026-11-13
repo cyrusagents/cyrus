@@ -155,6 +155,7 @@ import {
 import {
 	SlackEventTransport,
 	type SlackWebhookEvent,
+	shouldUseDirectSlackVerification,
 } from "cyrus-slack-event-transport";
 import {
 	ZulipEventTransport,
@@ -1510,21 +1511,18 @@ export class EdgeWorker extends EventEmitter {
 			this.logger,
 		);
 
-		// Use direct Slack signature verification only when BOTH:
-		// 1. SLACK_SIGNING_SECRET is set (we have the secret to verify)
-		// 2. CYRUS_HOST_EXTERNAL is true (self-hosted: Slack sends directly to us)
+		// Verify Slack's own signature when SLACK_SIGNING_SECRET is set and
+		// either the host is external (CYRUS_HOST_EXTERNAL=true) or there is no
+		// hosted proxy (no CYRUS_API_KEY, e.g. self-hosted behind Nginx).
 		// On cloud droplets, CYHOST forwards webhooks with Bearer token auth
 		// (it verifies the Slack signature itself and doesn't forward the headers).
-		const isExternalHost =
-			process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
-		const hasSlackSigningSecret =
-			process.env.SLACK_SIGNING_SECRET != null &&
-			process.env.SLACK_SIGNING_SECRET !== "";
-		const useDirectSlackWebhooks = isExternalHost && hasSlackSigningSecret;
+		const useDirectSlackWebhooks = shouldUseDirectSlackVerification(
+			process.env,
+		);
 
 		const slackVerificationMode = useDirectSlackWebhooks ? "direct" : "proxy";
 		const slackSecret = useDirectSlackWebhooks
-			? process.env.SLACK_SIGNING_SECRET!
+			? process.env.SLACK_SIGNING_SECRET!.trim()
 			: process.env.CYRUS_API_KEY || "";
 
 		this.slackEventTransport = new SlackEventTransport({

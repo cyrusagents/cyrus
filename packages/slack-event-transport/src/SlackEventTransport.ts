@@ -13,6 +13,29 @@ import type {
 	SlackWebhookEvent,
 } from "./types.js";
 
+/**
+ * Whether Slack webhooks should be verified with Slack's own signature
+ * (`SLACK_SIGNING_SECRET`) rather than a Bearer token from the hosted Cyrus
+ * proxy.
+ *
+ * Direct verification needs a signing secret, and applies when the host is
+ * marked external (`CYRUS_HOST_EXTERNAL=true`) or when there is no hosted
+ * proxy at all (`CYRUS_API_KEY` unset) — e.g. self-hosting behind Nginx,
+ * where Slack necessarily sends events straight to us.
+ */
+export function shouldUseDirectSlackVerification(
+	env: Record<string, string | undefined>,
+): boolean {
+	const hasSigningSecret = Boolean(env.SLACK_SIGNING_SECRET?.trim());
+	if (!hasSigningSecret) {
+		return false;
+	}
+	const isExternalHost =
+		env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
+	const hasHostedProxy = Boolean(env.CYRUS_API_KEY?.trim());
+	return isExternalHost || !hasHostedProxy;
+}
+
 export declare interface SlackEventTransport {
 	on<K extends keyof SlackEventTransportEvents>(
 		event: K,
@@ -102,17 +125,14 @@ export class SlackEventTransport extends EventEmitter {
 		}
 
 		// Check if direct mode env vars have been added at runtime
-		const isExternalHost =
-			process.env.CYRUS_HOST_EXTERNAL?.toLowerCase().trim() === "true";
-		const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
-		const hasSlackSigningSecret =
-			slackSigningSecret != null && slackSigningSecret !== "";
-
-		if (isExternalHost && hasSlackSigningSecret) {
+		if (shouldUseDirectSlackVerification(process.env)) {
 			this.logger.info(
 				"Runtime switch: SLACK_SIGNING_SECRET detected, using direct Slack signature verification",
 			);
-			return { mode: "direct", secret: slackSigningSecret };
+			return {
+				mode: "direct",
+				secret: process.env.SLACK_SIGNING_SECRET!.trim(),
+			};
 		}
 
 		// Fall back to proxy mode with original config secret
@@ -242,6 +262,16 @@ export class SlackEventTransport extends EventEmitter {
 		reply: FastifyReply,
 		secret: string,
 	): Promise<void> {
+		// Without a shared secret there is nothing to authenticate against;
+		// never let `Bearer ` (empty token) through.
+		if (!secret.trim()) {
+			reply.code(401).send({
+				error:
+					"Slack webhook verification is not configured (set SLACK_SIGNING_SECRET)",
+			});
+			return;
+		}
+
 		const authHeader = request.headers.authorization;
 		if (!authHeader) {
 			reply.code(401).send({ error: "Missing Authorization header" });

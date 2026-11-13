@@ -734,6 +734,7 @@ describe("SlackEventTransport", () => {
 		afterEach(() => {
 			delete process.env.SLACK_SIGNING_SECRET;
 			delete process.env.CYRUS_HOST_EXTERNAL;
+			delete process.env.CYRUS_API_KEY;
 		});
 
 		it("switches to direct verification when SLACK_SIGNING_SECRET and CYRUS_HOST_EXTERNAL are set at request time", async () => {
@@ -765,12 +766,39 @@ describe("SlackEventTransport", () => {
 			);
 		});
 
-		it("stays in proxy mode when only SLACK_SIGNING_SECRET is set (no CYRUS_HOST_EXTERNAL)", async () => {
+		it("switches to direct verification when SLACK_SIGNING_SECRET is set and there is no hosted proxy (no CYRUS_API_KEY)", async () => {
 			const eventListener = vi.fn();
 			transport.on("event", eventListener);
 
-			// Only set signing secret, not external host flag
+			// Self-hosted behind Nginx: signing secret, no external flag, no proxy key
 			process.env.SLACK_SIGNING_SECRET = runtimeSigningSecret;
+			delete process.env.CYRUS_HOST_EXTERNAL;
+			delete process.env.CYRUS_API_KEY;
+
+			const request = createMockRequest(testEventEnvelope);
+			const { timestamp, signature } = signSlackRequest(
+				request.rawBody,
+				runtimeSigningSecret,
+			);
+			request.headers["x-slack-request-timestamp"] = timestamp;
+			request.headers["x-slack-signature"] = signature;
+
+			const reply = createMockReply();
+			await mockFastify.routes["/slack-webhook"]!(request, reply);
+
+			expect(reply.code).toHaveBeenCalledWith(200);
+			expect(eventListener).toHaveBeenCalledWith(
+				expect.objectContaining({ eventType: "app_mention" }),
+			);
+		});
+
+		it("stays in proxy mode when SLACK_SIGNING_SECRET is set behind the hosted proxy (CYRUS_API_KEY, no CYRUS_HOST_EXTERNAL)", async () => {
+			const eventListener = vi.fn();
+			transport.on("event", eventListener);
+
+			// Hosted droplet: signing secret present, but CYHOST forwards events
+			process.env.SLACK_SIGNING_SECRET = runtimeSigningSecret;
+			process.env.CYRUS_API_KEY = testSecret;
 			delete process.env.CYRUS_HOST_EXTERNAL;
 
 			const request = createMockRequest(testEventEnvelope, {
@@ -830,6 +858,29 @@ describe("SlackEventTransport", () => {
 			expect(reply.send).toHaveBeenCalledWith({
 				error: "Missing Slack signature headers",
 			});
+		});
+	});
+
+	describe("proxy mode without a secret", () => {
+		it("rejects every request, including an empty Bearer token", async () => {
+			const transport = new SlackEventTransport({
+				fastifyServer:
+					mockFastify as unknown as SlackEventTransportConfig["fastifyServer"],
+				verificationMode: "proxy",
+				secret: "",
+			});
+			transport.register();
+			const eventListener = vi.fn();
+			transport.on("event", eventListener);
+
+			const request = createMockRequest(testEventEnvelope, {
+				authorization: "Bearer ",
+			});
+			const reply = createMockReply();
+			await mockFastify.routes["/slack-webhook"]!(request, reply);
+
+			expect(reply.code).toHaveBeenCalledWith(401);
+			expect(eventListener).not.toHaveBeenCalled();
 		});
 	});
 });

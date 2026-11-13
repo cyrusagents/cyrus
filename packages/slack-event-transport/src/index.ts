@@ -1,4 +1,7 @@
-export { SlackEventTransport } from "./SlackEventTransport.js";
+export {
+	SlackEventTransport,
+	shouldUseDirectSlackVerification,
+} from "./SlackEventTransport.js";
 export type {
 	SlackFetchThreadParams,
 	SlackPostMessageParams,
