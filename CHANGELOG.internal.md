@@ -4,6 +4,11 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.78] - 2026-11-12
+
+### Changed
+- Recorded v0.2.78 release verification, including the CI failure routing F1 drive. Bumped `@modelcontextprotocol/sdk` to ^1.32.2 and refreshed hono / @hono/node-server to patched versions to clear `pnpm audit`. ([CYPACK-1641](https://linear.app/ceedar/issue/CYPACK-1641/run-a-release))
+
 ## [0.2.77] - 2026-11-11
 
 ### Changed

@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.78] - 2026-11-12
+
 ### Changed
 
 - **Action required: update GitHub App settings for CI failure routing.** The App owner must update the App delivering the webhooks: the Hosted operator for Hosted/proxied delivery, or the operator of a fully self-hosted App. Existing Apps are **not** updated automatically by upgrading Cyrus. ([CYPACK-1635](https://linear.app/ceedar/issue/CYPACK-1635), [#1590](https://github.com/cyrusagents/cyrus/pull/1590))
@@ -17,6 +19,62 @@ All notable changes to this project will be documented in this file.
 
 ### Technical Details
 - Stabilized CI routing tests by waiting for durable dispatch completion instead of fixed delays, including slow dispatches and the per-PR attempt limit across session changes. Production concurrency guards are unchanged. ([CYPACK-1635](https://linear.app/ceedar/issue/CYPACK-1635), [#1590](https://github.com/cyrusagents/cyrus/pull/1590))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.78
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.78
+
+#### cyrus-core
+- cyrus-core@0.2.78
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.78
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.78
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.78
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.78
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.78
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.78
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.78
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.78
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.78
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.78
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.78
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.78
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.78
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.78
+
+#### cyrus-ai
+- cyrus-ai@0.2.78
 
 ## [0.2.77] - 2026-11-11
 
