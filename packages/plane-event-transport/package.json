@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-plane-event-transport",
-	"version": "0.2.77",
+	"version": "0.2.78",
 	"description": "Plane event transport: Plane agent runs as Cyrus agent sessions",
 	"repository": {
 		"type": "git",
@@ -21,7 +21,7 @@
 		"test:run": "vitest run"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.32.1",
+		"@modelcontextprotocol/sdk": "^1.32.2",
 		"cyrus-core": "workspace:*",
 		"fastify": "^5.12.7",
 		"marked": "^16.4.2",
