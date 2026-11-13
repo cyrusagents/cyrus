@@ -45,15 +45,27 @@ Webhooks from ClickUp and Jira then go to `https://nyrus.on-forge.com/…`. No C
 
 nyrus reads its settings from `~/.cyrus/` of the `forge` user (or the directory in `CYRUS_HOME`):
 
-- `~/.cyrus/.env`, at least:
+- `~/.cyrus/.env`: start from [`env.example`](env.example), which lists every variable we need and the ones not to set:
 
   ```bash
-  CYRUS_BASE_URL=https://nyrus.on-forge.com
-  CYRUS_SERVER_PORT=3456
-  # plus the tokens and webhook secrets for ClickUp, Jira and GitHub
+  mkdir -p ~/.cyrus
+  cp deploy/forge/env.example ~/.cyrus/.env
+  chmod 600 ~/.cyrus/.env
   ```
 
-- `~/.cyrus/config.json`: repositories and routing (which project goes to which repository), see `docs/CONFIG_FILE.md`.
+  | Variable | Needed | What for |
+  |---|---|---|
+  | `CYRUS_BASE_URL` | yes | Public URL for webhooks: `https://nyrus.on-forge.com` |
+  | `CYRUS_SERVER_PORT` | yes | Local port, `3456` (matches the Nginx proxy) |
+  | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` | for agent sessions | Claude access; the token comes from `claude setup-token` (subscription) |
+  | `GITHUB_TOKEN` | for pull requests | Token of the GitHub bot account; also `gh auth login` as that account |
+  | ClickUp / Jira tokens and webhook secrets | once AP3 / AP4 land | Names are defined by the integrations; placeholders in `env.example` |
+
+  Don't set `CYRUS_HOST_EXTERNAL` (binds to `0.0.0.0` and enables webhook IP allowlists, not needed behind Nginx), `CYRUS_API_KEY` / `CYRUS_TEAM_ID` (hosted Cyrus cloud only; an empty `CYRUS_API_KEY` keeps the `/api/update/*` config endpoints locked), `LINEAR_*` or `CLOUDFLARE_TOKEN`.
+
+  nyrus starts without Linear and without repositories: with only `CYRUS_BASE_URL` and `CYRUS_SERVER_PORT` it runs, listens on `127.0.0.1` and `::1`, and answers `/status` and `/version` (checked locally with v0.2.78). It watches `.env` for changes; to apply them safely, restart with `NYRUS_SKIP_BUILD=1 bash deploy/forge/deploy.sh`.
+
+- `~/.cyrus/config.json`: repositories and routing (which project goes to which repository), see `docs/CONFIG_FILE.md`. Without it nyrus starts with no repositories and does nothing until some are added.
 
 Secrets live only on the server, never in the repository.
 
@@ -69,7 +81,7 @@ bash deploy/forge/deploy.sh
 
 Forge pulls the code; `deploy.sh` does not. That way a changed `deploy.sh` is already on disk before it runs (bash reads a script while running it, so pulling a new version of it mid-run could break the deploy). `deploy/forge/deploy.sh` must be on the deploy branch for this to work.
 
-Run the first deploy before creating the daemon, so the build exists.
+Run the first deploy before creating the daemon, so the build exists. It ends with a warning that nyrus is not running (no daemon yet) but counts as successful.
 
 [`deploy.sh`](deploy.sh) installs dependencies, builds and smoke-tests the CLI. It then **waits until nyrus is idle** (`GET /status`) so running agent sessions are not cut off, restarts the process and checks that the new one answers. Optional settings (environment variables in Forge):
 
@@ -81,6 +93,7 @@ Run the first deploy before creating the daemon, so the build exists.
 | `NYRUS_FORCE_RESTART` | `0` | `1` restarts even while sessions are running |
 | `NYRUS_START_TIMEOUT` | `90` | Seconds to wait for the new process |
 | `NYRUS_SKIP_BUILD` | `0` | `1` only restarts (skips install and build), e.g. after changing `.env` |
+| `NYRUS_DAEMON_GRACE` | `15` | If nyrus wasn't running, seconds to wait for a process to appear; if none does, the deploy succeeds with a warning (no daemon yet) |
 
 ## 5. Daemon
 

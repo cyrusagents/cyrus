@@ -28,6 +28,7 @@
 #   NYRUS_FORCE_RESTART   1 = restart even if still busy        (default: 0)
 #   NYRUS_START_TIMEOUT   Seconds to wait for the new process   (default: 90)
 #   NYRUS_SKIP_BUILD      1 = only restart (skip install and build) (default: 0)
+#   NYRUS_DAEMON_GRACE    Seconds to wait for a first start when nyrus was not running (default: 15)
 #
 # The Forge daemon must start nyrus with the absolute path of the entry file,
 # e.g. `node /home/forge/nyrus.on-forge.com/apps/cli/dist/src/app.js`, so this
@@ -171,12 +172,26 @@ else
 fi
 
 # --- 6. Check ---------------------------------------------------------------
+# If nyrus wasn't running before and no process shows up within DAEMON_GRACE
+# seconds, there is no Forge daemon yet (first deploy): the build is ready, so
+# the deploy succeeds with a warning. If a process was running or shows up,
+# the new one must answer, or the deploy fails.
+DAEMON_GRACE="${NYRUS_DAEMON_GRACE:-15}"
 log "Waiting for the new process on $BASE_URL ..."
-for _ in $(seq 1 "$START_TIMEOUT"); do
+seen_process=""
+for i in $(seq 1 "$START_TIMEOUT"); do
 	if version_json="$(curl -fsS --max-time 3 "$BASE_URL/version" 2>/dev/null)"; then
 		new_pids="$(nyrus_pids | paste -sd ' ' -)"
 		log "nyrus is running (PID ${new_pids:-?}): $version_json"
 		log "Deploy finished."
+		exit 0
+	fi
+	[ -n "$(nyrus_pids)" ] && seen_process=1
+	if [ -z "$pids" ] && [ -z "$seen_process" ] && [ "$i" -ge "$DAEMON_GRACE" ]; then
+		log "WARNING: nyrus is not running and nothing started it within ${DAEMON_GRACE}s."
+		log "The build is ready. Create the Forge daemon (deploy/forge/README.md, section 5); it starts this build."
+		log "If the daemon exists, check its log in Forge: it may fail on start (e.g. missing ~/.cyrus/.env)."
+		log "Deploy finished (without a running nyrus)."
 		exit 0
 	fi
 	sleep 1
