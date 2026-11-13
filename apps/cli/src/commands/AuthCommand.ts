@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { arch, cpus, hostname, platform, release, totalmem } from "node:os";
 import { resolve } from "node:path";
 import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
 import { BaseCommand } from "./ICommand.js";
@@ -18,9 +19,7 @@ export class AuthCommand extends BaseCommand {
 		) {
 			this.logError("Error: Auth key is required");
 			console.log("\nUsage: cyrus auth <auth-key>");
-			console.log(
-				`\nGet your auth key from: ${getCyrusAppUrl()}/onboarding/auth-cyrus`,
-			);
+			console.log(`\nGet your auth key from: ${getCyrusAppUrl()}/devices`);
 			process.exit(1);
 		}
 
@@ -35,15 +34,22 @@ export class AuthCommand extends BaseCommand {
 
 			// Call the config API to get credentials
 			console.log("Validating auth key...");
-			const configResponse = await ConfigApiClient.getConfig(authKey);
+			const configResponse = await ConfigApiClient.getConfig(authKey, {
+				hostname: hostname(),
+				platform: platform(),
+				arch: arch(),
+				release: release(),
+				cpu: cpus()[0]?.model,
+				cores: Math.max(1, cpus().length),
+				memory: totalmem(),
+				version: this.app.version,
+			});
 
 			if (!ConfigApiClient.isValid(configResponse)) {
 				this.logError("Authentication failed");
 				console.error(configResponse.error || "Invalid response from server");
 				console.log("\nPlease verify your auth key is correct.");
-				console.log(
-					`Get your auth key from: ${getCyrusAppUrl()}/onboarding/auth-cyrus`,
-				);
+				console.log(`Get your auth key from: ${getCyrusAppUrl()}/devices`);
 				process.exit(1);
 			}
 
@@ -61,10 +67,12 @@ export class AuthCommand extends BaseCommand {
 CLOUDFLARE_TOKEN=${configResponse.config!.cloudflareToken}
 CYRUS_API_KEY=${configResponse.config!.apiKey}
 CYRUS_SETUP_PENDING=true
+${configResponse.config!.teamId ? `CYRUS_TEAM_ID=${configResponse.config!.teamId}\n` : ""}${configResponse.config!.deviceId ? `CYRUS_DEVICE_ID=${configResponse.config!.deviceId}\n` : ""}
 ${configResponse.config!.serverPort === undefined ? "" : `CYRUS_SERVER_PORT=${configResponse.config!.serverPort}\n`}
 `;
 
-			writeFileSync(envPath, envContent, "utf-8");
+			writeFileSync(envPath, envContent, { encoding: "utf-8", mode: 0o600 });
+			chmodSync(envPath, 0o600);
 			this.logSuccess(`Credentials saved to ${envPath}`);
 
 			// Reload environment variables to pick up CYRUS_SETUP_PENDING

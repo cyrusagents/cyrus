@@ -171,6 +171,7 @@ import type { ChatSessionHandlerDeps } from "./ChatSessionHandler.js";
 import { ChatSessionHandler } from "./ChatSessionHandler.js";
 import { ConfigManager, type RepositoryChanges } from "./ConfigManager.js";
 import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
+import { DeviceHeartbeat } from "./DeviceHeartbeat.js";
 import { EgressProxy } from "./EgressProxy.js";
 import { GitHubCiRouter } from "./GitHubCiRouter.js";
 import { GitService } from "./GitService.js";
@@ -309,6 +310,7 @@ export class EdgeWorker extends EventEmitter {
 	 * worktrees and are resumable from any host.
 	 */
 	private claudeSessionStore: SessionStore | null = null;
+	private deviceHeartbeat = new DeviceHeartbeat();
 	/**
 	 * Tracks recently processed issue-update webhook keys to prevent
 	 * duplicate deliveries from Linear's at-least-once delivery.
@@ -771,6 +773,7 @@ export class EdgeWorker extends EventEmitter {
 
 		// Start shared application server (this also starts Cloudflare tunnel if CLOUDFLARE_TOKEN is set)
 		await this.sharedApplicationServer.start();
+		this.deviceHeartbeat.start();
 	}
 
 	/**
@@ -3152,6 +3155,7 @@ ${taskSection}`;
 	 * Stop the edge worker
 	 */
 	async stop(): Promise<void> {
+		this.deviceHeartbeat.stop();
 		// Stop config file watcher
 		await this.configManager.stop();
 		this.planeIssueTracker?.dispose();
