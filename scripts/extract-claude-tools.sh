@@ -57,10 +57,9 @@ CLI_PATH=$(node -e "
 }
 
 echo "Using SDK CLI: $CLI_PATH"
-echo "Running clean default-permission Claude Code init profiles..."
+echo "Running credential-free, loopback-only Claude Code init profiles..."
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-tools.XXXXXX")
 trap 'rm -rf "$work_dir"' EXIT
-mkdir -p "$work_dir/claude-config"
 
 node_path=$(command -v node)
 jq -n \
@@ -72,22 +71,21 @@ jq -n \
 capture_init() {
   local output_file=$1
   shift
-  # Use an isolated configuration and a non-secret placeholder API key. The
-  # init block is emitted before the expected authentication failure. This
-  # keeps the extraction deterministic without reading operator settings,
-  # plugins, credentials, or configured MCP servers.
-  CLAUDE_CONFIG_DIR="$work_dir/claude-config" \
-  ANTHROPIC_API_KEY="tool-extraction-placeholder" \
-  CLAUDE_CODE_ENABLE_TODO_TOOLS=1 \
-    "$CLI_PATH" -p "say hi" \
+  # The Node harness constructs the CLI environment from an allowlist, forces
+  # provider traffic to an ephemeral loopback fixture, and terminates the full
+  # process group at the deadline. No caller auth/provider setting is inherited.
+  node "$REPO_ROOT/scripts/extract-claude-tools.mjs" \
+    --cli "$CLI_PATH" \
+    --timeout-ms "${CLAUDE_TOOL_EXTRACTION_TIMEOUT_MS:-20000}" \
+    -- \
+      -p "say hi" \
       --output-format stream-json \
       --verbose \
       --permission-mode default \
       --setting-sources "" \
       --strict-mcp-config \
       --no-session-persistence \
-      "$@" 2>/dev/null \
-    | awk '/"subtype":"init"/ {print; exit}' > "$output_file" || true
+      "$@" > "$output_file"
 
   if ! jq -e '.subtype == "init"' "$output_file" >/dev/null 2>&1; then
     echo "ERROR: Could not extract an init block."

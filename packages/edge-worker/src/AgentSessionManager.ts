@@ -556,6 +556,21 @@ export class AgentSessionManager extends EventEmitter {
 							sessionId,
 							message as SDKStatusMessage,
 						);
+					} else if (
+						message.subtype === "informational" &&
+						message.tag === "hook_no_verdict"
+					) {
+						// SDK 0.3.325 warns when a PreToolUse hook cannot run, answer,
+						// or finish before its timeout and the tool is allowed to continue.
+						// Keep the raw frame in runner JSON logs and make this permission
+						// degradation visible as a durable thought without failing the turn.
+						log.warn(
+							`Claude permission hook returned no verdict: ${message.content}`,
+						);
+						await this.createThoughtActivity(
+							sessionId,
+							`⚠️ Claude permission hook warning: ${message.content}`,
+						);
 					}
 					break;
 
