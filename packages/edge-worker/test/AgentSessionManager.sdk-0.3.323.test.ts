@@ -17,7 +17,7 @@ function createLogger(): ILogger {
 	return logger;
 }
 
-describe("AgentSessionManager SDK 0.3.323 lifecycle messages", () => {
+describe("AgentSessionManager SDK lifecycle messages", () => {
 	it("treats hook, tool, and authentication progress as non-durable signals", async () => {
 		const logger = createLogger();
 		const manager = new AgentSessionManager(undefined, undefined, logger);
@@ -73,5 +73,52 @@ describe("AgentSessionManager SDK 0.3.323 lifecycle messages", () => {
 		expect(session.status).toBe(AgentSessionStatus.Active);
 		expect(logger.warn).not.toHaveBeenCalled();
 		expect(logger.error).not.toHaveBeenCalled();
+	});
+
+	it("surfaces the SDK 0.3.325 hook-no-verdict permission warning", async () => {
+		const logger = createLogger();
+		const manager = new AgentSessionManager(undefined, undefined, logger);
+		const postActivity = vi
+			.fn()
+			.mockResolvedValue({ activityId: "activity-1" });
+		manager.createCyrusAgentSession(
+			"cyrus-session",
+			"issue-1",
+			{
+				id: "issue-1",
+				identifier: "TEST-1",
+				title: "SDK lifecycle",
+				description: "Verify permission warnings",
+				branchName: "test-1",
+			},
+			{ path: "/tmp/test-1", isGitWorktree: false },
+		);
+		manager.setActivitySink("cyrus-session", {
+			id: "workspace-1",
+			createAgentSession: vi.fn().mockResolvedValue("external-session-1"),
+			postActivity,
+		});
+
+		await manager.handleClaudeMessage("cyrus-session", {
+			type: "system",
+			subtype: "informational",
+			content: "PreToolUse hook timed out; continuing without a verdict.",
+			level: "warning",
+			tag: "hook_no_verdict",
+			uuid: "00000000-0000-0000-0000-000000000325",
+			session_id: "claude-session",
+		} as SDKMessage);
+
+		expect(logger.warn).toHaveBeenCalledWith(
+			expect.stringContaining("permission hook returned no verdict"),
+		);
+		expect(postActivity).toHaveBeenCalledWith(
+			"cyrus-session",
+			{
+				type: "thought",
+				body: expect.stringContaining("PreToolUse hook timed out"),
+			},
+			{},
+		);
 	});
 });
