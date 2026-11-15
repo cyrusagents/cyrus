@@ -61,6 +61,11 @@ describe("Cyrus permission policy", () => {
 			additionalEnv: { ...env },
 			allowedTools: ["Read", "Bash(pwd)"],
 			disallowedTools: ["Write"],
+			sandbox: {
+				enabled: true,
+				allowUnsandboxedCommands: false,
+				filesystem: { allowWrite: [root] },
+			},
 			onAskUserQuestion,
 			resumeSessionId: "existing-session",
 		});
@@ -75,7 +80,15 @@ describe("Cyrus permission policy", () => {
 			allowedTools: expect.arrayContaining(["Read", "Bash(pwd)"]),
 			disallowedTools: expect.arrayContaining(["Write"]),
 			canUseTool: expect.any(Function),
+			sandbox: {
+				enabled: true,
+				allowUnsandboxedCommands: false,
+				filesystem: { allowWrite: [root] },
+			},
 		});
+		// SDK 0.3.323 may consult canUseTool again after a PreToolUse hook
+		// returns allow. The callback must preserve the tool input while the
+		// independently configured sandbox remains active in the query options.
 		await expect(
 			options?.canUseTool?.(
 				"Bash",
