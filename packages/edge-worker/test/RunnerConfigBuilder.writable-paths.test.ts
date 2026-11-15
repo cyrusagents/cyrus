@@ -83,6 +83,7 @@ describe("RunnerConfigBuilder sandbox writable paths", () => {
 		});
 		expect(config.sandbox).toMatchObject({
 			enabled: true,
+			autoAllowBashIfSandboxed: true,
 			allowUnsandboxedCommands: false,
 			enableWeakerNetworkIsolation: true,
 		});
