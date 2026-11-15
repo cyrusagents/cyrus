@@ -621,6 +621,14 @@ export class AgentSessionManager extends EventEmitter {
 					this.handleRateLimitEvent(sessionId, message as SDKRateLimitEvent);
 					break;
 
+				case "tool_progress":
+				case "auth_status":
+					// SDK lifecycle signals are forwarded by ClaudeRunner for logs and
+					// observability, but they do not represent durable issue activity.
+					// Hook progress arrives as system/hook_progress and is likewise
+					// intentionally ignored by the system-message branch above.
+					break;
+
 				default:
 					log.warn(`Unknown message type: ${(message as any).type}`);
 			}
