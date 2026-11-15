@@ -12,6 +12,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+REPO_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
+cd "$REPO_ROOT"
+
 # Resolve the native Claude Code binary bundled inside @anthropic-ai/claude-agent-sdk.
 # Since SDK >=0.2.113, the SDK ships platform-specific optional dependency packages
 # (e.g. @anthropic-ai/claude-agent-sdk-darwin-arm64) instead of a bundled cli.js.
@@ -53,39 +57,63 @@ CLI_PATH=$(node -e "
 }
 
 echo "Using SDK CLI: $CLI_PATH"
-echo "Running Claude Code to capture init block..."
-# Capture full output to a temp file to avoid SIGPIPE from head -1
-# (pipefail + head causes claude to exit non-zero when the pipe closes early)
-tmpfile=$(mktemp "${TMPDIR:-/tmp}/claude-tools.XXXXXX")
-trap 'rm -f "$tmpfile"' EXIT
-# SDK 0.3.233+ hides the task-tracking tools from newer models unless they are
-# explicitly enabled. Cyrus intentionally opts into those tools, so include
-# them while extracting the complete supported tool surface.
-CLAUDE_CODE_ENABLE_TODO_TOOLS=1 "$CLI_PATH" -p "say hi" --output-format stream-json --verbose 2>/dev/null > "$tmpfile" || true
+echo "Running clean default-permission Claude Code init profiles..."
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-tools.XXXXXX")
+trap 'rm -rf "$work_dir"' EXIT
+mkdir -p "$work_dir/claude-config"
 
-# The init message (subtype: "init") contains the tool list — it's on line 2 since
-# SDK >=0.2.113 emits a session_state_changed line first before the init.
-init_json=$(grep '"subtype":"init"' "$tmpfile" | head -1)
+node_path=$(command -v node)
+jq -n \
+  --arg command "$node_path" \
+  --arg fixture "$REPO_ROOT/scripts/fixtures/mcp-resource-server.mjs" \
+  '{mcpServers: {"resource-fixture": {command: $command, args: [$fixture]}}}' \
+  > "$work_dir/resource-mcp.json"
 
-# Fall back to first line for older SDK versions that don't have session_state_changed
-if [ -z "$init_json" ]; then
-  init_json=$(head -1 "$tmpfile")
-fi
+capture_init() {
+  local output_file=$1
+  shift
+  # Use an isolated configuration and a non-secret placeholder API key. The
+  # init block is emitted before the expected authentication failure. This
+  # keeps the extraction deterministic without reading operator settings,
+  # plugins, credentials, or configured MCP servers.
+  CLAUDE_CONFIG_DIR="$work_dir/claude-config" \
+  ANTHROPIC_API_KEY="tool-extraction-placeholder" \
+  CLAUDE_CODE_ENABLE_TODO_TOOLS=1 \
+    "$CLI_PATH" -p "say hi" \
+      --output-format stream-json \
+      --verbose \
+      --permission-mode default \
+      --setting-sources "" \
+      --strict-mcp-config \
+      --no-session-persistence \
+      "$@" 2>/dev/null \
+    | awk '/"subtype":"init"/ {print; exit}' > "$output_file" || true
 
-tools=$(echo "$init_json" | jq -r '.tools[]' 2>/dev/null)
+  if ! jq -e '.subtype == "init"' "$output_file" >/dev/null 2>&1; then
+    echo "ERROR: Could not extract an init block."
+    cat "$output_file"
+    exit 1
+  fi
+}
 
-if [ -z "$tools" ]; then
-  echo "ERROR: Could not extract tools from init block."
-  echo "Raw init line:"
-  echo "$init_json"
-  exit 1
-fi
+capture_init "$work_dir/default-init.json"
+capture_init "$work_dir/resource-init.json" --mcp-config "$work_dir/resource-mcp.json"
+
+jq -r '.tools[]' "$work_dir/default-init.json" | sort > "$work_dir/default-tools.txt"
+jq -r '.tools[]' "$work_dir/resource-init.json" | sort > "$work_dir/resource-tools.txt"
 
 echo ""
-echo "=== Claude Code Available Tools ==="
-echo "$tools" | sort
+echo "=== Clean Default Tools ==="
+cat "$work_dir/default-tools.txt"
 echo ""
-echo "Total: $(echo "$tools" | wc -l | tr -d ' ') tools"
+echo "Total: $(wc -l < "$work_dir/default-tools.txt" | tr -d ' ') tools"
+
+echo ""
+echo "=== Added By A Resource-Capable MCP Server ==="
+comm -13 "$work_dir/default-tools.txt" "$work_dir/resource-tools.txt"
+echo ""
+echo "Resource-enabled total: $(wc -l < "$work_dir/resource-tools.txt" | tr -d ' ') tools"
 echo ""
 echo "Compare these against packages/claude-runner/src/config.ts availableTools"
-echo "and update the list if there are differences."
+echo "and packages/core/src/allowed-tools-defaults.ts. MCP resource tools are"
+echo "dynamic and appear only when a connected server advertises resources."

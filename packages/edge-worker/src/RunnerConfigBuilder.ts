@@ -662,6 +662,10 @@ export class RunnerConfigBuilder {
 		if (input.sandboxSettings) {
 			result.sandbox = {
 				...input.sandboxSettings,
+				// SDK 0.3.325 stopped auto-approving sandboxed Bash commands by
+				// default. Preserve Cyrus's existing unattended behavior while the OS
+				// sandbox and allowed-tool policy continue to enforce containment.
+				autoAllowBashIfSandboxed: true,
 				// When sandbox is enabled, do not allow commands to run unsandboxed
 				allowUnsandboxedCommands: false,
 				// Required for Go-based tools (gh, gcloud, terraform) to verify TLS certs

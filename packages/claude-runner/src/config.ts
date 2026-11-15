@@ -29,6 +29,11 @@ export const availableTools = [
 	"WebFetch",
 	"WebSearch",
 
+	// MCP resource discovery
+	"ListMcpResourcesTool",
+	"ReadMcpResourceDirTool",
+	"ReadMcpResourceTool",
+
 	// Task management
 	"TaskCreate",
 	"TaskUpdate",
@@ -86,6 +91,9 @@ export const readOnlyTools: ToolName[] = [
 	"Read(**)",
 	"WebFetch",
 	"WebSearch",
+	"ListMcpResourcesTool",
+	"ReadMcpResourceDirTool",
+	"ReadMcpResourceTool",
 	"TaskCreate",
 	"TaskUpdate",
 	"TaskGet",
