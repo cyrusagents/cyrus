@@ -56,8 +56,24 @@ async function waitFor(condition: () => boolean, timeoutMs = 5000) {
 	}
 }
 
-const activeTimeouts = () =>
-	process.getActiveResourcesInfo().filter((r) => r === "Timeout").length;
+function trackTunnelStartupTimers() {
+	const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+	const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+
+	return () => {
+		const startupTimers = setTimeoutSpy.mock.calls.flatMap(
+			([, delay], index) =>
+				delay === 120000 ? [setTimeoutSpy.mock.results[index]?.value] : [],
+		);
+
+		// The client owns its first-connection timeout and the server owns its
+		// four-connection timeout. Both must be cleared on every terminal path.
+		expect(startupTimers).toHaveLength(2);
+		for (const timer of startupTimers) {
+			expect(clearTimeoutSpy).toHaveBeenCalledWith(timer);
+		}
+	};
+}
 
 function createServer() {
 	const logger = createLogger({ component: "test" });
@@ -72,6 +88,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	for (const { pid } of spawns()) {
 		if (isAlive(pid)) process.kill(pid, "SIGKILL");
 	}
@@ -115,13 +132,13 @@ describe("SharedApplicationServer Cloudflare tunnel recovery", () => {
 			JSON.stringify(["exit:3", "connect"]),
 		);
 		const { server } = createServer();
-		const baseline = activeTimeouts();
+		const expectStartupTimersCleared = trackTunnelStartupTimers();
 
 		await expect(
 			server.startCloudflareTunnel("fake-token-for-tests"),
 		).rejects.toThrow("Tunnel process exited with code 3");
 
-		expect(activeTimeouts()).toBe(baseline);
+		expectStartupTimersCleared();
 		await new Promise((r) => setTimeout(r, 1500));
 		expect(spawns()).toHaveLength(1);
 	});
@@ -129,7 +146,7 @@ describe("SharedApplicationServer Cloudflare tunnel recovery", () => {
 	it("stop() cancels startup promptly between the first and fourth connection without leaking", async () => {
 		writeFileSync(join(dir, "plan.json"), JSON.stringify(["connect1"]));
 		const { server, info } = createServer();
-		const baseline = activeTimeouts();
+		const expectStartupTimersCleared = trackTunnelStartupTimers();
 
 		const startup = server.startCloudflareTunnel("fake-token-for-tests");
 		const settled = startup.then(
@@ -152,7 +169,7 @@ describe("SharedApplicationServer Cloudflare tunnel recovery", () => {
 		expect(Date.now() - stoppedAt).toBeLessThan(1000);
 
 		await waitFor(() => !isAlive(pid), 7000);
-		expect(activeTimeouts()).toBe(baseline);
+		expectStartupTimersCleared();
 		await new Promise((r) => setTimeout(r, 1500));
 		expect(spawns()).toHaveLength(1);
 	});
