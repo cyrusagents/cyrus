@@ -262,6 +262,36 @@ describe("EdgeWorker LinearClient Wrapper", () => {
 			expect(setLinearWorkspacesSpy).toHaveBeenCalledWith(newWorkspaces);
 		});
 
+		it("should give AttachmentService the refreshed token after a config reload", async () => {
+			edgeWorker = new EdgeWorker(mockConfig);
+
+			// A config reload replaces this.config with a new object, so the
+			// workspaces that AttachmentService got at startup are no longer
+			// the ones that onTokenRefresh writes to.
+			(edgeWorker as any).config = {
+				...mockConfig,
+				linearWorkspaces: {
+					"workspace-123": {
+						...mockConfig.linearWorkspaces!["workspace-123"],
+					},
+				},
+			};
+
+			const issueTracker = (edgeWorker as any).issueTrackers.get(
+				"workspace-123",
+			);
+			await (issueTracker as any).oauthConfig.onTokenRefresh({
+				accessToken: "refreshed_token",
+				refreshToken: "new_refresh_token",
+			});
+
+			const attachmentService = (edgeWorker as any).attachmentService;
+			expect(
+				(attachmentService as any).linearWorkspaces["workspace-123"]
+					.linearToken,
+			).toBe("refreshed_token");
+		});
+
 		it("should create a new issue tracker for a previously unknown workspace", () => {
 			edgeWorker = new EdgeWorker(mockConfig);
 

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Linear card images and videos keep downloading after an OAuth token refresh that follows a config reload, instead of failing with `401 Unauthorized` until the daemon restarts. ([#1582](https://github.com/cyrusagents/cyrus/issues/1582), [#1602](https://github.com/cyrusagents/cyrus/pull/1602))
+
 ## [0.2.78] - 2026-11-12
 
 ### Changed
