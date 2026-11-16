@@ -438,12 +438,28 @@ Supported mrkdwn syntax:
 
 			// Thread the reply under the original message
 			const threadTs = event.payload.thread_ts || event.payload.ts;
+			// Non-Claude adapters may use a placeholder model on assistant
+			// messages. The latest init reports the model selected for the run.
+			const initMessage = [...messages]
+				.reverse()
+				.find((m) => m.type === "system" && m.subtype === "init");
+			const model =
+				initMessage?.type === "system" && initMessage.subtype === "init"
+					? initMessage.model
+					: lastAssistantMessage?.message.model;
+			const footer = [
+				model,
+				event.deviceName ? `Processed on ${event.deviceName}` : undefined,
+			]
+				.filter(Boolean)
+				.join(" · ");
 
 			await new SlackMessageService().postMessage({
 				token,
 				channel: event.payload.channel,
 				text: summary,
 				thread_ts: threadTs,
+				...(footer ? { footer } : {}),
 			});
 
 			this.logger.info(

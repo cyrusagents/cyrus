@@ -1031,6 +1031,66 @@ describe("SlackChatAdapter responding policy", () => {
 		});
 	});
 
+	it.each([
+		["gpt-5-codex", "gpt-5", "gpt-5-codex · Processed on Connor’s MacBook 💻"],
+		[
+			"gemini-2.5-pro",
+			"gemini-3",
+			"gemini-2.5-pro · Processed on Connor’s MacBook 💻",
+		],
+		[
+			undefined,
+			"claude-sonnet-4-5",
+			"claude-sonnet-4-5 · Processed on Connor’s MacBook 💻",
+		],
+		[undefined, undefined, "Processed on Connor’s MacBook 💻"],
+	])("includes the selected model and Hosted device name (%s)", async (initModel, assistantModel, footer) => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		const postSpy = vi
+			.spyOn(SlackMessageService.prototype, "postMessage")
+			.mockResolvedValue(undefined);
+		const event = {
+			...slackEvent("Cyrus, help"),
+			deviceName: "Connor’s MacBook 💻",
+		};
+		const runner = {
+			getMessages: () => [
+				...(initModel
+					? [
+							{ type: "system", subtype: "init", model: "previous-model" },
+							{ type: "system", subtype: "init", model: initModel },
+						]
+					: []),
+				{
+					type: "assistant",
+					message: {
+						model: assistantModel,
+						content: [{ type: "text", text: "Done." }],
+					},
+				},
+			],
+		} as any;
+		await adapter.postReply(event, runner);
+		expect(postSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ text: "Done.", footer }),
+		);
+	});
+
+	it("shows only the model when Hosted device metadata is absent", async () => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		const postSpy = vi
+			.spyOn(SlackMessageService.prototype, "postMessage")
+			.mockResolvedValue(undefined);
+		const runner = runnerWithReply("Done.");
+		const messages = runner.getMessages();
+		messages[0].message.model = "claude-sonnet-4-5";
+		runner.getMessages = () => messages;
+		await adapter.postReply(slackEvent("Cyrus, help"), runner);
+		expect(postSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ footer: "claude-sonnet-4-5" }),
+		);
+	});
+
 	it("swaps the receipt reaction for the processed one after the turn completes", async () => {
 		const adapter = new SlackChatAdapter(createStaticProvider([]));
 		const addSpy = vi

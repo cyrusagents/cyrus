@@ -18,6 +18,38 @@ describe("SlackMessageService", () => {
 	});
 
 	describe("postMessage", () => {
+		it("adds a plain-text context footer without changing long replies or code blocks", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ ok: true }),
+			});
+			const text = `Here is the code:\n\`\`\`\n${"example\n".repeat(600)}\`\`\``;
+			const footer =
+				"claude-sonnet-4-5 · Processed on Connor’s <@U123> MacBook 💻";
+			await service.postMessage({
+				token: "xoxb-test",
+				channel: "C1",
+				text,
+				thread_ts: "1.1",
+				footer,
+			});
+			expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({
+				channel: "C1",
+				text,
+				thread_ts: "1.1",
+				attachments: [
+					{
+						blocks: [
+							{
+								type: "context",
+								elements: [{ type: "plain_text", text: footer, emoji: false }],
+							},
+						],
+					},
+				],
+			});
+		});
+
 		it("posts a message to a Slack channel with thread_ts", async () => {
 			mockFetch.mockResolvedValueOnce({
 				ok: true,

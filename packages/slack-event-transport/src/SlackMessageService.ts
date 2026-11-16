@@ -53,6 +53,8 @@ export interface SlackPostMessageParams {
 	text: string;
 	/** Thread timestamp to reply in a thread */
 	thread_ts?: string;
+	/** Small context footer displayed beneath the reply. */
+	footer?: string;
 }
 
 export class SlackMessageService {
@@ -68,13 +70,27 @@ export class SlackMessageService {
 	 * @see https://api.slack.com/methods/chat.postMessage
 	 */
 	async postMessage(params: SlackPostMessageParams): Promise<void> {
-		const { token, channel, text, thread_ts } = params;
+		const { token, channel, text, thread_ts, footer } = params;
 
 		const url = `${this.apiBaseUrl}/chat.postMessage`;
 
-		const body: Record<string, string> = { channel, text };
+		const body: Record<string, unknown> = { channel, text };
 		if (thread_ts) {
 			body.thread_ts = thread_ts;
+		}
+		if (footer) {
+			// Keep the body as message text: moving it to a section block would
+			// impose a 3,000-character limit and risk breaking long code blocks.
+			body.attachments = [
+				{
+					blocks: [
+						{
+							type: "context",
+							elements: [{ type: "plain_text", text: footer, emoji: false }],
+						},
+					],
+				},
+			];
 		}
 
 		const response = await fetch(url, {
