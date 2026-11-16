@@ -1,7 +1,7 @@
-# CYPACK-1646: Anthropic SDK 0.3.325 sandbox reconciliation
+# CYPACK-1648: Anthropic SDK 0.3.325 sandbox reconciliation
 
-**Date:** 2026-11-15
-**Initial F1 source:** `151f79d6` (`cypack-1646`)
+**Date:** 2026-11-16
+**Initial F1 source (superseded predecessor):** `151f79d6` (`cypack-1646`)
 **Goal:** Verify the Claude 2.1.325 session path receives Cyrus's refreshed tool registry and explicit sandboxed Bash approval policy.
 
 ## Scenario
