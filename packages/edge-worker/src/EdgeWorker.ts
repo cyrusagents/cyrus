@@ -8202,6 +8202,12 @@ ${input.userComment}
 					this.config.linearWorkspaces[linearWorkspaceId].linearRefreshToken =
 						tokens.refreshToken;
 				}
+				// A config reload replaces this.config, so AttachmentService may
+				// still hold an older workspaces object. The file watcher will not
+				// push this token either, because it compares against this.config.
+				this.attachmentService.setLinearWorkspaces(
+					this.config.linearWorkspaces ?? {},
+				);
 
 				// Persist tokens to config.json
 				await this.saveOAuthTokens({
