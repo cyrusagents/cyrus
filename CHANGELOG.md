@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve existing provider credentials and local settings during `cyrus auth`, replace obsolete pairing credentials, and persist the selected Hosted URL for subsequent synchronization. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596))
+
 ## [0.2.78] - 2026-11-12
 
 ### Changed

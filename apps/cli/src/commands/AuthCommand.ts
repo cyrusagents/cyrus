@@ -1,4 +1,10 @@
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { arch, cpus, hostname, platform, release, totalmem } from "node:os";
 import { resolve } from "node:path";
 import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
@@ -60,12 +66,20 @@ export class AuthCommand extends BaseCommand {
 				mkdirSync(this.app.cyrusHome, { recursive: true });
 			}
 
-			// Store tokens in ~/.cyrus/.env file
+			// Replace pairing credentials without deleting provider tokens or local settings.
 			const envPath = resolve(this.app.cyrusHome, ".env");
-			const envContent = `# Cyrus Authentication Credentials
+			const existingEnv = existsSync(envPath)
+				? readFileSync(envPath, "utf-8")
+				: "";
+			const preservedEnv = existingEnv.replace(
+				/^[\t ]*(?:export\s+)?(?:CLOUDFLARE_TOKEN|CYRUS_API_KEY|CYRUS_SETUP_PENDING|CYRUS_TEAM_ID|CYRUS_DEVICE_ID|CYRUS_SERVER_PORT|CYRUS_APP_URL)\s*=.*(?:\r?\n|$)/gm,
+				"",
+			);
+			const envContent = `${preservedEnv.trimEnd()}\n# Cyrus Authentication Credentials
 # Generated on ${new Date().toISOString()}
 CLOUDFLARE_TOKEN=${configResponse.config!.cloudflareToken}
 CYRUS_API_KEY=${configResponse.config!.apiKey}
+CYRUS_APP_URL=${getCyrusAppUrl()}
 CYRUS_SETUP_PENDING=true
 ${configResponse.config!.teamId ? `CYRUS_TEAM_ID=${configResponse.config!.teamId}\n` : ""}${configResponse.config!.deviceId ? `CYRUS_DEVICE_ID=${configResponse.config!.deviceId}\n` : ""}
 ${configResponse.config!.serverPort === undefined ? "" : `CYRUS_SERVER_PORT=${configResponse.config!.serverPort}\n`}
@@ -76,6 +90,14 @@ ${configResponse.config!.serverPort === undefined ? "" : `CYRUS_SERVER_PORT=${co
 			this.logSuccess(`Credentials saved to ${envPath}`);
 
 			// Reload environment variables to pick up CYRUS_SETUP_PENDING
+			// dotenv does not clear absent keys when switching to a legacy registration.
+			for (const name of [
+				"CYRUS_TEAM_ID",
+				"CYRUS_DEVICE_ID",
+				"CYRUS_SERVER_PORT",
+			]) {
+				delete process.env[name];
+			}
 			const dotenv = await import("dotenv");
 			dotenv.config({ path: envPath, override: true });
 
