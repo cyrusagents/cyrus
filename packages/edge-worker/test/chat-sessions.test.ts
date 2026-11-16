@@ -7,7 +7,7 @@ import {
 	SlackReactionService,
 	type SlackWebhookEvent,
 } from "cyrus-slack-event-transport";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
 import { LiveChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
 import type {
@@ -945,6 +945,11 @@ describe("SlackChatAdapter task instructions", () => {
 });
 
 describe("SlackChatAdapter responding policy", () => {
+	beforeEach(() => {
+		vi.spyOn(SlackMessageService.prototype, "getUserName").mockResolvedValue(
+			"Connor Turland",
+		);
+	});
 	afterEach(() => {
 		vi.restoreAllMocks();
 		delete process.env.SLACK_BOT_TOKEN;
@@ -1031,64 +1036,56 @@ describe("SlackChatAdapter responding policy", () => {
 		});
 	});
 
-	it.each([
-		["gpt-5-codex", "gpt-5", "gpt-5-codex · Processed on Connor’s MacBook 💻"],
-		[
-			"gemini-2.5-pro",
-			"gemini-3",
-			"gemini-2.5-pro · Processed on Connor’s MacBook 💻",
-		],
-		[
-			undefined,
-			"claude-sonnet-4-5",
-			"claude-sonnet-4-5 · Processed on Connor’s MacBook 💻",
-		],
-		[undefined, undefined, "Processed on Connor’s MacBook 💻"],
-	])("includes the selected model and Hosted device name (%s)", async (initModel, assistantModel, footer) => {
+	it("credits the prompting Slack user without model or Hosted machine name", async () => {
 		const adapter = new SlackChatAdapter(createStaticProvider([]));
 		const postSpy = vi
 			.spyOn(SlackMessageService.prototype, "postMessage")
 			.mockResolvedValue(undefined);
-		const event = {
-			...slackEvent("Cyrus, help"),
-			deviceName: "Connor’s MacBook 💻",
-		};
+		const event = { ...slackEvent("Cyrus, help"), deviceName: "Team runner" };
 		const runner = {
 			getMessages: () => [
-				...(initModel
-					? [
-							{ type: "system", subtype: "init", model: "previous-model" },
-							{ type: "system", subtype: "init", model: initModel },
-						]
-					: []),
+				{ type: "system", subtype: "init", model: "claude-sonnet-4-6" },
 				{
 					type: "assistant",
 					message: {
-						model: assistantModel,
+						model: "claude-sonnet-4-6",
 						content: [{ type: "text", text: "Done." }],
 					},
 				},
 			],
 		} as any;
 		await adapter.postReply(event, runner);
+		expect(SlackMessageService.prototype.getUserName).toHaveBeenCalledWith(
+			"xoxb-test",
+			"U1",
+		);
 		expect(postSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ text: "Done.", footer }),
+			expect.objectContaining({
+				text: "Done.",
+				footer: "From Connor Turland's device",
+			}),
 		);
 	});
 
-	it("shows only the model when Hosted device metadata is absent", async () => {
+	it.each([
+		"missing",
+		"failed",
+	])("still posts the answer when the profile lookup is %s", async (result) => {
 		const adapter = new SlackChatAdapter(createStaticProvider([]));
 		const postSpy = vi
 			.spyOn(SlackMessageService.prototype, "postMessage")
 			.mockResolvedValue(undefined);
-		const runner = runnerWithReply("Done.");
-		const messages = runner.getMessages();
-		messages[0].message.model = "claude-sonnet-4-5";
-		runner.getMessages = () => messages;
-		await adapter.postReply(slackEvent("Cyrus, help"), runner);
-		expect(postSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ footer: "claude-sonnet-4-5" }),
+		const lookup = vi.mocked(SlackMessageService.prototype.getUserName);
+		if (result === "failed") lookup.mockRejectedValueOnce(new Error("timeout"));
+		else lookup.mockResolvedValueOnce(undefined);
+		await adapter.postReply(
+			slackEvent("Cyrus, help"),
+			runnerWithReply("Done."),
 		);
+		expect(postSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ text: "Done." }),
+		);
+		expect(postSpy.mock.calls[0]?.[0]).not.toHaveProperty("footer");
 	});
 
 	it("swaps the receipt reaction for the processed one after the turn completes", async () => {

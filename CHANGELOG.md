@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Show the selected model and “Processed on” device name beneath Slack replies, using the current personal device or shared runner name from Hosted. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596))
+- Add a small “From Connor Turland's device” footer beneath Slack replies using the prompting person's Slack profile name. Render it as a regular context block without an attachment border or model name. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596))
 
 ### Fixed
 
