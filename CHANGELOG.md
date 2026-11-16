@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.325](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03325) and [`@anthropic-ai/sdk` 1.8.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.8.0), restoring MCP resource discovery tools for full engineering sessions while retaining `WebFetch` across platform defaults and preserving unattended sandboxed Bash approvals under the SDK's new opt-in setting. ([CYPACK-1648](https://linear.app/ceedar/issue/CYPACK-1648/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest))
+- Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.325](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03325) and [`@anthropic-ai/sdk` 1.8.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.8.0), restoring MCP resource discovery tools for full engineering sessions while retaining `WebFetch` across platform defaults and preserving unattended sandboxed Bash approvals under the SDK's new opt-in setting. ([CYPACK-1648](https://linear.app/ceedar/issue/CYPACK-1648/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1603](https://github.com/cyrusagents/cyrus/pull/1603))
 
 ## [0.2.78] - 2026-11-12
 
