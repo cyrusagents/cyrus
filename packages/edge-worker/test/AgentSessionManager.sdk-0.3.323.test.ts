@@ -121,4 +121,52 @@ describe("AgentSessionManager SDK lifecycle messages", () => {
 			{},
 		);
 	});
+
+	it("surfaces the SDK 0.3.326 managed-MCP replacement warning", async () => {
+		const logger = createLogger();
+		const manager = new AgentSessionManager(undefined, undefined, logger);
+		const postActivity = vi
+			.fn()
+			.mockResolvedValue({ activityId: "activity-1" });
+		manager.createCyrusAgentSession(
+			"cyrus-session",
+			"issue-1",
+			{
+				id: "issue-1",
+				identifier: "TEST-1",
+				title: "SDK lifecycle",
+				description: "Verify managed MCP warnings",
+				branchName: "test-1",
+			},
+			{ path: "/tmp/test-1", isGitWorktree: false },
+		);
+		manager.setActivitySink("cyrus-session", {
+			id: "workspace-1",
+			createAgentSession: vi.fn().mockResolvedValue("external-session-1"),
+			postActivity,
+		});
+
+		await manager.handleClaudeMessage("cyrus-session", {
+			type: "system",
+			subtype: "informational",
+			content:
+				"Managed MCP configuration arrived; host-provided servers will stop loading.",
+			level: "warning",
+			tag: "managed_mcp_arrived",
+			uuid: "00000000-0000-0000-0000-000000000326",
+			session_id: "claude-session",
+		} as SDKMessage);
+
+		expect(logger.warn).toHaveBeenCalledWith(
+			expect.stringContaining("managed MCP warning"),
+		);
+		expect(postActivity).toHaveBeenCalledWith(
+			"cyrus-session",
+			{
+				type: "thought",
+				body: expect.stringContaining("host-provided servers"),
+			},
+			{},
+		);
+	});
 });
