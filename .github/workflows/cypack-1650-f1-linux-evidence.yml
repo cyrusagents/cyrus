@@ -74,7 +74,7 @@ jobs:
           done
           grep -q "healthy" "$evidence/ping.txt"
 
-          prompt='Use Read to read package.json and wait for its successful result. Then use Bash to run pwd with timeout 10000 and wait for its successful result. Do not request or use unsandboxed Bash. If and only if both tools succeed, respond with exactly SDK_RUNTIME_OK and no other text.'
+          prompt='[repo=cypack-1650-fixture] Use Read to read package.json and wait for its successful result. Then use Bash to run pwd with timeout 10000 and wait for its successful result. Do not request or use unsandboxed Bash. If and only if both tools succeed, respond with exactly SDK_RUNTIME_OK and no other text.'
           CYRUS_PORT=3600 apps/f1/f1 create-issue \
             --title "CYPACK-1650 sandboxed SDK runtime" \
             --description "$prompt" | tee "$evidence/create-issue.txt"
