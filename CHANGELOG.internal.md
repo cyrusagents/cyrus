@@ -4,6 +4,12 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.80-test.0] - 2026-11-17
+
+### Changed
+
+- Prepared the complete coordinated 18-package test candidate for the CYPACK-1650 Anthropic SDK update. Publication remains gated on independent review and the authenticated supporting-host receipt. ([CYPACK-1650](https://linear.app/ceedar/issue/CYPACK-1650/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1606](https://github.com/cyrusagents/cyrus/pull/1606))
+
 ## [0.2.79] - 2026-11-16
 
 ### Changed
