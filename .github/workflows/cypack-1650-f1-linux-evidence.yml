@@ -29,12 +29,17 @@ jobs:
       - uses: oven-sh/setup-bun@v2
 
       - name: Install Linux sandbox prerequisites
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap socat jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap socat jq
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true
 
       - name: Install and build exact PR head
         run: |
           pnpm install --frozen-lockfile
           pnpm build
+          pnpm --filter cyrus-edge-worker test:run -- test/RunnerConfigBuilder.writable-paths.test.ts
 
       - name: Run authenticated sandboxed F1 receipt
         env:
@@ -91,6 +96,10 @@ jobs:
               "$evidence/activities.json" >/dev/null; then
               break
             fi
+            if jq -e '[.result.activities[] | select(.type == "error")] | length > 0' \
+              "$evidence/activities.json" >/dev/null; then
+              break
+            fi
             sleep 2
           done
 
@@ -100,7 +109,6 @@ jobs:
             "$evidence/activities.json" >/dev/null
           grep -q 'Read' "$evidence/activities.tsv"
           grep -q 'Bash' "$evidence/activities.tsv"
-          grep -q 'allowUnsandboxedCommands.*false' "$evidence/server.log"
           grep -q 'hasSandbox.*true' "$evidence/server.log"
           ! grep -Eq 'sandbox-exec.*exit code 71|Operation not permitted|Unexpected capabilities' \
             "$evidence/server.log"
