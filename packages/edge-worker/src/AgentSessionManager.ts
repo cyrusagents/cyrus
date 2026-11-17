@@ -556,21 +556,34 @@ export class AgentSessionManager extends EventEmitter {
 							sessionId,
 							message as SDKStatusMessage,
 						);
-					} else if (
-						message.subtype === "informational" &&
-						message.tag === "hook_no_verdict"
-					) {
-						// SDK 0.3.325 warns when a PreToolUse hook cannot run, answer,
-						// or finish before its timeout and the tool is allowed to continue.
-						// Keep the raw frame in runner JSON logs and make this permission
-						// degradation visible as a durable thought without failing the turn.
-						log.warn(
-							`Claude permission hook returned no verdict: ${message.content}`,
-						);
-						await this.createThoughtActivity(
-							sessionId,
-							`⚠️ Claude permission hook warning: ${message.content}`,
-						);
+					} else if (message.subtype === "informational") {
+						switch (message.tag) {
+							case "hook_no_verdict":
+								// SDK 0.3.325 warns when a PreToolUse hook cannot run, answer,
+								// or finish before its timeout and the tool is allowed to continue.
+								// Keep the raw frame in runner JSON logs and make this permission
+								// degradation visible as a durable thought without failing the turn.
+								log.warn(
+									`Claude permission hook returned no verdict: ${message.content}`,
+								);
+								await this.createThoughtActivity(
+									sessionId,
+									`⚠️ Claude permission hook warning: ${message.content}`,
+								);
+								break;
+
+							case "managed_mcp_arrived":
+								// SDK 0.3.326 emits this warning when organization-managed MCP
+								// configuration arrives during a session and replaces the host's
+								// MCP servers. Surface the capability loss instead of silently
+								// leaving the issue session without its expected integrations.
+								log.warn(`Claude managed MCP warning: ${message.content}`);
+								await this.createThoughtActivity(
+									sessionId,
+									`⚠️ Claude managed MCP warning: ${message.content}`,
+								);
+								break;
+						}
 					}
 					break;
 
