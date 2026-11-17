@@ -1,0 +1,132 @@
+name: CYPACK-1650 Linux sandbox evidence
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  sandboxed-f1:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install Linux sandbox prerequisites
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap socat jq
+
+      - name: Install and build exact PR head
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Run authenticated sandboxed F1 receipt
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CYPACK_1650_CLAUDE_OAUTH_TEMP }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/cypack-1650-evidence"
+          fixture="$RUNNER_TEMP/cypack-1650-fixture"
+          mkdir -p "$evidence"
+          git config --global user.name "Cyrus F1"
+          git config --global user.email "cyrus-f1@users.noreply.github.com"
+
+          apps/f1/f1 init-test-repo --path "$fixture" | tee "$evidence/init.txt"
+
+          CYRUS_PORT=3600 \
+          CYRUS_REPO_PATH="$fixture" \
+          CYRUS_SANDBOX=1 \
+          bun run apps/f1/server.ts >"$evidence/server.log" 2>&1 &
+          server_pid=$!
+          session_started=0
+
+          cleanup() {
+            if [[ "$session_started" == "1" ]]; then
+              CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1 \
+                >"$evidence/cleanup-stop.txt" 2>&1 || true
+            fi
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in {1..30}; do
+            if CYRUS_PORT=3600 apps/f1/f1 ping >"$evidence/ping.txt" 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          grep -q "healthy" "$evidence/ping.txt"
+
+          prompt='Use Read to read package.json and wait for its successful result. Then use Bash to run pwd with timeout 10000 and wait for its successful result. Do not request or use unsandboxed Bash. If and only if both tools succeed, respond with exactly SDK_RUNTIME_OK and no other text.'
+          CYRUS_PORT=3600 apps/f1/f1 create-issue \
+            --title "CYPACK-1650 sandboxed SDK runtime" \
+            --description "$prompt" | tee "$evidence/create-issue.txt"
+          CYRUS_PORT=3600 apps/f1/f1 start-session --issue-id issue-1 \
+            | tee "$evidence/start-session.txt"
+          session_started=1
+
+          for attempt in {1..90}; do
+            curl --fail --silent --show-error \
+              -H 'content-type: application/json' \
+              --data '{"jsonrpc":"2.0","method":"viewSession","params":{"sessionId":"session-1","limit":100,"offset":0},"id":1}' \
+              http://localhost:3600/cli/rpc >"$evidence/activities.json"
+            if jq -e '[.result.activities[].content | contains("SDK_RUNTIME_OK")] | any' \
+              "$evidence/activities.json" >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          jq -r '.result.activities[] | [.type, .content] | @tsv' \
+            "$evidence/activities.json" | tee "$evidence/activities.tsv"
+          jq -e '[.result.activities[].content | contains("SDK_RUNTIME_OK")] | any' \
+            "$evidence/activities.json" >/dev/null
+          grep -q 'Read' "$evidence/activities.tsv"
+          grep -q 'Bash' "$evidence/activities.tsv"
+          grep -q 'allowUnsandboxedCommands.*false' "$evidence/server.log"
+          grep -q 'hasSandbox.*true' "$evidence/server.log"
+          ! grep -Eq 'sandbox-exec.*exit code 71|Operation not permitted|Unexpected capabilities' \
+            "$evidence/server.log"
+
+          CYRUS_PORT=3600 apps/f1/f1 stop-session --session-id session-1 \
+            | tee "$evidence/stop-session.txt"
+          session_started=0
+          kill "$server_pid"
+          wait "$server_pid" || true
+          trap - EXIT
+
+          printf '%s\n' \
+            'host=GitHub Actions ubuntu-24.04' \
+            'source_sha=${{ github.event.pull_request.head.sha }}' \
+            'sandbox_enabled=true' \
+            'allow_unsandboxed_commands=false' \
+            'read=success' \
+            'bash_pwd_timeout_10000=success' \
+            'final=SDK_RUNTIME_OK' \
+            'stop=clean' | tee "$evidence/receipt.txt"
+
+      - name: Upload sanitized F1 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypack-1650-linux-sandbox-evidence
+          path: ${{ runner.temp }}/cypack-1650-evidence
+          if-no-files-found: error
+          retention-days: 7
