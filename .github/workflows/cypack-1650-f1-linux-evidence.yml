@@ -43,12 +43,17 @@ jobs:
 
       - name: Run authenticated sandboxed F1 receipt
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CYPACK_1650_CLAUDE_OAUTH_TEMP }}
+          CLAUDE_CREDENTIALS_B64: ${{ secrets.CYPACK_1650_CLAUDE_CREDENTIALS_TEMP }}
         run: |
           set -euo pipefail
           evidence="$RUNNER_TEMP/cypack-1650-evidence"
           fixture="$RUNNER_TEMP/cypack-1650-fixture"
           mkdir -p "$evidence"
+          mkdir -p "$HOME/.claude"
+          umask 077
+          printf '%s' "$CLAUDE_CREDENTIALS_B64" | base64 --decode \
+            > "$HOME/.claude/.credentials.json"
+          unset CLAUDE_CREDENTIALS_B64
           git config --global user.name "Cyrus F1"
           git config --global user.email "cyrus-f1@users.noreply.github.com"
 
@@ -68,6 +73,7 @@ jobs:
             fi
             kill "$server_pid" 2>/dev/null || true
             wait "$server_pid" 2>/dev/null || true
+            rm -f "$HOME/.claude/.credentials.json"
           }
           trap cleanup EXIT
 
@@ -118,6 +124,7 @@ jobs:
           session_started=0
           kill "$server_pid"
           wait "$server_pid" || true
+          rm -f "$HOME/.claude/.credentials.json"
           trap - EXIT
 
           printf '%s\n' \
