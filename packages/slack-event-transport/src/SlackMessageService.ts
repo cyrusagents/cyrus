@@ -53,6 +53,8 @@ export interface SlackPostMessageParams {
 	text: string;
 	/** Thread timestamp to reply in a thread */
 	thread_ts?: string;
+	/** Small context footer displayed beneath the reply. */
+	footer?: string;
 }
 
 export class SlackMessageService {
@@ -68,13 +70,25 @@ export class SlackMessageService {
 	 * @see https://api.slack.com/methods/chat.postMessage
 	 */
 	async postMessage(params: SlackPostMessageParams): Promise<void> {
-		const { token, channel, text, thread_ts } = params;
+		const { token, channel, text, thread_ts, footer } = params;
 
 		const url = `${this.apiBaseUrl}/chat.postMessage`;
 
-		const body: Record<string, string> = { channel, text };
+		const body: Record<string, unknown> = { channel, text };
 		if (thread_ts) {
 			body.thread_ts = thread_ts;
+		}
+		if (footer) {
+			body.blocks = [
+				...splitReplySections(text).map((section) => ({
+					type: "section",
+					text: { type: "mrkdwn", text: section },
+				})),
+				{
+					type: "context",
+					elements: [{ type: "plain_text", text: footer, emoji: false }],
+				},
+			];
 		}
 
 		const response = await fetch(url, {
@@ -103,6 +117,38 @@ export class SlackMessageService {
 				`[SlackMessageService] Slack API error: ${responseBody.error ?? "unknown"}`,
 			);
 		}
+	}
+
+	/** Resolve the prompting person's full Slack name without exposing profile data. */
+	async getUserName(
+		token: string,
+		userId: string,
+	): Promise<string | undefined> {
+		const url = new URL(`${this.apiBaseUrl}/users.info`);
+		url.searchParams.set("user", userId);
+		const response = await fetch(url.toString(), {
+			headers: { Authorization: `Bearer ${token}` },
+			signal: AbortSignal.timeout(3000),
+		});
+		if (!response.ok) throw new Error("Slack user lookup failed");
+		const data = (await response.json()) as {
+			ok: boolean;
+			user?: {
+				id?: string;
+				real_name?: string;
+				name?: string;
+				profile?: { real_name?: string; display_name?: string };
+			};
+		};
+		if (!data.ok || data.user?.id !== userId) return undefined;
+		return [
+			data.user.profile?.real_name,
+			data.user.real_name,
+			data.user.profile?.display_name,
+			data.user.name,
+		]
+			.find((name) => typeof name === "string" && name.trim())
+			?.trim();
 	}
 
 	/**
@@ -216,4 +262,37 @@ export class SlackMessageService {
 		// Enforce limit
 		return messages.slice(0, limit);
 	}
+}
+
+/** Slack sections allow 3,000 characters; keep code fences balanced across sections. */
+function splitReplySections(text: string): string[] {
+	// Slack already truncates ordinary message text at 40,000 characters.
+	let remaining =
+		text.length > 40000
+			? `${text.slice(0, 39999).replace(/[\uD800-\uDBFF]$/, "")}…`
+			: text;
+	const sections: string[] = [];
+	let inCode = false;
+	while (remaining) {
+		let end = Math.min(2992, remaining.length);
+		if (end < remaining.length) {
+			const newline = remaining.lastIndexOf("\n", end - 1);
+			const space = remaining.lastIndexOf(" ", end - 1);
+			if (newline > end / 2) end = newline + 1;
+			else if (space > end / 2) end = space + 1;
+			// Do not divide a Unicode character or a triple-backtick delimiter.
+			if (/[\uD800-\uDBFF]/.test(remaining[end - 1]!)) end--;
+			if (remaining[end] === "`") {
+				const trailingTicks =
+					remaining.slice(0, end).match(/`+$/)?.[0].length ?? 0;
+				end -= trailingTicks % 3;
+			}
+		}
+		const chunk = remaining.slice(0, end);
+		const prefix = inCode ? "```\n" : "";
+		if ((chunk.match(/```/g)?.length ?? 0) % 2) inCode = !inCode;
+		sections.push(`${prefix}${chunk}${inCode ? "\n```" : ""}`);
+		remaining = remaining.slice(end);
+	}
+	return sections;
 }

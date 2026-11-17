@@ -1,4 +1,10 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -32,11 +38,15 @@ afterEach(() => {
 	vi.clearAllMocks();
 });
 
-describe("auth listener port persistence", () => {
+describe("auth preserves credentials and replaces pairing settings", () => {
 	it.each([
-		19119,
-		undefined,
-	])("writes and reloads hosted port %s before starting", async (serverPort) => {
+		{ serverPort: 19119, paired: true },
+		{ serverPort: undefined, paired: true },
+		{ serverPort: undefined, paired: false },
+	])("preserves provider settings with registration %j", async ({
+		serverPort,
+		paired,
+	}) => {
 		const home = mkdtempSync(join(tmpdir(), "cyrus-auth-port-"));
 		homes.push(home);
 		for (const name of [
@@ -44,14 +54,29 @@ describe("auth listener port persistence", () => {
 			"CYRUS_API_KEY",
 			"CYRUS_SETUP_PENDING",
 			"CYRUS_SERVER_PORT",
+			"CYRUS_TEAM_ID",
+			"CYRUS_DEVICE_ID",
+			"CYRUS_APP_URL",
+			"SLACK_BOT_TOKEN",
+			"CLAUDE_CODE_OAUTH_TOKEN",
+			"LOCAL_SETTING",
 		])
 			vi.stubEnv(name, undefined);
+		writeFileSync(
+			join(home, ".env"),
+			'# Local settings\nSLACK_BOT_TOKEN=fixture-slack\nCLAUDE_CODE_OAUTH_TOKEN="fixture-claude"\nLOCAL_SETTING="contains # and spaces"\nCYRUS_API_KEY=old-api\nexport CYRUS_DEVICE_ID=old-device\nCYRUS_SERVER_PORT=9999\n',
+		);
+		vi.stubEnv("CYRUS_TEAM_ID", "old-team");
+		vi.stubEnv("CYRUS_DEVICE_ID", "old-device");
+		vi.stubEnv("CYRUS_APP_URL", "https://staging.app.atcyrus.com");
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		getConfig.mockResolvedValue({
 			success: true,
 			config: {
 				cloudflareToken: "fixture-tunnel",
 				apiKey: "fixture-api",
+				teamId: paired ? "fixture-team" : undefined,
+				deviceId: paired ? "fixture-device" : undefined,
 				serverPort,
 			},
 		});
@@ -60,6 +85,9 @@ describe("auth listener port persistence", () => {
 				serverPort === undefined ? undefined : "19119",
 			);
 			expect(process.env.CYRUS_SETUP_PENDING).toBe("true");
+			expect(process.env.SLACK_BOT_TOKEN).toBe("fixture-slack");
+			expect(process.env.CLAUDE_CODE_OAUTH_TOKEN).toBe("fixture-claude");
+			expect(process.env.LOCAL_SETTING).toBe("contains # and spaces");
 		});
 		const app = {
 			cyrusHome: home,
@@ -67,7 +95,26 @@ describe("auth listener port persistence", () => {
 		} as unknown as Application;
 		await new AuthCommand(app).execute(["fixture-auth"]);
 		expect(start).toHaveBeenCalledOnce();
+		expect(getConfig).toHaveBeenCalledWith(
+			"fixture-auth",
+			expect.objectContaining({
+				hostname: expect.any(String),
+				platform: expect.any(String),
+				arch: expect.any(String),
+				cores: expect.any(Number),
+				memory: expect.any(Number),
+			}),
+		);
+		expect(process.env.CYRUS_TEAM_ID).toBe(paired ? "fixture-team" : undefined);
+		expect(process.env.CYRUS_DEVICE_ID).toBe(
+			paired ? "fixture-device" : undefined,
+		);
 		const env = readFileSync(join(home, ".env"), "utf8");
+		expect(env).toContain("# Local settings");
+		expect(env).toContain("CYRUS_APP_URL=https://staging.app.atcyrus.com");
+		expect(env).not.toContain("old-api");
+		expect(env).not.toContain("old-device");
+		expect(statSync(join(home, ".env")).mode & 0o777).toBe(0o600);
 		if (serverPort === undefined)
 			expect(env).not.toContain("CYRUS_SERVER_PORT");
 		else expect(env).toContain("CYRUS_SERVER_PORT=19119\n");

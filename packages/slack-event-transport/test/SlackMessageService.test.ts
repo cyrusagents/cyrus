@@ -18,6 +18,87 @@ describe("SlackMessageService", () => {
 	});
 
 	describe("postMessage", () => {
+		it("renders the reply and footer as top-level blocks without attachments", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ ok: true }),
+			});
+			const footer = "From Connor <@U123> Turland's device";
+			await service.postMessage({
+				token: "xoxb-test",
+				channel: "C1",
+				text: "Done.",
+				thread_ts: "1.1",
+				footer,
+			});
+			expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({
+				channel: "C1",
+				text: "Done.",
+				thread_ts: "1.1",
+				blocks: [
+					{ type: "section", text: { type: "mrkdwn", text: "Done." } },
+					{
+						type: "context",
+						elements: [{ type: "plain_text", text: footer, emoji: false }],
+					},
+				],
+			});
+		});
+
+		it("keeps long code replies within section limits with balanced fences", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ ok: true }),
+			});
+			const text = `Here is the code:\n\`\`\`\n${"example\n".repeat(600)}\`\`\``;
+			await service.postMessage({
+				token: "xoxb-test",
+				channel: "C1",
+				text,
+				footer: "From Connor Turland's device",
+			});
+			const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+			expect(body.text).toBe(text);
+			expect(body.attachments).toBeUndefined();
+			const sections = body.blocks.slice(0, -1);
+			expect(sections.length).toBeGreaterThan(1);
+			for (const section of sections) {
+				expect(section.text.text.length).toBeLessThanOrEqual(3000);
+				expect((section.text.text.match(/```/g)?.length ?? 0) % 2).toBe(0);
+			}
+			expect(
+				sections
+					.map((s) => s.text.text)
+					.join("")
+					.match(/example/g),
+			).toHaveLength(600);
+			expect(body.blocks.at(-1).type).toBe("context");
+		});
+
+		it.each([
+			"x".repeat(40000),
+			"`".repeat(6000),
+			"💻".repeat(3000),
+			`${"x".repeat(39998)}💻x`,
+		])("bounds sections for long unbroken text (%#)", async (text) => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ ok: true }),
+			});
+			await service.postMessage({
+				token: "test",
+				channel: "C1",
+				text,
+				footer: "From Connor's device",
+			});
+			const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+			expect(body.blocks.length).toBeLessThanOrEqual(50);
+			for (const section of body.blocks.slice(0, -1)) {
+				expect(section.text.text.length).toBeLessThanOrEqual(3000);
+				expect(section.text.text.isWellFormed()).toBe(true);
+			}
+		});
+
 		it("posts a message to a Slack channel with thread_ts", async () => {
 			mockFetch.mockResolvedValueOnce({
 				ok: true,
@@ -132,6 +213,42 @@ describe("SlackMessageService", () => {
 				"https://slack.example.com/api/chat.postMessage",
 				expect.any(Object),
 			);
+		});
+	});
+
+	describe("getUserName", () => {
+		it.each([
+			[
+				{
+					id: "U1",
+					profile: { real_name: "Connor Turland", display_name: "Connor" },
+				},
+				"Connor Turland",
+			],
+			[{ id: "U1", real_name: "Pegah", profile: { real_name: " " } }, "Pegah"],
+			[{ id: "U1", profile: { display_name: "Zoë 💻" } }, "Zoë 💻"],
+			[{ id: "U1", name: "connor" }, "connor"],
+			[{ id: "U2", real_name: "Wrong user" }, undefined],
+		])("resolves the requested Slack identity (%#)", async (user, expected) => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ ok: true, user }),
+			});
+			expect(await service.getUserName("xoxb-test", "U1")).toBe(expected);
+			expect(mockFetch).toHaveBeenCalledWith(
+				"https://slack.com/api/users.info?user=U1",
+				expect.objectContaining({
+					headers: { Authorization: "Bearer xoxb-test" },
+					signal: expect.any(AbortSignal),
+				}),
+			);
+		});
+		it("omits attribution when the grant cannot read profiles", async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ ok: false, error: "missing_scope" }),
+			});
+			expect(await service.getUserName("xoxb-test", "U1")).toBeUndefined();
 		});
 	});
 

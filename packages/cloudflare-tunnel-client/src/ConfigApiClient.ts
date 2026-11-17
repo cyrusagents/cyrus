@@ -1,3 +1,13 @@
+export interface DeviceMetadata {
+	hostname: string;
+	platform: string;
+	arch: string;
+	release?: string;
+	cpu?: string;
+	cores?: number;
+	memory?: number;
+	version?: string;
+}
 /**
  * Default Cyrus app base URL
  * Can be overridden via CYRUS_APP_URL environment variable for preview environments
@@ -19,6 +29,8 @@ export interface ConfigApiResponse {
 	success: boolean;
 	config?: {
 		cloudflareToken: string;
+		teamId?: string;
+		deviceId?: string;
 		apiKey: string;
 		/** Optional hosted-managed listener port; absent preserves legacy behavior. */
 		serverPort?: number;
@@ -44,7 +56,10 @@ export class ConfigApiClient {
 	 * @param authKey - The auth key provided during onboarding
 	 * @returns Configuration containing Cloudflare tunnel token and API key
 	 */
-	static async getConfig(authKey: string): Promise<ConfigApiResponse> {
+	static async getConfig(
+		authKey: string,
+		metadata?: DeviceMetadata,
+	): Promise<ConfigApiResponse> {
 		try {
 			// Validate auth key
 			if (
@@ -61,7 +76,16 @@ export class ConfigApiClient {
 			// Call config API with auth key
 			const url = `${ConfigApiClient.getConfigApiUrl()}?auth_key=${encodeURIComponent(authKey)}`;
 			const response = await fetch(url, {
-				headers: { "X-Cyrus-Config-Capabilities": "self-host-port-v1" },
+				headers: {
+					"X-Cyrus-Config-Capabilities": "self-host-port-v1",
+					...(metadata
+						? {
+								"X-Cyrus-Device-Metadata": encodeURIComponent(
+									JSON.stringify(metadata),
+								),
+							}
+						: {}),
+				},
 			});
 
 			if (!response.ok) {

@@ -151,6 +151,23 @@ describe("SlackEventTransport", () => {
 			});
 		});
 
+		it.each([
+			[encodeURIComponent("Connor’s MacBook 💻"), "Connor’s MacBook 💻"],
+			["invalid%escape", undefined],
+			["", undefined],
+		])("handles proxy device metadata %s", async (header, expected) => {
+			const eventListener = vi.fn();
+			transport.on("event", eventListener);
+			const request = createMockRequest(testEventEnvelope, {
+				authorization: `Bearer ${testSecret}`,
+				"x-cyrus-device-name": header,
+			});
+			const reply = createMockReply();
+			await mockFastify.routes["/slack-webhook"]!(request, reply);
+			expect(reply.code).toHaveBeenCalledWith(200);
+			expect(eventListener.mock.calls[0]?.[0].deviceName).toBe(expected);
+		});
+
 		it("rejects invalid Bearer token", async () => {
 			const request = createMockRequest(testEventEnvelope, {
 				authorization: "Bearer wrong-token",
@@ -630,6 +647,7 @@ describe("SlackEventTransport", () => {
 			);
 			request.headers["x-slack-request-timestamp"] = timestamp;
 			request.headers["x-slack-signature"] = signature;
+			request.headers["x-cyrus-device-name"] = "Spoofed device";
 
 			const reply = createMockReply();
 			await mockFastify.routes["/slack-webhook"]!(request, reply);
@@ -643,6 +661,7 @@ describe("SlackEventTransport", () => {
 					teamId: "T0001",
 					// Direct mode: no upstream gate, runtime must self-gate.
 					upstreamGated: false,
+					deviceName: undefined,
 				}),
 			);
 		});

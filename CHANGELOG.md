@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add a small “From Connor Turland's device” footer beneath Slack replies using the prompting person's Slack profile name. Render it as a regular context block without an attachment border or model name. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596))
+
 ### Fixed
+
+- Preserve existing provider credentials and local settings during `cyrus auth`, replace obsolete pairing credentials, and persist the selected Hosted URL for subsequent synchronization. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596))
 - Linear card images and videos keep downloading after an OAuth token refresh that follows a config reload, instead of failing with `401 Unauthorized` until the daemon restarts. ([#1582](https://github.com/cyrusagents/cyrus/issues/1582), [#1602](https://github.com/cyrusagents/cyrus/pull/1602))
 
 ## [0.2.78] - 2026-11-12
@@ -18,6 +24,7 @@ All notable changes to this project will be documented in this file.
   - Hosted-connected self-hosted users must upgrade to **cyrus-ai v0.2.78 or higher** before enabling CI feedback. Hosted shows the required/current CLI versions and an upgrade link, blocks enabling on older or unknown versions, and still permits turning the feature off. After upgrading, opt in with **CI feedback** in Hosted → Agent → Behaviours, or top-level **`"ciFailureTrigger": true`** in a directly managed `config.json`. It is off by default; config changes apply without a CLI restart. The updated self-host setup manifest covers newly created Apps, but existing Apps still need the manual updates above.
 
 ### Added
+- Report device metadata during authentication and send presence heartbeats every ten minutes for personal and shared Hosted devices. Persist the paired team/device identity without changing standalone installations. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596))
 - Route failed GitHub commit statuses (including Semaphore) and completed failing checks to the existing responsible Cyrus session, with current-revision validation, durable deduplication and bounded automatic attempts. CI continuation is opt-in via live `ciFailureTrigger` config (no restart), with escaped XML context and a Hosted Behaviour toggle. ([CYPACK-1635](https://linear.app/ceedar/issue/CYPACK-1635), [#1590](https://github.com/cyrusagents/cyrus/pull/1590))
 
 ### Technical Details

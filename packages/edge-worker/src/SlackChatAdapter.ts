@@ -438,12 +438,22 @@ Supported mrkdwn syntax:
 
 			// Thread the reply under the original message
 			const threadTs = event.payload.thread_ts || event.payload.ts;
+			const slackService = new SlackMessageService();
+			let footer: string | undefined;
+			try {
+				const name = await slackService.getUserName(token, event.payload.user);
+				if (name) footer = `From ${name}'s device`;
+			} catch {
+				// Profile lookup is optional; never lose the answer if Slack is unavailable.
+				this.logger.warn("Could not resolve the prompting Slack user's name");
+			}
 
-			await new SlackMessageService().postMessage({
+			await slackService.postMessage({
 				token,
 				channel: event.payload.channel,
 				text: summary,
 				thread_ts: threadTs,
+				...(footer ? { footer } : {}),
 			});
 
 			this.logger.info(

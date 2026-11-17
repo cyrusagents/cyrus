@@ -7,7 +7,7 @@ import {
 	SlackReactionService,
 	type SlackWebhookEvent,
 } from "cyrus-slack-event-transport";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
 import { LiveChatRepositoryProvider } from "../src/ChatRepositoryProvider.js";
 import type {
@@ -945,6 +945,11 @@ describe("SlackChatAdapter task instructions", () => {
 });
 
 describe("SlackChatAdapter responding policy", () => {
+	beforeEach(() => {
+		vi.spyOn(SlackMessageService.prototype, "getUserName").mockResolvedValue(
+			"Connor Turland",
+		);
+	});
 	afterEach(() => {
 		vi.restoreAllMocks();
 		delete process.env.SLACK_BOT_TOKEN;
@@ -1029,6 +1034,58 @@ describe("SlackChatAdapter responding policy", () => {
 			text: "It memoizes the result.",
 			thread_ts: "1700000000.000100",
 		});
+	});
+
+	it("credits the prompting Slack user without model or Hosted machine name", async () => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		const postSpy = vi
+			.spyOn(SlackMessageService.prototype, "postMessage")
+			.mockResolvedValue(undefined);
+		const event = { ...slackEvent("Cyrus, help"), deviceName: "Team runner" };
+		const runner = {
+			getMessages: () => [
+				{ type: "system", subtype: "init", model: "claude-sonnet-4-6" },
+				{
+					type: "assistant",
+					message: {
+						model: "claude-sonnet-4-6",
+						content: [{ type: "text", text: "Done." }],
+					},
+				},
+			],
+		} as any;
+		await adapter.postReply(event, runner);
+		expect(SlackMessageService.prototype.getUserName).toHaveBeenCalledWith(
+			"xoxb-test",
+			"U1",
+		);
+		expect(postSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				text: "Done.",
+				footer: "From Connor Turland's device",
+			}),
+		);
+	});
+
+	it.each([
+		"missing",
+		"failed",
+	])("still posts the answer when the profile lookup is %s", async (result) => {
+		const adapter = new SlackChatAdapter(createStaticProvider([]));
+		const postSpy = vi
+			.spyOn(SlackMessageService.prototype, "postMessage")
+			.mockResolvedValue(undefined);
+		const lookup = vi.mocked(SlackMessageService.prototype.getUserName);
+		if (result === "failed") lookup.mockRejectedValueOnce(new Error("timeout"));
+		else lookup.mockResolvedValueOnce(undefined);
+		await adapter.postReply(
+			slackEvent("Cyrus, help"),
+			runnerWithReply("Done."),
+		);
+		expect(postSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ text: "Done." }),
+		);
+		expect(postSpy.mock.calls[0]?.[0]).not.toHaveProperty("footer");
 	});
 
 	it("swaps the receipt reaction for the processed one after the turn completes", async () => {

@@ -58,6 +58,8 @@ export interface SlackWebhookEvent {
 	slackBotToken?: string;
 	/** Workspace/team ID */
 	teamId: string;
+	/** Current Hosted device name, supplied only by the authenticated proxy. */
+	deviceName?: string;
 	/**
 	 * True when the event arrived via an upstream gate that already verified it
 	 * should be acted on (proxy mode: CYHOST only forwards `message` events for
