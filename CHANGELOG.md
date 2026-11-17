@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Add a small “From Connor Turland's device” footer beneath Slack replies using the prompting person's Slack profile name. Render it as a regular context block without an attachment border or model name. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596))
+- Attribute Slack replies to the actual destination: “From [owner]'s device” for verified personal devices and “From [runner name]” for shared runners. Omit attribution without trusted Hosted metadata or an available owner profile. Render it as a regular context block without an attachment border or model name. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596))
 
 ### Fixed
 

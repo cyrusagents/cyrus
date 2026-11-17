@@ -1,6 +1,6 @@
 # CYHOST-1477: Slack reply footer
 
-The first implementation below is historical. The revised requester-name footer is recorded at the end.
+The earlier implementations below are historical. The corrected destination-based attribution is recorded at the end.
 
 Date: 2026-11-16
 
@@ -44,3 +44,17 @@ Tested PR #1596 working tree based on `d02f8e19` with the footer revision commit
 - All 97 Slack transport tests and 953 EdgeWorker tests pass (one skipped). Tests cover profile-name fallback, lookup failure without losing replies, silence, top-level block structure, long text, balanced code fences and Unicode section boundaries. Runtime build/typecheck and changed-file Biome pass.
 - Visual inspection uses an illustrative local layout preview of the revised footer; it is not proof of rendering inside Slack.
 - Stopped the isolated F1 server after inspection.
+
+## Corrected personal/shared attribution (2026-11-17 UTC)
+
+Tested the PR #1596 working tree with the destination-attribution fix, using the real F1 server on port 3628, Slack transport, EdgeWorker, Claude runner, reply adapter and message serializer. Slack API responses were stubbed locally; no real messages or reactions were sent. The Claude runner used an empty temporary config directory to avoid using account credentials.
+
+- Sent three authenticated `/slack-webhook` requests with the same synthetic sender `USENDER`, in separate channels/threads: personal metadata identifying owner `UOWNER`, shared metadata naming `Team runner`, and no device metadata.
+- PASS: all three requests returned HTTP 200 with `success: true`.
+- PASS: the personal reply's context block contained exactly `From Device Owner's device`; the only `users.info` request looked up `UOWNER`, never `USENDER`.
+- PASS: the shared reply contained exactly `From Team runner`, with no user-profile lookup.
+- PASS: missing metadata produced the reply with no footer or user-profile lookup.
+- PASS: original channel/thread and reply text were preserved; personal/shared footers remained plain-text, top-level context blocks without attachments.
+- Limitation: the isolated Claude runner returned `Not logged in · Please run /login`. This validates attribution through the actual error-reply path, not successful model inference or live Slack rendering. Successful answer attribution is covered by the adapter tests.
+- Validation: 955 EdgeWorker tests passed (one skipped), 104 Slack transport tests passed, and all affected runtime packages built successfully. Companion Hosted routing tests passed for personal ownership/workspace matching, renamed shared cloud/self-hosted runners, preserved auth headers and exclusive personal routing. Hosted lint and all 11 typecheck tasks passed.
+- Stopped the isolated server after verifying all captured payloads.

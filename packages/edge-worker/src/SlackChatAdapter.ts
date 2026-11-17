@@ -440,12 +440,19 @@ Supported mrkdwn syntax:
 			const threadTs = event.payload.thread_ts || event.payload.ts;
 			const slackService = new SlackMessageService();
 			let footer: string | undefined;
-			try {
-				const name = await slackService.getUserName(token, event.payload.user);
-				if (name) footer = `From ${name}'s device`;
-			} catch {
-				// Profile lookup is optional; never lose the answer if Slack is unavailable.
-				this.logger.warn("Could not resolve the prompting Slack user's name");
+			if (event.device?.kind === "shared") {
+				footer = `From ${event.device.name}`;
+			} else if (event.device?.kind === "personal") {
+				try {
+					const name = await slackService.getUserName(
+						token,
+						event.device.ownerSlackUserId,
+					);
+					if (name) footer = `From ${name}'s device`;
+				} catch {
+					// Profile lookup is optional; never lose the answer if Slack is unavailable.
+					this.logger.warn("Could not resolve the device owner's Slack name");
+				}
 			}
 
 			await slackService.postMessage({

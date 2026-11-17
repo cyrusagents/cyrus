@@ -349,16 +349,23 @@ export class SlackEventTransport extends EventEmitter {
 		// when the env update hasn't been processed yet. Downstream consumers
 		// (SlackChatAdapter) fall back to process.env.SLACK_BOT_TOKEN at usage time.
 		const slackBotToken = this.getSlackBotToken();
-		let deviceName: string | undefined;
+		let device: SlackWebhookEvent["device"];
 		// Slack's HMAC covers the body, not custom headers. Only trust metadata
 		// from Hosted after proxy Bearer authentication, never in direct mode.
-		const encodedDeviceName = request.headers["x-cyrus-device-name"];
-		if (upstreamGated && typeof encodedDeviceName === "string") {
-			try {
-				deviceName = decodeURIComponent(encodedDeviceName).trim() || undefined;
-			} catch {
-				// Optional display metadata must not prevent request processing.
-				this.logger.warn("Ignoring malformed Hosted device name header");
+		if (upstreamGated) {
+			const kind = request.headers["x-cyrus-device-kind"];
+			const owner = request.headers["x-cyrus-device-owner-slack-id"];
+			const encodedName = request.headers["x-cyrus-device-name"];
+			if (kind === "personal" && typeof owner === "string" && owner.trim()) {
+				device = { kind, ownerSlackUserId: owner.trim() };
+			} else if (kind === "shared" && typeof encodedName === "string") {
+				try {
+					const name = decodeURIComponent(encodedName).trim();
+					if (name) device = { kind, name };
+				} catch {
+					// Optional display metadata must not prevent request processing.
+					this.logger.warn("Ignoring malformed Hosted device name header");
+				}
 			}
 		}
 
@@ -369,7 +376,7 @@ export class SlackEventTransport extends EventEmitter {
 			slackBotToken,
 			teamId: envelope.team_id,
 			upstreamGated,
-			deviceName,
+			device,
 		};
 
 		this.logger.info(
