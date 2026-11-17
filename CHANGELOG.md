@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.79] - 2026-11-16
+
 ### Added
 
 - Attribute personal-device Slack replies to the verified owner with “From [owner]'s device”. Shared-runner footers are hidden for now. Omit attribution without trusted Hosted metadata or an available owner profile. Render it as a regular context block without an attachment border or model name. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596), [#1604](https://github.com/cyrusagents/cyrus/pull/1604))
@@ -12,6 +14,62 @@ All notable changes to this project will be documented in this file.
 
 - Preserve existing provider credentials and local settings during `cyrus auth`, replace obsolete pairing credentials, and persist the selected Hosted URL for subsequent synchronization. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596))
 - Linear card images and videos keep downloading after an OAuth token refresh that follows a config reload, instead of failing with `401 Unauthorized` until the daemon restarts. ([#1582](https://github.com/cyrusagents/cyrus/issues/1582), [#1602](https://github.com/cyrusagents/cyrus/pull/1602))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.79
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.79
+
+#### cyrus-core
+- cyrus-core@0.2.79
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.79
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.79
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.79
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.79
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.79
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.79
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.79
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.79
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.79
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.79
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.79
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.79
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.79
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.79
+
+#### cyrus-ai
+- cyrus-ai@0.2.79
 
 ## [0.2.78] - 2026-11-12
 

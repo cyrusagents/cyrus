@@ -4,6 +4,11 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.79] - 2026-11-16
+
+### Changed
+- Recorded v0.2.79 release verification. ([CYPACK-1649](https://linear.app/ceedar/issue/CYPACK-1649/run-a-release))
+
 ### Fixed
 - Check the tunnel startup timers' own handles in cleanup tests instead of process-wide timer counts, preventing unrelated timer expiry from failing CI while retaining leak detection. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1604](https://github.com/cyrusagents/cyrus/pull/1604))
 
