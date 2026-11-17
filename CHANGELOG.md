@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Attribute Slack replies to the actual destination: “From [owner]'s device” for verified personal devices and “From [runner name]” for shared runners. Omit attribution without trusted Hosted metadata or an available owner profile. Render it as a regular context block without an attachment border or model name. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596), [#1604](https://github.com/cyrusagents/cyrus/pull/1604))
+- Attribute personal-device Slack replies to the verified owner with “From [owner]'s device”. Shared-runner footers are hidden for now. Omit attribution without trusted Hosted metadata or an available owner profile. Render it as a regular context block without an attachment border or model name. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1596](https://github.com/cyrusagents/cyrus/pull/1596), [#1604](https://github.com/cyrusagents/cyrus/pull/1604))
 
 ### Fixed
 

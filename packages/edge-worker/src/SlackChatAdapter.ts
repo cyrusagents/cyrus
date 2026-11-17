@@ -441,7 +441,8 @@ Supported mrkdwn syntax:
 			const slackService = new SlackMessageService();
 			let footer: string | undefined;
 			if (event.device?.kind === "shared") {
-				footer = `From ${event.device.name}`;
+				// Shared-runner attribution is intentionally hidden for now.
+				// footer = `From ${event.device.name}`;
 			} else if (event.device?.kind === "personal") {
 				try {
 					const name = await slackService.getUserName(

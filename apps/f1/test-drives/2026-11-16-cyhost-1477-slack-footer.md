@@ -1,6 +1,6 @@
 # CYHOST-1477: Slack reply footer
 
-The earlier implementations below are historical. The corrected destination-based attribution is recorded at the end.
+The earlier implementations below are historical. The current personal-only footer behavior is recorded at the end.
 
 Date: 2026-11-16
 
@@ -58,3 +58,14 @@ Tested the destination-attribution fix now proposed in PR #1604, using the real 
 - Limitation: the isolated Claude runner returned `Not logged in · Please run /login`. This validates attribution through the actual error-reply path, not successful model inference or live Slack rendering. Successful answer attribution is covered by the adapter tests.
 - Validation: 955 EdgeWorker tests passed (one skipped), 104 Slack transport tests passed, and all affected runtime packages built successfully. Companion Hosted routing and webhook tests passed (35 tests) for personal ownership/workspace matching, renamed shared cloud/self-hosted runners, preserved auth headers and exclusive personal routing. Hosted lint and all 11 typecheck tasks passed.
 - Stopped the isolated server after verifying all captured payloads.
+
+## Shared footer temporarily hidden (2026-11-17 UTC)
+
+At the user's request, the shared-runner footer assignment is commented out in the runtime. Personal attribution and the authenticated metadata contract remain unchanged.
+
+- Rebuilt the runtime and repeated authenticated personal/shared webhooks through the real F1 server on port 3628 with local Slack API stubs and the isolated unauthenticated Claude config.
+- PASS: personal replies still include exactly `From Device Owner's device`, resolving `UOWNER` rather than the different message author.
+- PASS: shared replies have no footer/context block and make no profile lookup; both replies preserve their original text and thread timestamp.
+- The isolated runner returned its login-error reply. Successful inference and live Slack rendering were not exercised; no real Slack messages were sent.
+- All 955 EdgeWorker tests pass (one skipped), including the updated no-shared-footer assertion and tunnel-startup cleanup assertions that track owned timer handles rather than unstable process-wide counts.
+- Stopped the isolated server after payload assertions passed.

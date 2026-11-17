@@ -4,6 +4,9 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Fixed
+- Check the tunnel startup timers' own handles in cleanup tests instead of process-wide timer counts, preventing unrelated timer expiry from failing CI while retaining leak detection. ([CYHOST-1477](https://linear.app/ceedar/issue/CYHOST-1477), [#1604](https://github.com/cyrusagents/cyrus/pull/1604))
+
 ## [0.2.78] - 2026-11-12
 
 ### Changed

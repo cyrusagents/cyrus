@@ -1070,7 +1070,7 @@ describe("SlackChatAdapter responding policy", () => {
 		);
 	});
 
-	it("names the shared runner without attributing it to the message author", async () => {
+	it("omits the shared-runner footer while attribution is hidden", async () => {
 		const adapter = new SlackChatAdapter(createStaticProvider([]));
 		const postSpy = vi
 			.spyOn(SlackMessageService.prototype, "postMessage")
@@ -1085,9 +1085,9 @@ describe("SlackChatAdapter responding policy", () => {
 		expect(postSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				text: "Done.",
-				footer: "From Team runner",
 			}),
 		);
+		expect(postSpy.mock.calls[0]?.[0]).not.toHaveProperty("footer");
 		expect(SlackMessageService.prototype.getUserName).not.toHaveBeenCalled();
 	});
 
