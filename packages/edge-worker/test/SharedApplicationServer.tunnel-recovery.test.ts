@@ -56,8 +56,28 @@ async function waitFor(condition: () => boolean, timeoutMs = 5000) {
 	}
 }
 
-const activeTimeouts = () =>
-	process.getActiveResourcesInfo().filter((r) => r === "Timeout").length;
+function trackTunnelStartup(
+	server: InstanceType<typeof SharedApplicationServer>,
+) {
+	const scheduled = vi.spyOn(globalThis, "setTimeout");
+	const cleared = vi.spyOn(globalThis, "clearTimeout");
+	const startup = server.startCloudflareTunnel("fake-token-for-tests");
+	// Startup installs its timers synchronously. Track their actual handles,
+	// not process-wide counts: unrelated test-runner timers can expire meanwhile.
+	const timers = scheduled.mock.results
+		.filter((result) => result.type === "return")
+		.map((result) => result.value);
+	scheduled.mockRestore();
+	expect(timers.length).toBeGreaterThan(0);
+	return {
+		startup,
+		expectTimersCleared: () => {
+			for (const timer of timers) {
+				expect(cleared).toHaveBeenCalledWith(timer);
+			}
+		},
+	};
+}
 
 function createServer() {
 	const logger = createLogger({ component: "test" });
@@ -72,6 +92,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	for (const { pid } of spawns()) {
 		if (isAlive(pid)) process.kill(pid, "SIGKILL");
 	}
@@ -115,13 +136,11 @@ describe("SharedApplicationServer Cloudflare tunnel recovery", () => {
 			JSON.stringify(["exit:3", "connect"]),
 		);
 		const { server } = createServer();
-		const baseline = activeTimeouts();
+		const { startup, expectTimersCleared } = trackTunnelStartup(server);
 
-		await expect(
-			server.startCloudflareTunnel("fake-token-for-tests"),
-		).rejects.toThrow("Tunnel process exited with code 3");
+		await expect(startup).rejects.toThrow("Tunnel process exited with code 3");
 
-		expect(activeTimeouts()).toBe(baseline);
+		expectTimersCleared();
 		await new Promise((r) => setTimeout(r, 1500));
 		expect(spawns()).toHaveLength(1);
 	});
@@ -129,9 +148,8 @@ describe("SharedApplicationServer Cloudflare tunnel recovery", () => {
 	it("stop() cancels startup promptly between the first and fourth connection without leaking", async () => {
 		writeFileSync(join(dir, "plan.json"), JSON.stringify(["connect1"]));
 		const { server, info } = createServer();
-		const baseline = activeTimeouts();
 
-		const startup = server.startCloudflareTunnel("fake-token-for-tests");
+		const { startup, expectTimersCleared } = trackTunnelStartup(server);
 		const settled = startup.then(
 			() => "resolved",
 			(error: Error) => error.message,
@@ -152,7 +170,7 @@ describe("SharedApplicationServer Cloudflare tunnel recovery", () => {
 		expect(Date.now() - stoppedAt).toBeLessThan(1000);
 
 		await waitFor(() => !isAlive(pid), 7000);
-		expect(activeTimeouts()).toBe(baseline);
+		expectTimersCleared();
 		await new Promise((r) => setTimeout(r, 1500));
 		expect(spawns()).toHaveLength(1);
 	});

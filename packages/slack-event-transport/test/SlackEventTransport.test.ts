@@ -152,20 +152,38 @@ describe("SlackEventTransport", () => {
 		});
 
 		it.each([
-			[encodeURIComponent("Connor’s MacBook 💻"), "Connor’s MacBook 💻"],
-			["invalid%escape", undefined],
-			["", undefined],
-		])("handles proxy device metadata %s", async (header, expected) => {
+			[
+				"shared",
+				encodeURIComponent("Team’s runner 💻"),
+				"UOWNER",
+				{ kind: "shared", name: "Team’s runner 💻" },
+			],
+			[
+				"personal",
+				"Ignored machine name",
+				"UOWNER",
+				{ kind: "personal", ownerSlackUserId: "UOWNER" },
+			],
+			["shared", "invalid%escape", "", undefined],
+			["shared", "", "", undefined],
+			["shared", "%20%20", "", undefined],
+			["personal", "Team runner", "", undefined],
+			["personal", "Team runner", "   ", undefined],
+			["unknown", "Team runner", "UOWNER", undefined],
+			["", "Team runner", "UOWNER", undefined],
+		])("handles proxy device metadata (%#)", async (kind, name, owner, expected) => {
 			const eventListener = vi.fn();
 			transport.on("event", eventListener);
 			const request = createMockRequest(testEventEnvelope, {
 				authorization: `Bearer ${testSecret}`,
-				"x-cyrus-device-name": header,
+				"x-cyrus-device-kind": kind,
+				"x-cyrus-device-name": name,
+				"x-cyrus-device-owner-slack-id": owner,
 			});
 			const reply = createMockReply();
 			await mockFastify.routes["/slack-webhook"]!(request, reply);
 			expect(reply.code).toHaveBeenCalledWith(200);
-			expect(eventListener.mock.calls[0]?.[0].deviceName).toBe(expected);
+			expect(eventListener.mock.calls[0]?.[0].device).toEqual(expected);
 		});
 
 		it("rejects invalid Bearer token", async () => {
@@ -636,7 +654,10 @@ describe("SlackEventTransport", () => {
 			transport.register();
 		});
 
-		it("accepts valid HMAC-SHA256 signature and emits event", async () => {
+		it.each([
+			"personal",
+			"shared",
+		])("ignores spoofed %s device headers in direct HMAC mode", async (kind) => {
 			const eventListener = vi.fn();
 			transport.on("event", eventListener);
 
@@ -648,6 +669,8 @@ describe("SlackEventTransport", () => {
 			request.headers["x-slack-request-timestamp"] = timestamp;
 			request.headers["x-slack-signature"] = signature;
 			request.headers["x-cyrus-device-name"] = "Spoofed device";
+			request.headers["x-cyrus-device-kind"] = kind;
+			request.headers["x-cyrus-device-owner-slack-id"] = "USPOOFED";
 
 			const reply = createMockReply();
 			await mockFastify.routes["/slack-webhook"]!(request, reply);
@@ -661,7 +684,7 @@ describe("SlackEventTransport", () => {
 					teamId: "T0001",
 					// Direct mode: no upstream gate, runtime must self-gate.
 					upstreamGated: false,
-					deviceName: undefined,
+					device: undefined,
 				}),
 			);
 		});
