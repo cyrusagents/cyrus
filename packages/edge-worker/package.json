@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-edge-worker",
-	"version": "0.2.81",
+	"version": "0.2.82",
 	"description": "Unified edge worker for processing Linear issues with Claude",
 	"repository": {
 		"type": "git",
