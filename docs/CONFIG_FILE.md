@@ -308,7 +308,7 @@ Can be configured at the global level or per-repository.
 
 **User Identifiers:**
 
-Users can be specified in four formats:
+User identifiers can be specified as follows:
 - String (treated as Linear user ID): `"usr_abc123"`
 - Object with ID: `{ "id": "usr_abc123" }`
 - Object with email: `{ "email": "user@example.com" }` (case-insensitive)
@@ -363,7 +363,7 @@ The same lists gate who can start or continue a Slack session, keyed by the Slac
 - A user who fails the check cannot prompt the agent. With `"silent"` (default) nothing happens, not even the receipt reaction. With `"comment"` their @mention is answered with the block message; their thread replies are still dropped silently. Their messages remain visible to the agent as thread context, like any other message in the thread.
 - Threads Cyrus was never mentioned in are ignored either way.
 - `"comment"` suits a single worker. When several workers share one Slack app, keep the default `"silent"`, or every worker that does not list the author posts a notice.
-- Changes to the lists take effect after a restart.
+- Cyrus hot-reloads updates to the configured Slack user and channel lists.
 
 Several workers can share one Slack app, for example one per engineer running on their own machine. Each worker lists its owner, so only that worker answers the owner's mentions:
 

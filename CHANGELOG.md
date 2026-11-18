@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add Slack channel allowlisting and a Linear-only wildcard in user access configuration.
+
 ## [0.2.82] - 2026-11-18
 
 ### Fixed
