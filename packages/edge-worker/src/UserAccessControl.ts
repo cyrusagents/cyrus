@@ -91,6 +91,35 @@ function userMatchesAny(
 }
 
 /**
+ * Linear-only allowlist wildcard. Only this structured entry is a wildcard:
+ * a bare `"*"` string or a `{ id: "*" }` in `blockedUsers` stays literal.
+ */
+function isLinearWildcard(identifier: UserIdentifier): boolean {
+	return (
+		typeof identifier === "object" &&
+		"id" in identifier &&
+		identifier.id === "*"
+	);
+}
+
+/**
+ * Checks a Linear user against an allowlist. `{ id: "*" }` admits any user
+ * with a Linear ID; a user without one never matches it.
+ */
+function userMatchesAllowlist(
+	userId: string | undefined,
+	userEmail: string | undefined,
+	allowlist: UserIdentifier[],
+): boolean {
+	return (
+		(userId !== undefined &&
+			userId !== "" &&
+			allowlist.some(isLinearWildcard)) ||
+		userMatchesAny(userId, userEmail, allowlist)
+	);
+}
+
+/**
  * User access control manager for user whitelisting/blacklisting.
  *
  * Linear delegations go through checkAccess, Slack sessions through
@@ -104,6 +133,7 @@ function userMatchesAny(
  *    - Else if global has allowedUsers -> use global allowlist
  *    - Else -> no allowlist (everyone allowed)
  * 4. If effective allowlist exists and user NOT in it -> BLOCKED
+ *    (`{ id: "*" }` in it admits any user with a Linear ID)
  * 5. Otherwise -> ALLOWED
  */
 export class UserAccessControl {
@@ -177,7 +207,7 @@ export class UserAccessControl {
 				};
 			}
 
-			if (!userMatchesAny(userId, userEmail, effectiveAllowlist)) {
+			if (!userMatchesAllowlist(userId, userEmail, effectiveAllowlist)) {
 				return {
 					allowed: false,
 					reason: "User is not in allowlist",

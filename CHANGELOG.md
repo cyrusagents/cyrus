@@ -8,6 +8,68 @@ All notable changes to this project will be documented in this file.
 
 - Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.327](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03327) and [`@anthropic-ai/sdk` 1.10.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.10.0), restoring MCP resource discovery tools for full engineering sessions, retaining `WebFetch` across platform defaults, preserving unattended sandboxed Bash approvals under the SDK's opt-in setting, surfacing warnings when organization-managed MCP configuration replaces a session's integrations, and adopting the latest SDK validation and background-task fixes. ([CYPACK-1651](https://linear.app/ceedar/issue/CYPACK-1651/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1609](https://github.com/cyrusagents/cyrus/pull/1609))
 
+## [0.2.83] - 2026-11-18
+
+### Added
+
+- Add Slack channel allowlisting and a Linear-only wildcard in user access configuration. ([#1614](https://github.com/cyrusagents/cyrus/pull/1614))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.83
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.83
+
+#### cyrus-core
+- cyrus-core@0.2.83
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.83
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.83
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.83
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.83
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.83
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.83
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.83
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.83
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.83
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.83
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.83
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.83
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.83
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.83
+
+#### cyrus-ai
+- cyrus-ai@0.2.83
+
 ## [0.2.82] - 2026-11-18
 
 ### Fixed

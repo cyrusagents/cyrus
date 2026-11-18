@@ -43,6 +43,12 @@ export const UserAccessControlConfigSchema = z.object({
 	 * a list without any leaves Slack open to every user.
 	 * Empty array means no one is allowed on either (effectively disables Cyrus).
 	 * Omitting this field means everyone is allowed (unless blocked).
+	 *
+	 * `{ "id": "*" }` is a Linear-only wildcard: it admits every Linear user
+	 * with an ID (not one without), never matches Slack, and is not a pattern
+	 * anywhere else (a bare `"*"` or a wildcard in `blockedUsers` is literal).
+	 * Combine it with `{ slackId }` entries to restrict only Slack users, e.g.
+	 * `[{ "id": "*" }, { "slackId": "U012AB3CD" }]`.
 	 */
 	allowedUsers: z.array(UserIdentifierSchema).optional(),
 
@@ -571,6 +577,15 @@ export const EdgeConfigSchema = z.object({
 	 */
 	toolApprovalMode: ToolApprovalModeSchema.optional(),
 	slackBlockedChannelIds: z
+		.array(z.string().regex(/^[CGD][A-Z0-9]+$/))
+		.max(200)
+		.optional(),
+	/**
+	 * Slack channels Cyrus may respond in. Omitted allows every channel that
+	 * is not blocked; an empty list allows none. `slackBlockedChannelIds`
+	 * still applies first.
+	 */
+	slackAllowedChannelIds: z
 		.array(z.string().regex(/^[CGD][A-Z0-9]+$/))
 		.max(200)
 		.optional(),
