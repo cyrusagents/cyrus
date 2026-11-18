@@ -79,12 +79,18 @@ const autoConfig: ResolvedCodexConfig = {
 	approvalsReviewer: "auto_review",
 };
 
+/** One FakeClient per spawned app-server process. */
 function setup() {
-	const client = new FakeClient();
-	const manager = new AppServerProcessManager(() => client, {
-		idleCloseMs: 0,
-	});
-	return { client, manager };
+	const clients: FakeClient[] = [];
+	const manager = new AppServerProcessManager(
+		() => {
+			const client = new FakeClient();
+			clients.push(client);
+			return client;
+		},
+		{ idleCloseMs: 0 },
+	);
+	return { clients, manager };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -140,7 +146,7 @@ describe("CodexConfigBuilder toolApprovalMode", () => {
 
 describe("AppServerCodexBackend toolApprovalMode transport", () => {
 	it("sends approvalsReviewer on thread/start and thread/resume in auto", async () => {
-		const { client, manager } = setup();
+		const { clients, manager } = setup();
 		const started = new AppServerCodexBackend(manager);
 		await started.open(autoConfig);
 		await started.close();
@@ -148,7 +154,9 @@ describe("AppServerCodexBackend toolApprovalMode transport", () => {
 		await resumed.open({ ...autoConfig, resumeSessionId: "thread-1" });
 
 		for (const method of ["thread/start", "thread/resume"]) {
-			const params = client.requests.find((r) => r.method === method)?.params;
+			const params = clients
+				.flatMap((c) => c.requests)
+				.find((r) => r.method === method)?.params;
 			expect(params).toMatchObject({
 				approvalPolicy: "on-request",
 				approvalsReviewer: "auto_review",
@@ -158,25 +166,56 @@ describe("AppServerCodexBackend toolApprovalMode transport", () => {
 	});
 
 	it("does not send approvalsReviewer in allowlist mode", async () => {
-		const { client, manager } = setup();
+		const { clients, manager } = setup();
 		await new AppServerCodexBackend(manager).open(baseConfig);
-		const params = client.requests.find(
+		const params = clients[0]?.requests.find(
 			(r) => r.method === "thread/start",
 		)?.params;
 		expect(params.approvalPolicy).toBe("never");
 		expect(params).not.toHaveProperty("approvalsReviewer");
 	});
+
+	it("warns when a Codex server does not confirm auto_review", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const backend = new AppServerCodexBackend(() => {
+			const client = new FakeClient();
+			client.legacy = true;
+			return client;
+		});
+		await backend.open(autoConfig);
+		expect(warn).toHaveBeenCalledWith(
+			expect.stringContaining("did not confirm approvalsReviewer=auto_review"),
+		);
+	});
 });
 
-describe("app-server server-request routing", () => {
-	it("keeps the legacy accept response for allowlist threads", async () => {
-		const { client, manager } = setup();
+describe("app-server process approval policy", () => {
+	it("pools by approval mode: same mode reuses, different mode gets its own process", async () => {
+		const { clients, manager } = setup();
+		await new AppServerCodexBackend(manager).open(autoConfig);
+		await new AppServerCodexBackend(manager).open(autoConfig);
+		expect(clients).toHaveLength(1);
 		await new AppServerCodexBackend(manager).open(baseConfig);
+		await new AppServerCodexBackend(manager).open(baseConfig);
+		expect(clients).toHaveLength(2);
+	});
+
+	it("keeps the legacy accept response on an allowlist process", async () => {
+		const { clients, manager } = setup();
+		await new AppServerCodexBackend(manager).open(baseConfig);
+		const client = clients[0]!;
+		for (const params of [
+			{ threadId: "thread-1" },
+			{ threadId: "other" },
+			{},
+		]) {
+			await expect(
+				client.serverRequest("item/commandExecution/requestApproval", params),
+			).resolves.toEqual({ decision: "accept" });
+		}
 		await expect(
-			client.serverRequest("item/commandExecution/requestApproval", {
-				threadId: "thread-1",
-			}),
-		).resolves.toEqual({ decision: "accept" });
+			client.serverRequest("account/chatgptAuthTokens/refresh", {}),
+		).resolves.toEqual({ chatgptAuthToken: null });
 	});
 
 	it.each([
@@ -185,71 +224,85 @@ describe("app-server server-request routing", () => {
 		["item/permissions/requestApproval", { permissions: {}, scope: "turn" }],
 		["mcpServer/elicitation/request", { action: "decline" }],
 		["item/tool/requestUserInput", { answers: {} }],
-	])("denies %s for auto threads with a schema-valid response", async (method, expected) => {
+		["execCommandApproval", { decision: "denied" }],
+		["applyPatchApproval", { decision: "denied" }],
+	])("auto process denies %s for known and unknown threads", async (method, expected) => {
 		vi.spyOn(console, "warn").mockImplementation(() => {});
-		const { client, manager } = setup();
+		const { clients, manager } = setup();
 		await new AppServerCodexBackend(manager).open(autoConfig);
-		await expect(
-			client.serverRequest(method, { threadId: "thread-1" }),
-		).resolves.toEqual(expected);
+		const client = clients[0]!;
+		for (const params of [
+			{ threadId: "thread-1" },
+			{ threadId: "unknown" },
+			{ conversationId: "thread-1" },
+			{},
+		]) {
+			await expect(client.serverRequest(method, params)).resolves.toEqual(
+				expected,
+			);
+		}
 	});
 
-	it("denies legacy v1 approvals routed by conversationId", async () => {
+	it("auto process denies approvals that arrive before thread/start returns", async () => {
 		vi.spyOn(console, "warn").mockImplementation(() => {});
-		const { client, manager } = setup();
+		const clients: FakeClient[] = [];
+		const early: unknown[] = [];
+		const manager = new AppServerProcessManager(
+			() => {
+				const client = new FakeClient();
+				const request = client.request.bind(client);
+				client.request = async <T>(method: string, params: any) => {
+					if (method === "thread/start") {
+						// Server asks before the thread id reaches the client.
+						early.push(
+							await client.serverRequest(
+								"item/commandExecution/requestApproval",
+								{ threadId: "thread-1" },
+							),
+						);
+					}
+					return request<T>(method, params);
+				};
+				clients.push(client);
+				return client;
+			},
+			{ idleCloseMs: 0 },
+		);
 		await new AppServerCodexBackend(manager).open(autoConfig);
-		await expect(
-			client.serverRequest("execCommandApproval", {
-				conversationId: "thread-1",
-			}),
-		).resolves.toEqual({ decision: "denied" });
+		expect(early).toEqual([{ decision: "decline" }]);
 	});
 
-	it("routes per thread when auto and allowlist threads share a process", async () => {
+	it("auto process still denies after the thread closes", async () => {
 		vi.spyOn(console, "warn").mockImplementation(() => {});
-		const { client, manager } = setup();
-		await new AppServerCodexBackend(manager).open(baseConfig); // thread-1
-		await new AppServerCodexBackend(manager).open(autoConfig); // thread-2
-		const method = "item/fileChange/requestApproval";
-		await expect(
-			client.serverRequest(method, { threadId: "thread-1" }),
-		).resolves.toEqual({ decision: "accept" });
-		await expect(
-			client.serverRequest(method, { threadId: "thread-2" }),
-		).resolves.toEqual({ decision: "decline" });
-		// Unattributable approval requests are denied once an auto thread exists.
-		await expect(client.serverRequest(method, {})).resolves.toEqual({
-			decision: "decline",
-		});
-	});
-
-	it("still denies approvals for an auto thread after it closes", async () => {
-		vi.spyOn(console, "warn").mockImplementation(() => {});
-		const { client, manager } = setup();
+		const { clients, manager } = setup();
 		const keepAlive = new AppServerCodexBackend(manager);
-		await keepAlive.open(baseConfig); // thread-1 keeps the process alive
-		const auto = new AppServerCodexBackend(manager);
-		await auto.open(autoConfig); // thread-2
-		await auto.close();
+		await keepAlive.open(autoConfig);
+		const closing = new AppServerCodexBackend(manager);
+		await closing.open(autoConfig);
+		await closing.close();
 		await expect(
-			client.serverRequest("item/commandExecution/requestApproval", {
+			clients[0]!.serverRequest("item/fileChange/requestApproval", {
 				threadId: "thread-2",
 			}),
 		).resolves.toEqual({ decision: "decline" });
 	});
 
-	it("falls back securely on a Codex that ignores approvalsReviewer", async () => {
-		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-		const { client, manager } = setup();
-		client.legacy = true;
-		await new AppServerCodexBackend(manager).open(autoConfig);
-		expect(warn).toHaveBeenCalledWith(
-			expect.stringContaining("did not confirm approvalsReviewer=auto_review"),
-		);
+	it("a thread resumed in allowlist mode runs on an allowlist process again", async () => {
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		const { clients, manager } = setup();
+		const auto = new AppServerCodexBackend(manager);
+		await auto.open(autoConfig);
+		await auto.close();
+		await new AppServerCodexBackend(manager).open({
+			...baseConfig,
+			resumeSessionId: "thread-1",
+		});
+		const allowlistClient = clients.at(-1)!;
+		expect(allowlistClient).not.toBe(clients[0]);
 		await expect(
-			client.serverRequest("item/commandExecution/requestApproval", {
+			allowlistClient.serverRequest("item/fileChange/requestApproval", {
 				threadId: "thread-1",
 			}),
-		).resolves.toEqual({ decision: "decline" });
+		).resolves.toEqual({ decision: "accept" });
 	});
 });

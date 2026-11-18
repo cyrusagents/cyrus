@@ -239,8 +239,6 @@ export class EdgeWorker extends EventEmitter {
 	private sessionRepositories: Map<string, string> = new Map(); // Maps session ID to repository ID
 	private lastStopTimeBySession: Map<string, number> = new Map(); // Maps session ID to timestamp of last stop signal (for double-stop detection)
 	private warmInstances: Map<string, WarmQuery> = new Map(); // Pre-warmed Claude sessions keyed by agentSessionId
-	/** Tool approval mode each warm instance was started with (startup options are fixed). */
-	private warmInstanceApprovalModes: Map<string, ToolApprovalMode> = new Map();
 	private issueTrackers: Map<string, IIssueTrackerService> = new Map(); // one issue tracker per Linear workspace (keyed by linearWorkspaceId)
 	private linearEventTransport: LinearEventTransport | null = null; // Single event transport for webhook delivery
 	private gitHubEventTransport: GitHubEventTransport | null = null; // GitHub event transport for forwarded GitHub webhooks
@@ -3382,7 +3380,6 @@ ${taskSection}`;
 						warmSession.close();
 					}
 					this.warmInstances.clear();
-					this.warmInstanceApprovalModes.clear();
 				}
 				this.updateLinearWorkspaceTokens(changes.newConfig);
 				await this.removeDeletedRepositories(changes.removed);
@@ -7322,17 +7319,13 @@ ${input.userComment}
 		// Skipped entirely when warm sessions are not enabled.
 		if (result.runnerType === "claude" && this.isWarmSessionsEnabled()) {
 			const warmSession = this.warmInstances.get(sessionId);
-			const warmMode = this.warmInstanceApprovalModes.get(sessionId);
-			const liveMode = result.config.toolApprovalMode ?? "allowlist";
-			this.warmInstanceApprovalModes.delete(sessionId);
-			if (warmSession && warmMode !== liveMode) {
-				// The warm subprocess was started with a different permission
-				// policy (e.g. a prompt-scoped restricted session); never reuse it.
+			if (warmSession && result.config.toolApprovalMode === "auto") {
+				// Warm startup options cannot carry ClaudeRunner's protected
+				// auto-mode policy (deny-only canUseTool, sandbox, home-dir
+				// denials), so auto sessions always run a cold query.
 				this.warmInstances.delete(sessionId);
 				warmSession.close();
-				log.debug(
-					`Discarding pre-warmed session: tool approval mode ${warmMode} != ${liveMode}`,
-				);
+				log.debug("Discarding pre-warmed session: toolApprovalMode=auto");
 			} else if (warmSession) {
 				this.warmInstances.delete(sessionId);
 				(
@@ -7570,6 +7563,13 @@ ${input.userComment}
 			return;
 		}
 
+		// Auto approval needs ClaudeRunner's cold-query protections, which
+		// WarmQuery cannot accept; skip prewarming entirely.
+		if (this.config.toolApprovalMode === "auto") {
+			this.logger.info("Skipping session pre-warm: toolApprovalMode=auto");
+			return;
+		}
+
 		this.logger.info(
 			`Pre-warming ${candidates.length} most recent Claude sessions...`,
 		);
@@ -7642,11 +7642,6 @@ ${input.userComment}
 					// on ClaudeRunner.start() to override loaded settings.defaultMode.
 					const allowedTools = this.buildAllowedTools(repo);
 					const disallowedTools = this.buildDisallowedTools(repo);
-					// Warmup reconstructs an ordinary (non prompt-scoped) session.
-					// In auto mode the ordinary allow-list is not pre-approved;
-					// a session that resolves to a different mode discards this.
-					const toolApprovalMode = this.resolveToolApprovalMode();
-					const autoApproval = toolApprovalMode === "auto";
 
 					const warm = await startup({
 						options: {
@@ -7654,10 +7649,10 @@ ${input.userComment}
 							model,
 							cwd: session.workspace.path,
 							...(Object.keys(mcpServers).length > 0 && { mcpServers }),
-							...(!autoApproval && allowedTools.length > 0 && { allowedTools }),
+							...(allowedTools.length > 0 && { allowedTools }),
 							...(disallowedTools.length > 0 && { disallowedTools }),
 							settingSources: ["user", "project", "local"],
-							permissionMode: autoApproval ? "auto" : "default",
+							permissionMode: "default",
 							strictMcpConfig: this.config.strictMcpConfig ?? true,
 							// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally not set here;
 							// see CYPACK-1108 and ClaudeRunner.start() for context.
@@ -7665,8 +7660,12 @@ ${input.userComment}
 						},
 					});
 
+					// Config may have switched to auto while startup was in flight.
+					if (this.config.toolApprovalMode === "auto") {
+						warm.close();
+						return;
+					}
 					this.warmInstances.set(session.id, warm);
-					this.warmInstanceApprovalModes.set(session.id, toolApprovalMode);
 					this.logger.info(
 						`Pre-warmed session ${session.id} (${session.issueContext?.issueIdentifier ?? "unknown"})`,
 					);

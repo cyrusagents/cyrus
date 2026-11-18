@@ -22,7 +22,11 @@ const repository = {
 	repositoryPath: "/repos/repo-a",
 } as unknown as RepositoryConfig;
 
-function build(runnerType: RunnerType, toolApprovalMode?: ToolApprovalMode) {
+function build(
+	runnerType: RunnerType,
+	toolApprovalMode?: ToolApprovalMode,
+	extra: Record<string, unknown> = {},
+) {
 	const builder = new RunnerConfigBuilder(
 		{ buildChatAllowedTools: () => ["Read(**)"] },
 		{ buildMcpConfig: () => ({}), buildMergedMcpConfigPath: () => undefined },
@@ -50,7 +54,8 @@ function build(runnerType: RunnerType, toolApprovalMode?: ToolApprovalMode) {
 		onError: () => {},
 		requireLinearWorkspaceId: () => "ws-1",
 		...(toolApprovalMode ? { toolApprovalMode } : {}),
-	}).config;
+		...extra,
+	}).config as Record<string, any>;
 }
 
 describe("RunnerConfigBuilder toolApprovalMode", () => {

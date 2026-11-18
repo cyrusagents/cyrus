@@ -7,6 +7,7 @@ import { resolveCodexAppServerLaunch } from "./codexBinary.js";
 import {
 	isHumanApprovalRequest,
 	resolveServerRequest,
+	type ToolApprovalPolicy,
 } from "./serverRequestPolicy.js";
 import type { ResolvedCodexConfig } from "./types.js";
 
@@ -14,12 +15,6 @@ const CLIENT_INFO = { name: "cyrus-codex-runner", version: "1.0.0" };
 const DEFAULT_IDLE_CLOSE_MS = 30_000;
 
 export interface AppServerThreadHandler {
-	/**
-	 * Approval mode the thread was opened with. `"auto"` threads have every
-	 * human-approval server request denied (Codex's `auto_review` reviewer is
-	 * the only approver); omitted means allowlist.
-	 */
-	readonly toolApprovalMode?: "allowlist" | "auto";
 	onNotification(method: string, params: unknown): void;
 	onProcessGone(): void;
 	onProcessError(error: unknown): void;
@@ -42,6 +37,11 @@ interface LaunchOptions {
 	args: string[];
 	env?: Record<string, string>;
 	requestTimeoutMs?: number;
+	/**
+	 * Client-side approval policy for every thread on this process. Part of the
+	 * pool key, so auto and allowlist threads never share a process.
+	 */
+	approvalPolicy: ToolApprovalPolicy;
 }
 
 /**
@@ -59,11 +59,6 @@ class PooledAppServerProcess {
 	private disposed = false;
 	private idleTimer: ReturnType<typeof setTimeout> | null = null;
 	private readonly threadHandlers = new Map<string, AppServerThreadHandler>();
-	/**
-	 * Every thread id ever registered in auto mode on this process. Never
-	 * pruned, so a late request for a closed auto thread is still denied.
-	 */
-	private readonly autoThreadIds = new Set<string>();
 
 	constructor(
 		private readonly launchOptions: LaunchOptions,
@@ -114,9 +109,6 @@ class PooledAppServerProcess {
 					);
 				}
 				this.threadHandlers.set(threadId, handler);
-				if (handler.toolApprovalMode === "auto") {
-					this.autoThreadIds.add(threadId);
-				}
 			},
 			unregisterThread: (threadId, handler) => {
 				if (this.threadHandlers.get(threadId) === handler) {
@@ -162,9 +154,7 @@ class PooledAppServerProcess {
 		client.setNotificationHandler((method, params) =>
 			this.routeNotification(method, params),
 		);
-		client.setServerRequestHandler((method, params) =>
-			this.onServerRequest(method, params),
-		);
+		client.setServerRequestHandler((method) => this.onServerRequest(method));
 		client.on("exit", () => this.onProcessGone());
 		client.on("error", (error) => this.onProcessError(error));
 		client.start();
@@ -210,35 +200,22 @@ class PooledAppServerProcess {
 	}
 
 	/**
-	 * Answer a server→client request, routed by the target thread's approval
-	 * mode. Allowlist threads (approvalPolicy="never") keep the historical
+	 * Answer a server→client request using this process's fixed approval
+	 * policy. Allowlist processes (approvalPolicy="never") keep the historical
 	 * defensive response so a stray request can never wedge a turn. Auto
-	 * threads never fall back to that: human approvals, permission grants,
-	 * elicitations and user-input requests are denied with schema-valid
-	 * responses, as are approval requests that cannot be attributed to a
-	 * thread while any auto thread shares this process.
+	 * processes never fall back to it: every human approval, permission grant,
+	 * elicitation and user-input request is denied — including requests that
+	 * arrive before thread/start returns or after a thread closes — because
+	 * Codex's `auto_review` reviewer is the only approver.
 	 */
-	private onServerRequest(method: string, params: unknown): unknown {
-		const threadId = extractThreadId(params);
-		let mode: "allowlist" | "auto" | "unknown" = "unknown";
-		if (threadId && this.autoThreadIds.has(threadId)) {
-			mode = "auto";
-		} else if (threadId && this.threadHandlers.has(threadId)) {
-			mode = this.threadHandlers.get(threadId)?.toolApprovalMode ?? "allowlist";
-		}
-		const response = resolveServerRequest(
-			method,
-			mode,
-			this.autoThreadIds.size > 0,
-		);
-		const autoScoped =
-			mode === "auto" || (mode === "unknown" && this.autoThreadIds.size > 0);
-		if (autoScoped && isHumanApprovalRequest(method)) {
+	private onServerRequest(method: string): unknown {
+		const policy = this.launchOptions.approvalPolicy;
+		if (policy === "auto" && isHumanApprovalRequest(method)) {
 			console.warn(
-				`[CodexRunner] Denied ${method} for ${threadId ?? "unattributed"} thread: toolApprovalMode=auto uses Codex auto_review only`,
+				`[CodexRunner] Denied ${method}: toolApprovalMode=auto uses Codex auto_review only`,
 			);
 		}
-		return response;
+		return resolveServerRequest(method, policy);
 	}
 
 	private onProcessGone(): void {
@@ -332,6 +309,7 @@ export class AppServerProcessManager {
 			...(this.requestTimeoutMs !== undefined
 				? { requestTimeoutMs: this.requestTimeoutMs }
 				: {}),
+			approvalPolicy: config.toolApprovalMode === "auto" ? "auto" : "allowlist",
 		};
 		const launchKey = buildLaunchKey(launchOptions);
 
@@ -372,15 +350,10 @@ function extractThreadId(params: unknown): string | undefined {
 	}
 	const p = params as {
 		threadId?: unknown;
-		conversationId?: unknown;
 		thread?: { id?: unknown };
 	};
 	if (typeof p.threadId === "string") {
 		return p.threadId;
-	}
-	// Legacy v1 approval requests identify the thread as `conversationId`.
-	if (typeof p.conversationId === "string") {
-		return p.conversationId;
 	}
 	return typeof p.thread?.id === "string" ? p.thread.id : undefined;
 }
@@ -391,6 +364,7 @@ function buildLaunchKey(options: LaunchOptions): string {
 		args: options.args,
 		env: options.env ? sortRecord(options.env) : null,
 		requestTimeoutMs: options.requestTimeoutMs ?? null,
+		approvalPolicy: options.approvalPolicy,
 	});
 }
 

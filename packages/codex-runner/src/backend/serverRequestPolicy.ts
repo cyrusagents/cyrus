@@ -1,5 +1,3 @@
-import type { ToolApprovalMode } from "cyrus-core";
-
 /**
  * Codex app-server → client request methods that ask a human to approve,
  * grant, or answer something. Method names and response shapes come from the
@@ -50,21 +48,19 @@ export function legacyServerRequestResponse(method: string): unknown {
 	return {};
 }
 
+/** Client-side approval policy of a pooled app-server process. */
+export type ToolApprovalPolicy = "allowlist" | "auto";
+
 /**
- * Decide the response to a server request.
- *
- * @param mode The approval mode of the thread the request targets, or
- *   `"unknown"` when it cannot be attributed to a registered thread.
- * @param anyAutoThread Whether the shared process hosts (or hosted) any
- *   auto-mode thread — unattributable approval requests are then denied.
+ * Decide the response to a server request for a process with the given
+ * policy. Auto processes deny every human-approval request; allowlist
+ * processes keep the legacy response unchanged.
  */
 export function resolveServerRequest(
 	method: string,
-	mode: ToolApprovalMode | "unknown",
-	anyAutoThread: boolean,
+	policy: ToolApprovalPolicy,
 ): unknown {
-	const auto = mode === "auto" || (mode === "unknown" && anyAutoThread);
-	if (auto && isHumanApprovalRequest(method)) {
+	if (policy === "auto" && isHumanApprovalRequest(method)) {
 		return declineHumanApprovalRequest(method);
 	}
 	return legacyServerRequestResponse(method);

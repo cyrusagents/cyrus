@@ -613,8 +613,11 @@ which MCP tools are enabled), and sandbox settings. These stay on the allowlist:
 - chat sessions (Slack, Zulip)
 - Gemini, Cursor, and OpenCode runners
 
-Config reloads affect newly constructed runners. Pre-warmed Claude sessions are
-discarded when the mode changes.
+Config reloads affect newly constructed runners. Pre-warmed Claude sessions
+(`CYRUS_ENABLE_WARM_SESSIONS`) are not used in `auto` mode: prewarming is skipped,
+existing warm instances are closed when the mode switches to `auto`, and auto
+sessions always start a fresh, fully protected query. Codex runs auto and
+allowlist threads on separate app-server processes.
 
 
 ## Tool Configuration Priority

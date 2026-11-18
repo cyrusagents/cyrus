@@ -60,19 +60,12 @@ export class AppServerCodexBackend
 	private idleTimer: ReturnType<typeof setTimeout> | null = null;
 	private readonly turnIdleTimeoutMs: number;
 	private readonly processManager: AppServerProcessManager;
-	/** Approval mode of the open thread; read by the shared process router. */
-	private toolApprovalMode: "allowlist" | "auto" = "allowlist";
-	private readonly threadHandler: AppServerThreadHandler = ((
-		backend: AppServerCodexBackend,
-	): AppServerThreadHandler => ({
-		get toolApprovalMode() {
-			return backend.toolApprovalMode;
-		},
+	private readonly threadHandler: AppServerThreadHandler = {
 		onNotification: (method, params) =>
-			backend.onNotification(method as AppServerNotification, params),
-		onProcessGone: () => backend.onProcessGone(),
-		onProcessError: (error) => backend.onProcessError(error),
-	}))(this);
+			this.onNotification(method as AppServerNotification, params),
+		onProcessGone: () => this.onProcessGone(),
+		onProcessError: (error) => this.onProcessError(error),
+	};
 
 	/**
 	 * @param processManagerOrFactory Overridable shared process manager. Tests may
@@ -104,7 +97,6 @@ export class AppServerCodexBackend
 
 	async open(config: ResolvedCodexConfig): Promise<{ threadId: string }> {
 		this.outputSchema = config.outputSchema;
-		this.toolApprovalMode = config.toolApprovalMode ?? "allowlist";
 		const appServer = await this.processManager.acquire(config);
 		this.appServer = appServer;
 
@@ -272,8 +264,9 @@ export class AppServerCodexBackend
 	 * In auto mode, confirm the app-server actually applied automatic review.
 	 * Codex 0.163.0 echoes `approvalPolicy`/`approvalsReviewer` on
 	 * thread/start and thread/resume. An older Codex that ignores the field
-	 * would route approvals to the client instead; that is safe because the
-	 * shared process denies every human-approval request for auto threads, but
+	 * would route approvals to the client instead; that is safe because auto
+	 * threads run on a dedicated process that denies every human-approval
+	 * request, but
 	 * it is logged so operators know reviews are not running.
 	 */
 	private verifyApprovalReview(
@@ -291,7 +284,7 @@ export class AppServerCodexBackend
 			return;
 		}
 		console.warn(
-			`[CodexRunner] ${method} did not confirm approvalsReviewer=auto_review (got reviewer=${String(result?.approvalsReviewer)}, policy=${JSON.stringify(result?.approvalPolicy)}); approval requests on this thread will be denied`,
+			`[CodexRunner] ${method} did not confirm approvalsReviewer=auto_review (got reviewer=${String(result?.approvalsReviewer)}, policy=${JSON.stringify(result?.approvalPolicy)}); this auto-mode app-server process denies every client-side approval request`,
 		);
 	}
 
