@@ -38,6 +38,7 @@ import {
 } from "./sandbox-requirements.js";
 import {
 	buildBaseSessionEnv,
+	CYRUS_SESSION_ENV,
 	normalizeMcpHttpTransport,
 } from "./session-env.js";
 import type {
@@ -710,6 +711,11 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 						// See: CYPACK-1108.
 						...this.repositoryEnv,
 						...this.config.additionalEnv,
+						// Claude Code 2.1.327 may otherwise evaluate shell startup files
+						// before a Bash request is approved. This is a Cyrus security
+						// invariant, so repository and runner env cannot opt out.
+						CLAUDE_CODE_DISABLE_SHELL_HEAD_START:
+							CYRUS_SESSION_ENV.CLAUDE_CODE_DISABLE_SHELL_HEAD_START,
 						// When logging at DEBUG level, enable the SDK's own debug output so
 						// --debug-to-stderr and DEBUG=1 propagate to the Claude subprocess.
 						// Explicitly set or unset to override any leaked value from process.env.

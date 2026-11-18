@@ -254,4 +254,30 @@ describe("Environment variable isolation", () => {
 		// additionalEnv wins over both process.env and repositoryEnv
 		expect(env.PATH).toBe("/from-additional-env");
 	});
+
+	it("should prevent every env layer from re-enabling shell startup before approval", async () => {
+		const original = process.env.CLAUDE_CODE_DISABLE_SHELL_HEAD_START;
+		process.env.CLAUDE_CODE_DISABLE_SHELL_HEAD_START = "0";
+		envFileContents.set(
+			"/repo-a/.env",
+			"CLAUDE_CODE_DISABLE_SHELL_HEAD_START=0",
+		);
+
+		try {
+			mockSuccessfulQuery();
+			const runner = new ClaudeRunner({
+				...makeConfig("/repo-a"),
+				additionalEnv: { CLAUDE_CODE_DISABLE_SHELL_HEAD_START: "0" },
+			});
+			await runner.start("test");
+
+			expect(getQueryEnv().CLAUDE_CODE_DISABLE_SHELL_HEAD_START).toBe("1");
+		} finally {
+			if (original === undefined) {
+				delete process.env.CLAUDE_CODE_DISABLE_SHELL_HEAD_START;
+			} else {
+				process.env.CLAUDE_CODE_DISABLE_SHELL_HEAD_START = original;
+			}
+		}
+	});
 });

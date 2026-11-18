@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type {
 	HookCallbackMatcher,
 	HookEvent,
@@ -475,7 +475,21 @@ export class RunnerConfigBuilder {
 		const cwd = input.session.workspace.path;
 		const additionalDirectories = Object.values(
 			input.session.workspace.repoPaths ?? {},
-		).filter((p): p is string => typeof p === "string" && p !== cwd);
+		).filter((p): p is string => {
+			if (typeof p !== "string" || p === cwd) return false;
+			if (!isAbsolute(p)) {
+				// Claude Code 2.1.327 changed how relative --add-dir paths are
+				// resolved alongside --worktree. Cyrus owns its worktrees and only
+				// forwards the absolute paths created by GitService, so reject stale
+				// or hand-built relative workspace metadata rather than widening a
+				// session from a runtime-dependent base directory.
+				input.logger.warn(
+					`Ignoring non-absolute additional worktree directory: ${p}`,
+				);
+				return false;
+			}
+			return true;
+		});
 
 		const config: AgentRunnerConfig & Record<string, unknown> = {
 			workingDirectory: cwd,

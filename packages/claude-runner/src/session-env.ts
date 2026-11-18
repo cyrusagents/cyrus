@@ -26,9 +26,12 @@ const AUTH_ENV_KEYS = [
  *
  * - MCP_CONNECTION_NONBLOCKING lets MCP servers connect in the background so
  *   both cold-start and pre-warm sessions return faster.
+ * - CLAUDE_CODE_DISABLE_SHELL_HEAD_START prevents Claude Code 2.1.327+ from
+ *   evaluating shell startup files before the shell command is approved.
  */
 export const CYRUS_SESSION_ENV = {
 	CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: "1",
+	CLAUDE_CODE_DISABLE_SHELL_HEAD_START: "1",
 	CLAUDE_CODE_ENABLE_TASKS: "true",
 	CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1",
 	CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: "1",
@@ -69,6 +72,10 @@ export function buildBaseSessionEnv(
 		...env,
 		...CYRUS_SESSION_ENV,
 		...extra,
+		// Unlike ordinary session flags, this security boundary is not an
+		// operator/repository customization point.
+		CLAUDE_CODE_DISABLE_SHELL_HEAD_START:
+			CYRUS_SESSION_ENV.CLAUDE_CODE_DISABLE_SHELL_HEAD_START,
 	};
 }
 
