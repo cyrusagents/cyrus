@@ -4,9 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.83-test.0] - 2026-11-18
+
 ### Changed
 
 - Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.327](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03327) and [`@anthropic-ai/sdk` 1.10.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.10.0), restoring MCP resource discovery tools for full engineering sessions, retaining `WebFetch` across platform defaults, preserving unattended sandboxed Bash approvals under the SDK's opt-in setting, surfacing warnings when organization-managed MCP configuration replaces a session's integrations, and adopting the latest SDK validation and background-task fixes. ([CYPACK-1651](https://linear.app/ceedar/issue/CYPACK-1651/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1609](https://github.com/cyrusagents/cyrus/pull/1609))
+
+### Packages
+
+- cyrus-cloudflare-tunnel-client@0.2.83-test.0
+- cyrus-mcp-tools@0.2.83-test.0
+- cyrus-core@0.2.83-test.0
+- cyrus-claude-runner@0.2.83-test.0
+- cyrus-config-updater@0.2.83-test.0
+- cyrus-linear-event-transport@0.2.83-test.0
+- cyrus-github-event-transport@0.2.83-test.0
+- cyrus-gitlab-event-transport@0.2.83-test.0
+- cyrus-slack-event-transport@0.2.83-test.0
+- cyrus-zulip-event-transport@0.2.83-test.0
+- cyrus-plane-event-transport@0.2.83-test.0
+- cyrus-simple-agent-runner@0.2.83-test.0
+- cyrus-opencode-runner@0.2.83-test.0
+- cyrus-codex-runner@0.2.83-test.0
+- cyrus-cursor-runner@0.2.83-test.0
+- cyrus-gemini-runner@0.2.83-test.0
+- cyrus-edge-worker@0.2.83-test.0
+- cyrus-ai@0.2.83-test.0
 
 ## [0.2.82] - 2026-11-18
 

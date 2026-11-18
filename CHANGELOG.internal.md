@@ -4,6 +4,12 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.83-test.0] - 2026-11-18
+
+### Changed
+
+- Prepared the immutable coordinated test candidate for the Anthropic SDK update, including current-main reconciliation, Claude Code 2.1.327 runtime dispositions, and exact installed-runtime provenance gates. ([CYPACK-1651](https://linear.app/ceedar/issue/CYPACK-1651/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1609](https://github.com/cyrusagents/cyrus/pull/1609))
+
 ## [0.2.82] - 2026-11-18
 
 ### Changed
