@@ -67,7 +67,7 @@ export class RunnerSelectionService {
 		if (runnerType === "opencode") {
 			return this.config.opencodeDefaultModel;
 		}
-		return this.config.codexDefaultModel || "gpt-5.5";
+		return this.config.codexDefaultModel || "gpt-6.2-sol";
 	}
 
 	/**

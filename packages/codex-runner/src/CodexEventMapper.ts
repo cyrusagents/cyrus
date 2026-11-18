@@ -12,7 +12,7 @@ import type {
 	NormalizedUsage,
 } from "./backend/types.js";
 
-export const DEFAULT_CODEX_MODEL = "gpt-5.5";
+export const DEFAULT_CODEX_MODEL = "gpt-6.2-sol";
 const EMPTY_FALLBACK_CREDIT = { fallback_credit: null };
 const NOT_APPLIED_FALLBACK_CREDIT = {
 	fallback_credit: {

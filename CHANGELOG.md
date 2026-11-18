@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 
 - Set `"toolApprovalMode": "auto"` in `config.json` to have Claude and Codex review tool approvals in issue sessions. Claude uses auto mode and Codex uses the reviewer behind `--approve-for-me`. Existing denials, sandbox limits, and configured MCP server scope still apply. Allowed tools remains the default. ([#1612](https://github.com/cyrusagents/cyrus/pull/1612))
 
+### Changed
+
+- Bundle Codex CLI and SDK 0.170.0 and use GPT-6.2 Sol when no Codex model is configured. Existing model choices remain explicit overrides. ([#1612](https://github.com/cyrusagents/cyrus/pull/1612))
+
 ### Packages
 
 #### cyrus-cloudflare-tunnel-client

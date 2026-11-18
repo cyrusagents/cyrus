@@ -173,7 +173,7 @@ function createEdgeWorkerConfig(): EdgeWorkerConfig {
 				| "codex"
 				| "cursor",
 		}),
-		codexDefaultModel: process.env.CODEX_MODEL || "gpt-5.5",
+		codexDefaultModel: process.env.CODEX_MODEL || "gpt-6.2-sol",
 		// Enable all tools including Edit(**), Bash, etc. for full testing capability
 		linearAllowedTools: getAllTools(),
 		// CLI platform needs a linearWorkspaces entry so the CLIIssueTrackerService
