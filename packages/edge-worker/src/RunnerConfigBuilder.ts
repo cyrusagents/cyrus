@@ -18,6 +18,7 @@ import type {
 	OpenCodeConfigOverrides,
 	RepositoryConfig,
 	RunnerType,
+	ToolApprovalMode,
 } from "cyrus-core";
 import { buildIntentToAddHook } from "./hooks/IntentToAddHook.js";
 import { buildPrMarkerHook } from "./hooks/PrMarkerHook.js";
@@ -146,6 +147,13 @@ export interface IssueRunnerConfigInput {
 	platformMcpConfigOverrides?: readonly string[];
 	/** Whether Claude should ignore ambient MCP configuration. Defaults to true. */
 	strictMcpConfig?: boolean;
+	/**
+	 * Resolved tool approval mode for this session. `"auto"` is applied only
+	 * to Claude and Codex runners; other runners keep their allowlists.
+	 * Callers pass `"allowlist"` for intentionally restricted (prompt-scoped)
+	 * tool policies.
+	 */
+	toolApprovalMode?: ToolApprovalMode;
 	linearWorkspaceId?: string;
 	cyrusHome: string;
 	logger: ILogger;
@@ -480,6 +488,13 @@ export class RunnerConfigBuilder {
 			mcpConfigPath,
 			mcpConfig,
 			strictMcpConfig: input.strictMcpConfig ?? true,
+			// Provider-native automatic tool review (Claude permissionMode
+			// "auto", Codex approvalsReviewer "auto_review"). Only runners with
+			// native review receive it; the rest keep allowlists.
+			...(input.toolApprovalMode === "auto" &&
+				(runnerType === "claude" || runnerType === "codex") && {
+					toolApprovalMode: "auto" as const,
+				}),
 			appendSystemPrompt: appendCloudRuntimeAddendum(
 				appendGitHubCliMediaAddendum(
 					appendBrowserUseAddendum(

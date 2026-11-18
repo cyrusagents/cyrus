@@ -163,6 +163,87 @@ describe("Cyrus permission policy", () => {
 	});
 });
 
+describe("toolApprovalMode auto", () => {
+	const canUseOptions = {
+		signal: new AbortController().signal,
+		toolUseID: "auto-test",
+		suppressAlwaysAllowRule: true,
+	};
+
+	async function startAuto(extra: Record<string, unknown> = {}) {
+		const root = mkdtempSync(join(tmpdir(), "cyrus-auto-approval-"));
+		roots.push(root);
+		vi.mocked(query).mockImplementation(async function* () {
+			yield { type: "system", subtype: "init", session_id: "auto-session" };
+		} as unknown as typeof query);
+		const runner = new ClaudeRunner({
+			workingDirectory: root,
+			cyrusHome: root,
+			toolApprovalMode: "auto",
+			allowedTools: ["Read", "Edit", "Bash", "mcp__linear"],
+			disallowedTools: ["Bash(rm:*)"],
+			allowedDirectories: ["/attachments"],
+			...extra,
+		});
+		await runner.start("Check auto approval");
+		return { root, options: vi.mocked(query).mock.calls[0]?.[0].options };
+	}
+
+	it("uses permissionMode auto without pre-approving the ordinary allow-list", async () => {
+		const { options } = await startAuto();
+		expect(options?.permissionMode).toBe("auto");
+		// Only Cyrus's own directory Read grant remains pre-approved.
+		expect(options?.allowedTools).toEqual(["Read(//attachments/**)"]);
+		// Explicit denials still apply.
+		expect(options?.disallowedTools).toEqual(
+			expect.arrayContaining(["Bash(rm:*)"]),
+		);
+	});
+
+	it("denies calls the classifier escalates to canUseTool", async () => {
+		const { options } = await startAuto();
+		await expect(
+			options?.canUseTool?.("Bash", { command: "pwd" }, canUseOptions),
+		).resolves.toMatchObject({ behavior: "deny" });
+	});
+
+	it("keeps routing AskUserQuestion to the configured handler", async () => {
+		const onAskUserQuestion = vi.fn(async () => ({
+			answered: true,
+			answers: { "Pick one?": "A" },
+		}));
+		const { options } = await startAuto({ onAskUserQuestion });
+		const questions = [
+			{
+				question: "Pick one?",
+				header: "Pick",
+				options: [
+					{ label: "A", description: "a" },
+					{ label: "B", description: "b" },
+				],
+				multiSelect: false,
+			},
+		];
+		await expect(
+			options?.canUseTool?.("AskUserQuestion", { questions }, canUseOptions),
+		).resolves.toEqual({
+			behavior: "allow",
+			updatedInput: { questions, answers: { "Pick one?": "A" } },
+		});
+		expect(onAskUserQuestion).toHaveBeenCalledOnce();
+	});
+
+	it("keeps the allowlist and default mode when toolApprovalMode is allowlist", async () => {
+		const { options } = await startAuto({ toolApprovalMode: "allowlist" });
+		expect(options?.permissionMode).toBe("default");
+		expect(options?.allowedTools).toEqual(
+			expect.arrayContaining(["Read", "Edit", "Bash", "mcp__linear"]),
+		);
+		// Without onAskUserQuestion no canUseTool is installed (unchanged).
+		expect(options?.canUseTool).toBeUndefined();
+	});
+});
+
 // Synthetic SDK contract fixtures, not recordings of authenticated model turns.
 describe("SDK 0.3.293+ result envelopes", () => {
 	it.each([

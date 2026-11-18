@@ -123,6 +123,7 @@ describe("WorkerService", () => {
 			linearMcpConfigs: ["~/linear.json"],
 			githubMcpConfigs: ["~/github.json"],
 			strictMcpConfig: false,
+			toolApprovalMode: "auto",
 			issueUpdateTrigger: false,
 			slackThreadFollowing: false,
 			slackBlockedChannelIds: ["C123"],
@@ -158,6 +159,19 @@ describe("WorkerService", () => {
 				`EdgeConfig field "${key}" was dropped by startEdgeWorker`,
 			).toEqual(value);
 		}
+	});
+
+	it("forwards toolApprovalMode from the config file to EdgeWorker", async () => {
+		const config = await startService({
+			repositories: [],
+			toolApprovalMode: "auto",
+		});
+		expect(config.toolApprovalMode).toBe("auto");
+	});
+
+	it("leaves toolApprovalMode undefined (allowlist) when not set", async () => {
+		const config = await startService({ repositories: [] });
+		expect(config.toolApprovalMode).toBeUndefined();
 	});
 
 	it("forwards strictMcpConfig from the config file to EdgeWorker", async () => {

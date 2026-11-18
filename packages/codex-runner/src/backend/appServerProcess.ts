@@ -4,12 +4,22 @@ import {
 	type IAppServerClient,
 } from "./appServerClient.js";
 import { resolveCodexAppServerLaunch } from "./codexBinary.js";
+import {
+	isHumanApprovalRequest,
+	resolveServerRequest,
+} from "./serverRequestPolicy.js";
 import type { ResolvedCodexConfig } from "./types.js";
 
 const CLIENT_INFO = { name: "cyrus-codex-runner", version: "1.0.0" };
 const DEFAULT_IDLE_CLOSE_MS = 30_000;
 
 export interface AppServerThreadHandler {
+	/**
+	 * Approval mode the thread was opened with. `"auto"` threads have every
+	 * human-approval server request denied (Codex's `auto_review` reviewer is
+	 * the only approver); omitted means allowlist.
+	 */
+	readonly toolApprovalMode?: "allowlist" | "auto";
 	onNotification(method: string, params: unknown): void;
 	onProcessGone(): void;
 	onProcessError(error: unknown): void;
@@ -49,6 +59,11 @@ class PooledAppServerProcess {
 	private disposed = false;
 	private idleTimer: ReturnType<typeof setTimeout> | null = null;
 	private readonly threadHandlers = new Map<string, AppServerThreadHandler>();
+	/**
+	 * Every thread id ever registered in auto mode on this process. Never
+	 * pruned, so a late request for a closed auto thread is still denied.
+	 */
+	private readonly autoThreadIds = new Set<string>();
 
 	constructor(
 		private readonly launchOptions: LaunchOptions,
@@ -99,6 +114,9 @@ class PooledAppServerProcess {
 					);
 				}
 				this.threadHandlers.set(threadId, handler);
+				if (handler.toolApprovalMode === "auto") {
+					this.autoThreadIds.add(threadId);
+				}
 			},
 			unregisterThread: (threadId, handler) => {
 				if (this.threadHandlers.get(threadId) === handler) {
@@ -144,7 +162,9 @@ class PooledAppServerProcess {
 		client.setNotificationHandler((method, params) =>
 			this.routeNotification(method, params),
 		);
-		client.setServerRequestHandler((method) => this.onServerRequest(method));
+		client.setServerRequestHandler((method, params) =>
+			this.onServerRequest(method, params),
+		);
 		client.on("exit", () => this.onProcessGone());
 		client.on("error", (error) => this.onProcessError(error));
 		client.start();
@@ -189,16 +209,36 @@ class PooledAppServerProcess {
 		}
 	}
 
-	private onServerRequest(method: string): unknown {
-		// With approvalPolicy="never" the server should not ask for approvals;
-		// respond defensively so a stray request can never wedge a turn.
-		if (/auth/i.test(method)) {
-			return { chatgptAuthToken: null };
+	/**
+	 * Answer a server→client request, routed by the target thread's approval
+	 * mode. Allowlist threads (approvalPolicy="never") keep the historical
+	 * defensive response so a stray request can never wedge a turn. Auto
+	 * threads never fall back to that: human approvals, permission grants,
+	 * elicitations and user-input requests are denied with schema-valid
+	 * responses, as are approval requests that cannot be attributed to a
+	 * thread while any auto thread shares this process.
+	 */
+	private onServerRequest(method: string, params: unknown): unknown {
+		const threadId = extractThreadId(params);
+		let mode: "allowlist" | "auto" | "unknown" = "unknown";
+		if (threadId && this.autoThreadIds.has(threadId)) {
+			mode = "auto";
+		} else if (threadId && this.threadHandlers.has(threadId)) {
+			mode = this.threadHandlers.get(threadId)?.toolApprovalMode ?? "allowlist";
 		}
-		if (/approval/i.test(method)) {
-			return { decision: "accept" };
+		const response = resolveServerRequest(
+			method,
+			mode,
+			this.autoThreadIds.size > 0,
+		);
+		const autoScoped =
+			mode === "auto" || (mode === "unknown" && this.autoThreadIds.size > 0);
+		if (autoScoped && isHumanApprovalRequest(method)) {
+			console.warn(
+				`[CodexRunner] Denied ${method} for ${threadId ?? "unattributed"} thread: toolApprovalMode=auto uses Codex auto_review only`,
+			);
 		}
-		return {};
+		return response;
 	}
 
 	private onProcessGone(): void {
@@ -332,10 +372,15 @@ function extractThreadId(params: unknown): string | undefined {
 	}
 	const p = params as {
 		threadId?: unknown;
+		conversationId?: unknown;
 		thread?: { id?: unknown };
 	};
 	if (typeof p.threadId === "string") {
 		return p.threadId;
+	}
+	// Legacy v1 approval requests identify the thread as `conversationId`.
+	if (typeof p.conversationId === "string") {
+		return p.conversationId;
 	}
 	return typeof p.thread?.id === "string" ? p.thread.id : undefined;
 }

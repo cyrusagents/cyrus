@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- New optional `toolApprovalMode` setting in `config.json`. Set it to `"auto"` and Claude and Codex issue sessions get each tool call reviewed by the provider's automatic approval: Claude auto mode, or Codex's automatic reviewer (as with `--approve-for-me`). Calls no longer need to be on the allowed-tool list. Explicit denials, sandboxing, MCP scope, and read-only prompt policies still apply. Requests nobody reviewed are denied, never approved automatically. Leaving the setting out keeps the current allowlist behavior.
+
 ## [0.2.80] - 2026-11-18
 
 ### Added

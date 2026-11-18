@@ -56,6 +56,7 @@ const RELOAD_MERGED_KEYS = [
 	"linearMcpConfigs",
 	"githubMcpConfigs",
 	"strictMcpConfig",
+	"toolApprovalMode",
 	"slackBlockedChannelIds",
 	"customSystemInstructions",
 	"defaultDisallowedTools",
@@ -364,6 +365,8 @@ export class ConfigManager extends EventEmitter {
 				customSystemInstructions: parsedConfig.customSystemInstructions,
 				strictMcpConfig:
 					parsedConfig.strictMcpConfig ?? this.config.strictMcpConfig,
+				// Removing the field restores the default allowlist behavior.
+				toolApprovalMode: parsedConfig.toolApprovalMode,
 				defaultDisallowedTools:
 					parsedConfig.defaultDisallowedTools ||
 					this.config.defaultDisallowedTools,

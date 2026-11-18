@@ -49,6 +49,7 @@ import type {
 	SerializableEdgeWorkerState,
 	SessionStartMessage,
 	StopSignalMessage,
+	ToolApprovalMode,
 	UnassignMessage,
 	UserPromptMessage,
 	Webhook,
@@ -238,6 +239,8 @@ export class EdgeWorker extends EventEmitter {
 	private sessionRepositories: Map<string, string> = new Map(); // Maps session ID to repository ID
 	private lastStopTimeBySession: Map<string, number> = new Map(); // Maps session ID to timestamp of last stop signal (for double-stop detection)
 	private warmInstances: Map<string, WarmQuery> = new Map(); // Pre-warmed Claude sessions keyed by agentSessionId
+	/** Tool approval mode each warm instance was started with (startup options are fixed). */
+	private warmInstanceApprovalModes: Map<string, ToolApprovalMode> = new Map();
 	private issueTrackers: Map<string, IIssueTrackerService> = new Map(); // one issue tracker per Linear workspace (keyed by linearWorkspaceId)
 	private linearEventTransport: LinearEventTransport | null = null; // Single event transport for webhook delivery
 	private gitHubEventTransport: GitHubEventTransport | null = null; // GitHub event transport for forwarded GitHub webhooks
@@ -3364,8 +3367,14 @@ ${taskSection}`;
 				const strictMcpConfigChanged =
 					(this.config.strictMcpConfig ?? true) !==
 					(changes.newConfig.strictMcpConfig ?? true);
+				// Warm sessions bake permission/MCP options in at startup, so
+				// discard them when any of those inputs change.
+				const toolApprovalModeChanged =
+					(this.config.toolApprovalMode ?? "allowlist") !==
+					(changes.newConfig.toolApprovalMode ?? "allowlist");
 				if (
 					strictMcpConfigChanged ||
+					toolApprovalModeChanged ||
 					this.config.customSystemInstructions !==
 						changes.newConfig.customSystemInstructions
 				) {
@@ -3373,6 +3382,7 @@ ${taskSection}`;
 						warmSession.close();
 					}
 					this.warmInstances.clear();
+					this.warmInstanceApprovalModes.clear();
 				}
 				this.updateLinearWorkspaceTokens(changes.newConfig);
 				await this.removeDeletedRepositories(changes.removed);
@@ -5210,6 +5220,11 @@ ${taskSection}`;
 					undefined, // maxTurns
 					linearWorkspaceId,
 					this.buildSkillSessionContext(primaryRepo, fullIssue, session),
+					"linear",
+					this.toolPermissionResolver.hasPromptScopedToolPolicy(
+						repositories,
+						promptType,
+					),
 				);
 
 			log.debug(
@@ -5986,6 +6001,19 @@ ${taskSection}`;
 		return this.runnerSelectionService.getDefaultFallbackModelForRunner(
 			runnerType,
 		);
+	}
+
+	/**
+	 * Effective `toolApprovalMode` for an issue session. Prompt-scoped tool
+	 * policies (e.g. read-only scopers) are intentionally restricted and stay
+	 * on the allowlist.
+	 */
+	private resolveToolApprovalMode(
+		promptScopedToolPolicy = false,
+	): ToolApprovalMode {
+		return this.config.toolApprovalMode === "auto" && !promptScopedToolPolicy
+			? "auto"
+			: "allowlist";
 	}
 
 	/**
@@ -7210,6 +7238,12 @@ ${input.userComment}
 		 * Defaults to `"linear"` (the pre-platform-aware behavior).
 		 */
 		sessionPlatform: "linear" | "github" | "gitlab" = "linear",
+		/**
+		 * True when the tool lists come from a prompt-specific (label prompt /
+		 * promptDefaults) policy. Those intentionally restricted sessions keep
+		 * the allowlist even when `toolApprovalMode` is `"auto"`.
+		 */
+		promptScopedToolPolicy = false,
 	): Promise<{ config: AgentRunnerConfig; runnerType: RunnerType }> {
 		const log = this.logger.withContext({
 			sessionId,
@@ -7254,6 +7288,7 @@ ${input.userComment}
 					? this.config.linearMcpConfigs
 					: this.config.githubMcpConfigs,
 			strictMcpConfig: this.config.strictMcpConfig,
+			toolApprovalMode: this.resolveToolApprovalMode(promptScopedToolPolicy),
 			linearWorkspaceId,
 			cyrusHome: this.cyrusHome,
 			// Org-matched GitHub App installation token (pushed by cyrus-hosted):
@@ -7287,7 +7322,18 @@ ${input.userComment}
 		// Skipped entirely when warm sessions are not enabled.
 		if (result.runnerType === "claude" && this.isWarmSessionsEnabled()) {
 			const warmSession = this.warmInstances.get(sessionId);
-			if (warmSession) {
+			const warmMode = this.warmInstanceApprovalModes.get(sessionId);
+			const liveMode = result.config.toolApprovalMode ?? "allowlist";
+			this.warmInstanceApprovalModes.delete(sessionId);
+			if (warmSession && warmMode !== liveMode) {
+				// The warm subprocess was started with a different permission
+				// policy (e.g. a prompt-scoped restricted session); never reuse it.
+				this.warmInstances.delete(sessionId);
+				warmSession.close();
+				log.debug(
+					`Discarding pre-warmed session: tool approval mode ${warmMode} != ${liveMode}`,
+				);
+			} else if (warmSession) {
 				this.warmInstances.delete(sessionId);
 				(
 					result.config as AgentRunnerConfig & { warmSession?: WarmQuery }
@@ -7596,6 +7642,11 @@ ${input.userComment}
 					// on ClaudeRunner.start() to override loaded settings.defaultMode.
 					const allowedTools = this.buildAllowedTools(repo);
 					const disallowedTools = this.buildDisallowedTools(repo);
+					// Warmup reconstructs an ordinary (non prompt-scoped) session.
+					// In auto mode the ordinary allow-list is not pre-approved;
+					// a session that resolves to a different mode discards this.
+					const toolApprovalMode = this.resolveToolApprovalMode();
+					const autoApproval = toolApprovalMode === "auto";
 
 					const warm = await startup({
 						options: {
@@ -7603,10 +7654,10 @@ ${input.userComment}
 							model,
 							cwd: session.workspace.path,
 							...(Object.keys(mcpServers).length > 0 && { mcpServers }),
-							...(allowedTools.length > 0 && { allowedTools }),
+							...(!autoApproval && allowedTools.length > 0 && { allowedTools }),
 							...(disallowedTools.length > 0 && { disallowedTools }),
 							settingSources: ["user", "project", "local"],
-							permissionMode: "default",
+							permissionMode: autoApproval ? "auto" : "default",
 							strictMcpConfig: this.config.strictMcpConfig ?? true,
 							// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally not set here;
 							// see CYPACK-1108 and ClaudeRunner.start() for context.
@@ -7615,6 +7666,7 @@ ${input.userComment}
 					});
 
 					this.warmInstances.set(session.id, warm);
+					this.warmInstanceApprovalModes.set(session.id, toolApprovalMode);
 					this.logger.info(
 						`Pre-warmed session ${session.id} (${session.issueContext?.issueIdentifier ?? "unknown"})`,
 					);
@@ -8065,6 +8117,11 @@ ${input.userComment}
 				maxTurns, // Pass maxTurns if specified
 				resolvedWorkspaceId,
 				this.buildSkillSessionContext(repository, fullIssue, session),
+				"linear",
+				this.toolPermissionResolver.hasPromptScopedToolPolicy(
+					repository,
+					promptType,
+				),
 			);
 
 		// Create the appropriate runner based on session state

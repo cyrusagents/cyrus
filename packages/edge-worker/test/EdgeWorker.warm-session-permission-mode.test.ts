@@ -109,6 +109,7 @@ describe("warm-session manual permission policy", () => {
 			sessionRepositories: new Map([[session.id, repo.id]]),
 			repositories: new Map([[repo.id, repo]]),
 			warmInstances: new Map(),
+			warmInstanceApprovalModes: new Map(),
 			mcpConfigService: {
 				buildMcpConfig: () => ({}),
 				buildMergedMcpConfigPath: vi.fn(),
@@ -170,5 +171,86 @@ describe("warm-session manual permission policy", () => {
 		expect(coldCall.options?.resume).toBe(session.claudeSessionId);
 		expect(coldRunner.isRunning()).toBe(false);
 		expect(loadedModes).toEqual([defaultMode, defaultMode]);
+	});
+
+	it("starts warm sessions in auto mode and never reuses them for a different mode", async () => {
+		vi.spyOn(ClaudeRunner.prototype as any, "setupLogging").mockImplementation(
+			() => {},
+		);
+		fixture = mkdtempSync(join(tmpdir(), "cyrus-warm-auto-"));
+		vi.stubEnv("CYRUS_ENABLE_WARM_SESSIONS", "1");
+		vi.stubEnv("CYRUS_LOG_LEVEL", "ERROR");
+		const warm = {
+			query: vi.fn(() => (async function* () {})()),
+			close: vi.fn(),
+		} as unknown as WarmQuery;
+		vi.mocked(startup).mockResolvedValue(warm);
+		const repo = { id: "repo", name: "test", linearWorkspaceId: "workspace" };
+		const session = {
+			id: "agent-session",
+			claudeSessionId: "persisted-claude-session",
+			workspace: { path: fixture },
+			updatedAt: 1,
+		};
+		const logger = { debug: vi.fn(), info: vi.fn(), withContext: vi.fn() };
+		logger.withContext.mockReturnValue(logger);
+		let liveConfig: Record<string, unknown> = { toolApprovalMode: "auto" };
+		const worker = Object.assign(Object.create(EdgeWorker.prototype), {
+			config: { toolApprovalMode: "auto" },
+			cyrusHome: fixture,
+			logger,
+			agentSessionManager: { getAllSessions: () => [session] },
+			sessionRepositories: new Map([[session.id, repo.id]]),
+			repositories: new Map([[repo.id, repo]]),
+			warmInstances: new Map(),
+			warmInstanceApprovalModes: new Map(),
+			mcpConfigService: {
+				buildMcpConfig: () => ({}),
+				buildMergedMcpConfigPath: vi.fn(),
+			},
+			buildAllowedTools: () => ["Read", "Bash"],
+			buildDisallowedTools: () => ["Write"],
+			skillsPluginResolver: {
+				resolve: async () => [],
+				discoverSkillNames: async () => [],
+			},
+			runnerConfigBuilder: {
+				buildIssueConfig: () => ({
+					config: { ...liveConfig },
+					runnerType: "claude",
+				}),
+			},
+		});
+		const attach = () =>
+			worker.buildAgentRunnerConfig(
+				session,
+				repo,
+				session.id,
+				undefined,
+				["Read"],
+				[],
+				["Write"],
+				session.claudeSessionId,
+				undefined,
+				undefined,
+				undefined,
+				"workspace",
+				{ repositoryId: repo.id, repoPaths: [fixture] },
+			);
+
+		await worker.warmupRecentSessions();
+		const startupOptions = vi.mocked(startup).mock.calls[0]![0].options!;
+		expect(startupOptions.permissionMode).toBe("auto");
+		expect(startupOptions).not.toHaveProperty("allowedTools");
+		expect(startupOptions.disallowedTools).toEqual(["Write"]);
+		expect((await attach()).config.warmSession).toBe(warm);
+
+		// A session resolving to allowlist (e.g. prompt-scoped read-only) must
+		// not inherit the auto-mode warm subprocess.
+		await worker.warmupRecentSessions();
+		liveConfig = {};
+		expect((await attach()).config.warmSession).toBeUndefined();
+		expect(warm.close).toHaveBeenCalledOnce();
+		expect(worker.warmInstances.size).toBe(0);
 	});
 });

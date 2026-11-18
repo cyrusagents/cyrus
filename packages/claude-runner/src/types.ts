@@ -16,7 +16,7 @@ import type {
 	SpawnOptions,
 	WarmQuery,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ILogger, OnAskUserQuestion } from "cyrus-core";
+import type { ILogger, OnAskUserQuestion, ToolApprovalMode } from "cyrus-core";
 
 export type { OnAskUserQuestion } from "cyrus-core";
 
@@ -50,6 +50,13 @@ export interface ClaudeRunnerConfig {
 	 * claude.ai connectors. Defaults to true.
 	 */
 	strictMcpConfig?: boolean;
+	/**
+	 * `"auto"`: run with `permissionMode: "auto"` (Claude's classifier
+	 * review), do not pre-approve `allowedTools`, and deny any call the
+	 * classifier escalates to `canUseTool` (AskUserQuestion still routes to
+	 * `onAskUserQuestion`). Omitted/`"allowlist"`: existing behavior.
+	 */
+	toolApprovalMode?: ToolApprovalMode;
 	model?: string; // Claude model to use (e.g., "opus", "sonnet", "haiku")
 	fallbackModel?: string; // Fallback model if primary model is unavailable
 	maxTurns?: number; // Maximum number of turns before completing the session
