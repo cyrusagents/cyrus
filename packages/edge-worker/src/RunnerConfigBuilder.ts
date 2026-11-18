@@ -235,10 +235,22 @@ export class RunnerConfigBuilder {
 		chatToolResolver: IChatToolResolver,
 		mcpConfigProvider: IMcpConfigProvider,
 		runnerSelector: IRunnerSelector,
+		private readonly getCustomInstructions: () => string | undefined = () =>
+			undefined,
 	) {
 		this.chatToolResolver = chatToolResolver;
 		this.mcpConfigProvider = mcpConfigProvider;
 		this.runnerSelector = runnerSelector;
+	}
+
+	private withCustomInstructions(
+		systemPrompt: string | undefined,
+	): string | undefined {
+		const instructions = this.getCustomInstructions()?.trim();
+		if (!instructions) return systemPrompt;
+		return [systemPrompt, `## Custom instructions\n\n${instructions}`]
+			.filter(Boolean)
+			.join("\n\n");
 	}
 
 	/**
@@ -317,7 +329,9 @@ export class RunnerConfigBuilder {
 			appendSystemPrompt: appendCloudRuntimeAddendum(
 				appendGitHubCliMediaAddendum(
 					appendBrowserUseAddendum(
-						appendFailureModeAddendum(input.systemPrompt),
+						appendFailureModeAddendum(
+							this.withCustomInstructions(input.systemPrompt),
+						),
 					),
 				),
 			),
@@ -469,7 +483,9 @@ export class RunnerConfigBuilder {
 			appendSystemPrompt: appendCloudRuntimeAddendum(
 				appendGitHubCliMediaAddendum(
 					appendBrowserUseAddendum(
-						appendFailureModeAddendum(input.systemPrompt),
+						appendFailureModeAddendum(
+							this.withCustomInstructions(input.systemPrompt),
+						),
 					),
 				),
 			),

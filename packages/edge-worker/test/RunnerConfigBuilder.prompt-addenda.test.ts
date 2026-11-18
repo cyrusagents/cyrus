@@ -17,7 +17,9 @@ const silentLogger: ILogger = {
 	error: () => {},
 } as unknown as ILogger;
 
-function makeBuilder(): RunnerConfigBuilder {
+function makeBuilder(
+	getInstructions?: () => string | undefined,
+): RunnerConfigBuilder {
 	const chatToolResolver: IChatToolResolver = {
 		buildChatAllowedTools: () => ["Read(**)"],
 	};
@@ -35,6 +37,7 @@ function makeBuilder(): RunnerConfigBuilder {
 		chatToolResolver,
 		mcpConfigProvider,
 		runnerSelector,
+		getInstructions,
 	);
 }
 
@@ -90,6 +93,19 @@ describe("RunnerConfigBuilder prompt addenda", () => {
 		if (originalCloudRuntime === undefined)
 			delete process.env.CYRUS_CLOUD_RUNTIME;
 		else process.env.CYRUS_CLOUD_RUNTIME = originalCloudRuntime;
+	});
+
+	it("appends current instructions for both chat and issue sessions and stops after clearing them", () => {
+		let instructions = "Use plain language.";
+		const builder = makeBuilder(() => instructions);
+		for (const prompt of [buildChatPrompt, buildIssuePrompt]) {
+			expect(prompt(builder)).toContain(
+				"Base prompt.\n\n## Custom instructions\n\nUse plain language.",
+			);
+		}
+		instructions = "";
+		expect(buildChatPrompt(builder)).not.toContain("Custom instructions");
+		expect(buildIssuePrompt(builder)).not.toContain("Custom instructions");
 	});
 
 	it("always adds GitHub media guidance to chat prompts while browser use remains disabled", () => {

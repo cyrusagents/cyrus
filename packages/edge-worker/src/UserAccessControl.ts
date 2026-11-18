@@ -123,6 +123,10 @@ export class UserAccessControl {
 		this.repoConfigs = repoConfigs;
 	}
 
+	setGlobalConfig(config: UserAccessControlConfig | undefined): void {
+		this.globalConfig = config;
+	}
+
 	/**
 	 * Check if a user is allowed to delegate issues to a specific repository.
 	 * @param userId - The user's Linear ID

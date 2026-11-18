@@ -125,12 +125,17 @@ describe("WorkerService", () => {
 			strictMcpConfig: false,
 			issueUpdateTrigger: false,
 			slackThreadFollowing: false,
+			slackBlockedChannelIds: ["C123"],
+			customSystemInstructions: "Use plain language.",
 			prReviewTrigger: false,
 			ciFailureTrigger: true,
 			githubReviewAppPolicies: [
 				{ installationId: "123", organization: "Grain", appIds: [42] },
 			],
-			userAccessControl: { allowedUsers: ["usr_1"] },
+			userAccessControl: {
+				allowedUsers: ["usr_1"],
+				blockedUsers: [{ slackId: "U456" }],
+			},
 			promptDefaults: { debugger: { allowedTools: ["Read"] } },
 			sandbox: { enabled: false },
 			maxConcurrentSessions: 3,
