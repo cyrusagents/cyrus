@@ -124,7 +124,7 @@ jobs:
       - name: Audit dependencies
         shell: bash
         run: |
-          if [[ "$REQUESTED_VERSION" != "0.2.81" ]]; then
+          if [[ "$REQUESTED_VERSION" != "0.2.82" ]]; then
             pnpm audit --audit-level low
             exit
           fi
@@ -144,7 +144,7 @@ jobs:
                 .github_advisory_id == "GHSA-fc5q-39xc-vjpf" and
                 .module_name == "picomatch")
           ' "$report" > /dev/null; then
-            echo "::warning::Cyrus 0.2.81: allowing the development-only picomatch advisory GHSA-fc5q-39xc-vjpf for this release."
+            echo "::warning::Cyrus 0.2.82: allowing the development-only picomatch advisory GHSA-fc5q-39xc-vjpf for this release."
             exit 0
           fi
           cat "$report"

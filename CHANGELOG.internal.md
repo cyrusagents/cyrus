@@ -4,6 +4,12 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.82] - 2026-11-18
+
+### Changed
+
+- Record the Slack and Zulip release test drive and allow the development-only picomatch audit exception for this version. ([#1613](https://github.com/cyrusagents/cyrus/pull/1613))
+
 ## [0.2.81] - 2026-11-18
 
 ### Changed

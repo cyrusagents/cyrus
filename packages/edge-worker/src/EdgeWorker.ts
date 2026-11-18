@@ -1246,6 +1246,11 @@ export class EdgeWorker extends EventEmitter {
 					chatRunnerType ?? this.runnerSelectionService.getDefaultRunner();
 				return this.createRunnerForType(runnerType, {
 					...config,
+					// Read the current mode for new and resumed chat runners.
+					...(this.config.toolApprovalMode === "auto" &&
+						(runnerType === "claude" || runnerType === "codex") && {
+							toolApprovalMode: "auto" as const,
+						}),
 					model: this.getDefaultModelForRunner(runnerType),
 					fallbackModel: this.getDefaultFallbackModelForRunner(runnerType),
 				});

@@ -4,6 +4,68 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.82] - 2026-11-18
+
+### Fixed
+
+- Apply Automatic tool approval to Claude and Codex sessions started or resumed from Slack and Zulip. ([#1613](https://github.com/cyrusagents/cyrus/pull/1613))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.82
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.82
+
+#### cyrus-core
+- cyrus-core@0.2.82
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.82
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.82
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.82
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.82
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.82
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.82
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.82
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.82
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.82
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.82
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.82
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.82
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.82
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.82
+
+#### cyrus-ai
+- cyrus-ai@0.2.82
+
 ## [0.2.81] - 2026-11-18
 
 ### Added

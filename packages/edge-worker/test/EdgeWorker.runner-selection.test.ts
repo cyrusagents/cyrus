@@ -66,6 +66,36 @@ describe("EdgeWorker - Runner Selection Based on Labels", () => {
 		expect(capturedRunnerConfig.sandbox).toBe(mode ?? "workspace-write");
 	});
 
+	it.each([
+		["claude", "auto", "auto"],
+		["codex", "auto", "auto"],
+		["claude", "allowlist", undefined],
+		["codex", undefined, undefined],
+		["gemini", "auto", undefined],
+	] as const)("uses %s with configured %s tool approvals for chat", (runnerType, toolApprovalMode, expected) => {
+		const worker = new EdgeWorker({ ...mockConfig, toolApprovalMode });
+		const provider = {
+			getDefaultRepository: () => undefined,
+			getRepositoryPaths: () => [],
+			getDefaultLinearWorkspaceId: () => undefined,
+		};
+		const deps = (worker as any).buildChatSessionHandlerDeps(
+			provider,
+			() => undefined,
+		);
+		deps.createRunner(
+			{
+				workingDirectory: "/test/chat",
+				allowedTools: ["Read"],
+				resumeSessionId: "chat-session-id",
+			},
+			runnerType,
+		);
+		expect(capturedRunnerConfig.toolApprovalMode).toBe(expected);
+		expect(capturedRunnerConfig.allowedTools).toEqual(["Read"]);
+		expect(capturedRunnerConfig.resumeSessionId).toBe("chat-session-id");
+	});
+
 	let edgeWorker: EdgeWorker;
 	let mockConfig: EdgeWorkerConfig;
 	let mockLinearClient: any;

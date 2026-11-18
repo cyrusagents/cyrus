@@ -579,7 +579,7 @@ profile and uses the corresponding native Codex mode.
 ### `toolApprovalMode`
 
 Controls how tool calls are approved in Claude and Codex issue sessions (Linear,
-GitHub, GitLab). Accepted values:
+GitHub, GitLab) and chat sessions (Slack, Zulip). Accepted values:
 
 - `allowlist` (default when omitted): existing behavior. The resolved allowed-tool
   lists pre-approve tools.
@@ -610,10 +610,10 @@ which MCP tools are enabled), and sandbox settings. These stay on the allowlist:
 
 - sessions whose tools come from a prompt-specific policy (`labelPrompts.<type>` or
   `promptDefaults.<type>` `allowedTools`/`disallowedTools`, e.g. a `readOnly` scoper)
-- chat sessions (Slack, Zulip)
 - Gemini, Cursor, and OpenCode runners
 
-Config reloads affect newly constructed runners. Pre-warmed Claude sessions
+Config reloads affect newly constructed runners, including resumed chat sessions.
+An active chat runner keeps its mode until it is recreated. Pre-warmed Claude sessions
 (`CYRUS_ENABLE_WARM_SESSIONS`) are not used in `auto` mode: prewarming is skipped,
 existing warm instances are closed when the mode switches to `auto`, and auto
 sessions always start a fresh, fully protected query. Codex runs auto and
