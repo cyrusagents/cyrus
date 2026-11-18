@@ -122,6 +122,14 @@ export interface ResolvedCodexConfig {
 	sandbox: ResolvedCodexSandbox;
 	workingDirectory?: string;
 	approvalPolicy: ApprovalMode;
+	/**
+	 * `"auto"` = Codex `--approve-for-me` equivalent: `approvalPolicy:
+	 * "on-request"` with `approvalsReviewer: "auto_review"`, sent on both
+	 * thread/start and thread/resume. Omitted = allowlist (legacy) behavior.
+	 */
+	toolApprovalMode?: "allowlist" | "auto";
+	/** Thread `approvalsReviewer`; only set in auto mode. */
+	approvalsReviewer?: "auto_review";
 	skipGitRepoCheck: boolean;
 	modelReasoningEffort?: ModelReasoningEffort;
 	webSearchMode?: WebSearchMode;

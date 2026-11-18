@@ -11,7 +11,11 @@ import type {
 // Import the AskUserQuestionInput type from the SDK's tool input types
 // This ensures we use the SDK's official type definitions
 import type { AskUserQuestionInput as SDKAskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
-import type { OpenCodeStateScope, RunnerType } from "./config-schemas.js";
+import type {
+	OpenCodeStateScope,
+	RunnerType,
+	ToolApprovalMode,
+} from "./config-schemas.js";
 import type { ILogger } from "./logging/ILogger.js";
 
 // ============================================================================
@@ -486,6 +490,14 @@ export interface AgentRunnerConfig {
 	 * Defaults to true for Claude sessions.
 	 */
 	strictMcpConfig?: boolean;
+	/**
+	 * Tool approval mode for this run. `"auto"` asks the runner to use
+	 * provider-native automatic review instead of pre-approving
+	 * `allowedTools` (Claude: `permissionMode: "auto"`; Codex:
+	 * `approvalsReviewer: "auto_review"`). Omitted/`"allowlist"` keeps the
+	 * allowlist behavior. Runners without native review ignore it.
+	 */
+	toolApprovalMode?: ToolApprovalMode;
 	/** Global OpenCode runtime config overrides from Cyrus config */
 	opencodeGlobalConfig?: JsonObject;
 	/** Repository OpenCode runtime config overrides from Cyrus config */

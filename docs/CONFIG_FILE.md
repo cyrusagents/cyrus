@@ -574,6 +574,51 @@ in progress. Removing the field restores `workspace-write` for new runners.
 Selecting `read-only` or full access takes precedence over a generated filesystem
 profile and uses the corresponding native Codex mode.
 
+---
+
+### `toolApprovalMode`
+
+Controls how tool calls are approved in Claude and Codex issue sessions (Linear,
+GitHub, GitLab). Accepted values:
+
+- `allowlist` (default when omitted): existing behavior. The resolved allowed-tool
+  lists pre-approve tools.
+- `auto`: provider-native automatic review.
+  - **Claude** runs with `permissionMode: "auto"`: Claude's classifier approves or
+    denies calls. The ordinary allowed-tool list is not pre-approved, so those
+    calls are reviewed too. Any call the classifier cannot decide is denied
+    because no one is available to approve it interactively. `AskUserQuestion`
+    still goes to the Linear question flow.
+  - **Codex** threads start and resume with `approvalPolicy: "on-request"` and
+    `approvalsReviewer: "auto_review"`, the equivalent of `codex --approve-for-me`.
+    Codex's reviewer decides on sandbox escalations. The existing sandbox and
+    filesystem/network profile stay in place, and `danger-full-access` is lowered
+    to `workspace-write` in this mode. Cyrus denies any approval, permission-grant,
+    elicitation, or user-input request that still reaches it for an auto thread.
+    It never accepts one automatically. If the Codex version does not confirm
+    `auto_review`, a warning is logged and those requests are still denied.
+
+```json
+{
+  "toolApprovalMode": "auto"
+}
+```
+
+In `auto` mode the following still apply: `disallowedTools` / `defaultDisallowedTools`,
+home-directory read denials, MCP server scope (Codex still uses `allowedTools` to choose
+which MCP tools are enabled), and sandbox settings. These stay on the allowlist:
+
+- sessions whose tools come from a prompt-specific policy (`labelPrompts.<type>` or
+  `promptDefaults.<type>` `allowedTools`/`disallowedTools`, e.g. a `readOnly` scoper)
+- chat sessions (Slack, Zulip)
+- Gemini, Cursor, and OpenCode runners
+
+Config reloads affect newly constructed runners. Pre-warmed Claude sessions
+(`CYRUS_ENABLE_WARM_SESSIONS`) are not used in `auto` mode: prewarming is skipped,
+existing warm instances are closed when the mode switches to `auto`, and auto
+sessions always start a fresh, fully protected query. Codex runs auto and
+allowlist threads on separate app-server processes.
+
 
 ## Tool Configuration Priority
 

@@ -88,6 +88,7 @@ export type {
 	RepositoryConfigPayload,
 	RunnerType,
 	SandboxConfig,
+	ToolApprovalMode,
 	UserAccessControlConfig,
 	UserIdentifier,
 } from "./config-types.js";
@@ -105,6 +106,7 @@ export {
 	requireLinearWorkspaceId,
 	resolvePath,
 	SandboxConfigSchema,
+	ToolApprovalModeSchema,
 	TRUSTED_DOMAINS,
 	UserAccessControlConfigSchema,
 	UserIdentifierSchema,

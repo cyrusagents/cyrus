@@ -4,6 +4,11 @@ import {
 	type IAppServerClient,
 } from "./appServerClient.js";
 import { resolveCodexAppServerLaunch } from "./codexBinary.js";
+import {
+	isHumanApprovalRequest,
+	resolveServerRequest,
+	type ToolApprovalPolicy,
+} from "./serverRequestPolicy.js";
 import type { ResolvedCodexConfig } from "./types.js";
 
 const CLIENT_INFO = { name: "cyrus-codex-runner", version: "1.0.0" };
@@ -32,6 +37,11 @@ interface LaunchOptions {
 	args: string[];
 	env?: Record<string, string>;
 	requestTimeoutMs?: number;
+	/**
+	 * Client-side approval policy for every thread on this process. Part of the
+	 * pool key, so auto and allowlist threads never share a process.
+	 */
+	approvalPolicy: ToolApprovalPolicy;
 }
 
 /**
@@ -189,16 +199,23 @@ class PooledAppServerProcess {
 		}
 	}
 
+	/**
+	 * Answer a server→client request using this process's fixed approval
+	 * policy. Allowlist processes (approvalPolicy="never") keep the historical
+	 * defensive response so a stray request can never wedge a turn. Auto
+	 * processes never fall back to it: every human approval, permission grant,
+	 * elicitation and user-input request is denied — including requests that
+	 * arrive before thread/start returns or after a thread closes — because
+	 * Codex's `auto_review` reviewer is the only approver.
+	 */
 	private onServerRequest(method: string): unknown {
-		// With approvalPolicy="never" the server should not ask for approvals;
-		// respond defensively so a stray request can never wedge a turn.
-		if (/auth/i.test(method)) {
-			return { chatgptAuthToken: null };
+		const policy = this.launchOptions.approvalPolicy;
+		if (policy === "auto" && isHumanApprovalRequest(method)) {
+			console.warn(
+				`[CodexRunner] Denied ${method}: toolApprovalMode=auto uses Codex auto_review only`,
+			);
 		}
-		if (/approval/i.test(method)) {
-			return { decision: "accept" };
-		}
-		return {};
+		return resolveServerRequest(method, policy);
 	}
 
 	private onProcessGone(): void {
@@ -292,6 +309,7 @@ export class AppServerProcessManager {
 			...(this.requestTimeoutMs !== undefined
 				? { requestTimeoutMs: this.requestTimeoutMs }
 				: {}),
+			approvalPolicy: config.toolApprovalMode === "auto" ? "auto" : "allowlist",
 		};
 		const launchKey = buildLaunchKey(launchOptions);
 
@@ -346,6 +364,7 @@ function buildLaunchKey(options: LaunchOptions): string {
 		args: options.args,
 		env: options.env ? sortRecord(options.env) : null,
 		requestTimeoutMs: options.requestTimeoutMs ?? null,
+		approvalPolicy: options.approvalPolicy,
 	});
 }
 

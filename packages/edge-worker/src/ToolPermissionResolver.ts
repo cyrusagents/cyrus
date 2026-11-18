@@ -230,6 +230,37 @@ export class ToolPermissionResolver {
 	}
 
 	/**
+	 * Whether the session's tool policy comes from a prompt-specific
+	 * (label prompt / `promptDefaults`) allow- or deny-list — e.g. a
+	 * `readOnly` scoper. Those are intentionally restricted workflows, so
+	 * `toolApprovalMode: "auto"` leaves them on the allowlist path instead of
+	 * handing approval to the provider's automatic review.
+	 */
+	public hasPromptScopedToolPolicy(
+		repositories: RepositoryConfig | RepositoryConfig[],
+		promptType?: PromptType,
+	): boolean {
+		if (!promptType) return false;
+		const effectivePromptType =
+			promptType === "graphite-orchestrator" ? "orchestrator" : promptType;
+		const globalDefault = this.config.promptDefaults?.[effectivePromptType];
+		if (globalDefault?.allowedTools || globalDefault?.disallowedTools) {
+			return true;
+		}
+		const repoArray = Array.isArray(repositories)
+			? repositories
+			: [repositories];
+		return repoArray.some((repo) => {
+			const promptConfig = repo.labelPrompts?.[effectivePromptType];
+			return (
+				!!promptConfig &&
+				!Array.isArray(promptConfig) &&
+				(!!promptConfig.allowedTools || !!promptConfig.disallowedTools)
+			);
+		});
+	}
+
+	/**
 	 * Build disallowed tools list from repository and global config.
 	 * Accepts a single repository or an array for multi-repo sessions.
 	 * For multiple repositories, the result is the intersection — a tool is only

@@ -680,6 +680,10 @@
 		"strictMcpConfig": {
 			"type": "boolean"
 		},
+		"toolApprovalMode": {
+			"type": "string",
+			"enum": ["allowlist", "auto"]
+		},
 		"slackBlockedChannelIds": {
 			"maxItems": 200,
 			"type": "array",

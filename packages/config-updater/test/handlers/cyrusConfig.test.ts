@@ -43,6 +43,29 @@ describe("handleCyrusConfig", () => {
 		expect(result.data).toMatchObject({ restartCyrus: false });
 	});
 
+	it.each([
+		"auto",
+		"allowlist",
+		undefined,
+	])("persists toolApprovalMode %s from pushed config", async (toolApprovalMode) => {
+		const result = await handleCyrusConfig(
+			{ repositories: [], toolApprovalMode },
+			cyrusHome,
+		);
+		expect(result.success).toBe(true);
+		const saved = JSON.parse(mockWriteFileSync.mock.calls[0]![1] as string);
+		expect(saved.toolApprovalMode).toBe(toolApprovalMode);
+	});
+
+	it("rejects an unknown toolApprovalMode without writing config", async () => {
+		const result = await handleCyrusConfig(
+			{ repositories: [], toolApprovalMode: "bypassPermissions" },
+			cyrusHome,
+		);
+		expect(result.success).toBe(false);
+		expect(mockWriteFileSync).not.toHaveBeenCalled();
+	});
+
 	it("defaults repository workspaceBaseDir to cyrusHome/worktrees", async () => {
 		const result = await handleCyrusConfig(
 			{
