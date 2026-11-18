@@ -647,6 +647,7 @@ export class EdgeWorker extends EventEmitter {
 			this.toolPermissionResolver,
 			this.mcpConfigService,
 			this.runnerSelectionService,
+			() => this.config.customSystemInstructions,
 		);
 		this.activityPoster = new ActivityPoster(
 			this.issueTrackers,
@@ -1490,6 +1491,8 @@ export class EdgeWorker extends EventEmitter {
 				repositoryRoutingContext: routingContext,
 				cyrusAppBaseUrl,
 				userAccessControl: this.userAccessControl,
+				isBlocked: (channelId) =>
+					this.config.slackBlockedChannelIds?.includes(channelId) === true,
 			},
 		);
 
@@ -3361,7 +3364,11 @@ ${taskSection}`;
 				const strictMcpConfigChanged =
 					(this.config.strictMcpConfig ?? true) !==
 					(changes.newConfig.strictMcpConfig ?? true);
-				if (strictMcpConfigChanged) {
+				if (
+					strictMcpConfigChanged ||
+					this.config.customSystemInstructions !==
+						changes.newConfig.customSystemInstructions
+				) {
 					for (const warmSession of this.warmInstances.values()) {
 						warmSession.close();
 					}
@@ -3374,6 +3381,7 @@ ${taskSection}`;
 				// Live-update sandbox / egress proxy settings
 				await this.applySandboxConfigChanges(changes.newConfig);
 				this.config = EdgeWorker.normalizeConfigPaths(changes.newConfig);
+				this.userAccessControl.setGlobalConfig(this.config.userAccessControl);
 				this.configManager.setConfig(changes.newConfig);
 				this.runnerSelectionService.setConfig(changes.newConfig);
 				this.toolPermissionResolver.setConfig(changes.newConfig);

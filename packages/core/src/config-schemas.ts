@@ -551,6 +551,11 @@ export const EdgeConfigSchema = z.object({
 	 * omitted.
 	 */
 	strictMcpConfig: z.boolean().optional(),
+	slackBlockedChannelIds: z
+		.array(z.string().regex(/^[CGD][A-Z0-9]+$/))
+		.max(200)
+		.optional(),
+	customSystemInstructions: z.string().trim().max(8000).optional(),
 
 	/**
 	 * Whether to trigger agent sessions when issue title, description, or attachments are updated.
