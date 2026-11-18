@@ -12,6 +12,10 @@ export const RunnerTypeSchema = z.enum([
 ]);
 export type RunnerType = z.infer<typeof RunnerTypeSchema>;
 
+/** Tool approval mode (`toolApprovalMode` in config.json). */
+export const ToolApprovalModeSchema = z.enum(["allowlist", "auto"]);
+export type ToolApprovalMode = z.infer<typeof ToolApprovalModeSchema>;
+
 /**
  * User identifier for access control matching.
  * Supports multiple formats for flexibility:
@@ -415,7 +419,7 @@ export const EdgeConfigSchema = z.object({
 	/** Default Gemini model to use across all repositories (e.g., "gemini-2.5-pro") */
 	geminiDefaultModel: z.string().optional(),
 
-	/** Default Codex model to use across all repositories (e.g., "gpt-6-astra", "gpt-5.5", "gpt-5.3-codex") */
+	/** Default Codex model to use across all repositories (e.g., "gpt-6.2-sol", "gpt-6.2-astra") */
 	codexDefaultModel: z.string().optional(),
 
 	/** Codex command sandbox mode. Defaults to workspace-write; full host access is opt-in. */
@@ -551,6 +555,26 @@ export const EdgeConfigSchema = z.object({
 	 * omitted.
 	 */
 	strictMcpConfig: z.boolean().optional(),
+
+	/**
+	 * How tool calls are approved in Claude and Codex issue sessions.
+	 * - `"allowlist"` (default when omitted): existing behavior — the operator
+	 *   allowed-tool lists pre-approve tools.
+	 * - `"auto"`: provider-native automatic review. Claude runs with
+	 *   `permissionMode: "auto"` (model classifier) and Codex threads use
+	 *   `approvalPolicy: "on-request"` + `approvalsReviewer: "auto_review"`
+	 *   (the `--approve-for-me` equivalent) inside the existing sandbox.
+	 *   The ordinary allowed-tool list is no longer pre-approved; explicit
+	 *   denials, MCP server scope, sandboxing and prompt-specific (e.g.
+	 *   read-only) tool policies still apply. Chat sessions and other runners
+	 *   keep allowlists.
+	 */
+	toolApprovalMode: ToolApprovalModeSchema.optional(),
+	slackBlockedChannelIds: z
+		.array(z.string().regex(/^[CGD][A-Z0-9]+$/))
+		.max(200)
+		.optional(),
+	customSystemInstructions: z.string().trim().max(8000).optional(),
 
 	/**
 	 * Whether to trigger agent sessions when issue title, description, or attachments are updated.

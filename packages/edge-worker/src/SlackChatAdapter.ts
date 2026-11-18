@@ -63,6 +63,7 @@ export class SlackChatAdapter
 	private behavioursPageUrl: string;
 	private userAccessControl: UserAccessControl | undefined;
 	private logger: ILogger;
+	private readonly isBlocked?: (channelId: string) => boolean;
 	private selfBotId: string | undefined;
 
 	constructor(
@@ -84,12 +85,14 @@ export class SlackChatAdapter
 			 * UserAccessControl.checkSlackAccess.
 			 */
 			userAccessControl?: UserAccessControl;
+			isBlocked?: (channelId: string) => boolean;
 		},
 	) {
 		this.repositoryProvider = repositoryProvider;
 		this.repositoryRoutingContext =
 			options?.repositoryRoutingContext?.trim() || "";
 		this.userAccessControl = options?.userAccessControl;
+		this.isBlocked = options?.isBlocked;
 		const appBaseUrl = options?.cyrusAppBaseUrl?.trim().replace(/\/+$/, "");
 		this.behavioursPageUrl = appBaseUrl
 			? `${appBaseUrl}${BEHAVIOURS_PAGE_ROUTE}`
@@ -156,6 +159,9 @@ export class SlackChatAdapter
 	 * every reply in a bound thread, and answering each one would spam it.
 	 */
 	checkAccess(event: SlackWebhookEvent): ChatAccessDecision {
+		if (this.isBlocked?.(event.payload.channel)) {
+			return { allowed: false, reason: "Slack channel is blocked" };
+		}
 		if (!this.userAccessControl) {
 			return { allowed: true };
 		}

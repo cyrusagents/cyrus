@@ -8,6 +8,197 @@ All notable changes to this project will be documented in this file.
 
 - Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.327](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03327) and [`@anthropic-ai/sdk` 1.10.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.10.0), restoring MCP resource discovery tools for full engineering sessions, retaining `WebFetch` across platform defaults, preserving unattended sandboxed Bash approvals under the SDK's opt-in setting, surfacing warnings when organization-managed MCP configuration replaces a session's integrations, and adopting the latest SDK validation and background-task fixes. ([CYPACK-1651](https://linear.app/ceedar/issue/CYPACK-1651/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1609](https://github.com/cyrusagents/cyrus/pull/1609))
 
+## [0.2.82] - 2026-11-18
+
+### Fixed
+
+- Apply Automatic tool approval to Claude and Codex sessions started or resumed from Slack and Zulip. ([#1613](https://github.com/cyrusagents/cyrus/pull/1613))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.82
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.82
+
+#### cyrus-core
+- cyrus-core@0.2.82
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.82
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.82
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.82
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.82
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.82
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.82
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.82
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.82
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.82
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.82
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.82
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.82
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.82
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.82
+
+#### cyrus-ai
+- cyrus-ai@0.2.82
+
+## [0.2.81] - 2026-11-18
+
+### Added
+
+- Set `"toolApprovalMode": "auto"` in `config.json` to have Claude and Codex review tool approvals in issue sessions. Claude uses auto mode and Codex uses the reviewer behind `--approve-for-me`. Existing denials, sandbox limits, and configured MCP server scope still apply. Allowed tools remains the default. ([#1612](https://github.com/cyrusagents/cyrus/pull/1612))
+
+### Changed
+
+- Bundle Codex CLI and SDK 0.170.0 and use GPT-6.2 Sol when no Codex model is configured. Existing model choices remain explicit overrides. ([#1612](https://github.com/cyrusagents/cyrus/pull/1612))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.81
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.81
+
+#### cyrus-core
+- cyrus-core@0.2.81
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.81
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.81
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.81
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.81
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.81
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.81
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.81
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.81
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.81
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.81
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.81
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.81
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.81
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.81
+
+#### cyrus-ai
+- cyrus-ai@0.2.81
+
+## [0.2.80] - 2026-11-18
+
+### Added
+
+- Add per-runtime Slack channel and user block lists. Slack user blocking uses the existing access rules. ([#1610](https://github.com/cyrusagents/cyrus/pull/1610))
+- Append custom instructions to the system prompt for newly started Claude, Codex, Gemini, and OpenCode sessions.
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.80
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.80
+
+#### cyrus-core
+- cyrus-core@0.2.80
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.80
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.80
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.80
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.80
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.80
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.80
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.80
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.80
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.80
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.80
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.80
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.80
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.80
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.80
+
+#### cyrus-ai
+- cyrus-ai@0.2.80
+
 ## [0.2.79] - 2026-11-16
 
 ### Added

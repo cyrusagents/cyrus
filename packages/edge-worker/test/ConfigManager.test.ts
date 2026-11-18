@@ -51,6 +51,37 @@ describe("ConfigManager", () => {
 		}
 	});
 
+	it("reloads toolApprovalMode and restores the default when removed", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cyrus-tool-approval-"));
+		const path = join(dir, "config.json");
+		const manager = new ConfigManager(
+			{ repositories: [repo] },
+			logger,
+			path,
+			new Map([[repo.id, repo]]),
+		);
+		const changed = vi.fn();
+		manager.on("configChanged", (event) => {
+			changed(event);
+			manager.setConfig(event.newConfig);
+		});
+		try {
+			for (const mode of ["auto", "allowlist", undefined]) {
+				await writeFile(
+					path,
+					JSON.stringify({ repositories: [repo], toolApprovalMode: mode }),
+				);
+				await (manager as any).handleConfigChange();
+				expect(changed.mock.lastCall?.[0].newConfig.toolApprovalMode).toBe(
+					mode,
+				);
+			}
+			expect(changed).toHaveBeenCalledTimes(3);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	let tempDir: string | undefined;
 
 	afterEach(async () => {

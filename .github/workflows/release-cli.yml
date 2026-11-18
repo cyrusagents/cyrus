@@ -122,7 +122,33 @@ jobs:
         run: pnpm install --frozen-lockfile --strict-peer-dependencies
 
       - name: Audit dependencies
-        run: pnpm audit --audit-level low
+        shell: bash
+        run: |
+          if [[ "$REQUESTED_VERSION" != "0.2.82" ]]; then
+            pnpm audit --audit-level low
+            exit
+          fi
+
+          # One release only: GHSA-fc5q-39xc-vjpf has no published fix.
+          # Require a clean production audit and reject every other advisory.
+          pnpm audit --prod --audit-level low
+          report="$RUNNER_TEMP/cyrus-release-audit.json"
+          status=0
+          pnpm audit --audit-level low --json > "$report" || status=$?
+          if [[ "$status" == 0 ]]; then
+            exit 0
+          fi
+          if [[ "$status" == 1 ]] && jq -e '
+            .advisories
+            | type == "object" and length == 1 and all(.[];
+                .github_advisory_id == "GHSA-fc5q-39xc-vjpf" and
+                .module_name == "picomatch")
+          ' "$report" > /dev/null; then
+            echo "::warning::Cyrus 0.2.82: allowing the development-only picomatch advisory GHSA-fc5q-39xc-vjpf for this release."
+            exit 0
+          fi
+          cat "$report"
+          exit "$status"
 
       - name: Lint
         run: pnpm lint

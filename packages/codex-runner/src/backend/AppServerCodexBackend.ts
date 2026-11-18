@@ -20,6 +20,8 @@ import type {
 
 interface ThreadStartResult {
 	thread?: { id?: string };
+	approvalPolicy?: unknown;
+	approvalsReviewer?: unknown;
 }
 
 interface TurnStartResult {
@@ -212,6 +214,7 @@ export class AppServerCodexBackend
 			"thread/start",
 			this.threadOptionsParams(config),
 		);
+		this.verifyApprovalReview(config, result, "thread/start");
 		const id = result?.thread?.id;
 		if (!id) {
 			throw new Error("thread/start did not return a thread id");
@@ -227,6 +230,7 @@ export class AppServerCodexBackend
 				...this.threadOptionsParams(config),
 			},
 		);
+		this.verifyApprovalReview(config, result, "thread/resume");
 		// Resuming returns the same id we asked for; fall back to it defensively.
 		return result?.thread?.id ?? config.resumeSessionId ?? "";
 	}
@@ -244,6 +248,9 @@ export class AppServerCodexBackend
 		return {
 			...(config.workingDirectory ? { cwd: config.workingDirectory } : {}),
 			approvalPolicy: config.approvalPolicy,
+			...(config.approvalsReviewer
+				? { approvalsReviewer: config.approvalsReviewer }
+				: {}),
 			...sandboxParams,
 			...(config.model ? { model: config.model } : {}),
 			...(config.developerInstructions
@@ -251,6 +258,34 @@ export class AppServerCodexBackend
 				: {}),
 			config: this.buildThreadConfig(config),
 		};
+	}
+
+	/**
+	 * In auto mode, confirm the app-server actually applied automatic review.
+	 * Codex 0.163.0 echoes `approvalPolicy`/`approvalsReviewer` on
+	 * thread/start and thread/resume. An older Codex that ignores the field
+	 * would route approvals to the client instead; that is safe because auto
+	 * threads run on a dedicated process that denies every human-approval
+	 * request, but
+	 * it is logged so operators know reviews are not running.
+	 */
+	private verifyApprovalReview(
+		config: ResolvedCodexConfig,
+		result: ThreadStartResult | undefined,
+		method: string,
+	): void {
+		if (config.toolApprovalMode !== "auto") {
+			return;
+		}
+		if (
+			result?.approvalsReviewer === "auto_review" &&
+			result.approvalPolicy === "on-request"
+		) {
+			return;
+		}
+		console.warn(
+			`[CodexRunner] ${method} did not confirm approvalsReviewer=auto_review (got reviewer=${String(result?.approvalsReviewer)}, policy=${JSON.stringify(result?.approvalPolicy)}); this auto-mode app-server process denies every client-side approval request`,
+		);
 	}
 
 	/**

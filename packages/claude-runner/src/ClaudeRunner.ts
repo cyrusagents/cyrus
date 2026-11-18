@@ -287,8 +287,10 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 		this.cyrusHome = config.cyrusHome;
 		this.formatter = new ClaudeMessageFormatter();
 
-		// Create canUseTool callback if onAskUserQuestion is provided
-		if (config.onAskUserQuestion) {
+		// Create canUseTool callback if onAskUserQuestion is provided. In auto
+		// approval mode it is always installed so calls the classifier cannot
+		// decide are denied instead of falling through.
+		if (config.onAskUserQuestion || this.isAutoApproval()) {
 			this.canUseToolCallback = this.createCanUseToolCallback();
 		}
 
@@ -296,6 +298,11 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 		if (config.onMessage) this.on("message", config.onMessage);
 		if (config.onError) this.on("error", config.onError);
 		if (config.onComplete) this.on("complete", config.onComplete);
+	}
+
+	/** Whether this run uses provider-native automatic tool review. */
+	private isAutoApproval(): boolean {
+		return this.config.toolApprovalMode === "auto";
 	}
 
 	/**
@@ -320,6 +327,19 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 		): Promise<PermissionResult> => {
 			// Only intercept AskUserQuestion tool
 			if (toolName !== "AskUserQuestion") {
+				if (this.isAutoApproval()) {
+					// permissionMode "auto" only reaches canUseTool when its
+					// classifier cannot decide. There is no interactive approver,
+					// so deny rather than bypass the review.
+					this.logger.info(
+						`Denied ${toolName}: automatic review did not approve it (toolApprovalMode=auto)`,
+					);
+					return {
+						behavior: "deny",
+						message:
+							"Automatic permission review did not approve this tool call and no interactive approver is available. Try a different approach.",
+					};
+				}
 				// Allow all other tools to proceed normally
 				return {
 					behavior: "allow",
@@ -525,10 +545,16 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 				promptForQuery = this.streamingPrompt;
 			}
 
-			// Process allowed directories by adding Read patterns to allowedTools
-			let processedAllowedTools = this.config.allowedTools
-				? [...this.config.allowedTools]
-				: undefined;
+			// Process allowed directories by adding Read patterns to allowedTools.
+			// In auto approval mode the ordinary allowed-tool list is NOT
+			// pre-approved, so the provider's automatic review evaluates those
+			// calls. Cyrus's own directory Read grants below are kept, and
+			// disallowedTools (explicit + home-directory denials) still apply.
+			const autoApproval = this.isAutoApproval();
+			let processedAllowedTools =
+				this.config.allowedTools && !autoApproval
+					? [...this.config.allowedTools]
+					: undefined;
 			if (
 				this.config.allowedDirectories &&
 				this.config.allowedDirectories.length > 0
@@ -672,7 +698,9 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// Preserve the pre-0.3.286 SDK permission policy: Cyrus tool rules
 					// and canUseTool handle approvals, regardless of permissions.defaultMode,
 					// provider, or telemetry. Omission now lets Claude Code select auto.
-					permissionMode: "default",
+					// toolApprovalMode "auto" opts into Claude's classifier-based
+					// review; canUseTool then denies anything it cannot decide.
+					permissionMode: autoApproval ? "auto" : "default",
 					env: {
 						...buildBaseSessionEnv(),
 						// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally NOT set while

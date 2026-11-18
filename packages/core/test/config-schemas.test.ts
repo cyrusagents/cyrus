@@ -28,6 +28,24 @@ describe("EdgeConfigSchema", () => {
 		).toBe(false);
 	});
 
+	it("accepts toolApprovalMode allowlist/auto and keeps it optional", () => {
+		expect(
+			EdgeConfigSchema.parse({ repositories: [] }).toolApprovalMode,
+		).toBeUndefined();
+		for (const mode of ["allowlist", "auto"]) {
+			expect(
+				EdgeConfigSchema.parse({ repositories: [], toolApprovalMode: mode })
+					.toolApprovalMode,
+			).toBe(mode);
+		}
+		expect(
+			EdgeConfigSchema.safeParse({
+				repositories: [],
+				toolApprovalMode: "bypass",
+			}).success,
+		).toBe(false);
+	});
+
 	it("accepts strict MCP configuration as a top-level boolean", () => {
 		const enabled = EdgeConfigSchema.parse({
 			repositories: [baseRepository],

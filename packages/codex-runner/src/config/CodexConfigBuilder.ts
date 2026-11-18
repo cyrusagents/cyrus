@@ -37,17 +37,37 @@ export class CodexConfigBuilder {
 			this.config.webSearchMode ??
 			(this.config.includeWebSearch ? "live" : undefined);
 
+		const autoReview = this.config.toolApprovalMode === "auto";
+		const requestedSandbox = this.config.sandbox || "workspace-write";
+		// Automatic review must stay inside a sandbox (`--approve-for-me` uses
+		// workspace-write): never let it run with unrestricted host access.
+		const sandboxMode =
+			autoReview && requestedSandbox === "danger-full-access"
+				? "workspace-write"
+				: requestedSandbox;
+		if (sandboxMode !== requestedSandbox) {
+			console.warn(
+				"[CodexRunner] toolApprovalMode=auto: danger-full-access sandbox downgraded to workspace-write",
+			);
+		}
+
 		return {
 			model: this.config.model,
 			sandbox: resolveCodexSandbox({
-				mode: this.config.sandbox || "workspace-write",
+				mode: sandboxMode,
 				workingDirectory: this.config.workingDirectory,
 				writableRoots: this.getAdditionalDirectories(),
 				networkAccess: this.resolveNetworkAccess(),
 				sandboxSettings: this.config.sandboxSettings,
 			}),
 			workingDirectory: this.config.workingDirectory,
-			approvalPolicy: this.config.askForApproval || "never",
+			approvalPolicy: autoReview
+				? "on-request"
+				: this.config.askForApproval || "never",
+			...(autoReview && {
+				toolApprovalMode: "auto" as const,
+				approvalsReviewer: "auto_review" as const,
+			}),
 			skipGitRepoCheck: this.config.skipGitRepoCheck ?? true,
 			modelReasoningEffort: reasoningEffort,
 			webSearchMode,
