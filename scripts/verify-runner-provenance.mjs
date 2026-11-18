@@ -18,11 +18,15 @@ const FULL_GIT_SHA = /^[a-f0-9]{40}$/;
 const REQUIRED_PROVENANCE = {
 	artifacts: {
 		consumerLockSha256:
-			"aab96b4a73ab8ceef592814246e9944b686c9be3d72991ced010055b1e2259ab",
+			"1ea47f69599d508fcb57af60b90deb54692d43354431d5df2698af010ec1d1a8",
 		coreSha256:
-			"a361bab54d3e02093155eba1a7ed569704ce9ffb22cd9626f280755183e2ef07",
+			"7b4558d20e2c87af569fc0ebb50b81d3091421d570e51ffdd9cea0ca620bc9eb",
 		runnerSha256:
-			"91f5ed141cd8ef2c344408fc32b94f0c7327c2d04388734e0c8bf7e460186ced",
+			"ef981182733077248b730c19cad1c9f554230d3eec319f6ee53eb9be49b2536b",
+	},
+	configuration: {
+		configDir: "/Users/agentops",
+		secureStorageConfigDir: "",
 	},
 	identity: {
 		accountEmailSha256:
@@ -33,16 +37,20 @@ const REQUIRED_PROVENANCE = {
 		subscriptionType: "max",
 	},
 	installed: {
-		agentSdk: ["@anthropic-ai/claude-agent-sdk", "0.3.318"],
-		apiSdk: ["@anthropic-ai/sdk", "1.5.0"],
-		core: ["cyrus-core", "0.2.75"],
-		native: ["@anthropic-ai/claude-agent-sdk-darwin-arm64", "0.3.318"],
-		nativeClaudeCodeVersion: "2.1.318",
+		agentSdk: ["@anthropic-ai/claude-agent-sdk", "0.3.327"],
+		apiSdk: ["@anthropic-ai/sdk", "1.10.0"],
+		core: ["cyrus-core", "0.2.84-test.0"],
+		native: ["@anthropic-ai/claude-agent-sdk-darwin-arm64", "0.3.327"],
+		nativeClaudeCodeVersion: "2.1.327",
 		nativeExecutableSha256:
-			"677a2ea7bf576cedd20e191d973914ed8a41796f53a63b1923381ddc4d5b5e7d",
-		runner: ["cyrus-claude-runner", "0.2.75"],
+			"76d48205c926c8a6978cfc2171b631bcd01e20bbadd085638bb2ec57bea91c5b",
+		runner: ["cyrus-claude-runner", "0.2.84-test.0"],
 	},
-	source: { pullRequest: 1583, repository: "cyrusagents/cyrus" },
+	source: {
+		featureCommit: "16607a1a211a7d3af933632fef97cd1c30436154",
+		pullRequest: 1609,
+		repository: "cyrusagents/cyrus",
+	},
 };
 
 function run(command, args, options = {}) {
@@ -65,10 +73,11 @@ export function sha256File(path) {
 	return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
-export function sha256Tree(root) {
+export function sha256Tree(root, ignoredTopLevelNames = new Set()) {
 	const hash = createHash("sha256");
 	const walk = (directory) => {
 		for (const name of readdirSync(directory).sort()) {
+			if (directory === root && ignoredTopLevelNames.has(name)) continue;
 			const path = join(directory, name);
 			const entry = lstatSync(path);
 			const entryPath = relative(root, path).split("\\").join("/");
@@ -129,13 +138,20 @@ function assertHash(value, name) {
 export function validateRuntimeProvenance(expected, observed) {
 	assert.equal(expected.schemaVersion, 1);
 	assert.match(expected.source.commit, FULL_GIT_SHA);
+	assert.match(expected.source.featureCommit, FULL_GIT_SHA);
 	assert.deepEqual(
 		{
+			featureCommit: expected.source.featureCommit,
 			pullRequest: expected.source.pullRequest,
 			repository: expected.source.repository,
 		},
 		REQUIRED_PROVENANCE.source,
 		"Provenance does not target the reviewed pull request",
+	);
+	assert.deepEqual(
+		expected.configuration,
+		REQUIRED_PROVENANCE.configuration,
+		"Provenance does not target the preserved Claude configuration",
 	);
 	assertSafeIdentity(expected.identity);
 	assert.deepEqual(
@@ -186,7 +202,7 @@ export function validateRuntimeProvenance(expected, observed) {
 
 	const comparisons = [
 		["source.commit", expected.source.commit, observed.source.commit],
-		["source.prHead", expected.source.commit, observed.source.prHead],
+		["source.prHead", expected.source.featureCommit, observed.source.prHead],
 		[
 			"source.repository",
 			expected.source.repository,
@@ -198,6 +214,16 @@ export function validateRuntimeProvenance(expected, observed) {
 			observed.source.pullRequest,
 		],
 		["source.trackedClean", true, observed.source.trackedClean],
+		[
+			"configuration.configDir",
+			expected.configuration.configDir,
+			observed.configuration.configDir,
+		],
+		[
+			"configuration.secureStorageConfigDir",
+			expected.configuration.secureStorageConfigDir,
+			observed.configuration.secureStorageConfigDir,
+		],
 		[
 			"artifacts.runner.sha256",
 			expected.artifacts.runner.sha256,
@@ -376,6 +402,16 @@ export function verifyRuntimeProvenance({
 			`${name} would replace the intended provider or account`,
 		);
 	}
+	assert.equal(
+		process.env.CLAUDE_CONFIG_DIR,
+		expected.configuration.configDir,
+		"CLAUDE_CONFIG_DIR does not select the preserved Claude configuration",
+	);
+	assert.equal(
+		process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR,
+		expected.configuration.secureStorageConfigDir,
+		"CLAUDE_SECURESTORAGE_CONFIG_DIR does not preserve the intended keychain service",
+	);
 
 	const runnerArtifact = artifactPath(
 		provenancePath,
@@ -434,6 +470,10 @@ export function verifyRuntimeProvenance({
 			repository: expected.source.repository,
 			trackedClean: trackedChanges.length === 0,
 		},
+		configuration: {
+			configDir: process.env.CLAUDE_CONFIG_DIR,
+			secureStorageConfigDir: process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR,
+		},
 		artifacts: {
 			consumerLock: { sha256: sha256File(lockPath) },
 			core: {
@@ -448,7 +488,10 @@ export function verifyRuntimeProvenance({
 		installed: {
 			agentSdk: readManifest(agentSdkRoot),
 			apiSdk: readManifest(apiSdkRoot),
-			core: { ...readManifest(coreRoot), treeSha256: sha256Tree(coreRoot) },
+			core: {
+				...readManifest(coreRoot),
+				treeSha256: sha256Tree(coreRoot, new Set(["node_modules"])),
+			},
 			native: {
 				...readManifest(nativeRoot),
 				claudeCodeVersion: versionOutput.split(" ")[0],
@@ -456,7 +499,7 @@ export function verifyRuntimeProvenance({
 			},
 			runner: {
 				...readManifest(runnerRoot),
-				treeSha256: sha256Tree(runnerRoot),
+				treeSha256: sha256Tree(runnerRoot, new Set(["node_modules"])),
 			},
 		},
 		identity: {
