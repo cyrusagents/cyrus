@@ -1499,6 +1499,9 @@ export class EdgeWorker extends EventEmitter {
 				userAccessControl: this.userAccessControl,
 				isBlocked: (channelId) =>
 					this.config.slackBlockedChannelIds?.includes(channelId) === true,
+				isChannelAllowed: (channelId) =>
+					this.config.slackAllowedChannelIds === undefined ||
+					this.config.slackAllowedChannelIds.includes(channelId),
 			},
 		);
 

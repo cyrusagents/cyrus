@@ -313,6 +313,7 @@ Users can be specified in four formats:
 - Object with ID: `{ "id": "usr_abc123" }`
 - Object with email: `{ "email": "user@example.com" }` (case-insensitive)
 - Object with Slack ID: `{ "slackId": "U012AB3CD" }` (Slack sessions only)
+- Linear wildcard: `{ "id": "*" }` (`allowedUsers` only) admits every Linear user with a Linear ID. A delegation without one does not match it. It never matches a Slack user, and it is not a pattern anywhere else: a bare `"*"` string, or `{ "id": "*" }` in `blockedUsers`, only matches the literal ID `*`. Blocks still apply first, and a repository `allowedUsers` still replaces the global list for that repository.
 
 **Example - Global configuration:**
 
@@ -377,6 +378,31 @@ Several workers can share one Slack app, for example one per engineer running on
   "repositories": [...]
 }
 ```
+
+### Slack allowlist
+
+To restrict Slack without restricting Linear, combine the Linear wildcard with Slack user IDs, and optionally list the Slack channels Cyrus may respond in with the top-level `slackAllowedChannelIds`:
+
+```json
+{
+  "userAccessControl": {
+    "allowedUsers": [
+      { "id": "*" },
+      { "slackId": "U012AB3CD" }
+    ]
+  },
+  "slackAllowedChannelIds": ["C012AB3CD"],
+  "repositories": [...]
+}
+```
+
+- **Users only**: list `{ "id": "*" }` plus the `{ "slackId": ... }` entries, and omit `slackAllowedChannelIds`. A Slack message without a user ID is denied.
+- **Channels only**: omit `allowedUsers` (or use `[{ "id": "*" }]` alone, which does not restrict Slack users) and set `slackAllowedChannelIds`.
+- **Both**: a Slack message must come from a listed user in a listed channel.
+- **Nobody**: `"slackAllowedChannelIds": []` denies every Slack channel, while `[{ "id": "*" }]` keeps Linear open.
+- `slackAllowedChannelIds` omitted allows every channel. `slackBlockedChannelIds` and `blockedUsers` still apply first.
+- Both checks run on every @mention and thread reply, including replies in threads Cyrus is already following. Messages from channels outside the list are always ignored silently; a user outside the list follows `blockBehavior`.
+- `slackAllowedChannelIds` takes effect on config reload, without a restart.
 
 ---
 

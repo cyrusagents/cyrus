@@ -64,6 +64,7 @@ export class SlackChatAdapter
 	private userAccessControl: UserAccessControl | undefined;
 	private logger: ILogger;
 	private readonly isBlocked?: (channelId: string) => boolean;
+	private readonly isChannelAllowed?: (channelId: string) => boolean;
 	private selfBotId: string | undefined;
 
 	constructor(
@@ -86,6 +87,8 @@ export class SlackChatAdapter
 			 */
 			userAccessControl?: UserAccessControl;
 			isBlocked?: (channelId: string) => boolean;
+			/** Live read of `slackAllowedChannelIds`; omitted allows all. */
+			isChannelAllowed?: (channelId: string) => boolean;
 		},
 	) {
 		this.repositoryProvider = repositoryProvider;
@@ -93,6 +96,7 @@ export class SlackChatAdapter
 			options?.repositoryRoutingContext?.trim() || "";
 		this.userAccessControl = options?.userAccessControl;
 		this.isBlocked = options?.isBlocked;
+		this.isChannelAllowed = options?.isChannelAllowed;
 		const appBaseUrl = options?.cyrusAppBaseUrl?.trim().replace(/\/+$/, "");
 		this.behavioursPageUrl = appBaseUrl
 			? `${appBaseUrl}${BEHAVIOURS_PAGE_ROUTE}`
@@ -152,7 +156,8 @@ export class SlackChatAdapter
 	}
 
 	/**
-	 * Apply the global `userAccessControl` to the Slack user behind this event.
+	 * Apply blocked/allowed Slack channels, then the global `userAccessControl`
+	 * to the Slack user behind this event.
 	 * With `blockBehavior: "comment"` a denied @mention carries the block
 	 * message, with `{{userName}}` rendered as an @mention of the user. Denied
 	 * thread replies are always dropped silently: thread following forwards
@@ -161,6 +166,10 @@ export class SlackChatAdapter
 	checkAccess(event: SlackWebhookEvent): ChatAccessDecision {
 		if (this.isBlocked?.(event.payload.channel)) {
 			return { allowed: false, reason: "Slack channel is blocked" };
+		}
+		// Channel denials stay silent: never post into a channel Cyrus may not use
+		if (this.isChannelAllowed?.(event.payload.channel) === false) {
+			return { allowed: false, reason: "Slack channel is not in allowlist" };
 		}
 		if (!this.userAccessControl) {
 			return { allowed: true };

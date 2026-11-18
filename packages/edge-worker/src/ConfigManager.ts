@@ -58,6 +58,7 @@ const RELOAD_MERGED_KEYS = [
 	"strictMcpConfig",
 	"toolApprovalMode",
 	"slackBlockedChannelIds",
+	"slackAllowedChannelIds",
 	"customSystemInstructions",
 	"defaultDisallowedTools",
 	"issueUpdateTrigger",
@@ -362,6 +363,8 @@ export class ConfigManager extends EventEmitter {
 				githubMcpConfigs:
 					parsedConfig.githubMcpConfigs || this.config.githubMcpConfigs,
 				slackBlockedChannelIds: parsedConfig.slackBlockedChannelIds,
+				// Removing the field allows every unblocked Slack channel again.
+				slackAllowedChannelIds: parsedConfig.slackAllowedChannelIds,
 				customSystemInstructions: parsedConfig.customSystemInstructions,
 				strictMcpConfig:
 					parsedConfig.strictMcpConfig ?? this.config.strictMcpConfig,

@@ -91,6 +91,52 @@ describe("ConfigManager", () => {
 		}
 	});
 
+	it("reloads Slack allowlists and clears them when switching back to blocks", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cyrus-slack-allowlist-"));
+		const path = join(dir, "config.json");
+		const manager = new ConfigManager(
+			{ repositories: [repo] },
+			logger,
+			path,
+			new Map([[repo.id, repo]]),
+		);
+		const changed = vi.fn();
+		manager.on("configChanged", (event) => {
+			changed(event);
+			manager.setConfig(event.newConfig);
+		});
+		const allowMode = {
+			slackAllowedChannelIds: ["C1"],
+			userAccessControl: {
+				allowedUsers: [{ id: "*" }, { slackId: "U1" }],
+			},
+		};
+		const blockMode = {
+			slackBlockedChannelIds: ["C9"],
+			userAccessControl: { blockedUsers: [{ slackId: "U9" }] },
+		};
+		try {
+			for (const mode of [allowMode, blockMode]) {
+				await writeFile(
+					path,
+					JSON.stringify({ repositories: [repo], ...mode }),
+				);
+				await (manager as any).handleConfigChange();
+				const config = changed.mock.lastCall?.[0].newConfig;
+				expect(config.slackAllowedChannelIds).toEqual(
+					mode.slackAllowedChannelIds,
+				);
+				expect(config.slackBlockedChannelIds).toEqual(
+					mode.slackBlockedChannelIds,
+				);
+				expect(config.userAccessControl).toEqual(mode.userAccessControl);
+			}
+			expect(changed).toHaveBeenCalledTimes(2);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	it("reloads top-level OpenCode config and emits it as a global config change", async () => {
 		tempDir = await mkdtemp(join(tmpdir(), "cyrus-config-manager-"));
 		const configPath = join(tempDir, "config.json");
