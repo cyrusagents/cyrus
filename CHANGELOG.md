@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Add Slack channel allowlisting and a Linear-only wildcard in user access configuration.
+- Add Slack channel allowlisting and a Linear-only wildcard in user access configuration. ([#1614](https://github.com/cyrusagents/cyrus/pull/1614))
 
 ## [0.2.82] - 2026-11-18
 
