@@ -4,6 +4,12 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.80] - 2026-11-18
+
+### Changed
+
+- Add hosted configuration fields and live reload support for Slack access controls and custom system instructions.
+
 ## [0.2.79] - 2026-11-16
 
 ### Changed
