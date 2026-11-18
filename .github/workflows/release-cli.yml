@@ -124,12 +124,12 @@ jobs:
       - name: Audit dependencies
         shell: bash
         run: |
-          if [[ "$REQUESTED_VERSION" != "0.2.82" ]]; then
+          if [[ "$REQUESTED_VERSION" != "0.2.83" ]]; then
             pnpm audit --audit-level low
             exit
           fi
 
-          # One release only: GHSA-fc5q-39xc-vjpf has no published fix.
+          # Cyrus 0.2.83 only: npm still serves withdrawn GHSA-fc5q-39xc-vjpf.
           # Require a clean production audit and reject every other advisory.
           pnpm audit --prod --audit-level low
           report="$RUNNER_TEMP/cyrus-release-audit.json"
@@ -144,7 +144,7 @@ jobs:
                 .github_advisory_id == "GHSA-fc5q-39xc-vjpf" and
                 .module_name == "picomatch")
           ' "$report" > /dev/null; then
-            echo "::warning::Cyrus 0.2.82: allowing the development-only picomatch advisory GHSA-fc5q-39xc-vjpf for this release."
+            echo "::warning::Cyrus 0.2.83: allowing the development-only picomatch advisory GHSA-fc5q-39xc-vjpf for this release."
             exit 0
           fi
           cat "$report"

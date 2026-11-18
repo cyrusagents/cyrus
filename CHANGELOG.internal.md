@@ -8,6 +8,7 @@ This changelog documents internal development changes, refactors, tooling update
 
 ### Changed
 
+- Allow the withdrawn development-only picomatch advisory for this release while requiring a clean production dependency audit.
 - Record the Slack access-control runtime verification for the coordinated release. ([#1614](https://github.com/cyrusagents/cyrus/pull/1614))
 
 ## [0.2.82] - 2026-11-18
