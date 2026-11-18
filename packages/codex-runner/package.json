@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-codex-runner",
-	"version": "0.2.82",
+	"version": "0.2.83",
 	"description": "Codex CLI process wrapper for Cyrus",
 	"repository": {
 		"type": "git",

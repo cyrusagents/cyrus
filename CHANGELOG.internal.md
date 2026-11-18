@@ -4,6 +4,12 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.83] - 2026-11-18
+
+### Changed
+
+- Record the Slack access-control runtime verification for the coordinated release. ([#1614](https://github.com/cyrusagents/cyrus/pull/1614))
+
 ## [0.2.82] - 2026-11-18
 
 ### Changed
