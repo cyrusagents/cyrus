@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Apply Automatic tool approval to Claude and Codex sessions started or resumed from Slack and Zulip.
+- Apply Automatic tool approval to Claude and Codex sessions started or resumed from Slack and Zulip. ([#1613](https://github.com/cyrusagents/cyrus/pull/1613))
 
 ## [0.2.81] - 2026-11-18
 
