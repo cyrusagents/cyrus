@@ -432,6 +432,87 @@ describe("UserAccessControl", () => {
 	});
 
 	// ============================================================================
+	// TESTS: Linear-only { id: "*" } wildcard
+	// ============================================================================
+
+	describe("Linear allowlist wildcard", () => {
+		const wildcardWithSlack = {
+			allowedUsers: [{ id: "*" }, { slackId: "U012AB3CD" }],
+		};
+
+		it("admits every identified Linear user but not one without an ID", () => {
+			const accessControl = createAccessControl(wildcardWithSlack, new Map());
+
+			expect(
+				accessControl.checkAccess("usr_any", undefined, "repo-1").allowed,
+			).toBe(true);
+			expect(
+				accessControl.checkAccess(undefined, "a@b.com", "repo-1").allowed,
+			).toBe(false);
+		});
+
+		it("keeps blocks first and literal", () => {
+			const accessControl = createAccessControl(
+				{
+					...wildcardWithSlack,
+					blockedUsers: ["usr_blocked", { id: "*" }],
+				},
+				new Map(),
+			);
+
+			expect(
+				accessControl.checkAccess("usr_blocked", undefined, "repo-1").allowed,
+			).toBe(false);
+			// A wildcard in blockedUsers matches only the literal ID "*"
+			expect(
+				accessControl.checkAccess("usr_any", undefined, "repo-1").allowed,
+			).toBe(true);
+		});
+
+		it('treats a bare "*" string as a literal ID', () => {
+			const accessControl = createAccessControl(
+				{ allowedUsers: ["*"] },
+				new Map(),
+			);
+
+			expect(
+				accessControl.checkAccess("usr_any", undefined, "repo-1").allowed,
+			).toBe(false);
+		});
+
+		it("is still overridden by a repository allowlist", () => {
+			const repoConfigs = new Map<string, UserAccessControlConfig | undefined>([
+				["repo-1", { allowedUsers: ["usr_repo"] }],
+			]);
+			const accessControl = createAccessControl(wildcardWithSlack, repoConfigs);
+
+			expect(
+				accessControl.checkAccess("usr_any", undefined, "repo-1").allowed,
+			).toBe(false);
+			expect(
+				accessControl.checkAccess("usr_repo", undefined, "repo-1").allowed,
+			).toBe(true);
+			expect(
+				accessControl.checkAccess("usr_any", undefined, "repo-2").allowed,
+			).toBe(true);
+		});
+
+		it("never satisfies Slack: only slackId entries do", () => {
+			const restricted = createAccessControl(wildcardWithSlack, new Map());
+			expect(restricted.checkSlackAccess("U012AB3CD").allowed).toBe(true);
+			expect(restricted.checkSlackAccess("U999OTHER").allowed).toBe(false);
+			expect(restricted.checkSlackAccess("*").allowed).toBe(false);
+
+			// The wildcard alone does not constrain Slack users
+			const wildcardOnly = createAccessControl(
+				{ allowedUsers: [{ id: "*" }] },
+				new Map(),
+			);
+			expect(wildcardOnly.checkSlackAccess("U999OTHER").allowed).toBe(true);
+		});
+	});
+
+	// ============================================================================
 	// TESTS: checkSlackAccess
 	// ============================================================================
 

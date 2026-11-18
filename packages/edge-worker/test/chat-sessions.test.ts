@@ -887,6 +887,94 @@ describe("SlackChatAdapter access control", () => {
 	});
 });
 
+describe("SlackChatAdapter channel allowlist", () => {
+	const event = (
+		eventType: "app_mention" | "message",
+		channel: string,
+		user = "U1",
+	) =>
+		({
+			eventType,
+			eventId: "Ev1",
+			teamId: "T1",
+			slackBotToken: "xoxb-test",
+			payload: {
+				type: eventType,
+				user,
+				channel,
+				text: "<@UBOT> hello",
+				ts: "1700000000.000200",
+				thread_ts: "1700000000.000100",
+				event_ts: "1700000000.000200",
+			},
+		}) as SlackWebhookEvent;
+
+	/** Mirrors EdgeWorker's live reads so config reloads apply immediately */
+	function adapterWith(
+		config: {
+			allowed?: string[];
+			blocked?: string[];
+		},
+		access?: UserAccessControlConfig,
+	) {
+		return new SlackChatAdapter(createStaticProvider([]), undefined, {
+			userAccessControl: new UserAccessControl(access, new Map()),
+			isBlocked: (id) => config.blocked?.includes(id) === true,
+			isChannelAllowed: (id) =>
+				config.allowed === undefined || config.allowed.includes(id),
+		});
+	}
+
+	it("is unrestricted when absent and denies every channel when empty", () => {
+		const config: { allowed?: string[] } = {};
+		const adapter = adapterWith(config);
+		expect(adapter.checkAccess(event("app_mention", "C1")).allowed).toBe(true);
+
+		config.allowed = [];
+		expect(adapter.checkAccess(event("app_mention", "C1")).allowed).toBe(false);
+	});
+
+	it("gates mentions and thread follow-ups silently, even with comment behavior", () => {
+		const adapter = adapterWith(
+			{ allowed: ["C1"] },
+			{ blockBehavior: "comment" },
+		);
+
+		expect(adapter.checkAccess(event("app_mention", "C1")).allowed).toBe(true);
+		for (const type of ["app_mention", "message"] as const) {
+			expect(adapter.checkAccess(event(type, "C2"))).toEqual({
+				allowed: false,
+				reason: "Slack channel is not in allowlist",
+			});
+		}
+	});
+
+	it("keeps blocked channels first", () => {
+		const adapter = adapterWith({ allowed: ["C1"], blocked: ["C1"] });
+		expect(adapter.checkAccess(event("app_mention", "C1"))).toEqual({
+			allowed: false,
+			reason: "Slack channel is blocked",
+		});
+	});
+
+	it("requires both the channel and the user when both are listed", () => {
+		const adapter = adapterWith(
+			{ allowed: ["C1"] },
+			{ allowedUsers: [{ id: "*" }, { slackId: "U1" }] },
+		);
+
+		expect(adapter.checkAccess(event("app_mention", "C1", "U1")).allowed).toBe(
+			true,
+		);
+		expect(adapter.checkAccess(event("app_mention", "C1", "U2")).allowed).toBe(
+			false,
+		);
+		expect(adapter.checkAccess(event("app_mention", "C2", "U1")).allowed).toBe(
+			false,
+		);
+	});
+});
+
 describe("SlackChatAdapter task instructions", () => {
 	const mentionEvent = (
 		text: string,

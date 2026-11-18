@@ -127,6 +127,7 @@ describe("WorkerService", () => {
 			issueUpdateTrigger: false,
 			slackThreadFollowing: false,
 			slackBlockedChannelIds: ["C123"],
+			slackAllowedChannelIds: ["C456"],
 			customSystemInstructions: "Use plain language.",
 			prReviewTrigger: false,
 			ciFailureTrigger: true,
