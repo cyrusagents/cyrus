@@ -711,6 +711,11 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 						// See: CYPACK-1108.
 						...this.repositoryEnv,
 						...this.config.additionalEnv,
+						// Resumed unattended sessions must not execute a tool call that a
+						// loaded hook intentionally deferred. Repository and runner env cannot
+						// opt out of this boundary.
+						CLAUDE_CODE_DISABLE_DEFERRED_TOOL_RESUME:
+							CYRUS_SESSION_ENV.CLAUDE_CODE_DISABLE_DEFERRED_TOOL_RESUME,
 						// Claude Code 2.1.327 may otherwise evaluate shell startup files
 						// before a Bash request is approved. This is a Cyrus security
 						// invariant, so repository and runner env cannot opt out.

@@ -60,9 +60,13 @@ describe("credential-free Claude tool extraction", () => {
 			const local = new URL(process.env.ANTHROPIC_BASE_URL).hostname === "127.0.0.1";
 			const isolated = process.env.HOME === process.env.TMPDIR &&
 				process.env.CLAUDE_CONFIG_DIR.startsWith(process.env.HOME);
+			const extractionOnly =
+				process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC === "1" &&
+				process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS === "1" &&
+				process.env.DISABLE_TELEMETRY === "1";
 			process.stdout.write(JSON.stringify({
 				type: "system", subtype: "init",
-				tools: [clean && local && isolated ? "SAFE" : "LEAK"]
+				tools: [clean && local && isolated && extractionOnly ? "SAFE" : "LEAK"]
 			}) + "\\n");
 		`);
 		try {

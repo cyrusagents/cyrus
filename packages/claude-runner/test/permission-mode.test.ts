@@ -151,6 +151,12 @@ describe("Cyrus permission policy", () => {
 			"CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK",
 		);
 		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_FORK_SUBAGENT");
+		expect(options?.env).not.toHaveProperty(
+			"CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS",
+		);
+		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_SYNC_PLUGIN_INSTALL");
+		expect(options?.env?.CLAUDE_CODE_DISABLE_DEFERRED_TOOL_RESUME).toBe("1");
+		expect(options?.env?.CLAUDE_CODE_DISABLE_SHELL_HEAD_START).toBe("1");
 		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_AUTO_COMPACT_WINDOW");
 		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_MODEL_CATALOG");
 		expect(options?.env).not.toHaveProperty(

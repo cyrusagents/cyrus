@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.328](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03328) and [`@anthropic-ai/sdk` 1.10.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.10.0), bringing Claude Code 2.1.328 fixes and restoring MCP resource discovery in full engineering sessions. Sandboxed Bash approvals remain unattended, shell startup waits for approval, and managed-MCP replacement warnings are visible in the issue timeline. ([CYPACK-1652](https://linear.app/ceedar/issue/CYPACK-1652/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1616](https://github.com/cyrusagents/cyrus/pull/1616))
+- Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.328](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03328) and [`@anthropic-ai/sdk` 1.10.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.10.0), bringing Claude Code 2.1.328 fixes and restoring MCP resource discovery in full engineering sessions. Sandboxed Bash approvals remain unattended, shell startup waits for approval, deferred hook calls do not run automatically after an unattended resume, and managed-MCP replacement warnings are visible in the issue timeline. ([CYPACK-1652](https://linear.app/ceedar/issue/CYPACK-1652/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1616](https://github.com/cyrusagents/cyrus/pull/1616))
 
 ## [0.2.83] - 2026-11-18
 

@@ -255,28 +255,28 @@ describe("Environment variable isolation", () => {
 		expect(env.PATH).toBe("/from-additional-env");
 	});
 
-	it("should prevent every env layer from re-enabling shell startup before approval", async () => {
-		const original = process.env.CLAUDE_CODE_DISABLE_SHELL_HEAD_START;
-		process.env.CLAUDE_CODE_DISABLE_SHELL_HEAD_START = "0";
-		envFileContents.set(
-			"/repo-a/.env",
-			"CLAUDE_CODE_DISABLE_SHELL_HEAD_START=0",
-		);
+	it.each([
+		"CLAUDE_CODE_DISABLE_DEFERRED_TOOL_RESUME",
+		"CLAUDE_CODE_DISABLE_SHELL_HEAD_START",
+	] as const)("should prevent every env layer from overriding the %s boundary", async (name) => {
+		const original = process.env[name];
+		process.env[name] = "0";
+		envFileContents.set("/repo-a/.env", `${name}=0`);
 
 		try {
 			mockSuccessfulQuery();
 			const runner = new ClaudeRunner({
 				...makeConfig("/repo-a"),
-				additionalEnv: { CLAUDE_CODE_DISABLE_SHELL_HEAD_START: "0" },
+				additionalEnv: { [name]: "0" },
 			});
 			await runner.start("test");
 
-			expect(getQueryEnv().CLAUDE_CODE_DISABLE_SHELL_HEAD_START).toBe("1");
+			expect(getQueryEnv()[name]).toBe("1");
 		} finally {
 			if (original === undefined) {
-				delete process.env.CLAUDE_CODE_DISABLE_SHELL_HEAD_START;
+				delete process.env[name];
 			} else {
-				process.env.CLAUDE_CODE_DISABLE_SHELL_HEAD_START = original;
+				process.env[name] = original;
 			}
 		}
 	});
