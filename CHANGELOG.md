@@ -256,6 +256,7 @@ All notable changes to this project will be documented in this file.
 
 #### cyrus-ai
 - cyrus-ai@0.2.80
+
 ## [0.2.79] - 2026-11-16
 
 ### Added
