@@ -158,7 +158,9 @@ export class RefreshTokenCommand extends BaseCommand {
 						res.end("Not found");
 					}
 				});
-				s.listen(serverPort, () => {
+				// The callback URL is always local, so this listener must not inherit
+				// the webhook listener's CYRUS_SERVER_HOST.
+				s.listen(serverPort, "localhost", () => {
 					console.log("Waiting for OAuth callback...");
 					resolve(s);
 				});

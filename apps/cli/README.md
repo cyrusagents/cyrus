@@ -46,9 +46,12 @@ The interactive wizard will prompt you for:
 
 ### Environment Variables
 
-- `CYRUS_HOST_EXTERNAL` - Set to `true` to allow external connections (listens on `0.0.0.0` instead of `localhost`). Default: `false`
+- `CYRUS_HOST_EXTERNAL` - Set to `true` when Cyrus receives webhooks directly rather than through the proxy. Default: `false`
   - Use this when running in Docker containers or when you need external access to the webhook server
-  - When `true`: Server listens on `0.0.0.0` (all interfaces)
-  - When `false` or unset: Server listens on `localhost` (local access only)
+  - Selects direct (signature-verified) GitHub and Slack webhook handling, and turns on webhook source-IP validation by default
+  - Supplies the default bind address: `0.0.0.0` when `true`, `localhost` when `false` or unset
+- `CYRUS_SERVER_HOST` - Address the server binds to, overriding the default above. Default: unset
+  - Set this when a tunnel or reverse proxy on the same host fronts Cyrus: `CYRUS_SERVER_HOST=127.0.0.1` with `CYRUS_HOST_EXTERNAL=true` binds loopback without changing webhook verification
+  - A non-loopback address requires `CYRUS_HOST_EXTERNAL=true`; otherwise Cyrus rejects the configuration at startup. See [Self-Hosting](../../docs/SELF_HOSTING.md#43-choosing-a-bind-address)
 - `LINEAR_ALLOWED_TOOLS` - Comma-separated list of tools allowed for Linear-triggered sessions. Overrides `linearAllowedTools` in `~/.cyrus/config.json` when set.
 - `DISALLOWED_TOOLS` - Comma-separated list of tools disallowed across all sessions. Overrides `defaultDisallowedTools` in `~/.cyrus/config.json` when set.
