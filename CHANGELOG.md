@@ -4,9 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.84-test.1] - 2026-11-19
+
 ### Changed
 
 - Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.330](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03330) and [`@anthropic-ai/sdk` 1.12.0](https://github.com/anthropics/anthropic-sdk-typescript/blob/main/CHANGELOG.md#1120), bringing Claude Code 2.1.330 fixes, restoring MCP resource discovery in full engineering sessions, adding the image-dimensions-too-large API error, and preserving custom Anthropic headers when default headers use a `Headers` object or pairs. Sandboxed Bash approvals remain unattended, shell startup waits for approval, deferred hook calls do not run automatically after an unattended resume, and managed-MCP, managed-hook, and ignored-settings warnings are visible in the issue timeline. ([CYPACK-1654](https://linear.app/ceedar/issue/CYPACK-1654/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1618](https://github.com/cyrusagents/cyrus/pull/1618))
+
+### Packages
+
+- cyrus-cloudflare-tunnel-client@0.2.84-test.1
+- cyrus-mcp-tools@0.2.84-test.1
+- cyrus-core@0.2.84-test.1
+- cyrus-claude-runner@0.2.84-test.1
+- cyrus-config-updater@0.2.84-test.1
+- cyrus-linear-event-transport@0.2.84-test.1
+- cyrus-github-event-transport@0.2.84-test.1
+- cyrus-gitlab-event-transport@0.2.84-test.1
+- cyrus-slack-event-transport@0.2.84-test.1
+- cyrus-zulip-event-transport@0.2.84-test.1
+- cyrus-plane-event-transport@0.2.84-test.1
+- cyrus-simple-agent-runner@0.2.84-test.1
+- cyrus-opencode-runner@0.2.84-test.1
+- cyrus-codex-runner@0.2.84-test.1
+- cyrus-cursor-runner@0.2.84-test.1
+- cyrus-gemini-runner@0.2.84-test.1
+- cyrus-edge-worker@0.2.84-test.1
+- cyrus-ai@0.2.84-test.1
 
 ## [0.2.83] - 2026-11-18
 
