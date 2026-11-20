@@ -3,24 +3,33 @@ import { validateRuntimeProvenance } from "../../../scripts/verify-runner-proven
 
 const treeSha256 = "a".repeat(64);
 const commit = "b".repeat(40);
+const featureCommit = "1a5475b923ff41eb1ceb051d4a9fcb4ce85aa42f";
+const testRelease = {
+	channel: "test",
+	repository: "https://github.com/cyrusagents/cyrus",
+	schemaVersion: 1,
+	sourceSha: commit,
+	version: "0.2.84-test.4",
+};
 const expectedProvenance = () => ({
 	artifacts: {
 		consumerLock: {
-			sha256:
-				"aab96b4a73ab8ceef592814246e9944b686c9be3d72991ced010055b1e2259ab",
+			sha256: "d".repeat(64),
 		},
 		core: {
-			path: "packages/cyrus-core-0.2.75.tgz",
-			sha256:
-				"a361bab54d3e02093155eba1a7ed569704ce9ffb22cd9626f280755183e2ef07",
+			path: "packages/cyrus-core-0.2.84-test.4.tgz",
+			sha256: "e".repeat(64),
 			treeSha256,
 		},
 		runner: {
-			path: "packages/cyrus-claude-runner-0.2.75.tgz",
-			sha256:
-				"91f5ed141cd8ef2c344408fc32b94f0c7327c2d04388734e0c8bf7e460186ced",
+			path: "packages/cyrus-claude-runner-0.2.84-test.4.tgz",
+			sha256: "f".repeat(64),
 			treeSha256,
 		},
+	},
+	configuration: {
+		configDir: "/Users/agentops",
+		secureStorageConfigDir: "",
 	},
 	identity: {
 		accountEmailSha256:
@@ -32,22 +41,23 @@ const expectedProvenance = () => ({
 		subscriptionType: "max",
 	},
 	installed: {
-		agentSdk: { name: "@anthropic-ai/claude-agent-sdk", version: "0.3.318" },
-		apiSdk: { name: "@anthropic-ai/sdk", version: "1.5.0" },
-		core: { name: "cyrus-core", version: "0.2.75" },
+		agentSdk: { name: "@anthropic-ai/claude-agent-sdk", version: "0.3.329" },
+		apiSdk: { name: "@anthropic-ai/sdk", version: "1.12.0" },
+		core: { name: "cyrus-core", version: "0.2.84-test.4" },
 		native: {
-			claudeCodeVersion: "2.1.318",
+			claudeCodeVersion: "2.1.329",
 			executableSha256:
-				"677a2ea7bf576cedd20e191d973914ed8a41796f53a63b1923381ddc4d5b5e7d",
+				"8c1729568b19cdadedd0a978bf692f9f279ef554c8a333c4e132b94fd8725550",
 			name: "@anthropic-ai/claude-agent-sdk-darwin-arm64",
-			version: "0.3.318",
+			version: "0.3.329",
 		},
-		runner: { name: "cyrus-claude-runner", version: "0.2.75" },
+		runner: { name: "cyrus-claude-runner", version: "0.2.84-test.4" },
 	},
 	schemaVersion: 1,
 	source: {
 		commit,
-		pullRequest: 1583,
+		featureCommit,
+		pullRequest: 1617,
 		repository: "cyrusagents/cyrus",
 	},
 });
@@ -64,19 +74,28 @@ const observedProvenance = (expected) => ({
 			treeSha256: expected.artifacts.runner.treeSha256,
 		},
 	},
+	configuration: structuredClone(expected.configuration),
 	identity: structuredClone(expected.identity),
 	installed: {
 		agentSdk: structuredClone(expected.installed.agentSdk),
 		apiSdk: structuredClone(expected.installed.apiSdk),
-		core: { ...expected.installed.core, treeSha256 },
+		core: {
+			...expected.installed.core,
+			cyrusTestRelease: structuredClone(testRelease),
+			treeSha256,
+		},
 		native: structuredClone(expected.installed.native),
-		runner: { ...expected.installed.runner, treeSha256 },
+		runner: {
+			...expected.installed.runner,
+			cyrusTestRelease: structuredClone(testRelease),
+			treeSha256,
+		},
 	},
 	schemaVersion: 1,
 	source: {
 		commit,
-		prHead: commit,
-		pullRequest: 1583,
+		prHead: featureCommit,
+		pullRequest: 1617,
 		repository: "cyrusagents/cyrus",
 		trackedClean: true,
 	},
@@ -120,10 +139,20 @@ test.each([
 
 test("rejects a provenance record that names a different artifact", () => {
 	const expected = expectedProvenance();
+	const observed = observedProvenance(expected);
 	expected.artifacts.runner.sha256 = "c".repeat(64);
-	expect(() =>
-		validateRuntimeProvenance(expected, observedProvenance(expected)),
-	).toThrow(/reviewed packed artifacts/);
+	expect(() => validateRuntimeProvenance(expected, observed)).toThrow(
+		/sha256 did not match provenance/,
+	);
+});
+
+test("rejects an installed package without the immutable candidate stamp", () => {
+	const expected = expectedProvenance();
+	const observed = observedProvenance(expected);
+	delete observed.installed.runner.cyrusTestRelease;
+	expect(() => validateRuntimeProvenance(expected, observed)).toThrow(
+		/immutable candidate provenance stamp/,
+	);
 });
 
 test("rejects a provenance record that names a different account", () => {
