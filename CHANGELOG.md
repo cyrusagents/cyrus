@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.329](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03329) and [`@anthropic-ai/sdk` 1.11.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.11.0), bringing Claude Code 2.1.329 fixes and restoring MCP resource discovery in full engineering sessions. Sandboxed Bash approvals remain unattended, shell startup waits for approval, deferred hook calls do not run automatically after an unattended resume, and managed-MCP and managed-hook warnings are visible in the issue timeline. ([CYPACK-1653](https://linear.app/ceedar/issue/CYPACK-1653/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest))
+
 ## [0.2.83] - 2026-11-18
 
 ### Added

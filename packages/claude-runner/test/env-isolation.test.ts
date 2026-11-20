@@ -254,4 +254,30 @@ describe("Environment variable isolation", () => {
 		// additionalEnv wins over both process.env and repositoryEnv
 		expect(env.PATH).toBe("/from-additional-env");
 	});
+
+	it.each([
+		"CLAUDE_CODE_DISABLE_DEFERRED_TOOL_RESUME",
+		"CLAUDE_CODE_DISABLE_SHELL_HEAD_START",
+	] as const)("should prevent every env layer from overriding the %s boundary", async (name) => {
+		const original = process.env[name];
+		process.env[name] = "0";
+		envFileContents.set("/repo-a/.env", `${name}=0`);
+
+		try {
+			mockSuccessfulQuery();
+			const runner = new ClaudeRunner({
+				...makeConfig("/repo-a"),
+				additionalEnv: { [name]: "0" },
+			});
+			await runner.start("test");
+
+			expect(getQueryEnv()[name]).toBe("1");
+		} finally {
+			if (original === undefined) {
+				delete process.env[name];
+			} else {
+				process.env[name] = original;
+			}
+		}
+	});
 });
