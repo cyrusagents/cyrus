@@ -19,7 +19,7 @@ F1 created a disposable repository and routed an inspection-only issue through t
 ### EdgeWorker and Claude runtime
 
 - [x] EdgeWorker created the `DEF-1` worktree from local `main`.
-- [x] Claude Code 2.1.329 initialized through `@anthropic-ai/claude-agent-sdk` 0.3.329 with `@anthropic-ai/sdk` 1.11.0.
+- [ ] Fresh initialization with `@anthropic-ai/sdk` 1.12.0 remains pending; the prior run initialized Claude Code 2.1.329 through `@anthropic-ai/claude-agent-sdk` 0.3.329 with `@anthropic-ai/sdk` 1.11.0 before 1.12.0 was published.
 - [x] Cyrus supplied its 33-tool engineering catalog, including `WebFetch` and the three resource-discovery tools.
 - [x] The session used the hardened shell-startup/deferred-resume environment and top-level MCP configuration carried forward from the 0.3.323-0.3.328 compatibility work.
 - [ ] Repository `Read`, foreground `Bash(pwd)`, and the exact final marker did not run because the host's stored Claude OAuth token has expired.
