@@ -137,12 +137,14 @@ console.log(
 			status: "PASS",
 			provenance: {
 				commit: provenance.source.commit,
+				featureCommit: provenance.source.featureCommit,
 				pullRequest: `${provenance.source.repository}#${provenance.source.pullRequest}`,
 				runnerTarballSha256: provenance.artifacts.runner.sha256,
 				coreTarballSha256: provenance.artifacts.core.sha256,
 				consumerLockSha256: provenance.artifacts.consumerLock.sha256,
 				nativeExecutableSha256: provenance.installed.native.executableSha256,
 			},
+			configuration: provenance.configuration,
 			package: `${manifest.name}@${manifest.version}`,
 			installed: {
 				agentSdk: `${provenance.installed.agentSdk.name}@${provenance.installed.agentSdk.version}`,
