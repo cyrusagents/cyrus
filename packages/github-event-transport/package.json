@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-github-event-transport",
-	"version": "0.2.84-test.1",
+	"version": "0.2.84-test.2",
 	"description": "GitHub event transport for receiving and verifying forwarded GitHub webhooks",
 	"repository": {
 		"type": "git",

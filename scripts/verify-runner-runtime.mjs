@@ -48,6 +48,7 @@ const runner = new ClaudeRunner({
 	model: "opus",
 	fallbackModel: "sonnet",
 	maxTurns: 5,
+	sandbox: provenance.configuration.sandbox,
 	tools: ["Read", "Bash"],
 	allowedTools: ["Read", "Bash(pwd)"],
 	disallowedTools: ["Edit", "Write", "NotebookEdit"],
