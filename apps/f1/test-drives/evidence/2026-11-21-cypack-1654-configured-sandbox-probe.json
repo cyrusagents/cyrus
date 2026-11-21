@@ -1,0 +1,94 @@
+{
+	"schemaVersion": 1,
+	"issue": "CYPACK-1654",
+	"testedSourceSha": "ea0b74839dcf5463064beefe81bf04e4e739cef5",
+	"result": "environment-limited",
+	"runtime": {
+		"agentSdk": "0.3.330",
+		"apiSdk": "1.12.0",
+		"claudeCode": "2.1.330"
+	},
+	"identity": {
+		"loggedIn": true,
+		"authMethod": "claude.ai",
+		"apiProvider": "firstParty",
+		"subscriptionType": "max"
+	},
+	"configuration": {
+		"sandboxEnabled": true,
+		"sandboxHasNetworkProxy": true,
+		"httpProxyPort": 19080,
+		"socksProxyPort": 19081,
+		"networkPolicy": "allow-all",
+		"claudeConfigDir": "<TEMP_CONFIG_DIR>",
+		"secureStorageConfigDir": "",
+		"queryOptionsReportedHasSandbox": true
+	},
+	"events": [
+		{
+			"type": "assistant",
+			"content": [
+				{
+					"type": "tool_use",
+					"name": "Read",
+					"input": {
+						"file_path": "<F1_HOME>/worktrees/DEF-1/package.json"
+					}
+				}
+			]
+		},
+		{
+			"type": "user",
+			"content": [
+				{
+					"type": "tool_result",
+					"is_error": false,
+					"content": "package.json read successfully; package name simple-rate-limiter, version 0.1.0"
+				}
+			]
+		},
+		{
+			"type": "assistant",
+			"content": [
+				{
+					"type": "tool_use",
+					"name": "Bash",
+					"input": {
+						"command": "pwd",
+						"description": "Print working directory",
+						"timeout": 10000
+					}
+				}
+			]
+		},
+		{
+			"type": "user",
+			"content": [
+				{
+					"type": "tool_result",
+					"is_error": true,
+					"content": "Exit code 71\nsandbox-exec: sandbox_apply: Operation not permitted"
+				}
+			]
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"is_error": false,
+			"result": "SDK_RUNTIME_OK",
+			"stop_reason": "end_turn",
+			"terminal_reason": "completed"
+		}
+	],
+	"lifecycle": {
+		"sessionWritesLostCount": 0,
+		"stopRequest": "Session stopped successfully",
+		"serverShutdown": "EdgeWorker state saved; egress proxy and shared application server stopped cleanly"
+	},
+	"assessment": "Read, authenticated inference, result delivery, stop, and shutdown succeeded. Foreground Bash did not pass because this managed macOS process cannot start a nested sandbox-exec profile. This probe is negative evidence and does not satisfy the final installed-candidate configured-sandbox gate.",
+	"sanitization": [
+		"Temporary absolute paths replaced with placeholders.",
+		"Session, request, tool-use, account, and team identifiers omitted.",
+		"Environment names and values, usage, cost, and credential expiry omitted."
+	]
+}
