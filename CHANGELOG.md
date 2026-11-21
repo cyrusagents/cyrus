@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.2.84-test.1] - 2026-11-19
+## [0.2.84-test.2] - 2026-11-21
 
 ### Changed
 
@@ -12,24 +12,24 @@ All notable changes to this project will be documented in this file.
 
 ### Packages
 
-- cyrus-cloudflare-tunnel-client@0.2.84-test.1
-- cyrus-mcp-tools@0.2.84-test.1
-- cyrus-core@0.2.84-test.1
-- cyrus-claude-runner@0.2.84-test.1
-- cyrus-config-updater@0.2.84-test.1
-- cyrus-linear-event-transport@0.2.84-test.1
-- cyrus-github-event-transport@0.2.84-test.1
-- cyrus-gitlab-event-transport@0.2.84-test.1
-- cyrus-slack-event-transport@0.2.84-test.1
-- cyrus-zulip-event-transport@0.2.84-test.1
-- cyrus-plane-event-transport@0.2.84-test.1
-- cyrus-simple-agent-runner@0.2.84-test.1
-- cyrus-opencode-runner@0.2.84-test.1
-- cyrus-codex-runner@0.2.84-test.1
-- cyrus-cursor-runner@0.2.84-test.1
-- cyrus-gemini-runner@0.2.84-test.1
-- cyrus-edge-worker@0.2.84-test.1
-- cyrus-ai@0.2.84-test.1
+- cyrus-cloudflare-tunnel-client@0.2.84-test.2
+- cyrus-mcp-tools@0.2.84-test.2
+- cyrus-core@0.2.84-test.2
+- cyrus-claude-runner@0.2.84-test.2
+- cyrus-config-updater@0.2.84-test.2
+- cyrus-linear-event-transport@0.2.84-test.2
+- cyrus-github-event-transport@0.2.84-test.2
+- cyrus-gitlab-event-transport@0.2.84-test.2
+- cyrus-slack-event-transport@0.2.84-test.2
+- cyrus-zulip-event-transport@0.2.84-test.2
+- cyrus-plane-event-transport@0.2.84-test.2
+- cyrus-simple-agent-runner@0.2.84-test.2
+- cyrus-opencode-runner@0.2.84-test.2
+- cyrus-codex-runner@0.2.84-test.2
+- cyrus-cursor-runner@0.2.84-test.2
+- cyrus-gemini-runner@0.2.84-test.2
+- cyrus-edge-worker@0.2.84-test.2
+- cyrus-ai@0.2.84-test.2
 
 ## [0.2.83] - 2026-11-18
 

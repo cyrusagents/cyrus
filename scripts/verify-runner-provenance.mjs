@@ -18,6 +18,15 @@ const FULL_GIT_SHA = /^[a-f0-9]{40}$/;
 const REQUIRED_PROVENANCE = {
 	configuration: {
 		configDir: "/Users/agentops",
+		sandbox: {
+			allowUnsandboxedCommands: false,
+			autoAllowBashIfSandboxed: true,
+			enabled: true,
+			filesystem: {
+				allowRead: ["."],
+				allowWrite: ["."],
+			},
+		},
 		secureStorageConfigDir: "",
 	},
 	identity: {
@@ -29,18 +38,18 @@ const REQUIRED_PROVENANCE = {
 		subscriptionType: "max",
 	},
 	installed: {
-		agentSdk: ["@anthropic-ai/claude-agent-sdk", "0.3.328"],
-		apiSdk: ["@anthropic-ai/sdk", "1.10.0"],
-		core: ["cyrus-core", "0.2.84-test.1"],
-		native: ["@anthropic-ai/claude-agent-sdk-darwin-arm64", "0.3.328"],
-		nativeClaudeCodeVersion: "2.1.328",
+		agentSdk: ["@anthropic-ai/claude-agent-sdk", "0.3.330"],
+		apiSdk: ["@anthropic-ai/sdk", "1.12.0"],
+		core: ["cyrus-core", "0.2.84-test.2"],
+		native: ["@anthropic-ai/claude-agent-sdk-darwin-arm64", "0.3.330"],
+		nativeClaudeCodeVersion: "2.1.330",
 		nativeExecutableSha256:
-			"e85547190ef8cd983033ba61b17194045a6fea00035da349efeabed86badacc9",
-		runner: ["cyrus-claude-runner", "0.2.84-test.1"],
+			"f7c5093b9dd6560d08af28bc27b123fb55091deae3180ac39df199522da86815",
+		runner: ["cyrus-claude-runner", "0.2.84-test.2"],
 	},
 	source: {
-		featureCommit: "94a4b813297951aa8ef256f53dcb0d8252cf8a19",
-		pullRequest: 1616,
+		featureCommit: "300ab4ad31842abab37249c97d5683d33b9ab9e3",
+		pullRequest: 1618,
 		repository: "cyrusagents/cyrus",
 	},
 };
@@ -48,7 +57,7 @@ const REQUIRED_TEST_RELEASE = {
 	channel: "test",
 	repository: "https://github.com/cyrusagents/cyrus",
 	schemaVersion: 1,
-	version: "0.2.84-test.1",
+	version: "0.2.84-test.2",
 };
 
 function run(command, args, options = {}) {
@@ -212,6 +221,11 @@ export function validateRuntimeProvenance(expected, observed) {
 			"configuration.secureStorageConfigDir",
 			expected.configuration.secureStorageConfigDir,
 			observed.configuration.secureStorageConfigDir,
+		],
+		[
+			"configuration.sandbox",
+			expected.configuration.sandbox,
+			observed.configuration.sandbox,
 		],
 		[
 			"artifacts.runner.sha256",
@@ -476,6 +490,7 @@ export function verifyRuntimeProvenance({
 		},
 		configuration: {
 			configDir: process.env.CLAUDE_CONFIG_DIR,
+			sandbox: expected.configuration.sandbox,
 			secureStorageConfigDir: process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR,
 		},
 		artifacts: {
