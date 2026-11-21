@@ -594,6 +594,18 @@ export class AgentSessionManager extends EventEmitter {
 									`⚠️ Claude managed hooks warning: ${message.content}`,
 								);
 								break;
+
+							case "settings_not_in_effect":
+								// SDK 0.3.330 reports when host-provided settings or a settings
+								// file fails validation and Claude ignores that layer. Keep the
+								// session alive, but expose the discarded configuration so an
+								// operator does not assume its policy is active.
+								log.warn(`Claude settings warning: ${message.content}`);
+								await this.createThoughtActivity(
+									sessionId,
+									`⚠️ Claude settings warning: ${message.content}`,
+								);
+								break;
 						}
 					}
 					break;
