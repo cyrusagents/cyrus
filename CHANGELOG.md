@@ -4,9 +4,67 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.84] - 2026-11-24
+
 ### Fixed
 
 - Verify trusted GitHub App reviews when an app owner's IP allowlist blocks the installation-token metadata lookup. ([#1621](https://github.com/cyrusagents/cyrus/pull/1621))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.84
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.84
+
+#### cyrus-core
+- cyrus-core@0.2.84
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.84
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.84
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.84
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.84
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.84
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.84
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.84
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.84
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.84
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.84
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.84
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.84
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.84
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.84
+
+#### cyrus-ai
+- cyrus-ai@0.2.84
 
 ## [0.2.83] - 2026-11-18
 
