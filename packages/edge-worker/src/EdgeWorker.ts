@@ -993,6 +993,8 @@ export class EdgeWorker extends EventEmitter {
 				);
 			}
 			return async () => {
+				if (session.agentRunner !== runner || !runner.isRunning())
+					throw new Error(`${label} session changed before delivery`);
 				runner.addStreamMessage!(prompt);
 			};
 		}
