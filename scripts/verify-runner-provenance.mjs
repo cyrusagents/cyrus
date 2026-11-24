@@ -38,18 +38,18 @@ const REQUIRED_PROVENANCE = {
 		subscriptionType: "max",
 	},
 	installed: {
-		agentSdk: ["@anthropic-ai/claude-agent-sdk", "0.3.330"],
-		apiSdk: ["@anthropic-ai/sdk", "1.12.0"],
-		core: ["cyrus-core", "0.2.84-test.2"],
-		native: ["@anthropic-ai/claude-agent-sdk-darwin-arm64", "0.3.330"],
-		nativeClaudeCodeVersion: "2.1.330",
+		agentSdk: ["@anthropic-ai/claude-agent-sdk", "0.3.331"],
+		apiSdk: ["@anthropic-ai/sdk", "1.13.0"],
+		core: ["cyrus-core", "0.2.84-test.0"],
+		native: ["@anthropic-ai/claude-agent-sdk-darwin-arm64", "0.3.331"],
+		nativeClaudeCodeVersion: "2.1.331",
 		nativeExecutableSha256:
-			"f7c5093b9dd6560d08af28bc27b123fb55091deae3180ac39df199522da86815",
-		runner: ["cyrus-claude-runner", "0.2.84-test.2"],
+			"4874591dc39bff1188921b82cbeb8a44e3a33b0f92c888b3d43639b9344101f7",
+		runner: ["cyrus-claude-runner", "0.2.84-test.0"],
 	},
 	source: {
-		featureCommit: "300ab4ad31842abab37249c97d5683d33b9ab9e3",
-		pullRequest: 1618,
+		featureCommit: "d5f2c7edf0e2a2a0f5e0ac0d8a466c05b9ad8765",
+		pullRequest: 1620,
 		repository: "cyrusagents/cyrus",
 	},
 };
@@ -57,7 +57,7 @@ const REQUIRED_TEST_RELEASE = {
 	channel: "test",
 	repository: "https://github.com/cyrusagents/cyrus",
 	schemaVersion: 1,
-	version: "0.2.84-test.2",
+	version: "0.2.84-test.0",
 };
 
 function run(command, args, options = {}) {

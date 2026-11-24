@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-cursor-runner",
-	"version": "0.2.84-test.2",
+	"version": "0.2.84-test.0",
 	"description": "Cursor Agent CLI process wrapper for Cyrus",
 	"repository": {
 		"type": "git",

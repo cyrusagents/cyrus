@@ -3,13 +3,13 @@ import { validateRuntimeProvenance } from "../../../scripts/verify-runner-proven
 
 const treeSha256 = "a".repeat(64);
 const commit = "b".repeat(40);
-const featureCommit = "300ab4ad31842abab37249c97d5683d33b9ab9e3";
+const featureCommit = "d5f2c7edf0e2a2a0f5e0ac0d8a466c05b9ad8765";
 const testRelease = {
 	channel: "test",
 	repository: "https://github.com/cyrusagents/cyrus",
 	schemaVersion: 1,
 	sourceSha: commit,
-	version: "0.2.84-test.2",
+	version: "0.2.84-test.0",
 };
 const expectedProvenance = () => ({
 	artifacts: {
@@ -18,13 +18,13 @@ const expectedProvenance = () => ({
 				"2eb4e15d83c1d9f11053570245e307227e8a5a522a898c4e54f758a4eafe552f",
 		},
 		core: {
-			path: "packages/cyrus-core-0.2.84-test.2.tgz",
+			path: "packages/cyrus-core-0.2.84-test.0.tgz",
 			sha256:
 				"b07526457da8d91f993c4316e3763a143e66c6b024c2599d7644e51de037e574",
 			treeSha256,
 		},
 		runner: {
-			path: "packages/cyrus-claude-runner-0.2.84-test.2.tgz",
+			path: "packages/cyrus-claude-runner-0.2.84-test.0.tgz",
 			sha256:
 				"a15716536375f28400bb49fe1d8007eef008b78146f4f900b2dc50af3339998e",
 			treeSha256,
@@ -53,23 +53,23 @@ const expectedProvenance = () => ({
 		subscriptionType: "max",
 	},
 	installed: {
-		agentSdk: { name: "@anthropic-ai/claude-agent-sdk", version: "0.3.330" },
-		apiSdk: { name: "@anthropic-ai/sdk", version: "1.12.0" },
-		core: { name: "cyrus-core", version: "0.2.84-test.2" },
+		agentSdk: { name: "@anthropic-ai/claude-agent-sdk", version: "0.3.331" },
+		apiSdk: { name: "@anthropic-ai/sdk", version: "1.13.0" },
+		core: { name: "cyrus-core", version: "0.2.84-test.0" },
 		native: {
-			claudeCodeVersion: "2.1.330",
+			claudeCodeVersion: "2.1.331",
 			executableSha256:
-				"f7c5093b9dd6560d08af28bc27b123fb55091deae3180ac39df199522da86815",
+				"4874591dc39bff1188921b82cbeb8a44e3a33b0f92c888b3d43639b9344101f7",
 			name: "@anthropic-ai/claude-agent-sdk-darwin-arm64",
-			version: "0.3.330",
+			version: "0.3.331",
 		},
-		runner: { name: "cyrus-claude-runner", version: "0.2.84-test.2" },
+		runner: { name: "cyrus-claude-runner", version: "0.2.84-test.0" },
 	},
 	schemaVersion: 1,
 	source: {
 		commit,
 		featureCommit,
-		pullRequest: 1618,
+		pullRequest: 1620,
 		repository: "cyrusagents/cyrus",
 	},
 });
@@ -107,7 +107,7 @@ const observedProvenance = (expected) => ({
 	source: {
 		commit,
 		prHead: featureCommit,
-		pullRequest: 1618,
+		pullRequest: 1620,
 		repository: "cyrusagents/cyrus",
 		trackedClean: true,
 	},
