@@ -4,6 +4,8 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.85] - 2026-11-24
+
 ### Added
 
 - Add `GitHubFollowThroughRouter` on `/github-webhook` for merge conflicts and branch freshness, with one per-PR dispatch journal under `merge-conflict-dispatch/`. It acknowledges with `followThroughProtocol: 1`. Hosted admission comes in the Bearer-only `x-cyrus-follow-through` header, which is ignored in signature mode. Also add the F1 drive `apps/f1/github-follow-through-drive.mjs`, covering signed direct and proxy delivery.
