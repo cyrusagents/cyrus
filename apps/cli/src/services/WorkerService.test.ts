@@ -131,6 +131,7 @@ describe("WorkerService", () => {
 			customSystemInstructions: "Use plain language.",
 			prReviewTrigger: false,
 			ciFailureTrigger: true,
+			mergeConflictTrigger: true,
 			githubReviewAppPolicies: [
 				{ installationId: "123", organization: "Grain", appIds: [42] },
 			],
