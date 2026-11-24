@@ -109,6 +109,11 @@ function runScenario(config: Scenario = {}) {
 	}
 	const env = {
 		...process.env,
+		// Stable-release scenarios execute the stable workflow's validation block.
+		// The test-channel workflow sets CANDIDATE_SHA for its own job, so clear any
+		// inherited value instead of letting it make every spawned stable scenario
+		// fail at `test -z "$CANDIDATE_SHA"` in CI.
+		CANDIDATE_SHA: "",
 		PATH: `${directory}/bin:${process.env.PATH}`,
 		FAKE_RELEASE_ROOT: directory,
 		FAKE_CLOCK_TICK: String(config.tick || 10000),
