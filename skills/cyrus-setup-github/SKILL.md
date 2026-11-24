@@ -166,8 +166,10 @@ Construct the manifest, substituting `AGENT_NAME`, `HOMEPAGE_URL`, and `CYRUS_BA
     "status",
     "check_run",
     "issue_comment",
+    "pull_request",
     "pull_request_review",
     "pull_request_review_comment",
+    "push",
     "repository"
   ]
 }

@@ -35,9 +35,10 @@ export {
 	stripMention,
 } from "./github-webhook-utils.js";
 export {
-	type GitHubMergeConflictHint,
+	type GitHubMergeConflictEvent,
+	MERGE_CONFLICT_ONLY_HEADER,
 	MERGE_CONFLICT_PROTOCOL,
-	parseGitHubMergeConflictHint,
+	parseGitHubMergeConflictEvent,
 } from "./merge-conflict.js";
 export {
 	allowedReviewAppIds,

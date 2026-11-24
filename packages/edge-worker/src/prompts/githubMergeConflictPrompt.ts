@@ -1,4 +1,10 @@
-import type { GitHubMergeConflictHint } from "cyrus-github-event-transport";
+/** Identifiers read back from GitHub, never webhook text. */
+export type MergeConflictPromptInput = {
+	repository: string;
+	number: number;
+	headSha: string;
+	baseSha: string;
+};
 
 /** Keep provider-controlled text inside its XML element, never as prompt markup. */
 function escapeXml(value: string | number): string {
@@ -15,14 +21,14 @@ function escapeXml(value: string | number): string {
 
 /** Identifiers only: no branch names, titles or other provider text. */
 export function buildGitHubMergeConflictPrompt(
-	hint: GitHubMergeConflictHint,
+	input: MergeConflictPromptInput,
 ): string {
 	const fields = {
-		repository: hint.repository.fullName,
-		pull_request: hint.pullRequest.number,
-		head_sha: hint.pullRequest.headSha,
-		base_sha: hint.pullRequest.baseSha,
-		url: `https://github.com/${hint.repository.fullName}/pull/${hint.pullRequest.number}`,
+		repository: input.repository,
+		pull_request: input.number,
+		head_sha: input.headSha,
+		base_sha: input.baseSha,
+		url: `https://github.com/${input.repository}/pull/${input.number}`,
 	};
 	return [
 		"<merge_conflict_notification>",

@@ -6,8 +6,9 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { parseGitHubCiFailure } from "./ci-failure.js";
 import { GitHubMessageTranslator } from "./GitHubMessageTranslator.js";
 import {
+	MERGE_CONFLICT_ONLY_HEADER,
 	MERGE_CONFLICT_PROTOCOL,
-	parseGitHubMergeConflictHint,
+	parseGitHubMergeConflictEvent,
 } from "./merge-conflict.js";
 import type {
 	GitHubEventTransportConfig,
@@ -144,58 +145,6 @@ export class GitHubEventTransport extends EventEmitter {
 		this.logger.info(
 			`Registered POST /github-webhook endpoint (${this.config.verificationMode} mode)`,
 		);
-		if (this.config.handleMergeConflict) this.registerMergeConflict();
-	}
-
-	/**
-	 * POST /github-merge-conflict: Hosted's merge conflict hints. Proxy (Bearer)
-	 * only. Older runtimes lack the route, so Hosted's protocol check fails
-	 * closed with a 404 instead of an ignored success.
-	 */
-	private registerMergeConflict(): void {
-		this.config.fastifyServer.post(
-			"/github-merge-conflict",
-			async (request: FastifyRequest, reply: FastifyReply) => {
-				const { mode, secret } = this.resolveVerification();
-				if (mode !== "proxy") {
-					reply
-						.code(404)
-						.send({ error: "Merge conflict hints require Hosted delivery" });
-					return;
-				}
-				if (!secret || request.headers.authorization !== `Bearer ${secret}`) {
-					reply.code(401).send({ error: "Invalid authorization token" });
-					return;
-				}
-				const hint = parseGitHubMergeConflictHint(request.body);
-				const deliveryId = request.headers["x-github-delivery"];
-				if (!hint || typeof deliveryId !== "string" || !deliveryId) {
-					reply.code(400).send({ error: "Invalid merge conflict hint" });
-					return;
-				}
-				const installationToken = request.headers[
-					"x-github-installation-token"
-				] as string | undefined;
-				try {
-					const outcome = await this.config.handleMergeConflict!(hint, {
-						deliveryId,
-						installationToken,
-					});
-					reply.send({ conflictProtocol: MERGE_CONFLICT_PROTOCOL, ...outcome });
-				} catch {
-					this.logger.warn("Merge conflict routing failed", {
-						repositoryId: hint.repository.id,
-						pullRequest: hint.pullRequest.number,
-						deliveryId,
-					});
-					reply.code(503).send({
-						conflictProtocol: MERGE_CONFLICT_PROTOCOL,
-						error: "Merge conflict delivery failed",
-					});
-				}
-			},
-		);
-		this.logger.info("Registered POST /github-merge-conflict endpoint");
 	}
 
 	/**
@@ -234,7 +183,7 @@ export class GitHubEventTransport extends EventEmitter {
 				return;
 			}
 
-			await this.processAndEmitEvent(request, reply);
+			await this.processAndEmitEvent(request, reply, "signature");
 		} catch (error) {
 			const err = new Error("Signature verification failed");
 			if (error instanceof Error) {
@@ -266,7 +215,7 @@ export class GitHubEventTransport extends EventEmitter {
 		}
 
 		try {
-			await this.processAndEmitEvent(request, reply);
+			await this.processAndEmitEvent(request, reply, "proxy");
 		} catch (error) {
 			const err = new Error("Proxy webhook processing failed");
 			if (error instanceof Error) {
@@ -283,6 +232,8 @@ export class GitHubEventTransport extends EventEmitter {
 	private async processAndEmitEvent(
 		request: FastifyRequest,
 		reply: FastifyReply,
+		/** How this request was admitted; Hosted-only headers need "proxy". */
+		admittedBy: GitHubVerificationMode,
 	): Promise<void> {
 		const eventType = request.headers["x-github-event"] as string;
 		const deliveryId =
@@ -327,6 +278,33 @@ export class GitHubEventTransport extends EventEmitter {
 					error: "CI delivery failed; redeliver after recovery",
 				});
 			}
+			return;
+		}
+
+		const mergeConflictOnly =
+			admittedBy === "proxy" &&
+			eventType === "push" &&
+			request.headers[MERGE_CONFLICT_ONLY_HEADER] === "1";
+		if (eventType === "pull_request" || mergeConflictOnly) {
+			// Merge conflict follow-up only: no other handling exists for these.
+			if (!this.config.handleMergeConflict) {
+				if (mergeConflictOnly) {
+					reply.code(503).send({ error: "Merge conflict handler unavailable" });
+					return;
+				}
+				this.logger.debug(`Ignoring unsupported event type: ${eventType}`);
+				reply.code(200).send({ success: true, ignored: true });
+				return;
+			}
+			reply.send({
+				mergeConflictProtocol: MERGE_CONFLICT_PROTOCOL,
+				...(await this.queueMergeConflict(
+					eventType,
+					request.body,
+					deliveryId,
+					installationToken,
+				)),
+			});
 			return;
 		}
 
@@ -383,7 +361,45 @@ export class GitHubEventTransport extends EventEmitter {
 		// Emit "message" with translated internal message
 		this.emitMessage(webhookEvent);
 
+		// A base branch push can also leave this runtime's PRs conflicted. The
+		// ordinary push handling above is unchanged; this only queues a check.
+		if (eventType === "push" && this.config.handleMergeConflict)
+			await this.queueMergeConflict(
+				eventType,
+				request.body,
+				deliveryId,
+				installationToken,
+			);
+
 		reply.code(200).send({ success: true });
+	}
+
+	/**
+	 * Hands a qualifying event to the merge conflict handler, which only
+	 * queues bounded background work. Never throws: a handler failure must not
+	 * change the response for the ordinary event that carried it.
+	 */
+	private async queueMergeConflict(
+		eventType: string,
+		body: unknown,
+		deliveryId: string,
+		installationToken: string | undefined,
+	): Promise<{ outcome: string }> {
+		const event = parseGitHubMergeConflictEvent(eventType, body);
+		if (!event) return { outcome: "ignored" };
+		try {
+			return await this.config.handleMergeConflict!(event, {
+				deliveryId,
+				installationToken,
+			});
+		} catch (error) {
+			this.logger.warn("Merge conflict check could not be queued", {
+				repositoryId: event.repository.id,
+				deliveryId,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return { outcome: "unavailable" };
+		}
 	}
 
 	/**

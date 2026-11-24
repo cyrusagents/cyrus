@@ -1109,12 +1109,16 @@ export class EdgeWorker extends EventEmitter {
 				this.logger.error(
 					`Merge conflict dispatch failed for session ${sessionId}; inspect merge-conflict-dispatch journal before redelivery`,
 				),
+			onCheckError: (error) =>
+				this.logger.warn(
+					`Merge conflict check failed: ${error instanceof Error ? error.message : String(error)}`,
+				),
 		});
 		this.gitHubEventTransport = new GitHubEventTransport({
 			handleCiFailure: (failure, context) =>
 				ciRouter.handle(failure, context.installationToken),
-			handleMergeConflict: (hint, context) =>
-				mergeConflictRouter.handle(hint, context.installationToken),
+			handleMergeConflict: (event, context) =>
+				mergeConflictRouter.receive(event, context.installationToken),
 			fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
 			verificationMode,
 			secret,

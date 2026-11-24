@@ -1,10 +1,11 @@
+import { createHmac } from "node:crypto";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CyrusAgentSession, RepositoryConfig } from "cyrus-core";
 import {
 	GitHubEventTransport,
-	parseGitHubMergeConflictHint,
+	parseGitHubMergeConflictEvent,
 } from "cyrus-github-event-transport";
 import Fastify from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,38 +13,64 @@ import { GitHubMergeConflictRouter } from "../src/GitHubMergeConflictRouter.js";
 
 const head = "a".repeat(40);
 const base = "b".repeat(40);
-const hintBody = (overrides: Record<string, unknown> = {}) => ({
-	conflictProtocol: 1,
-	repository: { id: 42, fullName: "grain/app" },
-	pullRequest: { number: 7, headSha: head, baseSha: base },
+const repository = {
+	id: 42,
+	full_name: "grain/app",
+	owner: { login: "grain", type: "Organization" },
+};
+const prEvent = (overrides: Record<string, unknown> = {}) => ({
+	action: "synchronize",
+	installation: { id: 9 },
+	repository,
+	sender: { id: 202, login: "octocat", type: "User" },
+	pull_request: {
+		number: 7,
+		draft: false,
+		head: { ref: "cyrus/task", sha: head },
+	},
+	...overrides,
+});
+const pushEvent = (overrides: Record<string, unknown> = {}) => ({
+	ref: "refs/heads/main",
+	before: "c".repeat(40),
+	after: base,
+	created: false,
+	deleted: false,
+	installation: { id: 9 },
+	repository,
+	sender: { id: 202, login: "octocat", type: "User" },
+	commits: [],
 	...overrides,
 });
 
-describe("merge conflict hints reach only the existing PR session", () => {
+describe("merge conflicts on standard GitHub events", () => {
 	let home: string;
 	let enabled: boolean;
-	let pr: any;
+	let pulls: Record<number, any>;
 	let sessions: CyrusAgentSession[];
-	let repository: RepositoryConfig;
+	let repo: RepositoryConfig;
 	let runner: ReturnType<typeof vi.fn>;
 	let prepare: ReturnType<typeof vi.fn>;
-	let error: ReturnType<typeof vi.fn>;
+	let checkError: ReturnType<typeof vi.fn>;
 	let api: ReturnType<typeof vi.fn>;
 	let router: GitHubMergeConflictRouter;
+	let legacy: ReturnType<typeof vi.fn>;
 	const servers: ReturnType<typeof Fastify>[] = [];
+	const pull = (number: number, overrides: Record<string, unknown> = {}) => ({
+		number,
+		state: "open",
+		draft: false,
+		head: { sha: head, ref: "cyrus/task", repo: { id: 42 } },
+		base: { sha: base, ref: "main", repo: { id: 42 } },
+		mergeable: false,
+		mergeable_state: "dirty",
+		...overrides,
+	});
 	beforeEach(async () => {
 		enabled = true;
 		home = await mkdtemp(join(tmpdir(), "conflict-routing-"));
-		pr = {
-			number: 7,
-			state: "open",
-			draft: false,
-			head: { sha: head, ref: "cyrus/task", repo: { id: 42 } },
-			base: { sha: base, ref: "main", repo: { id: 42 } },
-			mergeable: false,
-			mergeable_state: "dirty",
-		};
-		repository = {
+		pulls = { 7: pull(7) };
+		repo = {
 			id: "repo",
 			githubUrl: "https://github.com/grain/app",
 			isActive: true,
@@ -60,25 +87,51 @@ describe("merge conflict hints reach only the existing PR session", () => {
 		] as CyrusAgentSession[];
 		runner = vi.fn().mockResolvedValue(undefined);
 		prepare = vi.fn().mockResolvedValue(runner);
-		error = vi.fn();
+		checkError = vi.fn();
+		legacy = vi.fn();
 		api = vi.fn(async (url: string) => {
-			const path = new URL(url).pathname;
-			if (path.endsWith("/pulls/7")) return Response.json(pr);
+			const parsed = new URL(url);
+			const path = parsed.pathname;
+			const one = path.match(/\/pulls\/(\d+)$/);
+			if (one) {
+				const value = pulls[Number(one[1])];
+				return Response.json(typeof value === "function" ? value() : value);
+			}
+			if (path.endsWith("/pulls")) {
+				const headFilter = parsed.searchParams.get("head")?.split(":")[1];
+				const baseFilter = parsed.searchParams.get("base");
+				return Response.json(
+					Object.values(pulls)
+						.map((value) => (typeof value === "function" ? value() : value))
+						.filter(
+							(pr) =>
+								pr.state === "open" &&
+								pr.head.ref === headFilter &&
+								(!baseFilter || pr.base.ref === baseFilter),
+						),
+				);
+			}
 			return Response.json({ id: 42 });
 		});
 		router = new GitHubMergeConflictRouter({
 			home,
 			enabled: () => enabled,
-			repositories: () => [repository],
+			repositories: () => [repo],
 			sessions: () => sessions,
-			token: async (_repo, forwarded) => forwarded ?? "private-token",
+			token: async (_repo, forwarded) => forwarded ?? "local-app-token",
 			prepare,
-			onDispatchError: error,
+			onDispatchError: vi.fn(),
+			onCheckError: checkError,
 			fetch: api as typeof fetch,
+			sleep: async () => {},
 		});
 	});
 	afterEach(async () => {
 		await Promise.all(servers.splice(0).map((s) => s.close()));
+		await settled();
+		await rm(home, { recursive: true, force: true });
+	});
+	async function settled() {
 		const root = join(home, "merge-conflict-dispatch");
 		await vi.waitFor(
 			async () => {
@@ -91,112 +144,269 @@ describe("merge conflict hints reach only the existing PR session", () => {
 			},
 			{ timeout: 5000 },
 		);
-		await rm(home, { recursive: true, force: true });
-	});
+	}
 	async function deliver(
-		body: unknown = hintBody(),
+		event: string,
+		body: unknown,
 		options: {
 			mode?: "proxy" | "signature";
-			authorization?: string;
-			delivery?: string;
+			authenticated?: boolean;
+			conflictOnly?: boolean;
 			handler?: boolean;
 		} = {},
 	) {
+		const mode = options.mode ?? "proxy";
 		const app = Fastify();
 		servers.push(app);
-		new GitHubEventTransport({
+		app.addHook("preValidation", async (request) => {
+			(request as any).rawBody = JSON.stringify(request.body);
+		});
+		const transport = new GitHubEventTransport({
 			fastifyServer: app,
-			verificationMode: options.mode ?? "proxy",
+			verificationMode: mode,
 			secret: "test-secret",
 			...(options.handler === false
 				? {}
 				: {
-						handleMergeConflict: (hint, context) =>
-							router.handle(hint, context.installationToken),
+						handleMergeConflict: (parsed, context) =>
+							router.receive(parsed, context.installationToken),
 					}),
-		}).register();
+		});
+		transport.on("event", legacy);
+		transport.register();
+		const raw = JSON.stringify(body);
+		const authenticated = options.authenticated ?? true;
 		return app.inject({
 			method: "POST",
-			url: "/github-merge-conflict",
-			payload: JSON.stringify(body),
+			url: "/github-webhook",
+			payload: raw,
 			headers: {
 				"content-type": "application/json",
-				"x-github-delivery": options.delivery ?? "delivery-1",
-				"x-github-installation-token": "installation-token",
-				authorization: options.authorization ?? "Bearer test-secret",
+				"x-github-event": event,
+				"x-github-delivery": "delivery-1",
+				...(options.conflictOnly ? { "x-cyrus-merge-conflict-only": "1" } : {}),
+				...(mode === "proxy"
+					? {
+							authorization: authenticated
+								? "Bearer test-secret"
+								: "Bearer wrong",
+							"x-github-installation-token": "installation-token",
+						}
+					: {
+							"x-hub-signature-256": `sha256=${createHmac(
+								"sha256",
+								authenticated ? "test-secret" : "wrong",
+							)
+								.update(raw)
+								.digest("hex")}`,
+						}),
 			},
 		});
 	}
+	const dispatched = async (count: number) =>
+		vi.waitFor(() => expect(runner).toHaveBeenCalledTimes(count));
 
-	it("continues exactly the session that owns the PR branch, with a safe prompt", async () => {
-		const response = await deliver();
+	it.each([
+		"proxy",
+		"signature",
+	] as const)("a signed or Hosted pull_request continues the owning session (%s)", async (mode) => {
+		const response = await deliver("pull_request", prEvent(), { mode });
 		expect(response.json()).toEqual({
-			conflictProtocol: 1,
-			outcome: "accepted",
-			sessionId: "responsible-session",
+			mergeConflictProtocol: 1,
+			outcome: "queued",
 		});
-		expect(prepare).toHaveBeenCalledTimes(1);
+		await dispatched(1);
 		expect(prepare.mock.calls[0]![0]).toBe(sessions[0]);
 		const prompt = prepare.mock.calls[0]![2] as string;
 		expect(prompt).toContain("<pull_request>7</pull_request>");
-		expect(prompt).toContain(`<head_sha>${head}</head_sha>`);
 		expect(prompt).toContain(`<base_sha>${base}</base_sha>`);
 		expect(prompt).toContain("Never force push");
-		expect(prompt).toContain("Do not rebase");
-		expect(prompt).toContain('trust="untrusted"');
-		// Branch names and other provider text stay out of the prompt.
 		expect(prompt).not.toContain("cyrus/task");
-		expect(prompt).not.toContain("installation-token");
-		// The forwarded App installation token is used for GitHub reads.
+		// Hosted's installation token in proxy mode; local credentials otherwise.
 		expect(api.mock.calls[0]![1].headers.Authorization).toBe(
-			"Bearer installation-token",
+			mode === "proxy" ? "Bearer installation-token" : "Bearer local-app-token",
 		);
-		expect(runner).toHaveBeenCalledTimes(1);
+		// pull_request has no other handling.
+		expect(legacy).not.toHaveBeenCalled();
+	});
+
+	it("rejects unauthenticated deliveries before reading the payload", async () => {
+		expect(
+			(await deliver("pull_request", prEvent(), { authenticated: false }))
+				.statusCode,
+		).toBe(401);
+		expect(
+			(
+				await deliver("pull_request", prEvent(), {
+					mode: "signature",
+					authenticated: false,
+				})
+			).statusCode,
+		).toBe(401);
+		expect(api).not.toHaveBeenCalled();
+	});
+
+	it("a base push checks only owned branches and keeps the ordinary push handling", async () => {
+		pulls[8] = pull(8, {
+			head: { sha: head, ref: "other", repo: { id: 42 } },
+			mergeable: true,
+		});
+		pulls[9] = pull(9, {
+			head: { sha: head, ref: "not-ours", repo: { id: 42 } },
+		});
+		const response = await deliver("push", pushEvent());
+		// Ordinary push response and legacy event are unchanged.
+		expect(response.json()).toEqual({ success: true });
+		expect(legacy).toHaveBeenCalledTimes(1);
+		await dispatched(1);
+		const lists = api.mock.calls
+			.map(([url]) => new URL(url as string))
+			.filter((url) => url.pathname.endsWith("/pulls"));
+		expect(lists.map((url) => url.searchParams.get("head")).sort()).toEqual(
+			["grain:cyrus/task", "grain:cyrus/task", "grain:other"].sort(),
+		);
+		// A conflicted PR no session owns is never read.
+		expect(
+			api.mock.calls.some(([url]) => String(url).endsWith("/pulls/9")),
+		).toBe(false);
+	});
+
+	it("a Hosted conflict-only push skips the ordinary push handling", async () => {
+		const response = await deliver("push", pushEvent(), { conflictOnly: true });
+		expect(response.json()).toEqual({
+			mergeConflictProtocol: 1,
+			outcome: "queued",
+		});
+		expect(legacy).not.toHaveBeenCalled();
+		await dispatched(1);
+	});
+
+	it("the conflict-only selector is ignored outside authenticated proxy delivery", async () => {
+		const response = await deliver("push", pushEvent(), {
+			mode: "signature",
+			conflictOnly: true,
+		});
+		// Direct GitHub delivery: treated as an ordinary push.
+		expect(response.json()).toEqual({ success: true });
+		expect(legacy).toHaveBeenCalledTimes(1);
+	});
+
+	it("runtimes without the handler keep ignoring pull_request and refuse conflict-only pushes", async () => {
+		expect(
+			(await deliver("pull_request", prEvent(), { handler: false })).json(),
+		).toEqual({
+			success: true,
+			ignored: true,
+		});
+		expect(
+			(
+				await deliver("push", pushEvent(), {
+					handler: false,
+					conflictOnly: true,
+				})
+			).statusCode,
+		).toBe(503);
+		expect(legacy).not.toHaveBeenCalled();
 	});
 
 	it.each([
+		["unknown mergeability never counts", { mergeable: null }],
+		["mergeable PRs are left alone", { mergeable: true }],
 		[
-			"unknown mergeability never counts",
-			{ mergeable: null },
-			"mergeability_unknown",
-		],
-		["mergeable PRs are left alone", { mergeable: true }, "not_conflicted"],
-		[
-			"a blocked-looking state is not a conflict",
+			"blocked-looking but mergeable",
 			{ mergeable: true, mergeable_state: "blocked" },
-			"not_conflicted",
 		],
-		["closed PRs", { state: "closed" }, "not_open_or_fork"],
-		["draft PRs", { draft: true }, "not_open_or_fork"],
+		["closed PRs", { state: "closed" }],
+		["draft PRs", { draft: true }],
 		[
 			"fork heads",
 			{ head: { sha: head, ref: "cyrus/task", repo: { id: 99 } } },
-			"not_open_or_fork",
 		],
 		[
 			"deleted fork heads",
 			{ head: { sha: head, ref: "cyrus/task", repo: null } },
-			"not_open_or_fork",
 		],
-		[
-			"a moved head",
-			{ head: { sha: "c".repeat(40), ref: "cyrus/task", repo: { id: 42 } } },
-			"superseded",
-		],
-		[
-			"a moved base",
-			{ base: { sha: "c".repeat(40), ref: "main", repo: { id: 42 } } },
-			"superseded",
-		],
-	])("%s", async (_, change, outcome) => {
-		Object.assign(pr, change);
-		expect((await deliver()).json()).toEqual({ conflictProtocol: 1, outcome });
+	])("%s", async (_, change) => {
+		Object.assign(pulls[7], change);
+		await deliver("pull_request", prEvent());
+		await vi.waitFor(() =>
+			expect(
+				api.mock.calls.some(([url]) => String(url).endsWith("/pulls/7")),
+			).toBe(true),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 20));
 		expect(prepare).not.toHaveBeenCalled();
+		expect(checkError).not.toHaveBeenCalled();
 	});
 
-	it("never starts a session and refuses ambiguity", async () => {
-		sessions = [sessions[1]!];
-		expect((await deliver()).json().outcome).toBe("session_not_found");
+	it("unknown mergeability is re-read a bounded number of times", async () => {
+		let reads = 0;
+		pulls[7] = () => ({ ...pull(7), mergeable: ++reads < 3 ? null : false });
+		await deliver("pull_request", prEvent());
+		await dispatched(1);
+		expect(reads).toBeGreaterThanOrEqual(3);
+		reads = 0;
+		pulls[7] = () => ({
+			...pull(7, {
+				head: { sha: "d".repeat(40), ref: "cyrus/task", repo: { id: 42 } },
+			}),
+			mergeable: (reads++, null),
+		});
+		await deliver("pull_request", prEvent());
+		await vi.waitFor(() => expect(reads).toBe(4));
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(runner).toHaveBeenCalledTimes(1);
+	});
+
+	it("no network work for disabled, unowned or unconfigured events", async () => {
+		enabled = false;
+		expect((await deliver("pull_request", prEvent())).json().outcome).toBe(
+			"disabled",
+		);
+		enabled = true;
+		const unowned = prEvent({
+			pull_request: {
+				number: 7,
+				draft: false,
+				head: { ref: "someone-else", sha: head },
+			},
+		});
+		expect((await deliver("pull_request", unowned)).json().outcome).toBe(
+			"not_owned",
+		);
+		sessions = [];
+		expect((await deliver("pull_request", prEvent())).json().outcome).toBe(
+			"session_not_found",
+		);
+		repo.isActive = false;
+		expect((await deliver("pull_request", prEvent())).json().outcome).toBe(
+			"repository_not_unique",
+		);
+		for (const ignored of [
+			prEvent({ action: "labeled" }),
+			prEvent({ action: "edited", changes: { title: { from: "x" } } }),
+			prEvent({
+				pull_request: { number: 7, draft: true, head: { ref: "cyrus/task" } },
+			}),
+		])
+			expect((await deliver("pull_request", ignored)).json().outcome).toBe(
+				"ignored",
+			);
+		expect(api).not.toHaveBeenCalled();
+	});
+
+	it("a retarget qualifies", async () => {
+		const retarget = prEvent({
+			action: "edited",
+			changes: { base: { ref: { from: "dev" } } },
+		});
+		expect((await deliver("pull_request", retarget)).json().outcome).toBe(
+			"queued",
+		);
+		await dispatched(1);
+	});
+
+	it("never guesses between sessions or same-branch PRs", async () => {
 		sessions = [
 			{
 				id: "a",
@@ -207,122 +417,84 @@ describe("merge conflict hints reach only the existing PR session", () => {
 				repositories: [{ repositoryId: "repo", branchName: "cyrus/task" }],
 			},
 		] as CyrusAgentSession[];
-		expect((await deliver()).json().outcome).toBe("ambiguous_session");
+		await deliver("pull_request", prEvent());
+		await vi.waitFor(() => expect(api).toHaveBeenCalled());
+		await new Promise((resolve) => setTimeout(resolve, 20));
 		expect(prepare).not.toHaveBeenCalled();
-	});
-
-	it("is off unless the runtime config opts in, and checks repository identity", async () => {
-		enabled = false;
-		expect((await deliver()).json().outcome).toBe("disabled");
-		enabled = true;
-		api.mockImplementation(async (url: string) =>
-			new URL(url).pathname.endsWith("/pulls/7")
-				? Response.json(pr)
-				: Response.json({ id: 43 }),
-		);
-		expect((await deliver()).json().outcome).toBe(
-			"repository_identity_mismatch",
-		);
-		repository.isActive = false;
-		expect((await deliver()).json().outcome).toBe("repository_not_unique");
-		expect(prepare).not.toHaveBeenCalled();
-	});
-
-	it("redeliveries and races dispatch once per head and base, within a per-PR limit", async () => {
-		let release!: () => void;
-		runner.mockImplementationOnce(
-			() => new Promise<void>((resolve) => (release = resolve)),
-		);
-		expect((await deliver()).json().outcome).toBe("accepted");
-		await vi.waitFor(() => expect(runner).toHaveBeenCalledTimes(1));
-		// A racing delivery while the turn is still running never dispatches again.
-		const racing = await deliver(hintBody(), { delivery: "delivery-2" });
-		release();
-		expect(racing.json().outcome).toBe("duplicate_revision");
-		const journal = async (baseSha: string) => {
-			const root = join(home, "merge-conflict-dispatch");
-			const [dir] = await readdir(root);
-			return JSON.parse(
-				await readFile(join(root, dir!, `${head}-${baseSha}.json`), "utf8"),
-			).state;
-		};
-		await vi.waitFor(async () => expect(await journal(base)).toBe("completed"));
-		expect(
-			(await deliver(hintBody(), { delivery: "delivery-3" })).json().outcome,
-		).toBe("duplicate_revision");
-		// Later base pushes conflict again: each head/base pair counts once.
-		for (const next of ["c", "d"]) {
-			pr.base.sha = next.repeat(40);
-			const body = hintBody({
-				pullRequest: { number: 7, headSha: head, baseSha: pr.base.sha },
-			});
-			expect((await deliver(body)).json().outcome).toBe("accepted");
-			await vi.waitFor(async () =>
-				expect(await journal(pr.base.sha)).toBe("completed"),
-			);
-		}
-		pr.base.sha = "e".repeat(40);
-		const fourth = hintBody({
-			pullRequest: { number: 7, headSha: head, baseSha: pr.base.sha },
+		sessions = [sessions[0]!];
+		// A second open PR from the same branch, to another base.
+		pulls[11] = pull(11, {
+			base: { sha: base, ref: "release", repo: { id: 42 } },
 		});
-		expect((await deliver(fourth)).json().outcome).toBe(
-			"automatic_attempt_limit",
-		);
+		await deliver("pull_request", prEvent());
+		await new Promise((resolve) => setTimeout(resolve, 30));
+		expect(prepare).not.toHaveBeenCalled();
+	});
+
+	it("checks the repository identity with GitHub", async () => {
+		api.mockImplementation(async () => Response.json({ id: 43 }));
+		await deliver("pull_request", prEvent());
+		await vi.waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(prepare).not.toHaveBeenCalled();
+	});
+
+	it("redeliveries, push/PR races and new bases dispatch once per head and base, within a per-PR limit", async () => {
+		await deliver("pull_request", prEvent());
+		await deliver("push", pushEvent());
+		await dispatched(1);
+		await settled();
+		await deliver("pull_request", prEvent());
+		await new Promise((resolve) => setTimeout(resolve, 30));
+		expect(runner).toHaveBeenCalledTimes(1);
+		for (const next of ["c", "d", "e"]) {
+			pulls[7] = pull(7, {
+				base: { sha: next.repeat(40), ref: "main", repo: { id: 42 } },
+			});
+			await deliver("push", pushEvent());
+			await new Promise((resolve) => setTimeout(resolve, 30));
+			await settled();
+		}
 		expect(runner).toHaveBeenCalledTimes(3);
 	});
 
 	it("rechecks GitHub after preparing and does not dispatch a resolved conflict", async () => {
 		prepare.mockImplementation(async () => {
-			pr.mergeable = true;
+			pulls[7] = pull(7, { mergeable: true });
 			return runner;
 		});
-		expect((await deliver()).json().outcome).toBe("not_conflicted");
+		await deliver("pull_request", prEvent());
+		await vi.waitFor(() => expect(prepare).toHaveBeenCalled());
+		await new Promise((resolve) => setTimeout(resolve, 20));
 		expect(runner).not.toHaveBeenCalled();
 	});
 
-	it("a failed GitHub read is a retryable 503, not success", async () => {
+	it("GitHub read failures are reported, not dispatched", async () => {
 		api.mockResolvedValue(new Response(null, { status: 502 }));
-		const response = await deliver();
-		expect(response.statusCode).toBe(503);
+		await deliver("pull_request", prEvent());
+		await vi.waitFor(() => expect(checkError).toHaveBeenCalledTimes(1));
 		expect(prepare).not.toHaveBeenCalled();
 	});
 
-	it("accepts only authenticated, well-formed Hosted hints", async () => {
-		expect(
-			(await deliver(hintBody(), { authorization: "Bearer wrong" })).statusCode,
-		).toBe(401);
-		expect((await deliver(hintBody({ conflictProtocol: 2 }))).statusCode).toBe(
-			400,
-		);
-		expect((await deliver(hintBody({ extra: true }))).statusCode).toBe(400);
-		expect(
-			(
-				await deliver(
-					hintBody({ pullRequest: { number: 7, headSha: "x", baseSha: base } }),
-				)
-			).statusCode,
-		).toBe(400);
-		expect((await deliver(hintBody(), { delivery: "" })).statusCode).toBe(400);
-		// Direct GitHub delivery (signature mode) never carries these hints.
-		expect((await deliver(hintBody(), { mode: "signature" })).statusCode).toBe(
-			404,
-		);
-		// Without a handler the route does not exist, as on older runtimes.
-		expect((await deliver(hintBody(), { handler: false })).statusCode).toBe(
-			404,
-		);
-		expect(prepare).not.toHaveBeenCalled();
-	});
-
-	it("parses identifiers only", () => {
-		expect(parseGitHubMergeConflictHint(hintBody())).toEqual({
+	it("parses identifiers only and rejects unsafe repository paths", () => {
+		expect(parseGitHubMergeConflictEvent("pull_request", prEvent())).toEqual({
+			kind: "pull_request",
+			action: "synchronize",
+			number: 7,
+			headRef: "cyrus/task",
+			installationId: 9,
 			repository: { id: 42, fullName: "grain/app" },
-			pullRequest: { number: 7, headSha: head, baseSha: base },
 		});
-		expect(
-			parseGitHubMergeConflictHint(
-				hintBody({ repository: { id: 42, fullName: "../x" } }),
-			),
-		).toBeNull();
+		for (const [event, body] of [
+			[
+				"pull_request",
+				prEvent({ repository: { ...repository, full_name: "../x" } }),
+			],
+			["push", pushEvent({ ref: "refs/tags/v1" })],
+			["push", pushEvent({ deleted: true })],
+			["push", pushEvent({ created: true })],
+			["status", prEvent()],
+		] as const)
+			expect(parseGitHubMergeConflictEvent(event, body)).toBeNull();
 	});
 });

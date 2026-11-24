@@ -5,7 +5,7 @@
 import type { InternalMessage } from "cyrus-core";
 import type { FastifyInstance } from "fastify";
 import type { GitHubCiFailure } from "./ci-failure.js";
-import type { GitHubMergeConflictHint } from "./merge-conflict.js";
+import type { GitHubMergeConflictEvent } from "./merge-conflict.js";
 
 /**
  * Verification mode for GitHub webhooks forwarded from CYHOST
@@ -32,14 +32,14 @@ export interface GitHubEventTransportConfig {
 		context: { deliveryId: string; installationToken?: string },
 	) => Promise<{ outcome: string; sessionId?: string }>;
 	/**
-	 * Merge conflict hints from Cyrus Hosted, on POST /github-merge-conflict.
-	 * The route is registered only when this is set, and only accepts proxy
-	 * (Bearer) delivery: GitHub never sends these, so they carry no signature.
+	 * Merge conflict follow-up for standard `pull_request` and `push` events
+	 * on /github-webhook, after the usual admission. Must only queue bounded
+	 * work and return quickly; `push` keeps its ordinary handling as well.
 	 */
 	handleMergeConflict?: (
-		hint: GitHubMergeConflictHint,
+		event: GitHubMergeConflictEvent,
 		context: { deliveryId: string; installationToken?: string },
-	) => Promise<{ outcome: string; sessionId?: string }>;
+	) => Promise<{ outcome: string }>;
 }
 
 /**
