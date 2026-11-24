@@ -58,6 +58,19 @@ test("rejects Bash before the successful Read result", () => {
 	);
 });
 
+test("accepts a blocked premature Bash attempt followed by ordered execution", () => {
+	const messages = validReceipt();
+	messages.splice(
+		1,
+		0,
+		toolUse("Bash", "bash-blocked", { command: "pwd", timeout: 10_000 }),
+		toolResult("bash-blocked", true),
+	);
+	const receipt = validateRuntimeReceipt(messages);
+	expect(receipt.blockedPrematureBashCount).toBe(1);
+	expect(receipt.bashUse.id).toBe("bash-1");
+});
+
 test("rejects an errored Bash result", () => {
 	const messages = validReceipt();
 	messages[3] = toolResult("bash-1", true);

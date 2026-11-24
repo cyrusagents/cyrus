@@ -45,6 +45,7 @@ const { ClaudeRunner } = await import(
 const messages = [];
 const callbackErrors = [];
 let completed = false;
+let readCompleted = false;
 const runner = new ClaudeRunner({
 	workingDirectory,
 	cyrusHome: join(workingDirectory, ".cyrus-runtime-receipt"),
@@ -55,6 +56,35 @@ const runner = new ClaudeRunner({
 	tools: ["Read", "Bash"],
 	allowedTools: ["Read", "Bash(pwd)"],
 	disallowedTools: ["Edit", "Write", "NotebookEdit"],
+	hooks: {
+		PostToolUse: [
+			{
+				matcher: "Read",
+				hooks: [
+					async () => {
+						readCompleted = true;
+						return {};
+					},
+				],
+			},
+		],
+		PreToolUse: [
+			{
+				matcher: "Bash",
+				hooks: [
+					async () => ({
+						hookSpecificOutput: {
+							hookEventName: "PreToolUse",
+							permissionDecision: readCompleted ? "allow" : "deny",
+							permissionDecisionReason: readCompleted
+								? "The required Read completed before Bash."
+								: "Read(package.json) must complete first; retry Bash(pwd) only after its result.",
+						},
+					}),
+				],
+			},
+		],
+	},
 	strictMcpConfig: true,
 	onMessage: (message) => messages.push(message),
 	onError: (error) => callbackErrors.push(error),
@@ -91,8 +121,14 @@ const result = messages.findLast((message) => message.type === "result");
 const init = messages.find(
 	(message) => message.type === "system" && message.subtype === "init",
 );
-const { bashResult, bashUse, readResult, readUse, text } =
-	validateRuntimeReceipt(messages);
+const {
+	bashResult,
+	bashUse,
+	blockedPrematureBashCount,
+	readResult,
+	readUse,
+	text,
+} = validateRuntimeReceipt(messages);
 
 assert.deepEqual(
 	callbackErrors.map((error) => error.message),
@@ -177,6 +213,7 @@ console.log(
 				resultReceived: true,
 			},
 			bash: {
+				blockedPrematureAttempts: blockedPrematureBashCount,
 				command: bashUse.input.command,
 				timeout: bashUse.input.timeout,
 				foreground: true,
