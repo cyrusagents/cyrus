@@ -17,10 +17,13 @@ export async function resolveReviewAppId(
 	request: typeof fetch = fetch,
 ): Promise<number | null> {
 	if (author.type !== "Bot" || !author.node_id || !token) return null;
-	const headers = {
-		Authorization: `Bearer ${token}`,
+	const publicHeaders = {
 		Accept: "application/vnd.github+json",
 		"X-GitHub-Api-Version": "2022-11-28",
+	};
+	const headers = {
+		...publicHeaders,
+		Authorization: `Bearer ${token}`,
 		"Content-Type": "application/json",
 	};
 	const response = await request("https://api.github.com/graphql", {
@@ -55,10 +58,17 @@ export async function resolveReviewAppId(
 		return null;
 	const match = /^https:\/\/github\.com\/apps\/([a-z0-9-]+)$/.exec(bot.url);
 	if (!match || author.login !== `${match[1]}[bot]`) return null;
-	const appResponse = await request(`https://api.github.com/apps/${match[1]}`, {
+	const appUrl = `https://api.github.com/apps/${match[1]}`;
+	const signal = AbortSignal.timeout(10000);
+	let appResponse = await request(appUrl, {
 		headers,
-		signal: AbortSignal.timeout(10000),
+		signal,
 	});
+	// The installation token can be denied by the app owner's IP allowlist.
+	// GitHub also serves this same public app metadata anonymously.
+	if (appResponse.status === 403) {
+		appResponse = await request(appUrl, { headers: publicHeaders, signal });
+	}
 	if (!appResponse.ok) return null;
 	const app = (await appResponse.json()) as { id: number; slug: string };
 	return app.slug === match[1] && Number.isSafeInteger(app.id) && app.id > 0
