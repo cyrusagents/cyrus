@@ -5,7 +5,8 @@
 // node scripts/verify-runner-runtime.mjs \
 //   /tmp/consumer/node_modules/cyrus-claude-runner \
 //   /tmp/consumer \
-//   /path/to/runtime-provenance.json
+//   /path/to/runtime-provenance.json \
+//   /path/to/immutable-candidate-source
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -26,8 +27,10 @@ const manifest = JSON.parse(
 	readFileSync(join(packageRoot, "package.json"), "utf8"),
 );
 assert.equal(manifest.name, "cyrus-claude-runner");
-const sourceRoot = fileURLToPath(new URL("..", import.meta.url));
-const { expected: provenance } = verifyRuntimeProvenance({
+const sourceRoot = resolve(
+	process.argv[5] ?? fileURLToPath(new URL("..", import.meta.url)),
+);
+const { expected: provenance, observed } = verifyRuntimeProvenance({
 	packageRoot,
 	provenancePath,
 	sourceRoot,
@@ -48,6 +51,7 @@ const runner = new ClaudeRunner({
 	model: "opus",
 	fallbackModel: "sonnet",
 	maxTurns: 5,
+	sandbox: provenance.configuration.sandbox,
 	tools: ["Read", "Bash"],
 	allowedTools: ["Read", "Bash(pwd)"],
 	disallowedTools: ["Edit", "Write", "NotebookEdit"],
@@ -137,6 +141,8 @@ console.log(
 			status: "PASS",
 			provenance: {
 				commit: provenance.source.commit,
+				featureCommit: provenance.source.featureCommit,
+				prHead: observed.source.prHead,
 				pullRequest: `${provenance.source.repository}#${provenance.source.pullRequest}`,
 				runnerTarballSha256: provenance.artifacts.runner.sha256,
 				coreTarballSha256: provenance.artifacts.core.sha256,
@@ -155,6 +161,11 @@ console.log(
 				authMethod: provenance.identity.authMethod,
 				osUser: provenance.identity.osUser,
 				subscriptionType: provenance.identity.subscriptionType,
+			},
+			configuration: {
+				configDir: provenance.configuration.configDir,
+				sandbox: provenance.configuration.sandbox,
+				secureStorageConfigDir: provenance.configuration.secureStorageConfigDir,
 			},
 			sessionId: runner.getSessionInfo()?.sessionId,
 			claudeCodeVersion: init?.claude_code_version,
