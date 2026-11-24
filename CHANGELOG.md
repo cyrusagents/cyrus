@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Verify trusted GitHub App reviews when an app owner's IP allowlist blocks the installation-token metadata lookup.
+- Verify trusted GitHub App reviews when an app owner's IP allowlist blocks the installation-token metadata lookup. ([#1621](https://github.com/cyrusagents/cyrus/pull/1621))
 
 ## [0.2.83] - 2026-11-18
 
