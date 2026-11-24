@@ -4,11 +4,11 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
-## [0.2.84-test.0] - 2026-11-24
+## [0.2.84-test.1] - 2026-11-24
 
 ### Changed
 
-- Prepared the immutable coordinated OIDC test candidate for the Anthropic SDK 0.3.331 update, including its corrected runtime dispositions, exact configured-sandbox environment contract, and installed-runtime provenance gates. ([CYPACK-1657](https://linear.app/cyrusai/issue/CYPACK-1657/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1620](https://github.com/cyrusagents/cyrus/pull/1620))
+- Prepared the immutable coordinated OIDC test candidate for the Anthropic SDK 0.3.331 update, including its corrected runtime dispositions, exact configured-sandbox environment contract, npm 12-compatible dependency graph, and installed-runtime provenance gates. ([CYPACK-1657](https://linear.app/cyrusai/issue/CYPACK-1657/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1620](https://github.com/cyrusagents/cyrus/pull/1620))
 
 ## [0.2.83] - 2026-11-18
 

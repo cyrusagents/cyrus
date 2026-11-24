@@ -9,7 +9,7 @@ const testRelease = {
 	repository: "https://github.com/cyrusagents/cyrus",
 	schemaVersion: 1,
 	sourceSha: commit,
-	version: "0.2.84-test.0",
+	version: "0.2.84-test.1",
 };
 const expectedProvenance = () => ({
 	artifacts: {
@@ -18,13 +18,13 @@ const expectedProvenance = () => ({
 				"2eb4e15d83c1d9f11053570245e307227e8a5a522a898c4e54f758a4eafe552f",
 		},
 		core: {
-			path: "packages/cyrus-core-0.2.84-test.0.tgz",
+			path: "packages/cyrus-core-0.2.84-test.1.tgz",
 			sha256:
 				"b07526457da8d91f993c4316e3763a143e66c6b024c2599d7644e51de037e574",
 			treeSha256,
 		},
 		runner: {
-			path: "packages/cyrus-claude-runner-0.2.84-test.0.tgz",
+			path: "packages/cyrus-claude-runner-0.2.84-test.1.tgz",
 			sha256:
 				"a15716536375f28400bb49fe1d8007eef008b78146f4f900b2dc50af3339998e",
 			treeSha256,
@@ -55,7 +55,7 @@ const expectedProvenance = () => ({
 	installed: {
 		agentSdk: { name: "@anthropic-ai/claude-agent-sdk", version: "0.3.331" },
 		apiSdk: { name: "@anthropic-ai/sdk", version: "1.13.0" },
-		core: { name: "cyrus-core", version: "0.2.84-test.0" },
+		core: { name: "cyrus-core", version: "0.2.84-test.1" },
 		native: {
 			claudeCodeVersion: "2.1.331",
 			executableSha256:
@@ -63,7 +63,7 @@ const expectedProvenance = () => ({
 			name: "@anthropic-ai/claude-agent-sdk-darwin-arm64",
 			version: "0.3.331",
 		},
-		runner: { name: "cyrus-claude-runner", version: "0.2.84-test.0" },
+		runner: { name: "cyrus-claude-runner", version: "0.2.84-test.1" },
 	},
 	schemaVersion: 1,
 	source: {
