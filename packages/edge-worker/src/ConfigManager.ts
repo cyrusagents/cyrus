@@ -66,6 +66,7 @@ const RELOAD_MERGED_KEYS = [
 	"slackThreadFollowing",
 	"prReviewTrigger",
 	"ciFailureTrigger",
+	"mergeConflictTrigger",
 	"githubReviewAppPolicies",
 	"userAccessControl",
 	"sandbox",
@@ -390,6 +391,8 @@ export class ConfigManager extends EventEmitter {
 					parsedConfig.prReviewTrigger ?? this.config.prReviewTrigger,
 				// Removing the opt-in from config.json disables future CI dispatches.
 				ciFailureTrigger: parsedConfig.ciFailureTrigger === true,
+				// Removing the opt-in disables future merge conflict dispatches.
+				mergeConflictTrigger: parsedConfig.mergeConflictTrigger === true,
 				githubReviewAppPolicies: parsedConfig.githubReviewAppPolicies ?? [],
 				userAccessControl:
 					parsedConfig.userAccessControl ?? this.config.userAccessControl,

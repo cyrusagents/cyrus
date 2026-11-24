@@ -175,6 +175,7 @@ import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { DeviceHeartbeat } from "./DeviceHeartbeat.js";
 import { EgressProxy } from "./EgressProxy.js";
 import { GitHubCiRouter } from "./GitHubCiRouter.js";
+import { GitHubMergeConflictRouter } from "./GitHubMergeConflictRouter.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { McpConfigService } from "./McpConfigService.js";
@@ -972,19 +973,23 @@ export class EdgeWorker extends EventEmitter {
 		session: CyrusAgentSession,
 		repository: RepositoryConfig,
 		prompt: string,
+		/** Names the follow-up in errors: CI failures or merge conflicts. */
+		label = "CI",
 	): Promise<() => Promise<void>> {
 		if (this.agentSessionManager.getSession(session.id) !== session) {
-			throw new Error("CI continuation unavailable for this session origin");
+			throw new Error(
+				`${label} continuation unavailable for this session origin`,
+			);
 		}
 		if (session.status === "error")
 			throw new Error(
-				"CI cannot resume an errored or stopped session automatically",
+				`${label} cannot resume an errored or stopped session automatically`,
 			);
 		const runner = session.agentRunner;
 		if (runner?.isRunning()) {
 			if (!runner.supportsStreamingInput || !runner.addStreamMessage) {
 				throw new Error(
-					"CI session is busy; redeliver after its turn completes",
+					`${label} session is busy; redeliver after its turn completes`,
 				);
 			}
 			return async () => {
@@ -997,9 +1002,9 @@ export class EdgeWorker extends EventEmitter {
 			session.codexSessionId ??
 			session.cursorSessionId ??
 			session.opencodeSessionId;
-		if (!resumeId) throw new Error("CI session has no resumable runner");
+		if (!resumeId) throw new Error(`${label} session has no resumable runner`);
 		if (!existsSync(session.workspace.path))
-			throw new Error("CI workspace no longer exists");
+			throw new Error(`${label} workspace no longer exists`);
 		if (
 			session.issueContext?.trackerId !== "github" &&
 			!session.id.startsWith("github-")
@@ -1008,7 +1013,7 @@ export class EdgeWorker extends EventEmitter {
 			return async () => {
 				// A user may have resumed the session during GitHub validation.
 				if (session.agentRunner?.isRunning())
-					throw new Error("CI session became busy");
+					throw new Error(`${label} session became busy`);
 				await this.resumeAgentSession(
 					session,
 					repository,
@@ -1044,7 +1049,7 @@ export class EdgeWorker extends EventEmitter {
 		);
 		return async () => {
 			if (session.agentRunner?.isRunning())
-				throw new Error("CI session became busy");
+				throw new Error(`${label} session became busy`);
 			const resumed = this.createRunnerForType(runnerType, config);
 			this.agentSessionManager.addAgentRunner(session.id, resumed);
 			await this.savePersistedState();
@@ -1086,9 +1091,28 @@ export class EdgeWorker extends EventEmitter {
 					`CI dispatch failed for session ${sessionId}; inspect ci-dispatch journal before redelivery`,
 				),
 		});
+		const mergeConflictRouter = new GitHubMergeConflictRouter({
+			enabled: () => this.config.mergeConflictTrigger === true,
+			home: this.cyrusHome,
+			repositories: () => [...this.repositories.values()],
+			sessions: () => this.getAllKnownSessions(),
+			token: (repository, installationToken) =>
+				this.resolveGitHubToken(
+					{ installationToken } as GitHubWebhookEvent,
+					repository,
+				),
+			prepare: (session, repository, prompt) =>
+				this.prepareCiPrompt(session, repository, prompt, "Merge conflict"),
+			onDispatchError: (sessionId) =>
+				this.logger.error(
+					`Merge conflict dispatch failed for session ${sessionId}; inspect merge-conflict-dispatch journal before redelivery`,
+				),
+		});
 		this.gitHubEventTransport = new GitHubEventTransport({
 			handleCiFailure: (failure, context) =>
 				ciRouter.handle(failure, context.installationToken),
+			handleMergeConflict: (hint, context) =>
+				mergeConflictRouter.handle(hint, context.installationToken),
 			fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
 			verificationMode,
 			secret,

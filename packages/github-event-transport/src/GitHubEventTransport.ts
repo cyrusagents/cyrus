@@ -5,6 +5,10 @@ import { createLogger, type ILogger, ipMatchesAllowlist } from "cyrus-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { parseGitHubCiFailure } from "./ci-failure.js";
 import { GitHubMessageTranslator } from "./GitHubMessageTranslator.js";
+import {
+	MERGE_CONFLICT_PROTOCOL,
+	parseGitHubMergeConflictHint,
+} from "./merge-conflict.js";
 import type {
 	GitHubEventTransportConfig,
 	GitHubEventTransportEvents,
@@ -140,6 +144,58 @@ export class GitHubEventTransport extends EventEmitter {
 		this.logger.info(
 			`Registered POST /github-webhook endpoint (${this.config.verificationMode} mode)`,
 		);
+		if (this.config.handleMergeConflict) this.registerMergeConflict();
+	}
+
+	/**
+	 * POST /github-merge-conflict: Hosted's merge conflict hints. Proxy (Bearer)
+	 * only. Older runtimes lack the route, so Hosted's protocol check fails
+	 * closed with a 404 instead of an ignored success.
+	 */
+	private registerMergeConflict(): void {
+		this.config.fastifyServer.post(
+			"/github-merge-conflict",
+			async (request: FastifyRequest, reply: FastifyReply) => {
+				const { mode, secret } = this.resolveVerification();
+				if (mode !== "proxy") {
+					reply
+						.code(404)
+						.send({ error: "Merge conflict hints require Hosted delivery" });
+					return;
+				}
+				if (!secret || request.headers.authorization !== `Bearer ${secret}`) {
+					reply.code(401).send({ error: "Invalid authorization token" });
+					return;
+				}
+				const hint = parseGitHubMergeConflictHint(request.body);
+				const deliveryId = request.headers["x-github-delivery"];
+				if (!hint || typeof deliveryId !== "string" || !deliveryId) {
+					reply.code(400).send({ error: "Invalid merge conflict hint" });
+					return;
+				}
+				const installationToken = request.headers[
+					"x-github-installation-token"
+				] as string | undefined;
+				try {
+					const outcome = await this.config.handleMergeConflict!(hint, {
+						deliveryId,
+						installationToken,
+					});
+					reply.send({ conflictProtocol: MERGE_CONFLICT_PROTOCOL, ...outcome });
+				} catch {
+					this.logger.warn("Merge conflict routing failed", {
+						repositoryId: hint.repository.id,
+						pullRequest: hint.pullRequest.number,
+						deliveryId,
+					});
+					reply.code(503).send({
+						conflictProtocol: MERGE_CONFLICT_PROTOCOL,
+						error: "Merge conflict delivery failed",
+					});
+				}
+			},
+		);
+		this.logger.info("Registered POST /github-merge-conflict endpoint");
 	}
 
 	/**

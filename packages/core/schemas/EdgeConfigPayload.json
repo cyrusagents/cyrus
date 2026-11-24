@@ -744,6 +744,9 @@
 		"ciFailureTrigger": {
 			"type": "boolean"
 		},
+		"mergeConflictTrigger": {
+			"type": "boolean"
+		},
 		"userAccessControl": {
 			"type": "object",
 			"properties": {

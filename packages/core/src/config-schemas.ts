@@ -644,6 +644,12 @@ export const EdgeConfigSchema = z.object({
 	ciFailureTrigger: z.boolean().optional(),
 
 	/**
+	 * Opt in to continuing the existing PR session when Cyrus Hosted reports a
+	 * merge conflict (GitHub `mergeable: false`). Defaults to false.
+	 */
+	mergeConflictTrigger: z.boolean().optional(),
+
+	/**
 	 * Global user access control settings.
 	 * Applied to all repositories unless overridden.
 	 */

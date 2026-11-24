@@ -130,6 +130,7 @@ describe("ConfigManager - ciFailureTrigger hot reload", () => {
 		const config = {
 			repositories: [],
 			ciFailureTrigger: true,
+			mergeConflictTrigger: false,
 			githubReviewAppPolicies: [],
 		} as unknown as EdgeWorkerConfig;
 		const logger = {
@@ -149,6 +150,43 @@ describe("ConfigManager - ciFailureTrigger hot reload", () => {
 		);
 		const newConfig = await (manager as any).loadConfigSafely();
 		expect(newConfig.ciFailureTrigger).toBe(value === true);
+		expect((manager as any).detectGlobalConfigChanges(newConfig)).toBe(
+			value !== true,
+		);
+	});
+});
+
+describe("ConfigManager - mergeConflictTrigger hot reload", () => {
+	it.each([
+		true,
+		false,
+		undefined,
+	])("reloads %s, defaulting off and with removal disabling the feature", async (value) => {
+		const config = {
+			repositories: [],
+			ciFailureTrigger: false,
+			mergeConflictTrigger: true,
+			githubReviewAppPolicies: [],
+		} as unknown as EdgeWorkerConfig;
+		const logger = {
+			info: vi.fn(),
+			warn: vi.fn(),
+			error: vi.fn(),
+			debug: vi.fn(),
+		} as unknown as ILogger;
+		const manager = new ConfigManager(
+			config,
+			logger,
+			"/tmp/config.json",
+			new Map(),
+		);
+		vi.mocked(readFile).mockResolvedValue(
+			JSON.stringify({ repositories: [], mergeConflictTrigger: value }),
+		);
+		const newConfig = await (manager as any).loadConfigSafely();
+		expect(newConfig.mergeConflictTrigger).toBe(value === true);
+		// CI is independent of the new setting.
+		expect(newConfig.ciFailureTrigger).toBe(false);
 		expect((manager as any).detectGlobalConfigChanges(newConfig)).toBe(
 			value !== true,
 		);
