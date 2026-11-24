@@ -40,6 +40,8 @@ F1 created a disposable repository and routed an inspection-only issue through t
 
 [The retained source-runtime receipt](evidence/2026-11-24-cypack-1657-source-runtime.json) records only the version, source, tool/result, lifecycle, and limitation fields needed for review. It excludes account identifiers, credentials, environment values, and raw query options.
 
+[The installed configured-sandbox receipt](evidence/2026-11-24-cypack-1657-installed-sandbox-runtime.json) binds the immutable npm candidate, feature source, exact PR head, consumer lock, packed and installed trees, native executable, intended identity digest, and preserved sandbox configuration. It excludes the account identifier, credentials, raw environment values, prompts, and tool output.
+
 ## Supporting checks
 
 - `./scripts/extract-claude-tools.sh` completed against Claude Code 2.1.331 with 26 native tools and three resource-capability additions: `ListMcpResourcesTool`, `ReadMcpResourceDirTool`, and `ReadMcpResourceTool`.
@@ -58,6 +60,30 @@ F1 created a disposable repository and routed an inspection-only issue through t
 | Foreground and background subagent task notifications consistently name their output file. | Accepted as an upstream event-shape correction. Cyrus treats the field as runtime-provided metadata. |
 | Agent SDK 0.3.331 remains on the same 26 native plus three MCP-resource tool registry as 0.3.330. | The carried-forward static catalog remains current; no additional default-list or migration change is needed for the .331 increment. |
 
-## Limitation and next gate
+## Effective 0.3.322 → 0.3.331 behavior dispositions
 
-This source-worktree drive did not enable the SDK sandbox and did not install from npm. It validates the committed runtime and F1 path, but final acceptance still requires the issue-mandated immutable npm test candidate, registry installation, and the matching Hosted `cyrus-core` pin.
+The full [Agent SDK range](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03331) and the bundled [Claude Code 2.1.331 release](https://github.com/anthropics/claude-code/releases/tag/v2.1.331) were reviewed against Cyrus’s actual SDK query path:
+
+| Upstream behavior | Effective Cyrus disposition |
+| --- | --- |
+| Managed `disableSideloadFlags` can refuse startup with `startup_failure_reason: "sideload_flags_disabled"`. | **Preserved refusal.** Cyrus neither supplies host `managedSettings` nor adds a fallback that weakens machine policy. If externally managed policy conflicts with Cyrus-supplied plugin or MCP launch options, the SDK error result and exact startup reason remain in the runner message stream. A contract test now fixes this disposition. |
+| In a future release on or after 2026-11-30, managed `extraKnownMarketplaces` entries auto-update unless their entry sets `autoUpdate: false`. | **Managed upstream path; no Cyrus override.** Cyrus does not author `extraKnownMarketplaces`, toggle `autoUpdate`, or run a marketplace updater. The future behavior can affect only an operator-managed entry loaded by Claude Code; operators who require a frozen marketplace must set `autoUpdate: false` in that managed entry. |
+| Claude Code 2.1.331 adds terminal Code Mode on Bedrock, Google Cloud Agent Platform, Foundry, and Claude Platform on AWS; 2.1.329 also permits Code Mode with OTel events/metrics, while tracing still disables it. | **Unsupported in this SDK query path.** Cyrus does not enable Code Mode or claim its terminal-only behavior. It continues to expose the direct SDK tool list with Cyrus allow/deny rules and hooks. The installed acceptance therefore proves direct `Read` and `Bash`, not Code Mode. |
+| Third-party provider and permission defaults changed across the range. | **Explicitly unchanged by Cyrus.** Bedrock, Vertex, Foundry, and Mantle selection variables pass through without provider substitution; custom primary/fallback models and hooks remain intact. Cyrus fixes allowlist sessions to `permissionMode: "default"` across those providers and enables automatic review only for explicit `toolApprovalMode: "auto"`. |
+| `CLAUDE_CODE_DISABLE_RESPONSE_COMPRESSION` can request uncompressed model responses when a proxy truncates compressed responses; upstream does not yet advise it for self-hosted runners or Remote Control. | **Unchanged compressed default.** Cyrus does not inject or rewrite this variable. An operator-provided value passes through unchanged. EgressProxy forwards response headers and pipes response bytes without decompression or recompression, so the default compressed transport remains transparent. |
+| Code Mode and MCP/schema behavior now works in more third-party or telemetry-disabled cases, and OTel spans gained `gen_ai.*` fields. | **Upstream-owned telemetry behavior.** Cyrus does not force telemetry on, remove `DISABLE_TELEMETRY`/`DO_NOT_TRACK`, or consume the new span fields. Those environment settings pass through, while Cyrus’s permission, sandbox, hook, and direct-tool configuration remains the same. |
+
+## Installed candidate and configured-sandbox gate
+
+The earlier source-worktree drive intentionally did not enable the SDK sandbox or install from npm. The retained negative nested-sandbox receipt remains evidence of that limitation; it has not been rewritten or relaxed.
+
+The follow-up installed-runtime gate passed against the immutable `0.2.84-test.1` registry candidate from source `5df4e9c5c4b54edb053922a0434439bc6eb8ea0a`, carrying feature source `d5f2c7edf0e2a2a0f5e0ac0d8a466c05b9ad8765`, and current PR head `bf37d37e7d092c598a5033c43173c6a621e174fe`:
+
+- [x] Registry core and runner tarballs byte-matched the release artifact bundle and their installed trees.
+- [x] Both installed packages carried the exact `cyrusTestRelease` source stamp.
+- [x] The consumer lock, Claude Code 2.1.331 native executable, intended first-party identity digest, and configuration contract matched provenance.
+- [x] The SDK sandbox was enabled with `allowUnsandboxedCommands: false`; no generic login, identity substitution, provider override, or sandbox relaxation was used.
+- [x] A sequencing hook blocked one premature parallel Bash attempt. After the successful `Read(package.json)` result, foreground sandboxed `Bash(pwd)` ran with timeout `10000` and returned successfully.
+- [x] The final text was exactly `SDK_RUNTIME_OK`; the result was non-error, no `session_writes_lost` event occurred, no pending work remained, and the runner stopped cleanly.
+
+The remaining cross-repository gate is Hosted’s isolated migration/default-preservation acceptance and an owner-supported exact-head app-CI signal while its app workflows remain disabled.

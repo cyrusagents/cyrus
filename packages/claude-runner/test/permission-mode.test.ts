@@ -159,10 +159,15 @@ describe("Cyrus permission policy", () => {
 		expect(options?.env?.CLAUDE_CODE_DISABLE_SHELL_HEAD_START).toBe("1");
 		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_AUTO_COMPACT_WINDOW");
 		expect(options?.env).not.toHaveProperty("CLAUDE_CODE_MODEL_CATALOG");
+		expect(options?.env?.CLAUDE_CODE_DISABLE_RESPONSE_COMPRESSION).toBe(
+			process.env.CLAUDE_CODE_DISABLE_RESPONSE_COMPRESSION,
+		);
 		expect(options?.env).not.toHaveProperty(
 			"CLAUDE_CODE_DISABLE_NESTED_SESSION_ID",
 		);
 		expect(options).not.toHaveProperty("agents");
+		expect(options).not.toHaveProperty("managedSettings");
+		expect(options).not.toHaveProperty("plugins");
 		expect(options?.hooks?.UserPromptSubmit).toEqual([
 			{ matcher: ".*", hooks: [promptHook], timeout: 0.25 },
 		]);
@@ -265,6 +270,33 @@ describe("toolApprovalMode auto", () => {
 
 // Synthetic SDK contract fixtures, not recordings of authenticated model turns.
 describe("SDK 0.3.293+ result envelopes", () => {
+	it("preserves the managed sideload startup refusal", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cyrus-sdk-sideload-refusal-"));
+		roots.push(root);
+		const message = {
+			type: "result" as const,
+			subtype: "error_during_execution" as const,
+			is_error: true,
+			result: "Managed settings disabled launch-time sideload options.",
+			session_id: "sdk-sideload-refusal",
+			startup_failure_reason: "sideload_flags_disabled" as const,
+		};
+		vi.mocked(query).mockImplementation(async function* () {
+			yield message;
+		} as unknown as typeof query);
+		const onMessage = vi.fn();
+		const runner = new ClaudeRunner({
+			workingDirectory: root,
+			cyrusHome: root,
+			onMessage,
+		});
+
+		await runner.start("Check managed sideload refusal");
+
+		expect(onMessage).toHaveBeenCalledExactlyOnceWith(message);
+		expect(runner.getMessages()).toEqual([message]);
+	});
+
 	it.each([
 		{ detachedToolCall: true },
 		{
