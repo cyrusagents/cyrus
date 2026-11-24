@@ -4,6 +4,13 @@ import type { TranslationContext } from "cyrus-core";
 import { createLogger, type ILogger, ipMatchesAllowlist } from "cyrus-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { parseGitHubCiFailure } from "./ci-failure.js";
+import {
+	FOLLOW_THROUGH_HEADER,
+	FOLLOW_THROUGH_PROTOCOL,
+	type FollowThroughAdmission,
+	parseFollowThroughAdmission,
+	parseGitHubFollowThroughEvent,
+} from "./follow-through.js";
 import { GitHubMessageTranslator } from "./GitHubMessageTranslator.js";
 import type {
 	GitHubEventTransportConfig,
@@ -178,7 +185,7 @@ export class GitHubEventTransport extends EventEmitter {
 				return;
 			}
 
-			await this.processAndEmitEvent(request, reply);
+			await this.processAndEmitEvent(request, reply, "signature");
 		} catch (error) {
 			const err = new Error("Signature verification failed");
 			if (error instanceof Error) {
@@ -210,7 +217,7 @@ export class GitHubEventTransport extends EventEmitter {
 		}
 
 		try {
-			await this.processAndEmitEvent(request, reply);
+			await this.processAndEmitEvent(request, reply, "proxy");
 		} catch (error) {
 			const err = new Error("Proxy webhook processing failed");
 			if (error instanceof Error) {
@@ -227,6 +234,8 @@ export class GitHubEventTransport extends EventEmitter {
 	private async processAndEmitEvent(
 		request: FastifyRequest,
 		reply: FastifyReply,
+		/** How this request was admitted; Hosted-only headers need "proxy". */
+		admittedBy: GitHubVerificationMode,
 	): Promise<void> {
 		const eventType = request.headers["x-github-event"] as string;
 		const deliveryId =
@@ -271,6 +280,43 @@ export class GitHubEventTransport extends EventEmitter {
 					error: "CI delivery failed; redeliver after recovery",
 				});
 			}
+			return;
+		}
+
+		// PR follow-through admission. Direct (signature) delivery: the local
+		// config alone decides, and Hosted-only headers, including any
+		// forwarded installation token, are ignored. Proxy delivery: only what
+		// Hosted's authenticated header authorizes; none without it.
+		const followThrough: {
+			admission?: FollowThroughAdmission;
+			installationToken?: string;
+		} | null =
+			admittedBy === "signature"
+				? {}
+				: (() => {
+						const admission = parseFollowThroughAdmission(
+							request.headers[FOLLOW_THROUGH_HEADER],
+						);
+						return admission ? { admission, installationToken } : null;
+					})();
+		if (eventType === "pull_request") {
+			// PR follow-through only: no other handling exists for these.
+			if (!this.config.handleFollowThrough) {
+				this.logger.debug(`Ignoring unsupported event type: ${eventType}`);
+				reply.code(200).send({ success: true, ignored: true });
+				return;
+			}
+			reply.send({
+				followThroughProtocol: FOLLOW_THROUGH_PROTOCOL,
+				...(followThrough
+					? await this.queueFollowThrough(
+							eventType,
+							request.body,
+							deliveryId,
+							followThrough,
+						)
+					: { outcome: "not_authorized" }),
+			});
 			return;
 		}
 
@@ -327,7 +373,57 @@ export class GitHubEventTransport extends EventEmitter {
 		// Emit "message" with translated internal message
 		this.emitMessage(webhookEvent);
 
+		// A base branch push can leave this runtime's PRs conflicted or behind.
+		// The legacy event above is still emitted; this only queues a check.
+		if (eventType === "push" && this.config.handleFollowThrough) {
+			const outcome = followThrough
+				? await this.queueFollowThrough(
+						eventType,
+						request.body,
+						deliveryId,
+						followThrough,
+					)
+				: { outcome: "not_authorized" };
+			// Hosted needs an acknowledgement; GitHub and older callers see
+			// the same `success: true` as before.
+			reply.code(200).send({
+				success: true,
+				...(admittedBy === "proxy" && followThrough
+					? { followThroughProtocol: FOLLOW_THROUGH_PROTOCOL, ...outcome }
+					: {}),
+			});
+			return;
+		}
+
 		reply.code(200).send({ success: true });
+	}
+
+	/**
+	 * Hands a qualifying event to the PR follow-through handler, which only
+	 * queues bounded background work. Never throws: a handler failure must not
+	 * change the response for the ordinary event that carried it.
+	 */
+	private async queueFollowThrough(
+		eventType: string,
+		body: unknown,
+		deliveryId: string,
+		context: { admission?: FollowThroughAdmission; installationToken?: string },
+	): Promise<{ outcome: string }> {
+		const event = parseGitHubFollowThroughEvent(eventType, body);
+		if (!event) return { outcome: "ignored" };
+		try {
+			return await this.config.handleFollowThrough!(event, {
+				deliveryId,
+				...context,
+			});
+		} catch (error) {
+			this.logger.warn("PR follow-through check could not be queued", {
+				repositoryId: event.repository.id,
+				deliveryId,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return { outcome: "unavailable" };
+		}
 	}
 
 	/**

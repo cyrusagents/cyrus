@@ -1,4 +1,14 @@
 export { type GitHubCiFailure, parseGitHubCiFailure } from "./ci-failure.js";
+export {
+	FOLLOW_THROUGH_HEADER,
+	FOLLOW_THROUGH_PROTOCOL,
+	type FollowThroughAdmission,
+	type FollowThroughStrategy,
+	formatFollowThroughAdmission,
+	type GitHubFollowThroughEvent,
+	parseFollowThroughAdmission,
+	parseGitHubFollowThroughEvent,
+} from "./follow-through.js";
 export type { GitHubAppTokenProviderConfig } from "./GitHubAppTokenProvider.js";
 export {
 	createAppJwt,

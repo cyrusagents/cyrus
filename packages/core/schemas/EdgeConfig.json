@@ -750,6 +750,13 @@
 		"ciFailureTrigger": {
 			"type": "boolean"
 		},
+		"mergeConflictTrigger": {
+			"type": "boolean"
+		},
+		"prBranchFreshness": {
+			"type": "string",
+			"enum": ["off", "merge", "rebase"]
+		},
 		"userAccessControl": {
 			"type": "object",
 			"properties": {

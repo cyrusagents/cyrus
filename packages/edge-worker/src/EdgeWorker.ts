@@ -104,7 +104,6 @@ import {
 	GitHubCommentService,
 	type GitHubCommentWebhookEvent,
 	GitHubEventTransport,
-	type GitHubPushPayload,
 	type GitHubWebhookEvent,
 	isCommentOnPullRequest,
 	isIssueCommentPayload,
@@ -175,6 +174,7 @@ import { DefaultSkillsDeployer } from "./DefaultSkillsDeployer.js";
 import { DeviceHeartbeat } from "./DeviceHeartbeat.js";
 import { EgressProxy } from "./EgressProxy.js";
 import { GitHubCiRouter } from "./GitHubCiRouter.js";
+import { GitHubFollowThroughRouter } from "./GitHubFollowThroughRouter.js";
 import { GitService } from "./GitService.js";
 import { GlobalSessionRegistry } from "./GlobalSessionRegistry.js";
 import { McpConfigService } from "./McpConfigService.js";
@@ -972,22 +972,28 @@ export class EdgeWorker extends EventEmitter {
 		session: CyrusAgentSession,
 		repository: RepositoryConfig,
 		prompt: string,
+		/** Names the follow-up in errors: CI failures or merge conflicts. */
+		label = "CI",
 	): Promise<() => Promise<void>> {
 		if (this.agentSessionManager.getSession(session.id) !== session) {
-			throw new Error("CI continuation unavailable for this session origin");
+			throw new Error(
+				`${label} continuation unavailable for this session origin`,
+			);
 		}
 		if (session.status === "error")
 			throw new Error(
-				"CI cannot resume an errored or stopped session automatically",
+				`${label} cannot resume an errored or stopped session automatically`,
 			);
 		const runner = session.agentRunner;
 		if (runner?.isRunning()) {
 			if (!runner.supportsStreamingInput || !runner.addStreamMessage) {
 				throw new Error(
-					"CI session is busy; redeliver after its turn completes",
+					`${label} session is busy; redeliver after its turn completes`,
 				);
 			}
 			return async () => {
+				if (session.agentRunner !== runner || !runner.isRunning())
+					throw new Error(`${label} session changed before delivery`);
 				runner.addStreamMessage!(prompt);
 			};
 		}
@@ -997,9 +1003,9 @@ export class EdgeWorker extends EventEmitter {
 			session.codexSessionId ??
 			session.cursorSessionId ??
 			session.opencodeSessionId;
-		if (!resumeId) throw new Error("CI session has no resumable runner");
+		if (!resumeId) throw new Error(`${label} session has no resumable runner`);
 		if (!existsSync(session.workspace.path))
-			throw new Error("CI workspace no longer exists");
+			throw new Error(`${label} workspace no longer exists`);
 		if (
 			session.issueContext?.trackerId !== "github" &&
 			!session.id.startsWith("github-")
@@ -1008,7 +1014,7 @@ export class EdgeWorker extends EventEmitter {
 			return async () => {
 				// A user may have resumed the session during GitHub validation.
 				if (session.agentRunner?.isRunning())
-					throw new Error("CI session became busy");
+					throw new Error(`${label} session became busy`);
 				await this.resumeAgentSession(
 					session,
 					repository,
@@ -1044,7 +1050,7 @@ export class EdgeWorker extends EventEmitter {
 		);
 		return async () => {
 			if (session.agentRunner?.isRunning())
-				throw new Error("CI session became busy");
+				throw new Error(`${label} session became busy`);
 			const resumed = this.createRunnerForType(runnerType, config);
 			this.agentSessionManager.addAgentRunner(session.id, resumed);
 			await this.savePersistedState();
@@ -1086,9 +1092,37 @@ export class EdgeWorker extends EventEmitter {
 					`CI dispatch failed for session ${sessionId}; inspect ci-dispatch journal before redelivery`,
 				),
 		});
+		const followThroughRouter = new GitHubFollowThroughRouter({
+			conflictsEnabled: () => this.config.mergeConflictTrigger === true,
+			freshness: () =>
+				this.config.prBranchFreshness === "merge" ||
+				this.config.prBranchFreshness === "rebase"
+					? this.config.prBranchFreshness
+					: "off",
+			home: this.cyrusHome,
+			repositories: () => [...this.repositories.values()],
+			sessions: () => this.getAllKnownSessions(),
+			token: (repository, installationToken) =>
+				this.resolveGitHubToken(
+					{ installationToken } as GitHubWebhookEvent,
+					repository,
+				),
+			prepare: (session, repository, prompt) =>
+				this.prepareCiPrompt(session, repository, prompt, "PR follow-through"),
+			onDispatchError: (sessionId) =>
+				this.logger.error(
+					`PR follow-through dispatch failed for session ${sessionId}; inspect merge-conflict-dispatch journal before redelivery`,
+				),
+			onCheckError: (error) =>
+				this.logger.warn(
+					`PR follow-through check failed: ${error instanceof Error ? error.message : String(error)}`,
+				),
+		});
 		this.gitHubEventTransport = new GitHubEventTransport({
 			handleCiFailure: (failure, context) =>
 				ciRouter.handle(failure, context.installationToken),
+			handleFollowThrough: (event, context) =>
+				followThroughRouter.receive(event, context),
 			fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
 			verificationMode,
 			secret,
@@ -1100,18 +1134,9 @@ export class EdgeWorker extends EventEmitter {
 
 		// Listen for legacy GitHub webhook events (deprecated, kept for backward compatibility)
 		this.gitHubEventTransport.on("event", (event: GitHubWebhookEvent) => {
-			// Route push events to the base branch notification handler
-			if (event.eventType === "push") {
-				this.handleGitHubPushWebhook(event.payload as GitHubPushPayload).catch(
-					(error) => {
-						this.logger.error(
-							"Failed to handle GitHub push webhook",
-							error instanceof Error ? error : new Error(String(error)),
-						);
-					},
-				);
-				return;
-			}
+			// Pushes have no generic handling: PR follow-through decides every
+			// prompt about a moved base, and sends none when it is off.
+			if (event.eventType === "push") return;
 			this.handleGitHubWebhook(event as GitHubCommentWebhookEvent).catch(
 				(error) => {
 					this.logger.error(
@@ -2148,107 +2173,6 @@ export class EdgeWorker extends EventEmitter {
 			});
 		} else {
 			this.activeGitHubPrSessions.delete(sessionKey);
-		}
-	}
-
-	/**
-	 * Handle GitHub push webhook events.
-	 * When a base branch receives new commits, find active sessions tracking that
-	 * branch and stream a rebase notification to the running agent.
-	 */
-	private async handleGitHubPushWebhook(
-		payload: GitHubPushPayload,
-	): Promise<void> {
-		// Only handle branch pushes (refs/heads/*), not tags
-		if (!payload.ref.startsWith("refs/heads/")) {
-			return;
-		}
-
-		// Ignore branch deletions
-		if (payload.deleted) {
-			return;
-		}
-
-		const branchName = payload.ref.replace("refs/heads/", "");
-		const repoFullName = payload.repository.full_name;
-
-		// Find the matching repository config
-		const repository = this.findRepositoryByGitHubUrl(repoFullName);
-		if (!repository) {
-			this.logger.debug(
-				`No repository configured for GitHub push from ${repoFullName}`,
-			);
-			return;
-		}
-
-		// Find active sessions tracking this branch as their base branch
-		const sessions = this.agentSessionManager.getSessionsByBaseBranch(
-			branchName,
-			repository.id,
-		);
-
-		if (sessions.length === 0) {
-			this.logger.debug(
-				`No active sessions tracking base branch ${branchName} for ${repository.name}`,
-			);
-			return;
-		}
-
-		// Build a notification prompt with commit summary
-		const commitCount = payload.commits.length;
-		const commitSummary = payload.commits
-			.slice(0, 5)
-			.map((c) => `- ${c.message.split("\n")[0]}`)
-			.join("\n");
-		const moreCommits =
-			commitCount > 5 ? `\n- ... and ${commitCount - 5} more` : "";
-
-		const notification = `<base_branch_update>
-<branch>${branchName}</branch>
-<repository>${repoFullName}</repository>
-<commit_count>${commitCount}</commit_count>
-<compare_url>${payload.compare}</compare_url>
-<commits>
-${commitSummary}${moreCommits}
-</commits>
-<guidance>
-Your base branch \`${branchName}\` has received ${commitCount} new commit(s). Consider rebasing your working branch onto the updated base to avoid merge conflicts. You can do this with: \`git fetch origin && git rebase origin/${branchName}\`
-</guidance>
-</base_branch_update>`;
-
-		this.logger.info(
-			`Base branch ${branchName} updated (${commitCount} commits) — notifying ${sessions.length} active session(s)`,
-		);
-
-		// Stream notification to the first running session that supports streaming
-		const sortedSessions = [...sessions].sort(
-			(a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
-		);
-
-		for (const session of sortedSessions) {
-			const existingRunner = session.agentRunner;
-			const isRunning = existingRunner?.isRunning() || false;
-
-			if (
-				isRunning &&
-				existingRunner?.supportsStreamingInput &&
-				existingRunner.addStreamMessage
-			) {
-				// Best-effort notification; a steer-only backend may reject it if no
-				// turn is active. Don't let that throw out of the update handler.
-				try {
-					existingRunner.addStreamMessage(notification);
-					this.logger.debug(
-						`[base-branch-update] Streamed notification to session ${session.id} for branch ${branchName}`,
-					);
-					break;
-				} catch (error) {
-					this.logger.debug(
-						`[base-branch-update] Stream rejected for session ${session.id}; skipping`,
-						{ error: error instanceof Error ? error.message : String(error) },
-					);
-				}
-			}
 		}
 	}
 

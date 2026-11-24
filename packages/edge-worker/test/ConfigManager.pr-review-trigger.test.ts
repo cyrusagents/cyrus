@@ -130,6 +130,8 @@ describe("ConfigManager - ciFailureTrigger hot reload", () => {
 		const config = {
 			repositories: [],
 			ciFailureTrigger: true,
+			mergeConflictTrigger: false,
+			prBranchFreshness: "off",
 			githubReviewAppPolicies: [],
 		} as unknown as EdgeWorkerConfig;
 		const logger = {
@@ -151,6 +153,88 @@ describe("ConfigManager - ciFailureTrigger hot reload", () => {
 		expect(newConfig.ciFailureTrigger).toBe(value === true);
 		expect((manager as any).detectGlobalConfigChanges(newConfig)).toBe(
 			value !== true,
+		);
+	});
+});
+
+describe("ConfigManager - mergeConflictTrigger hot reload", () => {
+	it.each([
+		true,
+		false,
+		undefined,
+	])("reloads %s, defaulting off and with removal disabling the feature", async (value) => {
+		const config = {
+			repositories: [],
+			ciFailureTrigger: false,
+			mergeConflictTrigger: true,
+			prBranchFreshness: "off",
+			githubReviewAppPolicies: [],
+		} as unknown as EdgeWorkerConfig;
+		const logger = {
+			info: vi.fn(),
+			warn: vi.fn(),
+			error: vi.fn(),
+			debug: vi.fn(),
+		} as unknown as ILogger;
+		const manager = new ConfigManager(
+			config,
+			logger,
+			"/tmp/config.json",
+			new Map(),
+		);
+		vi.mocked(readFile).mockResolvedValue(
+			JSON.stringify({ repositories: [], mergeConflictTrigger: value }),
+		);
+		const newConfig = await (manager as any).loadConfigSafely();
+		expect(newConfig.mergeConflictTrigger).toBe(value === true);
+		// CI is independent of the new setting.
+		expect(newConfig.ciFailureTrigger).toBe(false);
+		expect((manager as any).detectGlobalConfigChanges(newConfig)).toBe(
+			value !== true,
+		);
+	});
+});
+
+describe("ConfigManager - prBranchFreshness hot reload", () => {
+	it.each([
+		["merge", "merge"],
+		["rebase", "rebase"],
+		["off", "off"],
+		[undefined, "off"],
+		["squash", "off"],
+	])("reloads %s as %s, independently of merge conflicts", async (value, expected) => {
+		const config = {
+			repositories: [],
+			ciFailureTrigger: false,
+			mergeConflictTrigger: false,
+			prBranchFreshness: "merge",
+			githubReviewAppPolicies: [],
+		} as unknown as EdgeWorkerConfig;
+		const logger = {
+			info: vi.fn(),
+			warn: vi.fn(),
+			error: vi.fn(),
+			debug: vi.fn(),
+		} as unknown as ILogger;
+		const manager = new ConfigManager(
+			config,
+			logger,
+			"/tmp/config.json",
+			new Map(),
+		);
+		vi.mocked(readFile).mockResolvedValue(
+			JSON.stringify({ repositories: [], prBranchFreshness: value }),
+		);
+		const newConfig = await (manager as any).loadConfigSafely();
+		if (value === "squash") {
+			// An invalid value fails validation; the config is not applied.
+			expect(newConfig?.prBranchFreshness ?? "off").not.toBe("squash");
+			return;
+		}
+		expect(newConfig.prBranchFreshness).toBe(expected);
+		expect(newConfig.mergeConflictTrigger).toBe(false);
+		expect((manager as any).detectGlobalConfigChanges(newConfig)).toBe(
+			expected !== "merge",
 		);
 	});
 });
