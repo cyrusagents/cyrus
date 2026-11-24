@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Add PR follow-through for pull requests owned by existing sessions, both off by default. `mergeConflictTrigger` asks the PR's session to resolve conflicts when GitHub reports `mergeable: false`. `prBranchFreshness` (`off`, `merge` or `rebase`) asks it to bring in a moved base when the PR is mergeable but behind. When both apply to a base push, Cyrus sends a single conflict prompt that uses the chosen strategy. Rebase pushes only with `--force-with-lease` pinned to the verified head. Self-hosted GitHub Apps need the **Pull request** and **Push** event subscriptions: new Apps from the setup manifest get them, and existing Apps must add them by hand. See [GitHub PR follow-through](docs/GITHUB_PR_FOLLOW_THROUGH.md). ([#1619](https://github.com/cyrusagents/cyrus/pull/1619))
+- Add merge conflict detection and branch freshness checks to PR Follow-through for pull requests tied to an existing session. Both settings default to off. `mergeConflictTrigger` asks the PR's session to resolve conflicts when GitHub reports `mergeable: false`. `prBranchFreshness` (`off`, `merge` or `rebase`) asks it to bring in a moved base when the PR is mergeable but behind. When both apply to a base push, Cyrus sends a single conflict prompt that uses the chosen strategy. Rebase pushes only with `--force-with-lease` pinned to the verified head. Self-hosted GitHub Apps need the **Pull request** and **Push** event subscriptions: new Apps from the setup manifest get them, and existing Apps must add them by hand. See [GitHub PR follow-through](docs/GITHUB_PR_FOLLOW_THROUGH.md). ([#1619](https://github.com/cyrusagents/cyrus/pull/1619))
 
 ### Removed
 
