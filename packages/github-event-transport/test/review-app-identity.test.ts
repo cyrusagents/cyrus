@@ -37,6 +37,26 @@ describe("review App identity", () => {
 			"https://api.github.com/apps/reviewer",
 		]);
 	});
+	it("verifies public App metadata without the installation token after an authenticated 403", async () => {
+		const calls: Array<[string, string | null]> = [];
+		const fetcher = (async (
+			url: string | URL | Request,
+			init?: RequestInit,
+		) => {
+			const auth = new Headers(init?.headers).get("authorization");
+			calls.push([String(url), auth]);
+			if (calls.length === 1) return Response.json({ data: { node } });
+			if (auth)
+				return Response.json({ message: "IP allowlist" }, { status: 403 });
+			return Response.json(app);
+		}) as typeof fetch;
+		expect(await resolveReviewAppId(author, "test-token", fetcher)).toBe(42);
+		expect(calls).toEqual([
+			["https://api.github.com/graphql", "Bearer test-token"],
+			["https://api.github.com/apps/reviewer", "Bearer test-token"],
+			["https://api.github.com/apps/reviewer", null],
+		]);
+	});
 	it("rejects users, missing nodes, and missing credentials", async () => {
 		const { fetcher, calls } = responses();
 		for (const input of [

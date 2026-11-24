@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Verify trusted GitHub App reviews when an app owner's IP allowlist blocks the installation-token metadata lookup.
+
 ## [0.2.83] - 2026-11-18
 
 ### Added
