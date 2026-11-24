@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.85] - 2026-11-24
+
 ### Added
 
 - Add merge conflict detection and branch freshness checks to PR Follow-through for pull requests tied to an existing session. Both settings default to off. `mergeConflictTrigger` asks the PR's session to resolve conflicts when GitHub reports `mergeable: false`. `prBranchFreshness` (`off`, `merge` or `rebase`) asks it to bring in a moved base when the PR is mergeable but behind. When both apply to a base push, Cyrus sends a single conflict prompt that uses the chosen strategy. Rebase pushes only with `--force-with-lease` pinned to the verified head. Self-hosted GitHub Apps need the **Pull request** and **Push** event subscriptions: new Apps from the setup manifest get them, and existing Apps must add them by hand. See [GitHub PR follow-through](docs/GITHUB_PR_FOLLOW_THROUGH.md). ([#1619](https://github.com/cyrusagents/cyrus/pull/1619))
@@ -11,6 +13,62 @@ All notable changes to this project will be documented in this file.
 ### Removed
 
 - Remove the generic base-branch notice that a push to a base branch streamed into running sessions. Base-moved prompts now come only from `prBranchFreshness`, and none are sent when it is `off`. ([#1619](https://github.com/cyrusagents/cyrus/pull/1619))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.85
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.85
+
+#### cyrus-core
+- cyrus-core@0.2.85
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.85
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.85
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.85
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.85
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.85
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.85
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.85
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.85
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.85
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.85
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.85
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.85
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.85
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.85
+
+#### cyrus-ai
+- cyrus-ai@0.2.85
 
 ## [0.2.84] - 2026-11-24
 
