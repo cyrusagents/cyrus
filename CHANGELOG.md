@@ -8,6 +8,68 @@ All notable changes to this project will be documented in this file.
 
 - Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.331](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03331) and [`@anthropic-ai/sdk` 1.13.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.13.0), bringing Claude Code 2.1.331 fixes, restoring MCP resource discovery in full engineering sessions, preserving permission-time edits in Write/Edit results, and honoring event-stream retry delays. Sandboxed Bash approvals remain unattended, shell startup waits for approval, deferred hook calls do not run automatically after an unattended resume, and managed-MCP, managed-hook, and ignored-settings warnings are visible in the issue timeline. The Edge Worker now uses the registry release of `node-forge`, so the published package graph installs under npm 12 as well as npm 10 and 11. ([CYPACK-1657](https://linear.app/cyrusai/issue/CYPACK-1657/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1620](https://github.com/cyrusagents/cyrus/pull/1620))
 
+## [0.2.84] - 2026-11-24
+
+### Fixed
+
+- Verify trusted GitHub App reviews when an app owner's IP allowlist blocks the installation-token metadata lookup. ([#1621](https://github.com/cyrusagents/cyrus/pull/1621))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.84
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.84
+
+#### cyrus-core
+- cyrus-core@0.2.84
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.84
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.84
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.84
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.84
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.84
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.84
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.84
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.84
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.84
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.84
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.84
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.84
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.84
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.84
+
+#### cyrus-ai
+- cyrus-ai@0.2.84
+
 ## [0.2.83] - 2026-11-18
 
 ### Added
