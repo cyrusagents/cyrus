@@ -82,11 +82,12 @@ branches if the workspace, branch or its permissions do not match.
 
 ## Deduplication and limits
 
-`~/.cyrus/merge-conflict-dispatch/<sha256(repository-id:pr-number)>/<head-sha>-<base-sha>.json`
-journals each dispatch, with a directory lock across processes. Conflicts and
-freshness share it: one automatic prompt per head/base pair and **three per
-pull request** in total, across redeliveries, push and `pull_request` races,
-and restarts. An event arriving while a check of the same PR or base runs is
+`~/.cyrus/merge-conflict-dispatch/<sha256(repository-id:pr-number)>/` journals
+each dispatch by head/base pair, with a directory lock across processes.
+Conflicts and freshness share the revision check, so there is one automatic
+prompt per pair across redeliveries, event races and restarts. Conflict
+recovery stops after three attempts per PR. Freshness can still run on
+subsequent verified base revisions. An event arriving while a check of the same PR or base runs is
 checked once that run ends (latest wins), so a newer revision is not dropped.
 A dispatch interrupted by a crash, or a failed dispatch, needs an operator to
 reconcile it, as for [CI failures](./GITHUB_CI_ROUTING.md#deduplication-retries-and-visibility).

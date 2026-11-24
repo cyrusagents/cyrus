@@ -24,7 +24,7 @@ function escapeXml(value: string | number): string {
 function strategyInstructions(input: FollowThroughPromptInput): string[] {
 	return input.strategy === "rebase"
 		? [
-				"    Fetch the base branch and rebase this PR's branch onto it. Push the rewritten branch only with `git push --force-with-lease=<pr-branch>:<head_sha>`, using the head_sha below, so the push fails if anyone else updated the branch. Never use an unconditional force push.",
+				"    Fetch the base branch and rebase this PR's branch onto it. Push the rewritten branch only with `git push --force-with-lease=refs/heads/<pr-branch>:<head_sha> <pr-remote> HEAD:refs/heads/<pr-branch>`, using the head_sha below and the verified PR repository remote. The push must fail if anyone else updated the branch. Never use an unconditional force push.",
 			]
 		: [
 				"    Fetch the base branch and merge it into this PR's branch. Do not rebase or force push; commit the merge and push normally.",

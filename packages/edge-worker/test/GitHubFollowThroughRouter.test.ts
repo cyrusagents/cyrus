@@ -48,7 +48,6 @@ const pushEvent = (overrides: Record<string, unknown> = {}) => ({
 	commits: [{ message: "Upstream change" }],
 	...overrides,
 });
-const ADMIT_ALL = "conflicts=on; freshness=merge";
 
 describe("PR follow-through on standard GitHub events", () => {
 	let home: string;
@@ -191,7 +190,9 @@ describe("PR follow-through on standard GitHub events", () => {
 		const raw = JSON.stringify(body);
 		const authenticated = options.authenticated ?? true;
 		const admission =
-			options.admission === undefined ? ADMIT_ALL : options.admission;
+			options.admission === undefined
+				? `conflicts=on; freshness=${freshness}`
+				: options.admission;
 		return app.inject({
 			method: "POST",
 			url: "/github-webhook",
@@ -223,6 +224,57 @@ describe("PR follow-through on standard GitHub events", () => {
 		vi.waitFor(() => expect(runner).toHaveBeenCalledTimes(count));
 	const quiet = () => new Promise((resolve) => setTimeout(resolve, 40));
 	const prompts = () => prepare.mock.calls.map((call) => call[2] as string);
+
+	it("treats a missing mergeability value as unknown", async () => {
+		conflicts = false;
+		freshness = "merge";
+		pulls[7] = pull(7, { mergeable: undefined });
+		const event = parseGitHubFollowThroughEvent("push", pushEvent())!;
+		expect(await router.check(event, repo, {})).toEqual({
+			7: "mergeability_unknown",
+		});
+		expect(prepare).not.toHaveBeenCalled();
+	});
+
+	it("does not schedule a previously prepared rebase after the strategy changes", async () => {
+		freshness = "rebase";
+		prepare.mockImplementationOnce(async () => {
+			freshness = "off";
+			return runner;
+		});
+		const event = parseGitHubFollowThroughEvent("pull_request", prEvent())!;
+		expect(await router.check(event, repo, {})).toEqual({ 7: "superseded" });
+		expect(runner).not.toHaveBeenCalled();
+	});
+
+	it("continues freshness past three distinct safe base advances", async () => {
+		conflicts = false;
+		freshness = "merge";
+		for (const nextBase of ["b", "c", "d", "e"].map((value) =>
+			value.repeat(40),
+		)) {
+			pulls[7] = pull(7, {
+				mergeable: true,
+				base: { sha: nextBase, ref: "main", repo: { id: 42 } },
+			});
+			const event = parseGitHubFollowThroughEvent(
+				"push",
+				pushEvent({ after: nextBase }),
+			)!;
+			expect(await router.check(event, repo, {})).toEqual({ 7: "accepted" });
+			await settled();
+		}
+		expect(runner).toHaveBeenCalledTimes(4);
+	});
+
+	it("does not let a stale runtime authorize a different Hosted strategy", async () => {
+		freshness = "merge";
+		const response = await deliver("push", pushEvent(), {
+			admission: "conflicts=on; freshness=rebase",
+		});
+		expect(response.json().outcome).toBe("disabled");
+		expect(prepare).not.toHaveBeenCalled();
+	});
 
 	describe("merge conflicts", () => {
 		it.each([
@@ -261,7 +313,7 @@ describe("PR follow-through on standard GitHub events", () => {
 			await dispatched(1);
 			expect(prompts()[0]).toContain("<strategy>rebase</strategy>");
 			expect(prompts()[0]).toContain(
-				"--force-with-lease=<pr-branch>:<head_sha>",
+				"--force-with-lease=refs/heads/<pr-branch>:<head_sha>",
 			);
 			expect(prompts()[0]).toContain("Never use an unconditional force push");
 		});
@@ -562,7 +614,7 @@ describe("PR follow-through on standard GitHub events", () => {
 	});
 
 	describe("dedupe and races", () => {
-		it("redeliveries, push/PR races and new bases dispatch once per head and base, within a per-PR limit", async () => {
+		it("redeliveries, push/PR races and new bases dispatch once per head and base, with a conflict recovery limit", async () => {
 			freshness = "merge";
 			await deliver("pull_request", prEvent());
 			await deliver("push", pushEvent());
@@ -571,17 +623,17 @@ describe("PR follow-through on standard GitHub events", () => {
 			await deliver("pull_request", prEvent());
 			await quiet();
 			expect(runner).toHaveBeenCalledTimes(1);
-			for (const next of ["c", "d", "e"]) {
+			for (const next of ["c", "d", "e", "f"]) {
 				pulls[7] = pull(7, {
 					base: { sha: next.repeat(40), ref: "main", repo: { id: 42 } },
-					// Conflicts and freshness share one per-PR budget.
+					// One freshness prompt and at most three conflict prompts.
 					mergeable: next === "d",
 				});
 				await deliver("push", pushEvent());
 				await quiet();
 				await settled();
 			}
-			expect(runner).toHaveBeenCalledTimes(3);
+			expect(runner).toHaveBeenCalledTimes(4);
 		});
 
 		it("a newer event during a running check is checked afterwards, not dropped", async () => {

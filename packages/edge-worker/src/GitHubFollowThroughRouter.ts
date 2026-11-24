@@ -65,7 +65,7 @@ type Effective = {
 	freshness: PullRequestBranchFreshness;
 };
 
-/** Automatic follow-ups per pull request, across head and base revisions. */
+/** Automatic conflict attempts per pull request, across head and base revisions. */
 const ATTEMPT_LIMIT = 3;
 /** Owned branches checked for one base push. */
 const PUSH_BRANCH_LIMIT = 10;
@@ -96,7 +96,7 @@ type Action =
  *   freshness. Off sends no base-moved prompt at all.
  *
  * One journal entry per head/base pair, shared by both, so a PR gets at most
- * one prompt per revision pair, and three in total.
+ * one prompt per revision pair, with at most three conflict recovery attempts.
  */
 export class GitHubFollowThroughRouter {
 	private readonly active = new Set<string>();
@@ -111,14 +111,17 @@ export class GitHubFollowThroughRouter {
 	/** Live config, limited by Hosted's admission when proxied. */
 	private effective(admission?: FollowThroughAdmission): Effective {
 		const local = this.deps.freshness();
-		const freshness =
-			local === "off" || (admission && admission.freshness === "off")
-				? "off"
-				: // Hosted's admission reflects its current setting.
-					(admission?.freshness ?? local);
+		// An authenticated explicit off can always narrow local authority. A
+		// different enabled strategy means the runner and Hosted disagree.
+		if (
+			admission &&
+			admission.freshness !== "off" &&
+			admission.freshness !== local
+		)
+			return { conflicts: false, freshness: "off" };
 		return {
 			conflicts: this.deps.conflictsEnabled() && (admission?.conflicts ?? true),
-			freshness,
+			freshness: admission?.freshness ?? local,
 		};
 	}
 
@@ -289,7 +292,12 @@ export class GitHubFollowThroughRouter {
 			)
 				return "not_open_or_fork";
 			// Provider SHAs become journal paths and prompt pins.
-			if (!SHA.test(pr.head.sha) || !SHA.test(pr.base.sha))
+			if (
+				typeof pr.head.sha !== "string" ||
+				typeof pr.base.sha !== "string" ||
+				!SHA.test(pr.head.sha) ||
+				!SHA.test(pr.base.sha)
+			)
 				return "invalid_revision";
 			return pr;
 		};
@@ -302,18 +310,22 @@ export class GitHubFollowThroughRouter {
 				? (compare.ahead_by as number)
 				: 0;
 		};
+		const strategyFor = (kind: Action["kind"]) => {
+			const effective = this.effective(admission);
+			if (kind === "conflict" && !effective.conflicts) return null;
+			if (effective.freshness !== "off") return effective.freshness;
+			return kind === "conflict" ? "merge" : null;
+		};
 		/** Decide from current state, with the live settings at this moment. */
 		const decide = async (pr: Pull): Promise<string | Action> => {
-			const effective = this.effective(admission);
-			const strategy =
-				effective.freshness === "off" ? "merge" : effective.freshness;
-			if (pr.mergeable === false)
-				return effective.conflicts
+			if (pr.mergeable === false) {
+				const strategy = strategyFor("conflict");
+				return strategy
 					? { kind: "conflict", strategy }
-					: // Never use freshness to resolve a conflict.
-						"conflict_handling_disabled";
-			if (event.kind !== "push" || effective.freshness === "off")
-				return "not_conflicted";
+					: "conflict_handling_disabled";
+			}
+			const strategy = strategyFor("freshness");
+			if (event.kind !== "push" || !strategy) return "not_conflicted";
 			const behind = await behindBy(pr);
 			if (behind <= 0) return "up_to_date";
 			return { kind: "freshness", strategy, behindBy: behind };
@@ -324,7 +336,7 @@ export class GitHubFollowThroughRouter {
 			if (delay) await (this.deps.sleep ?? defaultSleep)(delay);
 			const read = await current();
 			if (typeof read === "string") return read;
-			if (read.mergeable !== null) {
+			if (typeof read.mergeable === "boolean") {
 				pr = read;
 				break;
 			}
@@ -353,12 +365,18 @@ export class GitHubFollowThroughRouter {
 				if (typeof again === "string") return again;
 				if (
 					again.head.sha !== pinned.head.sha ||
-					again.base.sha !== pinned.base.sha
+					again.base.sha !== pinned.base.sha ||
+					again.head.ref !== pinned.head.ref ||
+					again.base.ref !== pinned.base.ref ||
+					again.mergeable !== (action.kind === "freshness") ||
+					this.repository(event)?.id !== repository.id ||
+					this.owner(repository, again.head.ref) !== session ||
+					strategyFor(action.kind) !== action.strategy
 				)
 					return "superseded";
-				const still = await decide(again);
-				if (typeof still === "string") return still;
-				return still.kind === action.kind ? null : "superseded";
+				// The compared commits are immutable and still pinned, so the
+				// result of the initial behind check still applies.
+				return null;
 			},
 		);
 	}
@@ -394,17 +412,21 @@ export class GitHubFollowThroughRouter {
 		const lock = join(dir, "lock");
 		await this.lock(lock); // Atomic across processes.
 		try {
-			const path = join(dir, `${pr.head.sha}-${pr.base.sha}.json`);
-			let prior: { state: string } | undefined;
-			try {
-				prior = JSON.parse(await readFile(path, "utf8"));
-			} catch (error) {
-				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-			}
-			if (prior) {
+			const revision = `${pr.head.sha}-${pr.base.sha}`;
+			const conflictPath = join(dir, `${revision}.json`);
+			const freshnessPath = join(dir, `${revision}.freshness.json`);
+			const path = action.kind === "conflict" ? conflictPath : freshnessPath;
+			for (const priorPath of [conflictPath, freshnessPath]) {
+				let prior: { state: string };
+				try {
+					prior = JSON.parse(await readFile(priorPath, "utf8"));
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+					throw error;
+				}
 				if (
 					prior.state === "failed" ||
-					(prior.state === "dispatching" && !this.active.has(path))
+					(prior.state === "dispatching" && !this.active.has(priorPath))
 				)
 					throw new Error(
 						"PR follow-through dispatch needs operator reconciliation",
@@ -412,8 +434,10 @@ export class GitHubFollowThroughRouter {
 				return "duplicate_revision";
 			}
 			if (
-				(await readdir(dir)).filter((name) => name.endsWith(".json")).length >=
-				ATTEMPT_LIMIT
+				action.kind === "conflict" &&
+				(await readdir(dir)).filter(
+					(name) => name.endsWith(".json") && !name.endsWith(".freshness.json"),
+				).length >= ATTEMPT_LIMIT
 			)
 				return "automatic_attempt_limit";
 			const input = {

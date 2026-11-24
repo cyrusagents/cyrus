@@ -300,15 +300,20 @@ try {
 	assert.ok(received[2].prompt.startsWith("<merge_conflict_notification>"));
 	assert.ok(received[2].prompt.includes("<strategy>rebase</strategy>"));
 	assert.ok(
-		received[2].prompt.includes("--force-with-lease=<pr-branch>:<head_sha>"),
+		received[2].prompt.includes(
+			"--force-with-lease=refs/heads/<pr-branch>:<head_sha>",
+		),
 	);
 	assert.ok(githubAuth.length > 0);
 	assert.ok(githubAuth.every((value) => value === "Bearer f1-local-token"));
-	// Per-PR cap of 3 reached: a new base revision dispatches nothing.
+	// A previous freshness prompt does not consume a conflict attempt.
 	baseSha = "f".repeat(40);
 	await send("pull_request", pullRequest(), { mode: "signature" });
+	await until(() => received.length === 4, "third conflict dispatch");
+	baseSha = "1".repeat(40);
+	await send("pull_request", pullRequest(), { mode: "signature" });
 	await settle();
-	assert.equal(received.length, 3, "attempt limit of 3 per PR");
+	assert.equal(received.length, 4, "limit of three conflicts per PR");
 
 	// 5. Hot config: off, removal.
 	process.env.CYRUS_HOST_EXTERNAL = "false";
@@ -334,7 +339,7 @@ try {
 		).outcome,
 		"disabled",
 	);
-	assert.equal(received.length, 3);
+	assert.equal(received.length, 4);
 	assert.ok(received.every((entry) => entry.sessionId === "responsible"));
 	console.log(
 		"PASS: actual HTTP /github-webhook -> EdgeWorker -> responsible session stream for standard pull_request and push events. Proxy needs Hosted admission (unauthorized and unadmitted send nothing) and uses the forwarded token; direct signed delivery uses local config and credentials. Freshness off sends no base-moved prompt to running sessions; merge freshness prompts a behind PR, not an up-to-date one; with rebase, a conflict sends one conflict prompt using rebase. Duplicates and the per-PR cap hold. Cold opt-in, live changes, atomic replacement and removal work without restarting the worker. Runner/API are fixtures.",
