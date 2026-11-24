@@ -5,7 +5,10 @@
 import type { InternalMessage } from "cyrus-core";
 import type { FastifyInstance } from "fastify";
 import type { GitHubCiFailure } from "./ci-failure.js";
-import type { GitHubMergeConflictEvent } from "./merge-conflict.js";
+import type {
+	FollowThroughAdmission,
+	GitHubFollowThroughEvent,
+} from "./follow-through.js";
 
 /**
  * Verification mode for GitHub webhooks forwarded from CYHOST
@@ -32,13 +35,19 @@ export interface GitHubEventTransportConfig {
 		context: { deliveryId: string; installationToken?: string },
 	) => Promise<{ outcome: string; sessionId?: string }>;
 	/**
-	 * Merge conflict follow-up for standard `pull_request` and `push` events
-	 * on /github-webhook, after the usual admission. Must only queue bounded
-	 * work and return quickly; `push` keeps its ordinary handling as well.
+	 * PR follow-through (merge conflicts, branch freshness) for standard
+	 * `pull_request` and `push` events on /github-webhook, after the usual
+	 * admission. Must only queue bounded work and return quickly. `admission`
+	 * is set only for authenticated Hosted proxy deliveries, and then limits
+	 * what may run; it is absent for direct GitHub delivery.
 	 */
-	handleMergeConflict?: (
-		event: GitHubMergeConflictEvent,
-		context: { deliveryId: string; installationToken?: string },
+	handleFollowThrough?: (
+		event: GitHubFollowThroughEvent,
+		context: {
+			deliveryId: string;
+			installationToken?: string;
+			admission?: FollowThroughAdmission;
+		},
 	) => Promise<{ outcome: string }>;
 }
 

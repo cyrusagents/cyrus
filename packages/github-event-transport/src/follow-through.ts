@@ -1,11 +1,12 @@
 /**
- * Merge conflict follow-up input, parsed from a standard GitHub `pull_request`
- * or `push` webhook that already passed HMAC (direct) or Bearer (Hosted proxy)
- * admission on `/github-webhook`. GitHub has no conflict event: these are only
- * reasons to re-read pull requests owned by this runtime's sessions. Payload
- * values are hints; the router re-reads GitHub before acting.
+ * PR follow-through input (merge conflicts and branch freshness), parsed from
+ * a standard GitHub `pull_request` or `push` webhook that already passed HMAC
+ * (direct) or Bearer (Hosted proxy) admission on `/github-webhook`. GitHub
+ * has no conflict or "base moved" event for a PR: these are only reasons to
+ * re-read pull requests owned by this runtime's sessions. Payload values are
+ * hints; the router re-reads GitHub before acting.
  */
-export type GitHubMergeConflictEvent = {
+export type GitHubFollowThroughEvent = {
 	repository: { id: number; fullName: string };
 	installationId?: number;
 } & (
@@ -19,16 +20,49 @@ export type GitHubMergeConflictEvent = {
 	| { kind: "push"; baseRef: string }
 );
 
-/** Acknowledged by runtimes that handle merge conflict follow-up. */
-export const MERGE_CONFLICT_PROTOCOL = 1;
+export type FollowThroughStrategy = "off" | "merge" | "rebase";
 
 /**
- * Hosted sends this on a second, conflict-only delivery of a `push` it already
- * routed elsewhere. Honored only after Bearer (proxy) authentication, and only
- * for `push`: the runtime then skips the ordinary push handling so the
- * base-branch notice is not duplicated. Ignored in direct signature mode.
+ * What a Hosted proxy delivery authorizes, from Hosted's current workspace
+ * settings. The runtime's own live config must also allow each feature, so
+ * neither side alone can turn one on.
  */
-export const MERGE_CONFLICT_ONLY_HEADER = "x-cyrus-merge-conflict-only";
+export type FollowThroughAdmission = {
+	conflicts: boolean;
+	freshness: FollowThroughStrategy;
+};
+
+/** Acknowledged by runtimes that handle PR follow-through. */
+export const FOLLOW_THROUGH_PROTOCOL = 1;
+
+/**
+ * Hosted's admission for a proxied delivery, for example
+ * `conflicts=on; freshness=merge`. Honored only after Bearer (proxy)
+ * authentication; ignored in direct signature mode. Absent or malformed on a
+ * proxied delivery means nothing is authorized.
+ */
+export const FOLLOW_THROUGH_HEADER = "x-cyrus-follow-through";
+
+/** Strict: exactly `conflicts=on|off; freshness=off|merge|rebase`. */
+export function parseFollowThroughAdmission(
+	value: unknown,
+): FollowThroughAdmission | null {
+	if (typeof value !== "string" || value.length > 64) return null;
+	const match = value
+		.trim()
+		.match(/^conflicts=(on|off);\s*freshness=(off|merge|rebase)$/);
+	if (!match) return null;
+	return {
+		conflicts: match[1] === "on",
+		freshness: match[2] as FollowThroughStrategy,
+	};
+}
+
+export function formatFollowThroughAdmission(
+	admission: FollowThroughAdmission,
+): string {
+	return `conflicts=${admission.conflicts ? "on" : "off"}; freshness=${admission.freshness}`;
+}
 
 const PR_ACTIONS = new Set([
 	"opened",
@@ -50,10 +84,10 @@ const safeRef = (value: unknown): value is string =>
 	![...value].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127);
 
 /** Qualifying events only; everything else (drafts, labels, tags) is null. */
-export function parseGitHubMergeConflictEvent(
+export function parseGitHubFollowThroughEvent(
 	eventType: string,
 	input: unknown,
-): GitHubMergeConflictEvent | null {
+): GitHubFollowThroughEvent | null {
 	const payload = record(input);
 	const repository = record(payload.repository);
 	const installation = record(payload.installation);

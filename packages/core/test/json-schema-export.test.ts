@@ -63,6 +63,7 @@ describe("JSON Schema export", () => {
 				"prReviewTrigger",
 				"ciFailureTrigger",
 				"mergeConflictTrigger",
+				"prBranchFreshness",
 				"userAccessControl",
 				"promptDefaults",
 				"sandbox",

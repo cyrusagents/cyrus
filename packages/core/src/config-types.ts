@@ -21,6 +21,8 @@ export {
 	OpenCodeConfigSchema,
 	type OpenCodeStateScope,
 	OpenCodeStateScopeSchema,
+	type PullRequestBranchFreshness,
+	PullRequestBranchFreshnessSchema,
 	type RepositoryConfig,
 	type RepositoryConfigPayload,
 	RepositoryConfigPayloadSchema,

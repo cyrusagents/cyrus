@@ -14,6 +14,19 @@ export type RunnerType = z.infer<typeof RunnerTypeSchema>;
 
 /** Tool approval mode (`toolApprovalMode` in config.json). */
 export const ToolApprovalModeSchema = z.enum(["allowlist", "auto"]);
+
+/**
+ * How Cyrus keeps an owned PR branch current when its base branch moves:
+ * off (no prompt), or ask the PR's existing session to merge or rebase.
+ */
+export const PullRequestBranchFreshnessSchema = z.enum([
+	"off",
+	"merge",
+	"rebase",
+]);
+export type PullRequestBranchFreshness = z.infer<
+	typeof PullRequestBranchFreshnessSchema
+>;
 export type ToolApprovalMode = z.infer<typeof ToolApprovalModeSchema>;
 
 /**
@@ -648,6 +661,12 @@ export const EdgeConfigSchema = z.object({
 	 * merge conflict (GitHub `mergeable: false`). Defaults to false.
 	 */
 	mergeConflictTrigger: z.boolean().optional(),
+
+	/**
+	 * Branch freshness for PRs owned by existing sessions when their base
+	 * branch receives a push. Defaults to "off": no base-moved prompt at all.
+	 */
+	prBranchFreshness: PullRequestBranchFreshnessSchema.optional(),
 
 	/**
 	 * Global user access control settings.

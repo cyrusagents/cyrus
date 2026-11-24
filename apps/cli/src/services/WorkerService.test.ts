@@ -132,6 +132,7 @@ describe("WorkerService", () => {
 			prReviewTrigger: false,
 			ciFailureTrigger: true,
 			mergeConflictTrigger: true,
+			prBranchFreshness: "rebase",
 			githubReviewAppPolicies: [
 				{ installationId: "123", organization: "Grain", appIds: [42] },
 			],

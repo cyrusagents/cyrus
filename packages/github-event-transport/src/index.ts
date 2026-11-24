@@ -1,4 +1,14 @@
 export { type GitHubCiFailure, parseGitHubCiFailure } from "./ci-failure.js";
+export {
+	FOLLOW_THROUGH_HEADER,
+	FOLLOW_THROUGH_PROTOCOL,
+	type FollowThroughAdmission,
+	type FollowThroughStrategy,
+	formatFollowThroughAdmission,
+	type GitHubFollowThroughEvent,
+	parseFollowThroughAdmission,
+	parseGitHubFollowThroughEvent,
+} from "./follow-through.js";
 export type { GitHubAppTokenProviderConfig } from "./GitHubAppTokenProvider.js";
 export {
 	createAppJwt,
@@ -34,12 +44,6 @@ export {
 	isPullRequestReviewPayload,
 	stripMention,
 } from "./github-webhook-utils.js";
-export {
-	type GitHubMergeConflictEvent,
-	MERGE_CONFLICT_ONLY_HEADER,
-	MERGE_CONFLICT_PROTOCOL,
-	parseGitHubMergeConflictEvent,
-} from "./merge-conflict.js";
 export {
 	allowedReviewAppIds,
 	resolveReviewAppId,

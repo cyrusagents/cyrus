@@ -4,12 +4,14 @@ import type { TranslationContext } from "cyrus-core";
 import { createLogger, type ILogger, ipMatchesAllowlist } from "cyrus-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { parseGitHubCiFailure } from "./ci-failure.js";
-import { GitHubMessageTranslator } from "./GitHubMessageTranslator.js";
 import {
-	MERGE_CONFLICT_ONLY_HEADER,
-	MERGE_CONFLICT_PROTOCOL,
-	parseGitHubMergeConflictEvent,
-} from "./merge-conflict.js";
+	FOLLOW_THROUGH_HEADER,
+	FOLLOW_THROUGH_PROTOCOL,
+	type FollowThroughAdmission,
+	parseFollowThroughAdmission,
+	parseGitHubFollowThroughEvent,
+} from "./follow-through.js";
+import { GitHubMessageTranslator } from "./GitHubMessageTranslator.js";
 import type {
 	GitHubEventTransportConfig,
 	GitHubEventTransportEvents,
@@ -281,29 +283,39 @@ export class GitHubEventTransport extends EventEmitter {
 			return;
 		}
 
-		const mergeConflictOnly =
-			admittedBy === "proxy" &&
-			eventType === "push" &&
-			request.headers[MERGE_CONFLICT_ONLY_HEADER] === "1";
-		if (eventType === "pull_request" || mergeConflictOnly) {
-			// Merge conflict follow-up only: no other handling exists for these.
-			if (!this.config.handleMergeConflict) {
-				if (mergeConflictOnly) {
-					reply.code(503).send({ error: "Merge conflict handler unavailable" });
-					return;
-				}
+		// PR follow-through admission. Direct (signature) delivery: the local
+		// config alone decides, and Hosted-only headers, including any
+		// forwarded installation token, are ignored. Proxy delivery: only what
+		// Hosted's authenticated header authorizes; none without it.
+		const followThrough: {
+			admission?: FollowThroughAdmission;
+			installationToken?: string;
+		} | null =
+			admittedBy === "signature"
+				? {}
+				: (() => {
+						const admission = parseFollowThroughAdmission(
+							request.headers[FOLLOW_THROUGH_HEADER],
+						);
+						return admission ? { admission, installationToken } : null;
+					})();
+		if (eventType === "pull_request") {
+			// PR follow-through only: no other handling exists for these.
+			if (!this.config.handleFollowThrough) {
 				this.logger.debug(`Ignoring unsupported event type: ${eventType}`);
 				reply.code(200).send({ success: true, ignored: true });
 				return;
 			}
 			reply.send({
-				mergeConflictProtocol: MERGE_CONFLICT_PROTOCOL,
-				...(await this.queueMergeConflict(
-					eventType,
-					request.body,
-					deliveryId,
-					installationToken,
-				)),
+				followThroughProtocol: FOLLOW_THROUGH_PROTOCOL,
+				...(followThrough
+					? await this.queueFollowThrough(
+							eventType,
+							request.body,
+							deliveryId,
+							followThrough,
+						)
+					: { outcome: "not_authorized" }),
 			});
 			return;
 		}
@@ -361,39 +373,51 @@ export class GitHubEventTransport extends EventEmitter {
 		// Emit "message" with translated internal message
 		this.emitMessage(webhookEvent);
 
-		// A base branch push can also leave this runtime's PRs conflicted. The
-		// ordinary push handling above is unchanged; this only queues a check.
-		if (eventType === "push" && this.config.handleMergeConflict)
-			await this.queueMergeConflict(
-				eventType,
-				request.body,
-				deliveryId,
-				installationToken,
-			);
+		// A base branch push can leave this runtime's PRs conflicted or behind.
+		// The legacy event above is still emitted; this only queues a check.
+		if (eventType === "push" && this.config.handleFollowThrough) {
+			const outcome = followThrough
+				? await this.queueFollowThrough(
+						eventType,
+						request.body,
+						deliveryId,
+						followThrough,
+					)
+				: { outcome: "not_authorized" };
+			// Hosted needs an acknowledgement; GitHub and older callers see
+			// the same `success: true` as before.
+			reply.code(200).send({
+				success: true,
+				...(admittedBy === "proxy" && followThrough
+					? { followThroughProtocol: FOLLOW_THROUGH_PROTOCOL, ...outcome }
+					: {}),
+			});
+			return;
+		}
 
 		reply.code(200).send({ success: true });
 	}
 
 	/**
-	 * Hands a qualifying event to the merge conflict handler, which only
+	 * Hands a qualifying event to the PR follow-through handler, which only
 	 * queues bounded background work. Never throws: a handler failure must not
 	 * change the response for the ordinary event that carried it.
 	 */
-	private async queueMergeConflict(
+	private async queueFollowThrough(
 		eventType: string,
 		body: unknown,
 		deliveryId: string,
-		installationToken: string | undefined,
+		context: { admission?: FollowThroughAdmission; installationToken?: string },
 	): Promise<{ outcome: string }> {
-		const event = parseGitHubMergeConflictEvent(eventType, body);
+		const event = parseGitHubFollowThroughEvent(eventType, body);
 		if (!event) return { outcome: "ignored" };
 		try {
-			return await this.config.handleMergeConflict!(event, {
+			return await this.config.handleFollowThrough!(event, {
 				deliveryId,
-				installationToken,
+				...context,
 			});
 		} catch (error) {
-			this.logger.warn("Merge conflict check could not be queued", {
+			this.logger.warn("PR follow-through check could not be queued", {
 				repositoryId: event.repository.id,
 				deliveryId,
 				error: error instanceof Error ? error.message : String(error),
