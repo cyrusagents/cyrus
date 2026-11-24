@@ -533,6 +533,54 @@ describe("PR follow-through on standard GitHub events", () => {
 				api.mock.calls.some(([url]) => String(url).endsWith("/pulls/10")),
 			).toBe(false);
 		});
+
+		it("rotates the bounded base-push batch to reach later branches", async () => {
+			const branch = "later-task";
+			const template = sessions[0]!;
+			sessions = Array.from({ length: 11 }, (_, index) => ({
+				...template,
+				id: `session-${index}`,
+				repositories: [
+					{
+						...template.repositories[0]!,
+						branchName: index === 10 ? branch : `earlier-${index}`,
+					},
+				],
+			}));
+			pulls = {
+				7: pull(7, { head: { sha: head, ref: branch, repo: { id: 42 } } }),
+			};
+			const event = parseGitHubFollowThroughEvent("push", pushEvent())!;
+			const pushLookups = () =>
+				api.mock.calls.filter(([url]) =>
+					new URL(url as string).searchParams.has("base"),
+				).length;
+
+			expect(await router.check(event, repo, {})).toEqual({});
+			expect(pushLookups()).toBe(10);
+			expect(await router.check(event, repo, {})).toEqual({ 7: "accepted" });
+			expect(pushLookups()).toBe(20);
+			await dispatched(1);
+		});
+
+		it("checks later PRs when an earlier session cannot continue", async () => {
+			pulls[8] = pull(8, {
+				head: { sha: head, ref: "other", repo: { id: 42 } },
+			});
+			prepare.mockRejectedValueOnce(new Error("Stopped session"));
+			const event = parseGitHubFollowThroughEvent("push", pushEvent())!;
+
+			expect(await router.check(event, repo, {})).toEqual({
+				7: "check_failed",
+				8: "accepted",
+			});
+			expect(checkError).toHaveBeenCalledOnce();
+			expect(checkError.mock.calls[0]?.[0].message).toMatch(
+				/PR #7.*Stopped session/,
+			);
+			expect(prepare.mock.calls[1]?.[0].id).toBe("unrelated-session");
+			await dispatched(1);
+		});
 	});
 
 	describe("admission", () => {

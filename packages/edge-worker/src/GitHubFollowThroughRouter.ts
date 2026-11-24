@@ -69,6 +69,8 @@ type Effective = {
 const ATTEMPT_LIMIT = 3;
 /** Owned branches checked for one base push. */
 const PUSH_BRANCH_LIMIT = 10;
+/** Limit retained cursors when many different base refs receive pushes. */
+const PUSH_CURSOR_LIMIT = 256;
 /** Waits before each read: GitHub computes mergeability after it is asked. */
 export const MERGEABILITY_DELAYS_MS = [0, 2000, 4000, 8000];
 /** Retries for the journal lock held by a concurrent check of the same PR. */
@@ -106,6 +108,7 @@ export class GitHubFollowThroughRouter {
 	 * kept (latest wins) and checked once that run ends, so it is not lost.
 	 */
 	private readonly inFlight = new Map<string, (() => void) | null>();
+	private readonly pushOffsets = new Map<string, number>();
 	constructor(private readonly deps: FollowThroughRouterDependencies) {}
 
 	/** Live config, limited by Hosted's admission when proxied. */
@@ -187,6 +190,29 @@ export class GitHubFollowThroughRouter {
 		return branches;
 	}
 
+	private pushBranches(
+		repository: RepositoryConfig,
+		baseRef: string,
+	): string[] {
+		const branches = [...this.ownedBranches(repository)].filter(
+			(branch) => branch !== baseRef,
+		);
+		const key = `${repository.id}:${baseRef}`;
+		const offset = this.pushOffsets.get(key) ?? 0;
+		this.pushOffsets.delete(key);
+		if (branches.length <= PUSH_BRANCH_LIMIT) return branches;
+
+		const start = offset % branches.length;
+		const batch = branches.slice(start, start + PUSH_BRANCH_LIMIT);
+		batch.push(...branches.slice(0, PUSH_BRANCH_LIMIT - batch.length));
+		this.pushOffsets.set(key, (start + batch.length) % branches.length);
+		if (this.pushOffsets.size > PUSH_CURSOR_LIMIT) {
+			const oldest = this.pushOffsets.keys().next();
+			if (!oldest.done) this.pushOffsets.delete(oldest.value);
+		}
+		return batch;
+	}
+
 	/** Exactly one known session owns the branch, or none is used. */
 	private owner(
 		repository: RepositoryConfig,
@@ -248,25 +274,39 @@ export class GitHubFollowThroughRouter {
 		if (event.kind === "pull_request") numbers = [event.number];
 		else {
 			// Scoped to branches this runtime's sessions own, never all open PRs.
-			const branches = [...this.ownedBranches(repository)]
-				.filter((branch) => branch !== event.baseRef)
-				.slice(0, PUSH_BRANCH_LIMIT);
 			numbers = [];
-			for (const branch of branches)
-				for (const pr of await openFrom(branch, event.baseRef))
-					numbers.push(pr.number);
+			for (const branch of this.pushBranches(repository, event.baseRef)) {
+				try {
+					for (const pr of await openFrom(branch, event.baseRef))
+						numbers.push(pr.number);
+				} catch (error) {
+					this.deps.onCheckError(error);
+				}
+			}
 		}
 		const results: Record<number, string> = {};
-		for (const number of numbers)
-			results[number] = await this.checkPull(
-				number,
-				event,
-				repository,
-				remote.id,
-				context.admission,
-				request,
-				openFrom,
-			);
+		for (const number of numbers) {
+			try {
+				results[number] = await this.checkPull(
+					number,
+					event,
+					repository,
+					remote.id,
+					context.admission,
+					request,
+					openFrom,
+				);
+			} catch (error) {
+				if (event.kind !== "push") throw error;
+				results[number] = "check_failed";
+				this.deps.onCheckError(
+					new Error(
+						`PR #${number}: ${error instanceof Error ? error.message : String(error)}`,
+						{ cause: error },
+					),
+				);
+			}
+		}
 		return results;
 	}
 

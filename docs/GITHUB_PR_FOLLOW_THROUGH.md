@@ -45,11 +45,13 @@ Then, with this runtime's GitHub credential for the repository:
 
 4. The repository's numeric ID at GitHub must match the event.
 5. Candidate PRs: the event's PR, or for a base push, open PRs from each owned
-   session branch into the pushed branch (at most 10 branches, two results
-   each). Open PRs no session owns are never listed.
+   session branch into the pushed branch. Each push checks up to 10 branches
+   and two results per branch, rotating the batch on subsequent pushes to the
+   same base. Open PRs no session owns are never listed.
 6. Each candidate is re-read: it must be open, not a draft, and both head and
    base must be this repository (forks are ignored). For a push, its base must
-   be the pushed branch. Head and base SHAs must be 40-character hex.
+   be the pushed branch. Head and base SHAs must be 40-character hex. On a
+   base push, a failed candidate is logged and the remaining checks continue.
 7. Mergeability: GitHub computes it lazily, so an unknown value (`null`) is
    re-read after 2, 4 and 8 seconds. If still unknown, nothing is sent.
    - `mergeable: false`: with merge conflicts on, one conflict prompt using the
