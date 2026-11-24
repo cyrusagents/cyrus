@@ -4,6 +4,12 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.84] - 2026-11-24
+
+### Changed
+
+- Record the GitHub review App metadata release verification. ([#1621](https://github.com/cyrusagents/cyrus/pull/1621))
+
 ## [0.2.83] - 2026-11-18
 
 ### Changed
