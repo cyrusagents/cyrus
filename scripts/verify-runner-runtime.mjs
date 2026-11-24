@@ -173,14 +173,14 @@ console.log(
 			elapsedMs: Date.now() - startedAt,
 			read: {
 				filePath: readUse.input.file_path,
-				isError: readResult.is_error,
+				isError: readResult.is_error ?? false,
 				resultReceived: true,
 			},
 			bash: {
 				command: bashUse.input.command,
 				timeout: bashUse.input.timeout,
 				foreground: true,
-				isError: bashResult.is_error,
+				isError: bashResult.is_error ?? false,
 				resultReceived: true,
 			},
 			finalText: text,

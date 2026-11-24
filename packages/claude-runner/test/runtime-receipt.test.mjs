@@ -35,6 +35,13 @@ test("accepts ordered successful Read and foreground Bash results", () => {
 	expect(receipt.bashResult.is_error).toBe(false);
 });
 
+test("accepts successful tool results that omit the optional error flag", () => {
+	const messages = validReceipt();
+	delete messages[1].message.content[0].is_error;
+	delete messages[3].message.content[0].is_error;
+	expect(() => validateRuntimeReceipt(messages)).not.toThrow();
+});
+
 test("rejects an errored Read result", () => {
 	const messages = validReceipt();
 	messages[1] = toolResult("read-1", true);

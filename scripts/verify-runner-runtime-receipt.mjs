@@ -32,9 +32,9 @@ export function validateRuntimeReceipt(messages) {
 			block.tool_use_id === readUseEvent.block.id,
 	);
 	assert.ok(readResultEvent, "Read did not return a tool result");
-	assert.equal(
+	assert.notEqual(
 		readResultEvent.block.is_error,
-		false,
+		true,
 		"Read tool result failed",
 	);
 
@@ -48,9 +48,9 @@ export function validateRuntimeReceipt(messages) {
 			block.tool_use_id === bashUseEvent.block.id,
 	);
 	assert.ok(bashResultEvent, "Bash did not return a tool result");
-	assert.equal(
+	assert.notEqual(
 		bashResultEvent.block.is_error,
-		false,
+		true,
 		"Bash tool result failed",
 	);
 
