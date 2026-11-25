@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Let self-hosted Cyrus operators opt into skills from their enabled Claude Code plugins without copying them into Cyrus.
+- Let self-hosted Cyrus operators opt into skills from their enabled Claude Code plugins without copying them into Cyrus. ([#1625](https://github.com/cyrusagents/cyrus/pull/1625))
 
 ## [0.2.85] - 2026-11-24
 
