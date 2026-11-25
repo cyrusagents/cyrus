@@ -263,6 +263,9 @@ describe("EdgeWorker - Feedback Delivery", () => {
 
 			// Verify no additional allowed directories for feedback (empty array)
 			expect(additionalAllowedDirectories).toEqual([]);
+
+			// Orchestrator feedback is relayed system text, not a human message.
+			expect(resumeArgs[12]).toBe(true);
 		});
 
 		it("should handle feedback delivery when parent session ID is unknown", async () => {

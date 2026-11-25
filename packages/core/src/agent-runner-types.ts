@@ -300,7 +300,7 @@ export interface IAgentRunner {
 	 * runner.addStreamMessage("New comment from user: Fix the bug in auth.ts");
 	 * ```
 	 */
-	addStreamMessage?(content: string): void;
+	addStreamMessage?(content: string, options?: { isSynthetic?: boolean }): void;
 
 	/**
 	 * Complete the streaming prompt (no more messages will be added)

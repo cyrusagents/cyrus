@@ -455,11 +455,11 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	/**
 	 * Add a message to the streaming prompt (only works when in streaming mode)
 	 */
-	addStreamMessage(content: string): void {
+	addStreamMessage(content: string, options?: { isSynthetic?: boolean }): void {
 		if (!this.streamingPrompt) {
 			throw new Error("Cannot add stream message when not in streaming mode");
 		}
-		this.streamingPrompt.addMessage(content);
+		this.streamingPrompt.addMessage(content, options);
 	}
 
 	/**

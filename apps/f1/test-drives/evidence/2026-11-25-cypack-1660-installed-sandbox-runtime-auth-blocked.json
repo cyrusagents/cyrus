@@ -1,0 +1,62 @@
+{
+	"schemaVersion": 1,
+	"issue": "CYPACK-1660",
+	"status": "BLOCKED",
+	"acceptanceSatisfied": false,
+	"attemptedAt": "2026-11-25T16:10:39Z",
+	"source": {
+		"candidateCommit": "c544afdd962f53d5cce8eb230b771559e886637d",
+		"featureCommit": "5a7bb7bce0c493799f96c15d5faaa97cfda9865b",
+		"pullRequest": "cyrusagents/cyrus#1624"
+	},
+	"provenance": {
+		"registryArtifactsMatchPublicationArtifacts": true,
+		"runnerTarballSha256": "f82fcb009e56d9f397a367e2f196dab4d7ea2a3c593a17d1d8f1b6213bf26e21",
+		"runnerTreeSha256": "83822381138caf3ef8ca3e501e82a18b5b052b230701d29886b6240cb0652ff3",
+		"coreTarballSha256": "96c23b89447a177b4edcc10924fff7a48c2b23f5ecb2ac52f7f51deb4a804cb4",
+		"coreTreeSha256": "ecc733141785ffeff8da78242016a27c14f400b64ca96246ba980698e2811929",
+		"consumerLockSha256": "49c7b8a0197f606488c55c509aa000adda85b68850f525af69a1243696f4d436",
+		"nativeExecutableSha256": "5b8214f8f082f3187420b27b4063b9b4f4d9412cd66ea436d6d1966ad582700f"
+	},
+	"installed": {
+		"core": "cyrus-core@0.2.86-test.0",
+		"runner": "cyrus-claude-runner@0.2.86-test.0",
+		"agentSdk": "@anthropic-ai/claude-agent-sdk@0.3.332",
+		"apiSdk": "@anthropic-ai/sdk@1.14.0",
+		"nativePackage": "@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.332",
+		"claudeCode": "2.1.332"
+	},
+	"identity": {
+		"osUser": "agentops",
+		"configDir": "/Users/agentops",
+		"secureStorageConfigDir": "",
+		"accountEmailSha256": "d3f063f14875fb814af753daad734c68f131c5680ca5f190dc18e0a2fded380a",
+		"apiProvider": "firstParty",
+		"authMethod": "claude.ai",
+		"subscriptionType": "max",
+		"identitySubstituted": false
+	},
+	"sandbox": {
+		"enabled": true,
+		"autoAllowBashIfSandboxed": true,
+		"allowUnsandboxedCommands": false,
+		"filesystem": {
+			"allowRead": ["."],
+			"allowWrite": ["."]
+		}
+	},
+	"attempt": {
+		"requestedSequence": [
+			"Read(package.json)",
+			"Bash(pwd, timeout 10000, foreground)",
+			"SDK_RUNTIME_OK"
+		],
+		"observedSequence": [],
+		"providerError": "401 OAuth access token has expired. Re-authenticate to continue.",
+		"readInvoked": false,
+		"bashInvoked": false,
+		"resultReceived": false
+	},
+	"requiredOperatorAction": "Re-authenticate the preserved agentops Claude account without changing provider, identity, sandbox, or configuration, then rerun the candidate-aware verifier.",
+	"preservedPriorSuccess": "2026-11-24-cypack-1657-installed-sandbox-runtime.json"
+}

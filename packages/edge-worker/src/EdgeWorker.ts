@@ -994,7 +994,7 @@ export class EdgeWorker extends EventEmitter {
 			return async () => {
 				if (session.agentRunner !== runner || !runner.isRunning())
 					throw new Error(`${label} session changed before delivery`);
-				runner.addStreamMessage!(prompt);
+				runner.addStreamMessage!(prompt, { isSynthetic: true });
 			};
 		}
 		const resumeId =
@@ -1026,6 +1026,9 @@ export class EdgeWorker extends EventEmitter {
 					[],
 					workspaceId,
 					50,
+					undefined,
+					undefined,
+					true,
 				);
 			};
 		}
@@ -3429,6 +3432,9 @@ ${taskSection}`;
 				childWorkspaceDirs, // Add child workspace directories to parent's allowed directories
 				"parent resume from child",
 				parentWorkspaceId,
+				undefined,
+				undefined,
+				true,
 			);
 			log.info(
 				`Successfully handled child result for parent session ${parentSessionId}`,
@@ -4244,7 +4250,9 @@ ${taskSection}`;
 			) {
 				// Best-effort; a steer-only backend may reject when no turn is active.
 				try {
-					existingRunner.addStreamMessage(fullPrompt);
+					existingRunner.addStreamMessage(fullPrompt, {
+						isSynthetic: true,
+					});
 					delivered = true;
 					this.logger.debug(
 						`[issue-update] Streamed update to session ${sessionId} (key=${webhookKey}, changed=[${changedFields.join(", ")}])`,
@@ -6752,6 +6760,9 @@ ${taskSection}`;
 			[],
 			"give feedback to child",
 			childWorkspaceId,
+			undefined,
+			undefined,
+			true,
 		)
 			.then(() => {
 				console.log(
@@ -7810,6 +7821,7 @@ ${input.userComment}
 		linearWorkspaceId: string,
 		commentAuthor?: string,
 		commentTimestamp?: string,
+		isSynthetic: boolean = false,
 	): Promise<boolean> {
 		const log = this.logger.withContext({ sessionId });
 		const existingRunner = session.agentRunner;
@@ -7836,7 +7848,9 @@ ${input.userComment}
 			// through to the resume path so the comment is never dropped. Claude's
 			// streaming input never throws here, so this is a no-op for Claude.
 			try {
-				existingRunner.addStreamMessage(fullPrompt);
+				existingRunner.addStreamMessage(fullPrompt, {
+					isSynthetic,
+				});
 				return true; // Message added to stream
 			} catch (error) {
 				log.warn(
@@ -7862,6 +7876,7 @@ ${input.userComment}
 			undefined, // maxTurns
 			commentAuthor,
 			commentTimestamp,
+			isSynthetic,
 		);
 
 		return false; // Session was resumed
@@ -7908,6 +7923,7 @@ ${input.userComment}
 		maxTurns?: number,
 		commentAuthor?: string,
 		commentTimestamp?: string,
+		isSynthetic: boolean = false,
 	): Promise<void> {
 		const log = this.logger.withContext({ sessionId });
 		// Check for existing runner
@@ -7927,7 +7943,9 @@ ${input.userComment}
 			// the message if the turn just ended. Fall through to a fresh resume
 			// turn rather than dropping the comment. No-op for Claude.
 			try {
-				existingRunner.addStreamMessage(fullPrompt);
+				existingRunner.addStreamMessage(fullPrompt, {
+					isSynthetic,
+				});
 				return;
 			} catch (error) {
 				log.warn(
