@@ -264,6 +264,7 @@ export type {
 	SerializableEdgeWorkerState,
 	SerializedCyrusAgentSession,
 	SerializedCyrusAgentSessionEntry,
+	SerializedParkedSession,
 	V3SerializableEdgeWorkerState,
 } from "./PersistenceManager.js";
 export {

@@ -53,6 +53,25 @@ interface V2CyrusAgentSession {
 }
 
 /**
+ * A session parked on an unresolved blocked-by dependency.
+ *
+ * Repositories are stored as ids rather than whole `RepositoryConfig` objects:
+ * that schema still carries the deprecated `linearToken` / `linearRefreshToken`
+ * fields, and the state file should never become a place tokens are copied to.
+ * Their order is significant and is preserved.
+ */
+export interface SerializedParkedSession {
+	agentSession: unknown;
+	linearWorkspaceId: string;
+	repositoryIds: string[];
+	guidance?: unknown;
+	commentBody?: string | null;
+	baseBranchOverrides?: Record<string, string>;
+	routingMethod?: string;
+	blockingIssueIds: string[];
+}
+
+/**
  * Serializable EdgeWorker state for persistence
  *
  * v4.0: Flat session format - sessions keyed directly by sessionId (no repo nesting)
@@ -67,6 +86,9 @@ export interface SerializableEdgeWorkerState {
 	// Issue to repository mapping (for caching user repository selections)
 	// v4.1: string[] (multi-repo). Migration: old Record<string, string> auto-converts.
 	issueRepositoryCache?: Record<string, string[]>;
+	// Sessions parked on blocked-by dependencies, keyed by blocked issue id.
+	// Optional and additive: state files written before this field load unchanged.
+	parkedSessions?: Record<string, SerializedParkedSession>;
 }
 
 /**
