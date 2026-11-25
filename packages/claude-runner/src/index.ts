@@ -65,3 +65,4 @@ export type {
 	SessionStore,
 	SessionStoreEntry,
 } from "./types.js";
+export { userPluginSkillsEnabled } from "./user-plugin-skills.js";

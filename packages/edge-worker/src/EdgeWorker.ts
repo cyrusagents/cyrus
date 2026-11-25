@@ -16,6 +16,7 @@ import {
 	ClaudeRunner,
 	HttpSessionStore,
 	normalizeMcpHttpTransport,
+	userPluginSkillsEnabled,
 } from "cyrus-claude-runner";
 import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
 import { CodexRunner } from "cyrus-codex-runner";
@@ -7448,6 +7449,8 @@ ${input.userComment}
 	 * `CYRUS_ENABLE_WARM_SESSIONS=1` (or `=true`).
 	 */
 	private isWarmSessionsEnabled(): boolean {
+		// Pre-warmed SDK sessions cannot accept a new skill allowlist.
+		if (userPluginSkillsEnabled()) return false;
 		const raw = process.env.CYRUS_ENABLE_WARM_SESSIONS;
 		if (!raw) return false;
 		const v = raw.toLowerCase().trim();

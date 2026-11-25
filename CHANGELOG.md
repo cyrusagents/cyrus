@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Let self-hosted Cyrus operators opt into skills from their enabled Claude Code plugins without copying them into Cyrus.
+
 ## [0.2.85] - 2026-11-24
 
 ### Added

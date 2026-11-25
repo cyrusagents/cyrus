@@ -45,6 +45,10 @@ import type {
 	ClaudeRunnerEvents,
 	ClaudeSessionInfo,
 } from "./types.js";
+import {
+	discoverUserPluginSkills,
+	userPluginSkillsEnabled,
+} from "./user-plugin-skills.js";
 
 // AbortError is no longer exported in v1.0.95, so we define it locally
 export class AbortError extends Error {
@@ -676,6 +680,36 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 
 			const isDebugLogging = this.logger.getLevel() === LogLevel.DEBUG;
 
+			const env: NodeJS.ProcessEnv = {
+				...buildBaseSessionEnv(),
+				// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally NOT set while
+				// the Linux bubblewrap sandbox side effects it triggers are being
+				// investigated. The sandbox requirements precheck is still run
+				// above so the diagnostics remain available when we re-enable.
+				// See: CYPACK-1108.
+				...this.repositoryEnv,
+				...this.config.additionalEnv,
+				// When logging at DEBUG level, enable the SDK's own debug output so
+				// --debug-to-stderr and DEBUG=1 propagate to the Claude subprocess.
+				// Explicitly set or unset to override any leaked value from process.env.
+				DEBUG_CLAUDE_AGENT_SDK: isDebugLogging ? "1" : undefined,
+			};
+
+			let skills = this.config.skills;
+			if (skills !== undefined && userPluginSkillsEnabled()) {
+				try {
+					const installed = await discoverUserPluginSkills({
+						cwd: this.config.workingDirectory,
+						configDir: env.CLAUDE_CONFIG_DIR,
+					});
+					skills = [...new Set([...skills, ...installed])];
+				} catch {
+					this.logger.warn(
+						"Could not list enabled Claude Code plugins. Continuing with Cyrus skills. Check that claude is on the Cyrus process PATH.",
+					);
+				}
+			}
+
 			const queryOptions: Parameters<typeof query>[0] = {
 				prompt: promptForQuery,
 				options: {
@@ -701,20 +735,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					// toolApprovalMode "auto" opts into Claude's classifier-based
 					// review; canUseTool then denies anything it cannot decide.
 					permissionMode: autoApproval ? "auto" : "default",
-					env: {
-						...buildBaseSessionEnv(),
-						// CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is intentionally NOT set while
-						// the Linux bubblewrap sandbox side effects it triggers are being
-						// investigated. The sandbox requirements precheck is still run
-						// above so the diagnostics remain available when we re-enable.
-						// See: CYPACK-1108.
-						...this.repositoryEnv,
-						...this.config.additionalEnv,
-						// When logging at DEBUG level, enable the SDK's own debug output so
-						// --debug-to-stderr and DEBUG=1 propagate to the Claude subprocess.
-						// Explicitly set or unset to override any leaked value from process.env.
-						DEBUG_CLAUDE_AGENT_SDK: isDebugLogging ? "1" : undefined,
-					},
+					env,
 					...(this.config.workingDirectory && {
 						cwd: this.config.workingDirectory,
 					}),
@@ -754,9 +775,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					strictMcpConfig: this.config.strictMcpConfig ?? true,
 					hooks: this.buildHooksWithPendingWorkRecorder(),
 					...(this.config.plugins?.length && { plugins: this.config.plugins }),
-					...(this.config.skills !== undefined && {
-						skills: this.config.skills,
-					}),
+					...(skills !== undefined && { skills }),
 					...(this.config.tools !== undefined && { tools: this.config.tools }),
 					...(this.config.maxTurns && { maxTurns: this.config.maxTurns }),
 					...(this.config.outputFormat && {
