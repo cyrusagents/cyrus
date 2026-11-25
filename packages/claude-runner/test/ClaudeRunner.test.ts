@@ -7,6 +7,8 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 	query: vi.fn(),
 }));
 
+vi.mock("../src/user-plugin-skills.js");
+
 // Mock file system operations
 vi.mock("fs", () => ({
 	mkdirSync: vi.fn(),
@@ -25,8 +27,13 @@ vi.mock("os", () => ({
 }));
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { createLogger } from "cyrus-core";
 import { AbortError, ClaudeRunner } from "../src/ClaudeRunner";
 import type { ClaudeRunnerConfig, SDKMessage } from "../src/types";
+import {
+	discoverUserPluginSkills,
+	userPluginSkillsEnabled,
+} from "../src/user-plugin-skills.js";
 
 describe("ClaudeRunner", () => {
 	let runner: ClaudeRunner;
@@ -99,6 +106,88 @@ describe("ClaudeRunner", () => {
 	});
 
 	describe("start()", () => {
+		it.each([
+			{ skills: "all" as const, expected: "all" },
+			{ skills: ["managed"], expected: ["managed", "example:check"] },
+		])("preserves the skill selection $skills with plugin skills enabled", async ({
+			skills,
+			expected,
+		}) => {
+			vi.mocked(userPluginSkillsEnabled).mockReturnValueOnce(true);
+			vi.mocked(discoverUserPluginSkills).mockResolvedValue(["example:check"]);
+			mockQuery.mockImplementation(async function* () {});
+			const pluginRunner = new ClaudeRunner({ ...defaultConfig, skills });
+
+			await pluginRunner.start("test");
+
+			expect(mockQuery).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.objectContaining({ skills: expected }),
+				}),
+			);
+		});
+
+		it("logs added skills on a new session and skips the info line on resume", async () => {
+			vi.mocked(userPluginSkillsEnabled)
+				.mockReturnValueOnce(true)
+				.mockReturnValueOnce(true);
+			vi.mocked(discoverUserPluginSkills)
+				.mockResolvedValueOnce(["already:available", "example:check"])
+				.mockResolvedValueOnce(["example:check"]);
+			mockQuery.mockImplementation(async function* () {});
+			const logger = createLogger({ component: "test" });
+			const info = vi.spyOn(logger, "info");
+			const config = {
+				...defaultConfig,
+				skills: ["already:available"],
+				logger,
+			};
+
+			await new ClaudeRunner(config).start("test");
+			await new ClaudeRunner({ ...config, resumeSessionId: "previous" }).start(
+				"resume",
+			);
+
+			expect(
+				info.mock.calls.filter(([message]) =>
+					String(message).startsWith("Added user plugin skills:"),
+				),
+			).toEqual([["Added user plugin skills: example:check"]]);
+		});
+
+		it("reports discovery failure without forwarding raw errors or blocking the session", async () => {
+			vi.mocked(userPluginSkillsEnabled).mockReturnValueOnce(true);
+			vi.mocked(discoverUserPluginSkills).mockRejectedValueOnce(
+				new Error("private command output"),
+			);
+			mockQuery.mockImplementation(async function* () {});
+			const logger = createLogger({ component: "test" });
+			const warn = vi.spyOn(logger, "warn");
+			const onUserPluginSkillsWarning = vi.fn();
+			const skills = ["managed"];
+			await new ClaudeRunner({
+				...defaultConfig,
+				logger,
+				skills,
+				onUserPluginSkillsWarning,
+			}).start("test");
+
+			expect(onUserPluginSkillsWarning).toHaveBeenCalledExactlyOnceWith(
+				expect.stringContaining("Continuing with Cyrus skills"),
+			);
+			expect(warn).toHaveBeenCalledWith(
+				onUserPluginSkillsWarning.mock.calls[0][0],
+			);
+			expect(onUserPluginSkillsWarning.mock.calls[0][0]).not.toContain(
+				"private command output",
+			);
+			expect(mockQuery).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.objectContaining({ skills }),
+				}),
+			);
+		});
+
 		it("should start Claude session with basic prompt", async () => {
 			// Mock successful query
 			const mockMessages: SDKMessage[] = [

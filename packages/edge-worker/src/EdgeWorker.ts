@@ -16,6 +16,7 @@ import {
 	ClaudeRunner,
 	HttpSessionStore,
 	normalizeMcpHttpTransport,
+	userPluginSkillsEnabled,
 } from "cyrus-claude-runner";
 import { getCyrusAppUrl } from "cyrus-cloudflare-tunnel-client";
 import { CodexRunner } from "cyrus-codex-runner";
@@ -7247,6 +7248,20 @@ ${input.userComment}
 			requireLinearWorkspaceId,
 		});
 
+		if (
+			result.runnerType === "claude" &&
+			sessionPlatform === "linear" &&
+			linearWorkspaceId
+		) {
+			result.config.onUserPluginSkillsWarning = (warning) => {
+				void this.activityPoster.postThoughtActivity(
+					sessionId,
+					linearWorkspaceId,
+					warning,
+				);
+			};
+		}
+
 		// Attach pre-warmed session if available (only for Claude runner).
 		// Skipped entirely when warm sessions are not enabled.
 		if (result.runnerType === "claude" && this.isWarmSessionsEnabled()) {
@@ -7448,6 +7463,8 @@ ${input.userComment}
 	 * `CYRUS_ENABLE_WARM_SESSIONS=1` (or `=true`).
 	 */
 	private isWarmSessionsEnabled(): boolean {
+		// Pre-warmed SDK sessions cannot accept a new skill allowlist.
+		if (userPluginSkillsEnabled()) return false;
 		const raw = process.env.CYRUS_ENABLE_WARM_SESSIONS;
 		if (!raw) return false;
 		const v = raw.toLowerCase().trim();

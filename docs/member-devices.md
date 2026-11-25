@@ -12,3 +12,15 @@ Authentication reports hostname, operating system, architecture, CPU, core count
 Use Hosted to rename the device, change its settings, or revoke access. Revocation frees your personal slot so you can connect another machine. Personal event routing does not fail over to the shared machine when your device is offline. Local standalone installations without Hosted team credentials do not send heartbeats.
 
 Deploy the Hosted database migration and application before enabling this flow. Existing shared authentication remains compatible; older CLIs need an upgrade to report device metadata and presence.
+
+## Use your Claude Code plugin skills
+
+On a machine you operate, enable the plugin in Claude Code under the same OS account and Claude profile that runs Cyrus. Confirm `claude plugin list --json` shows it enabled and installed at user scope. Add this line to the Cyrus environment file (normally `~/.cyrus/.env`), then restart Cyrus:
+
+```dotenv
+CYRUS_ENABLE_USER_PLUGIN_SKILLS=1
+```
+
+Claude sessions can now use skills in the enabled plugins’ standard `skills/<name>/SKILL.md` layout. Keep installing and updating the plugin in Claude Code. Cyrus picks up changes when it starts the next Claude query. Existing Cyrus skill scopes, tool approvals, and MCP settings still apply.
+
+This machine-local option defaults to off. It requires `claude` on the Cyrus process PATH and turns off optional Claude session pre-warming. Enable it only on machines where you want those user plugin skills available to all Claude sessions. Remove the line and restart Cyrus to turn it off.

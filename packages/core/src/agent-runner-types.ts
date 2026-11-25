@@ -567,6 +567,8 @@ export interface AgentRunnerConfig {
 	onMessage?: (message: AgentMessage) => void | Promise<void>;
 	/** Callback for errors */
 	onError?: (error: Error) => void | Promise<void>;
+	/** Reports a non-fatal warning while discovering enabled Claude plugin skills. */
+	onUserPluginSkillsWarning?: (message: string) => void;
 	/** Callback when session completes */
 	onComplete?: (messages: AgentMessage[]) => void | Promise<void>;
 }
