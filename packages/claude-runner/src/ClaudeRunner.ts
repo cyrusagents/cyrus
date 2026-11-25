@@ -696,7 +696,7 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 			};
 
 			let skills = this.config.skills;
-			if (skills !== undefined && userPluginSkillsEnabled()) {
+			if (Array.isArray(skills) && userPluginSkillsEnabled()) {
 				try {
 					const installed = await discoverUserPluginSkills({
 						cwd: this.config.workingDirectory,

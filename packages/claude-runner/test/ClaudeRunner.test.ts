@@ -7,6 +7,8 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 	query: vi.fn(),
 }));
 
+vi.mock("../src/user-plugin-skills.js");
+
 // Mock file system operations
 vi.mock("fs", () => ({
 	mkdirSync: vi.fn(),
@@ -27,6 +29,10 @@ vi.mock("os", () => ({
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { AbortError, ClaudeRunner } from "../src/ClaudeRunner";
 import type { ClaudeRunnerConfig, SDKMessage } from "../src/types";
+import {
+	discoverUserPluginSkills,
+	userPluginSkillsEnabled,
+} from "../src/user-plugin-skills.js";
 
 describe("ClaudeRunner", () => {
 	let runner: ClaudeRunner;
@@ -99,6 +105,27 @@ describe("ClaudeRunner", () => {
 	});
 
 	describe("start()", () => {
+		it.each([
+			{ skills: "all" as const, expected: "all" },
+			{ skills: ["managed"], expected: ["managed", "example:check"] },
+		])("preserves the skill selection $skills with plugin skills enabled", async ({
+			skills,
+			expected,
+		}) => {
+			vi.mocked(userPluginSkillsEnabled).mockReturnValueOnce(true);
+			vi.mocked(discoverUserPluginSkills).mockResolvedValue(["example:check"]);
+			mockQuery.mockImplementation(async function* () {});
+			const pluginRunner = new ClaudeRunner({ ...defaultConfig, skills });
+
+			await pluginRunner.start("test");
+
+			expect(mockQuery).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.objectContaining({ skills: expected }),
+				}),
+			);
+		});
+
 		it("should start Claude session with basic prompt", async () => {
 			// Mock successful query
 			const mockMessages: SDKMessage[] = [
