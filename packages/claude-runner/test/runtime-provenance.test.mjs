@@ -3,14 +3,14 @@ import { validateRuntimeProvenance } from "../../../scripts/verify-runner-proven
 
 const treeSha256 = "a".repeat(64);
 const commit = "b".repeat(40);
-const featureCommit = "d5f2c7edf0e2a2a0f5e0ac0d8a466c05b9ad8765";
+const featureCommit = "5a7bb7bce0c493799f96c15d5faaa97cfda9865b";
 const prHead = "c".repeat(40);
 const testRelease = {
 	channel: "test",
 	repository: "https://github.com/cyrusagents/cyrus",
 	schemaVersion: 1,
 	sourceSha: commit,
-	version: "0.2.84-test.1",
+	version: "0.2.86-test.0",
 };
 const expectedProvenance = () => ({
 	artifacts: {
@@ -18,12 +18,12 @@ const expectedProvenance = () => ({
 			sha256: "d".repeat(64),
 		},
 		core: {
-			path: "packages/cyrus-core-0.2.84-test.1.tgz",
+			path: "packages/cyrus-core-0.2.86-test.0.tgz",
 			sha256: "e".repeat(64),
 			treeSha256,
 		},
 		runner: {
-			path: "packages/cyrus-claude-runner-0.2.84-test.1.tgz",
+			path: "packages/cyrus-claude-runner-0.2.86-test.0.tgz",
 			sha256: "f".repeat(64),
 			treeSha256,
 		},
@@ -53,21 +53,21 @@ const expectedProvenance = () => ({
 	installed: {
 		agentSdk: { name: "@anthropic-ai/claude-agent-sdk", version: "0.3.332" },
 		apiSdk: { name: "@anthropic-ai/sdk", version: "1.14.0" },
-		core: { name: "cyrus-core", version: "0.2.84-test.1" },
+		core: { name: "cyrus-core", version: "0.2.86-test.0" },
 		native: {
-			claudeCodeVersion: "2.1.331",
+			claudeCodeVersion: "2.1.332",
 			executableSha256:
-				"4874591dc39bff1188921b82cbeb8a44e3a33b0f92c888b3d43639b9344101f7",
+				"5b8214f8f082f3187420b27b4063b9b4f4d9412cd66ea436d6d1966ad582700f",
 			name: "@anthropic-ai/claude-agent-sdk-darwin-arm64",
 			version: "0.3.332",
 		},
-		runner: { name: "cyrus-claude-runner", version: "0.2.84-test.1" },
+		runner: { name: "cyrus-claude-runner", version: "0.2.86-test.0" },
 	},
 	schemaVersion: 1,
 	source: {
 		commit,
 		featureCommit,
-		pullRequest: 1620,
+		pullRequest: 1624,
 		repository: "cyrusagents/cyrus",
 	},
 });
@@ -107,7 +107,7 @@ const observedProvenance = (expected) => ({
 		featureCommitInCandidate: true,
 		featureCommitInPrHead: true,
 		prHead,
-		pullRequest: 1620,
+		pullRequest: 1624,
 		repository: "cyrusagents/cyrus",
 		trackedClean: true,
 	},

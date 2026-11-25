@@ -1,6 +1,6 @@
 {
 	"name": "cyrus-simple-agent-runner",
-	"version": "0.2.85",
+	"version": "0.2.86-test.0",
 	"description": "Simple agent runner for enumerated responses",
 	"repository": {
 		"type": "git",
