@@ -4,6 +4,10 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.86] - 2026-11-25
+
+- Release 0.2.86 (CYPACK-1661); no internal-only changes since 0.2.85.
+
 ## [0.2.85] - 2026-11-24
 
 ### Added

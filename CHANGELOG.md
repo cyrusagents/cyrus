@@ -4,9 +4,67 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.86] - 2026-11-25
+
 ### Added
 
-- Let self-hosted Cyrus operators opt into skills from their enabled Claude Code plugins without copying them into Cyrus. ([#1625](https://github.com/cyrusagents/cyrus/pull/1625))
+- Let self-hosted Cyrus operators opt into skills from their enabled Claude Code plugins without copying them into Cyrus. Linear sessions now post a thought activity if plugin discovery fails. ([#1625](https://github.com/cyrusagents/cyrus/pull/1625))
+
+### Packages
+
+#### cyrus-cloudflare-tunnel-client
+- cyrus-cloudflare-tunnel-client@0.2.86
+
+#### cyrus-mcp-tools
+- cyrus-mcp-tools@0.2.86
+
+#### cyrus-core
+- cyrus-core@0.2.86
+
+#### cyrus-claude-runner
+- cyrus-claude-runner@0.2.86
+
+#### cyrus-config-updater
+- cyrus-config-updater@0.2.86
+
+#### cyrus-linear-event-transport
+- cyrus-linear-event-transport@0.2.86
+
+#### cyrus-github-event-transport
+- cyrus-github-event-transport@0.2.86
+
+#### cyrus-gitlab-event-transport
+- cyrus-gitlab-event-transport@0.2.86
+
+#### cyrus-slack-event-transport
+- cyrus-slack-event-transport@0.2.86
+
+#### cyrus-zulip-event-transport
+- cyrus-zulip-event-transport@0.2.86
+
+#### cyrus-plane-event-transport
+- cyrus-plane-event-transport@0.2.86
+
+#### cyrus-simple-agent-runner
+- cyrus-simple-agent-runner@0.2.86
+
+#### cyrus-opencode-runner
+- cyrus-opencode-runner@0.2.86
+
+#### cyrus-codex-runner
+- cyrus-codex-runner@0.2.86
+
+#### cyrus-cursor-runner
+- cyrus-cursor-runner@0.2.86
+
+#### cyrus-gemini-runner
+- cyrus-gemini-runner@0.2.86
+
+#### cyrus-edge-worker
+- cyrus-edge-worker@0.2.86
+
+#### cyrus-ai
+- cyrus-ai@0.2.86
 
 ## [0.2.85] - 2026-11-24
 
