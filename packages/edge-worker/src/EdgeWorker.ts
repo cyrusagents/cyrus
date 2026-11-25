@@ -7248,6 +7248,20 @@ ${input.userComment}
 			requireLinearWorkspaceId,
 		});
 
+		if (
+			result.runnerType === "claude" &&
+			sessionPlatform === "linear" &&
+			linearWorkspaceId
+		) {
+			result.config.onUserPluginSkillsWarning = (warning) => {
+				void this.activityPoster.postThoughtActivity(
+					sessionId,
+					linearWorkspaceId,
+					warning,
+				);
+			};
+		}
+
 		// Attach pre-warmed session if available (only for Claude runner).
 		// Skipped entirely when warm sessions are not enabled.
 		if (result.runnerType === "claude" && this.isWarmSessionsEnabled()) {

@@ -20,3 +20,7 @@ The drive used the PR implementation from the `codex/claude-installed-plugin-ski
 | Cyrus-managed skill scoped to an unrelated repository | It stayed absent from the enabled session. |
 
 The drive exercised the local Claude and Cyrus path with a fixture marketplace and a mock model endpoint.
+
+## Discovery diagnostics
+
+The same F1 workflow logged one info line listing the qualified skill. A second session used a fixture CLI that returned a nonzero exit code. The fixed warning appeared once as a thought activity, the session continued to the model, and the CLI's raw stderr stayed out of the log and activity. F1 uses the local issue tracker adapter here.

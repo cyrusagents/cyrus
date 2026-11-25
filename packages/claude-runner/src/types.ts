@@ -105,6 +105,8 @@ export interface ClaudeRunnerConfig {
 	onAskUserQuestion?: OnAskUserQuestion;
 	onMessage?: (message: SDKMessage) => void | Promise<void>;
 	onError?: (error: Error) => void | Promise<void>;
+	/** Reports a non-fatal warning while discovering enabled Claude plugin skills. */
+	onUserPluginSkillsWarning?: (message: string) => void;
 	onComplete?: (messages: SDKMessage[]) => void | Promise<void>;
 	/**
 	 * Pre-warmed session from startup() — when set, the first streaming query uses

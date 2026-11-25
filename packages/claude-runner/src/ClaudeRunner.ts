@@ -702,11 +702,19 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 						cwd: this.config.workingDirectory,
 						configDir: env.CLAUDE_CONFIG_DIR,
 					});
-					skills = [...new Set([...skills, ...installed])];
+					const configuredSkills = new Set(skills);
+					const added = installed.filter((name) => !configuredSkills.has(name));
+					skills = [...configuredSkills, ...added];
+					if (!this.config.resumeSessionId) {
+						this.logger.info(
+							`Added user plugin skills: ${added.map((name) => JSON.stringify(name).slice(1, -1)).join(", ") || "none"}`,
+						);
+					}
 				} catch {
-					this.logger.warn(
-						"Could not list enabled Claude Code plugins. Continuing with Cyrus skills. Check that claude is on the Cyrus process PATH.",
-					);
+					const warning =
+						"Could not list enabled Claude Code plugins. Continuing with Cyrus skills. Check that claude is on the Cyrus process PATH.";
+					this.logger.warn(warning);
+					this.config.onUserPluginSkillsWarning?.(warning);
 				}
 			}
 
