@@ -1,0 +1,76 @@
+{
+	"schemaVersion": 1,
+	"issue": "CYPACK-1663",
+	"status": "PASS",
+	"acceptanceSatisfied": true,
+	"attemptedAt": "2026-11-26T16:20:00Z",
+	"publication": {
+		"workflowRun": "https://github.com/cyrusagents/cyrus/actions/runs/45855613140",
+		"candidateBranch": "cypack-1663-test-0.2.87-test.0",
+		"registryArtifactsMatchPublicationArtifacts": true,
+		"distTags": {
+			"test": "0.2.87-test.0",
+			"latest": "0.2.86"
+		}
+	},
+	"sessionWritesLost": false,
+	"provenance": {
+		"commit": "2df3a1657128d7279dbd25ac81f7ec27697a4876",
+		"featureCommit": "db2ff4b1ee95f6a0d44475b78f3b93ecfd796c2d",
+		"prHead": "fa89fd5d1ce379129dec2be703fd296c53a6a1a8",
+		"pullRequest": "cyrusagents/cyrus#1628",
+		"runnerTarballSha256": "1cfb3ddbb263c6857f2e8eb1021dd60a385f2752e62f5d61ddf8f5530783c4ea",
+		"coreTarballSha256": "0408673825d34031137c0f27270dfaca04f84d22980003c67a66b5ec2b01aa64",
+		"consumerLockSha256": "60570ec7a8c261a471ad5049fc45596f597838bcb9adb2cd1b730b158d16866a",
+		"nativeExecutableSha256": "5b8214f8f082f3187420b27b4063b9b4f4d9412cd66ea436d6d1966ad582700f"
+	},
+	"package": "cyrus-claude-runner@0.2.87-test.0",
+	"installed": {
+		"agentSdk": "@anthropic-ai/claude-agent-sdk@0.3.332",
+		"apiSdk": "@anthropic-ai/sdk@1.14.0",
+		"native": "@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.332"
+	},
+	"identity": {
+		"accountEmailSha256": "d3f063f14875fb814af753daad734c68f131c5680ca5f190dc18e0a2fded380a",
+		"apiProvider": "firstParty",
+		"authMethod": "claude.ai",
+		"osUser": "agentops",
+		"subscriptionType": "max"
+	},
+	"configuration": {
+		"configDir": "/Users/agentops",
+		"sandbox": {
+			"enabled": true,
+			"autoAllowBashIfSandboxed": true,
+			"allowUnsandboxedCommands": false,
+			"filesystem": {
+				"allowRead": ["."],
+				"allowWrite": ["."]
+			}
+		},
+		"secureStorageConfigDir": ""
+	},
+	"claudeCodeVersion": "2.1.332",
+	"model": ["claude-haiku-5-5", "claude-opus-5-5"],
+	"elapsedMs": 8403,
+	"read": {
+		"filePath": "/private/tmp/cypack-1663-installed-runtime.OgfZrD/package.json",
+		"isError": false,
+		"resultReceived": true
+	},
+	"bash": {
+		"blockedPrematureAttempts": 1,
+		"command": "pwd",
+		"timeout": 10000,
+		"foreground": true,
+		"isError": false,
+		"resultReceived": true
+	},
+	"finalText": "SDK_RUNTIME_OK",
+	"result": {
+		"subtype": "success",
+		"isError": false,
+		"numTurns": 4
+	},
+	"cleanStop": true
+}
