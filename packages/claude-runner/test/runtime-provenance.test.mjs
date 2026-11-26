@@ -3,14 +3,14 @@ import { validateRuntimeProvenance } from "../../../scripts/verify-runner-proven
 
 const treeSha256 = "a".repeat(64);
 const commit = "b".repeat(40);
-const featureCommit = "5a7bb7bce0c493799f96c15d5faaa97cfda9865b";
+const featureCommit = "db2ff4b1ee95f6a0d44475b78f3b93ecfd796c2d";
 const prHead = "c".repeat(40);
 const testRelease = {
 	channel: "test",
 	repository: "https://github.com/cyrusagents/cyrus",
 	schemaVersion: 1,
 	sourceSha: commit,
-	version: "0.2.86-test.0",
+	version: "0.2.87-test.0",
 };
 const expectedProvenance = () => ({
 	artifacts: {
@@ -18,12 +18,12 @@ const expectedProvenance = () => ({
 			sha256: "d".repeat(64),
 		},
 		core: {
-			path: "packages/cyrus-core-0.2.86-test.0.tgz",
+			path: "packages/cyrus-core-0.2.87-test.0.tgz",
 			sha256: "e".repeat(64),
 			treeSha256,
 		},
 		runner: {
-			path: "packages/cyrus-claude-runner-0.2.86-test.0.tgz",
+			path: "packages/cyrus-claude-runner-0.2.87-test.0.tgz",
 			sha256: "f".repeat(64),
 			treeSha256,
 		},
@@ -53,7 +53,7 @@ const expectedProvenance = () => ({
 	installed: {
 		agentSdk: { name: "@anthropic-ai/claude-agent-sdk", version: "0.3.332" },
 		apiSdk: { name: "@anthropic-ai/sdk", version: "1.14.0" },
-		core: { name: "cyrus-core", version: "0.2.86-test.0" },
+		core: { name: "cyrus-core", version: "0.2.87-test.0" },
 		native: {
 			claudeCodeVersion: "2.1.332",
 			executableSha256:
@@ -61,13 +61,13 @@ const expectedProvenance = () => ({
 			name: "@anthropic-ai/claude-agent-sdk-darwin-arm64",
 			version: "0.3.332",
 		},
-		runner: { name: "cyrus-claude-runner", version: "0.2.86-test.0" },
+		runner: { name: "cyrus-claude-runner", version: "0.2.87-test.0" },
 	},
 	schemaVersion: 1,
 	source: {
 		commit,
 		featureCommit,
-		pullRequest: 1624,
+		pullRequest: 1628,
 		repository: "cyrusagents/cyrus",
 	},
 });
@@ -107,7 +107,7 @@ const observedProvenance = (expected) => ({
 		featureCommitInCandidate: true,
 		featureCommitInPrHead: true,
 		prHead,
-		pullRequest: 1624,
+		pullRequest: 1628,
 		repository: "cyrusagents/cyrus",
 		trackedClean: true,
 	},
