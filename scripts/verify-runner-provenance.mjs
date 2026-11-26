@@ -16,13 +16,18 @@ import { dirname, join, relative, resolve } from "node:path";
 const HEX_SHA256 = /^[a-f0-9]{64}$/;
 const FULL_GIT_SHA = /^[a-f0-9]{40}$/;
 const REQUIRED_PROVENANCE = {
-	artifacts: {
-		consumerLockSha256:
-			"aab96b4a73ab8ceef592814246e9944b686c9be3d72991ced010055b1e2259ab",
-		coreSha256:
-			"a361bab54d3e02093155eba1a7ed569704ce9ffb22cd9626f280755183e2ef07",
-		runnerSha256:
-			"91f5ed141cd8ef2c344408fc32b94f0c7327c2d04388734e0c8bf7e460186ced",
+	configuration: {
+		configDir: "/Users/agentops",
+		sandbox: {
+			allowUnsandboxedCommands: false,
+			autoAllowBashIfSandboxed: true,
+			enabled: true,
+			filesystem: {
+				allowRead: ["."],
+				allowWrite: ["."],
+			},
+		},
+		secureStorageConfigDir: "",
 	},
 	identity: {
 		accountEmailSha256:
@@ -33,16 +38,26 @@ const REQUIRED_PROVENANCE = {
 		subscriptionType: "max",
 	},
 	installed: {
-		agentSdk: ["@anthropic-ai/claude-agent-sdk", "0.3.318"],
-		apiSdk: ["@anthropic-ai/sdk", "1.5.0"],
-		core: ["cyrus-core", "0.2.75"],
-		native: ["@anthropic-ai/claude-agent-sdk-darwin-arm64", "0.3.318"],
-		nativeClaudeCodeVersion: "2.1.318",
+		agentSdk: ["@anthropic-ai/claude-agent-sdk", "0.3.332"],
+		apiSdk: ["@anthropic-ai/sdk", "1.14.0"],
+		core: ["cyrus-core", "0.2.86-test.0"],
+		native: ["@anthropic-ai/claude-agent-sdk-darwin-arm64", "0.3.332"],
+		nativeClaudeCodeVersion: "2.1.332",
 		nativeExecutableSha256:
-			"677a2ea7bf576cedd20e191d973914ed8a41796f53a63b1923381ddc4d5b5e7d",
-		runner: ["cyrus-claude-runner", "0.2.75"],
+			"5b8214f8f082f3187420b27b4063b9b4f4d9412cd66ea436d6d1966ad582700f",
+		runner: ["cyrus-claude-runner", "0.2.86-test.0"],
 	},
-	source: { pullRequest: 1583, repository: "cyrusagents/cyrus" },
+	source: {
+		featureCommit: "5a7bb7bce0c493799f96c15d5faaa97cfda9865b",
+		pullRequest: 1624,
+		repository: "cyrusagents/cyrus",
+	},
+};
+const REQUIRED_TEST_RELEASE = {
+	channel: "test",
+	repository: "https://github.com/cyrusagents/cyrus",
+	schemaVersion: 1,
+	version: "0.2.86-test.0",
 };
 
 function run(command, args, options = {}) {
@@ -61,14 +76,28 @@ function run(command, args, options = {}) {
 	return result.stdout.trim();
 }
 
+function isGitAncestor(repository, ancestor, descendant) {
+	const result = spawnSync(
+		"git",
+		["-C", repository, "merge-base", "--is-ancestor", ancestor, descendant],
+		{ encoding: "utf8" },
+	);
+	assert.ok(
+		result.status === 0 || result.status === 1,
+		`git merge-base failed with status ${result.status}`,
+	);
+	return result.status === 0;
+}
+
 export function sha256File(path) {
 	return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
-export function sha256Tree(root) {
+export function sha256Tree(root, ignoredTopLevelNames = new Set()) {
 	const hash = createHash("sha256");
 	const walk = (directory) => {
 		for (const name of readdirSync(directory).sort()) {
+			if (directory === root && ignoredTopLevelNames.has(name)) continue;
 			const path = join(directory, name);
 			const entry = lstatSync(path);
 			const entryPath = relative(root, path).split("\\").join("/");
@@ -129,13 +158,21 @@ function assertHash(value, name) {
 export function validateRuntimeProvenance(expected, observed) {
 	assert.equal(expected.schemaVersion, 1);
 	assert.match(expected.source.commit, FULL_GIT_SHA);
+	assert.match(expected.source.featureCommit, FULL_GIT_SHA);
+	assert.match(observed.source.prHead, FULL_GIT_SHA);
 	assert.deepEqual(
 		{
+			featureCommit: expected.source.featureCommit,
 			pullRequest: expected.source.pullRequest,
 			repository: expected.source.repository,
 		},
 		REQUIRED_PROVENANCE.source,
 		"Provenance does not target the reviewed pull request",
+	);
+	assert.deepEqual(
+		expected.configuration,
+		REQUIRED_PROVENANCE.configuration,
+		"Provenance does not target the preserved Claude configuration",
 	);
 	assertSafeIdentity(expected.identity);
 	assert.deepEqual(
@@ -148,15 +185,6 @@ export function validateRuntimeProvenance(expected, observed) {
 		},
 		REQUIRED_PROVENANCE.identity,
 		"Provenance does not target the intended Claude account",
-	);
-	assert.deepEqual(
-		{
-			consumerLockSha256: expected.artifacts.consumerLock.sha256,
-			coreSha256: expected.artifacts.core.sha256,
-			runnerSha256: expected.artifacts.runner.sha256,
-		},
-		REQUIRED_PROVENANCE.artifacts,
-		"Provenance does not target the reviewed packed artifacts",
 	);
 	assert.deepEqual(
 		{
@@ -186,7 +214,16 @@ export function validateRuntimeProvenance(expected, observed) {
 
 	const comparisons = [
 		["source.commit", expected.source.commit, observed.source.commit],
-		["source.prHead", expected.source.commit, observed.source.prHead],
+		[
+			"source.featureCommitInCandidate",
+			true,
+			observed.source.featureCommitInCandidate,
+		],
+		[
+			"source.featureCommitInPrHead",
+			true,
+			observed.source.featureCommitInPrHead,
+		],
 		[
 			"source.repository",
 			expected.source.repository,
@@ -198,6 +235,21 @@ export function validateRuntimeProvenance(expected, observed) {
 			observed.source.pullRequest,
 		],
 		["source.trackedClean", true, observed.source.trackedClean],
+		[
+			"configuration.configDir",
+			expected.configuration.configDir,
+			observed.configuration.configDir,
+		],
+		[
+			"configuration.secureStorageConfigDir",
+			expected.configuration.secureStorageConfigDir,
+			observed.configuration.secureStorageConfigDir,
+		],
+		[
+			"configuration.sandbox",
+			expected.configuration.sandbox,
+			observed.configuration.sandbox,
+		],
 		[
 			"artifacts.runner.sha256",
 			expected.artifacts.runner.sha256,
@@ -342,6 +394,21 @@ export function validateRuntimeProvenance(expected, observed) {
 		assertHash(value, name);
 	}
 
+	const requiredTestRelease = {
+		...REQUIRED_TEST_RELEASE,
+		sourceSha: expected.source.commit,
+	};
+	for (const [name, manifest] of [
+		["installed.core", observed.installed.core],
+		["installed.runner", observed.installed.runner],
+	]) {
+		assert.deepEqual(
+			manifest.cyrusTestRelease,
+			requiredTestRelease,
+			`${name} does not carry the immutable candidate provenance stamp`,
+		);
+	}
+
 	return observed;
 }
 
@@ -376,6 +443,16 @@ export function verifyRuntimeProvenance({
 			`${name} would replace the intended provider or account`,
 		);
 	}
+	assert.equal(
+		process.env.CLAUDE_CONFIG_DIR,
+		expected.configuration.configDir,
+		"CLAUDE_CONFIG_DIR does not select the preserved Claude configuration",
+	);
+	assert.equal(
+		process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR,
+		expected.configuration.secureStorageConfigDir,
+		"CLAUDE_SECURESTORAGE_CONFIG_DIR does not preserve the intended keychain service",
+	);
 
 	const runnerArtifact = artifactPath(
 		provenancePath,
@@ -429,10 +506,25 @@ export function verifyRuntimeProvenance({
 		schemaVersion: 1,
 		source: {
 			commit: head,
+			featureCommitInCandidate: isGitAncestor(
+				sourceRoot,
+				expected.source.featureCommit,
+				head,
+			),
+			featureCommitInPrHead: isGitAncestor(
+				sourceRoot,
+				expected.source.featureCommit,
+				pr.headRefOid,
+			),
 			prHead: pr.headRefOid,
 			pullRequest: pr.number,
 			repository: expected.source.repository,
 			trackedClean: trackedChanges.length === 0,
+		},
+		configuration: {
+			configDir: process.env.CLAUDE_CONFIG_DIR,
+			sandbox: expected.configuration.sandbox,
+			secureStorageConfigDir: process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR,
 		},
 		artifacts: {
 			consumerLock: { sha256: sha256File(lockPath) },
@@ -448,7 +540,10 @@ export function verifyRuntimeProvenance({
 		installed: {
 			agentSdk: readManifest(agentSdkRoot),
 			apiSdk: readManifest(apiSdkRoot),
-			core: { ...readManifest(coreRoot), treeSha256: sha256Tree(coreRoot) },
+			core: {
+				...readManifest(coreRoot),
+				treeSha256: sha256Tree(coreRoot, new Set(["node_modules"])),
+			},
 			native: {
 				...readManifest(nativeRoot),
 				claudeCodeVersion: versionOutput.split(" ")[0],
@@ -456,7 +551,7 @@ export function verifyRuntimeProvenance({
 			},
 			runner: {
 				...readManifest(runnerRoot),
-				treeSha256: sha256Tree(runnerRoot),
+				treeSha256: sha256Tree(runnerRoot, new Set(["node_modules"])),
 			},
 		},
 		identity: {

@@ -1,0 +1,52 @@
+{
+	"schemaVersion": 1,
+	"issue": "CYPACK-1657",
+	"testedSource": "bf9751f936100dfd837ba68cffc9db463c9ac53d",
+	"versions": {
+		"agentSdk": "0.3.331",
+		"apiSdk": "1.13.0",
+		"claudeCode": "2.1.331"
+	},
+	"scenario": {
+		"issueIdentifier": "DEF-1",
+		"repository": "F1 Test Repository",
+		"prompt": "Read package.json, run foreground Bash(pwd) with timeout 10000, make no edits, and return SDK_RUNTIME_OK.",
+		"configuredEngineeringTools": 33
+	},
+	"observedSequence": [
+		{
+			"type": "tool",
+			"name": "Read",
+			"target": "package.json",
+			"isError": false
+		},
+		{
+			"type": "tool",
+			"name": "Bash",
+			"command": "pwd",
+			"timeoutMs": 10000,
+			"isError": false
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"text": "SDK_RUNTIME_OK",
+			"sessionWritesLostObserved": false
+		},
+		{
+			"type": "lifecycle",
+			"stopRequested": true,
+			"serverShutdownClean": true
+		}
+	],
+	"activityChecks": {
+		"coherent": true,
+		"pagination": true,
+		"search": true
+	},
+	"limitations": {
+		"sandboxEnabled": false,
+		"registryInstalled": false,
+		"containsCredentialsOrAccountIdentifiers": false
+	}
+}

@@ -5,7 +5,8 @@
 // node scripts/verify-runner-runtime.mjs \
 //   /tmp/consumer/node_modules/cyrus-claude-runner \
 //   /tmp/consumer \
-//   /path/to/runtime-provenance.json
+//   /path/to/runtime-provenance.json \
+//   /path/to/immutable-candidate-source
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -26,8 +27,10 @@ const manifest = JSON.parse(
 	readFileSync(join(packageRoot, "package.json"), "utf8"),
 );
 assert.equal(manifest.name, "cyrus-claude-runner");
-const sourceRoot = fileURLToPath(new URL("..", import.meta.url));
-const { expected: provenance } = verifyRuntimeProvenance({
+const sourceRoot = resolve(
+	process.argv[5] ?? fileURLToPath(new URL("..", import.meta.url)),
+);
+const { expected: provenance, observed } = verifyRuntimeProvenance({
 	packageRoot,
 	provenancePath,
 	sourceRoot,
@@ -42,15 +45,46 @@ const { ClaudeRunner } = await import(
 const messages = [];
 const callbackErrors = [];
 let completed = false;
+let readCompleted = false;
 const runner = new ClaudeRunner({
 	workingDirectory,
 	cyrusHome: join(workingDirectory, ".cyrus-runtime-receipt"),
 	model: "opus",
 	fallbackModel: "sonnet",
 	maxTurns: 5,
+	sandbox: provenance.configuration.sandbox,
 	tools: ["Read", "Bash"],
 	allowedTools: ["Read", "Bash(pwd)"],
 	disallowedTools: ["Edit", "Write", "NotebookEdit"],
+	hooks: {
+		PostToolUse: [
+			{
+				matcher: "Read",
+				hooks: [
+					async () => {
+						readCompleted = true;
+						return {};
+					},
+				],
+			},
+		],
+		PreToolUse: [
+			{
+				matcher: "Bash",
+				hooks: [
+					async () => ({
+						hookSpecificOutput: {
+							hookEventName: "PreToolUse",
+							permissionDecision: readCompleted ? "allow" : "deny",
+							permissionDecisionReason: readCompleted
+								? "The required Read completed before Bash."
+								: "Read(package.json) must complete first; retry Bash(pwd) only after its result.",
+						},
+					}),
+				],
+			},
+		],
+	},
 	strictMcpConfig: true,
 	onMessage: (message) => messages.push(message),
 	onError: (error) => callbackErrors.push(error),
@@ -87,8 +121,14 @@ const result = messages.findLast((message) => message.type === "result");
 const init = messages.find(
 	(message) => message.type === "system" && message.subtype === "init",
 );
-const { bashResult, bashUse, readResult, readUse, text } =
-	validateRuntimeReceipt(messages);
+const {
+	bashResult,
+	bashUse,
+	blockedPrematureBashCount,
+	readResult,
+	readUse,
+	text,
+} = validateRuntimeReceipt(messages);
 
 assert.deepEqual(
 	callbackErrors.map((error) => error.message),
@@ -137,6 +177,8 @@ console.log(
 			status: "PASS",
 			provenance: {
 				commit: provenance.source.commit,
+				featureCommit: provenance.source.featureCommit,
+				prHead: observed.source.prHead,
 				pullRequest: `${provenance.source.repository}#${provenance.source.pullRequest}`,
 				runnerTarballSha256: provenance.artifacts.runner.sha256,
 				coreTarballSha256: provenance.artifacts.core.sha256,
@@ -156,20 +198,26 @@ console.log(
 				osUser: provenance.identity.osUser,
 				subscriptionType: provenance.identity.subscriptionType,
 			},
+			configuration: {
+				configDir: provenance.configuration.configDir,
+				sandbox: provenance.configuration.sandbox,
+				secureStorageConfigDir: provenance.configuration.secureStorageConfigDir,
+			},
 			sessionId: runner.getSessionInfo()?.sessionId,
 			claudeCodeVersion: init?.claude_code_version,
 			model: result.modelUsage ? Object.keys(result.modelUsage) : undefined,
 			elapsedMs: Date.now() - startedAt,
 			read: {
 				filePath: readUse.input.file_path,
-				isError: readResult.is_error,
+				isError: readResult.is_error ?? false,
 				resultReceived: true,
 			},
 			bash: {
+				blockedPrematureAttempts: blockedPrematureBashCount,
 				command: bashUse.input.command,
 				timeout: bashUse.input.timeout,
 				foreground: true,
-				isError: bashResult.is_error,
+				isError: bashResult.is_error ?? false,
 				resultReceived: true,
 			},
 			finalText: text,
