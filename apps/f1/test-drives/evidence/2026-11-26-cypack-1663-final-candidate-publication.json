@@ -1,0 +1,51 @@
+{
+	"schemaVersion": 1,
+	"issue": "CYPACK-1663",
+	"reviewedRuntimeSource": "db2ff4b1ee95f6a0d44475b78f3b93ecfd796c2d",
+	"candidate": {
+		"sourceSha": "2df3a1657128d7279dbd25ac81f7ec27697a4876",
+		"version": "0.2.87-test.0",
+		"channel": "test",
+		"workflowRun": "https://github.com/cyrusagents/cyrus/actions/runs/45855613140",
+		"coreSha256": "0408673825d34031137c0f27270dfaca04f84d22980003c67a66b5ec2b01aa64",
+		"runnerSha256": "1cfb3ddbb263c6857f2e8eb1021dd60a385f2752e62f5d61ddf8f5530783c4ea",
+		"latestUnchanged": "0.2.86",
+		"cleanInstallMatrix": [
+			"node-22.17.1/npm-10.9.2",
+			"node-24.18.0/npm-11.18.0",
+			"node-24.18.0/npm-12.1.0"
+		]
+	},
+	"syntheticProbe": {
+		"input": {
+			"content": "automated CI relay",
+			"isSynthetic": true
+		},
+		"outputIsSynthetic": true
+	},
+	"hostedConsumer": {
+		"repository": "cyrusagents/cyrus-hosted",
+		"pullRequest": 1484,
+		"commit": "dd9ae99daa5f6cae330f5b5a77b78d908ed55e4a",
+		"coreVersion": "0.2.87-test.0",
+		"lockSha256": "64c8d67544df9a75bdcdcb5e9faec5dab090af8ce32a274aa659cfa79bbbbafd",
+		"focusedTests": {
+			"passed": 17,
+			"failed": 0
+		},
+		"fullTestTasks": {
+			"passed": 4,
+			"failed": 0
+		}
+	},
+	"installedRuntimeAcceptance": {
+		"status": "blocked",
+		"reason": "Preserved agentops Claude OAuth expired before Read(package.json).",
+		"requires": "Supported same-account reauthentication, then configured-sandbox Read(package.json) -> Bash(pwd, timeout 10000) -> SDK_RUNTIME_OK."
+	},
+	"hostedApplicationCi": {
+		"status": "owner-blocked",
+		"workflowId": 185769570,
+		"workflowState": "disabled_manually"
+	}
+}
