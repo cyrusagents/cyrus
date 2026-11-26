@@ -4,9 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.87-test.0] - 2026-11-26
+
 ### Changed
 
-- Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.332](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03332) and [`@anthropic-ai/sdk` 1.14.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.14.0), bringing Claude Code 2.1.332 fixes, restoring MCP resource discovery in full engineering sessions, preserving permission-time edits in Write/Edit results, honoring event-stream retry delays, and improving automatic-mode delivery of mid-turn user messages. Cyrus-generated CI, issue-state, child-result, and orchestrator relays are now explicitly synthetic, while human Linear and Slack messages remain ordinary SDK user messages. Sandboxed Bash approvals remain unattended, shell startup waits for approval, deferred hook calls do not run automatically after an unattended resume, and managed-MCP, managed-hook, and ignored-settings warnings are visible in the issue timeline. The Edge Worker now uses the registry release of `node-forge`, so the published package graph installs under npm 12 as well as npm 10 and 11. ([CYPACK-1663](https://linear.app/cyrusai/issue/CYPACK-1663/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1628](https://github.com/cyrusagents/cyrus/pull/1628))
+- Updated the Claude runtime to [`@anthropic-ai/claude-agent-sdk` 0.3.332](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md#03332) and [`@anthropic-ai/sdk` 1.14.0](https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v1.14.0), bringing Claude Code 2.1.332 fixes, restoring MCP resource discovery in full engineering sessions, preserving permission-time edits in Write/Edit results, honoring event-stream retry delays, and improving automatic-mode delivery of mid-turn user messages. Cyrus-generated CI, issue-state, child-result, and orchestrator relays are explicitly synthetic, while human Linear and Slack messages remain ordinary SDK user messages. This immutable test candidate supersedes `0.2.86-test.0`, whose published runtime predates the synthetic-message repair. ([CYPACK-1663](https://linear.app/cyrusai/issue/CYPACK-1663/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1628](https://github.com/cyrusagents/cyrus/pull/1628))
+
+### Packages
+
+- cyrus-cloudflare-tunnel-client@0.2.87-test.0
+- cyrus-mcp-tools@0.2.87-test.0
+- cyrus-core@0.2.87-test.0
+- cyrus-claude-runner@0.2.87-test.0
+- cyrus-config-updater@0.2.87-test.0
+- cyrus-linear-event-transport@0.2.87-test.0
+- cyrus-github-event-transport@0.2.87-test.0
+- cyrus-gitlab-event-transport@0.2.87-test.0
+- cyrus-slack-event-transport@0.2.87-test.0
+- cyrus-zulip-event-transport@0.2.87-test.0
+- cyrus-plane-event-transport@0.2.87-test.0
+- cyrus-simple-agent-runner@0.2.87-test.0
+- cyrus-opencode-runner@0.2.87-test.0
+- cyrus-codex-runner@0.2.87-test.0
+- cyrus-cursor-runner@0.2.87-test.0
+- cyrus-gemini-runner@0.2.87-test.0
+- cyrus-edge-worker@0.2.87-test.0
+- cyrus-ai@0.2.87-test.0
 
 ## [0.2.86] - 2026-11-25
 

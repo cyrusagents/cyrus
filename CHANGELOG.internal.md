@@ -4,6 +4,12 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+## [0.2.87-test.0] - 2026-11-26
+
+### Changed
+
+- Prepared the immutable coordinated OIDC test candidate from the reviewed CYPACK-1663 source, including the final synthetic-message classification repair, deterministic tool inventory, and exact candidate/consumer provenance gates. ([CYPACK-1663](https://linear.app/cyrusai/issue/CYPACK-1663/update-anthropic-aiclaude-agent-sdk-and-anthropic-aisdk-to-the-latest), [#1628](https://github.com/cyrusagents/cyrus/pull/1628))
+
 ## [0.2.86] - 2026-11-25
 
 - Release 0.2.86 (CYPACK-1661); no internal-only changes since 0.2.85.
