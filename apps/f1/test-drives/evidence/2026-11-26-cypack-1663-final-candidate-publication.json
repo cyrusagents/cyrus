@@ -39,9 +39,12 @@
 		}
 	},
 	"installedRuntimeAcceptance": {
-		"status": "blocked",
-		"reason": "Preserved agentops Claude OAuth expired before Read(package.json).",
-		"requires": "Supported same-account reauthentication, then configured-sandbox Read(package.json) -> Bash(pwd, timeout 10000) -> SDK_RUNTIME_OK."
+		"status": "passed",
+		"receipt": "apps/f1/test-drives/evidence/2026-11-26-cypack-1663-installed-sandbox-runtime.json",
+		"sameIdentity": true,
+		"orderedSequence": "Read(package.json) -> Bash(pwd, timeout 10000) -> SDK_RUNTIME_OK",
+		"sessionWritesLost": false,
+		"cleanStop": true
 	},
 	"hostedApplicationCi": {
 		"status": "owner-blocked",

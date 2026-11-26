@@ -25,7 +25,12 @@
 - The installed core manifest matches the candidate source stamp, and the installed JS and declarations contain the synthetic-message support.
 - Focused validation, default-tool, and migration tests passed 17/17. The full Hosted suite passed 4/4 Turbo tasks; lint, 11/11 typecheck tasks, zero-vulnerability audit, and diff checks passed.
 
-## Open owner gates
+## Installed runtime acceptance
 
-- Installed runtime acceptance remains blocked before `Read(package.json)` by the expired OAuth for the preserved `agentops` Claude account. Supported same-account reauthentication is required before the configured-sandbox `Read(package.json)` → foreground `Bash(pwd, timeout 10000)` → exact `SDK_RUNTIME_OK` sequence can be rerun. No alternate identity, provider, configuration, or sandbox is permitted.
+- The same intended `agentops` identity completed the configured-sandbox sequence after supported reauthentication: `Read(package.json)` → foreground `Bash(pwd, timeout 10000)` → exact `SDK_RUNTIME_OK`.
+- The result was successful and non-error, with no `session_writes_lost` and a clean stop. The ordering guard blocked one premature parallel Bash attempt; Bash ran only after Read completed.
+- The positive receipt is `evidence/2026-11-26-cypack-1663-installed-sandbox-runtime.json`. The earlier `0.2.86-test.0` expired-OAuth receipt remains preserved as separate negative evidence.
+
+## Open owner gate
+
 - Hosted final-head application CI remains an administrator/owner gate. Workflow `185769570` is `disabled_manually`; the three skipped preview jobs are not application CI. No workflow, billing, authorization, or protection setting was changed.
