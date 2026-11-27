@@ -34,6 +34,7 @@ export const availableTools = [
 	"TaskUpdate",
 	"TaskGet",
 	"TaskList",
+	"McpTaskCheck",
 
 	// Notebook tools
 	"NotebookEdit",
@@ -90,6 +91,7 @@ export const readOnlyTools: ToolName[] = [
 	"TaskUpdate",
 	"TaskGet",
 	"TaskList",
+	"McpTaskCheck",
 	"Task",
 	"ListAgents",
 	"Skill",

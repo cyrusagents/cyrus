@@ -74,6 +74,7 @@ const CLAUDE_ONLY_TOOL_NAMES = new Set([
 	"workflow",
 	"reportfindings",
 	"listagents",
+	"mcptaskcheck",
 	"lsp",
 ]);
 

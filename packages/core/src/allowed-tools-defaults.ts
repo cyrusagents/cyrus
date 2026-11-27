@@ -57,6 +57,7 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"TaskUpdate",
 	"TaskGet",
 	"TaskList",
+	"McpTaskCheck",
 	"TaskStop",
 
 	// Scheduling
@@ -121,6 +122,7 @@ export const SLACK_DEFAULT_ALLOWED_TOOLS = [
 	"TaskUpdate",
 	"TaskGet",
 	"TaskList",
+	"McpTaskCheck",
 	"TaskStop",
 
 	// Discovery
@@ -176,6 +178,7 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	"TaskUpdate",
 	"TaskGet",
 	"TaskList",
+	"McpTaskCheck",
 	"TaskStop",
 
 	// Scheduling
