@@ -38,6 +38,7 @@ import {
 } from "./sandbox-requirements.js";
 import {
 	buildBaseSessionEnv,
+	CYRUS_SESSION_ENV,
 	normalizeMcpHttpTransport,
 } from "./session-env.js";
 import type {
@@ -458,11 +459,11 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 	/**
 	 * Add a message to the streaming prompt (only works when in streaming mode)
 	 */
-	addStreamMessage(content: string): void {
+	addStreamMessage(content: string, options?: { isSynthetic?: boolean }): void {
 		if (!this.streamingPrompt) {
 			throw new Error("Cannot add stream message when not in streaming mode");
 		}
-		this.streamingPrompt.addMessage(content);
+		this.streamingPrompt.addMessage(content, options);
 	}
 
 	/**
@@ -689,6 +690,9 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 				// See: CYPACK-1108.
 				...this.repositoryEnv,
 				...this.config.additionalEnv,
+				// These are Cyrus security boundaries, so inherited, repository,
+				// and additional runner env values cannot opt out of them.
+				...CYRUS_SESSION_ENV,
 				// When logging at DEBUG level, enable the SDK's own debug output so
 				// --debug-to-stderr and DEBUG=1 propagate to the Claude subprocess.
 				// Explicitly set or unset to override any leaked value from process.env.

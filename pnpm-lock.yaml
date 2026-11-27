@@ -376,8 +376,8 @@ importers:
         specifier: ^7.0.5
         version: 7.0.5
       node-forge:
-        specifier: https://codeload.github.com/digitalbazaar/forge/tar.gz/ceba34402e329f0365134f23fe19898756527d65
-        version: https://codeload.github.com/digitalbazaar/forge/tar.gz/ceba34402e329f0365134f23fe19898756527d65
+        specifier: 1.4.4
+        version: 1.4.4
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -2295,9 +2295,8 @@ packages:
       encoding:
         optional: true
 
-  node-forge@https://codeload.github.com/digitalbazaar/forge/tar.gz/ceba34402e329f0365134f23fe19898756527d65:
-    resolution: {tarball: https://codeload.github.com/digitalbazaar/forge/tar.gz/ceba34402e329f0365134f23fe19898756527d65}
-    version: 1.4.1-0
+  node-forge@1.4.4:
+    resolution: {integrity: sha512-T6VRRpF3+czIGcXW/LOeoD7Ej28d8CF1UMEAbJyJRUtYMvyXAgxUPW2kbUibumvV9LiUQAznJOFyeYclzSJMMg==}
     engines: {node: '>= 6.13.0'}
 
   object-assign@4.1.1:
@@ -3264,7 +3263,7 @@ snapshots:
 
   '@opentelemetry/api-logs@0.220.0':
     dependencies:
-      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/api': 1.10.0
 
   '@opentelemetry/api@1.10.0': {}
 
@@ -4326,7 +4325,7 @@ snapshots:
     optionalDependencies:
       encoding: 0.1.13
 
-  node-forge@https://codeload.github.com/digitalbazaar/forge/tar.gz/ceba34402e329f0365134f23fe19898756527d65: {}
+  node-forge@1.4.4: {}
 
   object-assign@4.1.1: {}
 

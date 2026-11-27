@@ -22,6 +22,9 @@ describe("config", () => {
 				"ListAgents",
 				"WebFetch",
 				"WebSearch",
+				"ListMcpResourcesTool",
+				"ReadMcpResourceDirTool",
+				"ReadMcpResourceTool",
 				"TaskCreate",
 				"TaskUpdate",
 				"TaskGet",
@@ -46,7 +49,7 @@ describe("config", () => {
 				"Workflow",
 				"ReportFindings",
 			]);
-			expect(availableTools).toHaveLength(31);
+			expect(availableTools).toHaveLength(34);
 		});
 
 		it("should define read-only tools", () => {
@@ -54,6 +57,9 @@ describe("config", () => {
 				"Read(**)",
 				"WebFetch",
 				"WebSearch",
+				"ListMcpResourcesTool",
+				"ReadMcpResourceDirTool",
+				"ReadMcpResourceTool",
 				"TaskCreate",
 				"TaskUpdate",
 				"TaskGet",
@@ -66,7 +72,7 @@ describe("config", () => {
 				"LSP",
 				"ToolSearch",
 			]);
-			expect(readOnlyTools).toHaveLength(14);
+			expect(readOnlyTools).toHaveLength(17);
 		});
 
 		it("should define write tools", () => {
@@ -130,6 +136,7 @@ describe("config", () => {
 			expect(tools).toContain("Task");
 			expect(tools).toContain("WebFetch");
 			expect(tools).toContain("WebSearch");
+			expect(tools).toContain("ListMcpResourcesTool");
 			expect(tools).toContain("TaskCreate");
 			expect(tools).toContain("NotebookEdit");
 			expect(tools).toContain("Skill");
@@ -149,6 +156,7 @@ describe("config", () => {
 			expect(tools).toContain("Task");
 			expect(tools).toContain("WebFetch");
 			expect(tools).toContain("WebSearch");
+			expect(tools).toContain("ReadMcpResourceTool");
 			expect(tools).toContain("TaskCreate"); // For task tracking
 			expect(tools).toContain("Skill"); // For Skills functionality
 
@@ -230,6 +238,17 @@ describe("config", () => {
 		it("Task should be read-only (delegates to other tools)", () => {
 			expect(readOnlyTools).toContain("Task");
 			expect(writeTools).not.toContain("Task");
+		});
+
+		it("MCP resource tools should be read-only", () => {
+			for (const tool of [
+				"ListMcpResourcesTool",
+				"ReadMcpResourceDirTool",
+				"ReadMcpResourceTool",
+			] as const) {
+				expect(readOnlyTools).toContain(tool);
+				expect(writeTools).not.toContain(tool);
+			}
 		});
 
 		it("WebFetch should be read-only", () => {

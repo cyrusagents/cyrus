@@ -271,6 +271,10 @@ describe("ClaudeRunner", () => {
 				mcpConfig: {
 					shared: { command: "from-inline" },
 					inlineOnly: { command: "inline-only" },
+					remote: {
+						type: "http",
+						url: "https://mcp.example.test/server",
+					},
 				},
 			});
 			mockQuery.mockImplementation(async function* () {
@@ -291,11 +295,21 @@ describe("ClaudeRunner", () => {
 							shared: { command: "from-inline" },
 							fileOnly: { command: "file-only" },
 							inlineOnly: { command: "inline-only" },
+							remote: {
+								type: "http",
+								url: "https://mcp.example.test/server",
+							},
 						},
 						strictMcpConfig: true,
 					}),
 				}),
 			);
+			const options = mockQuery.mock.calls[0]?.[0].options;
+			// 0.3.327 deprecates in-process SDK MCP servers nested under agent
+			// definitions and reverts their reconnect behavior. Cyrus uses only
+			// top-level stdio/HTTP/SSE configs, so neither change is in its path;
+			// remote HTTP servers retain the SDK's extended retry policy.
+			expect(options).not.toHaveProperty("agents");
 		});
 
 		it("should handle workspace configuration properly", async () => {

@@ -62,7 +62,9 @@ describe("CI continues the responsible existing session", () => {
 		const start = await f.prepare();
 		expect(addStreamMessage).not.toHaveBeenCalled();
 		await start();
-		expect(addStreamMessage).toHaveBeenCalledWith("Investigate CI");
+		expect(addStreamMessage).toHaveBeenCalledWith("Investigate CI", {
+			isSynthetic: true,
+		});
 		expect(f.context.resumeAgentSession).not.toHaveBeenCalled();
 		expect(f.context.createRunnerForType).not.toHaveBeenCalled();
 	});
@@ -80,6 +82,9 @@ describe("CI continues the responsible existing session", () => {
 			[],
 			"workspace",
 			50,
+			undefined,
+			undefined,
+			true,
 		);
 	});
 	it("resumes GitHub-origin sessions with their existing runner ID and platform", async () => {

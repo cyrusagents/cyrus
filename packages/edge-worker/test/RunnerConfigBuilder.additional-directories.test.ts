@@ -120,6 +120,21 @@ describe("RunnerConfigBuilder additionalDirectories (multi-repo skill discovery)
 
 		expect(config.additionalDirectories).toEqual(["/ws/root/repo-b"]);
 	});
+
+	it("rejects relative repo paths instead of inheriting SDK --worktree resolution", () => {
+		const session = makeSession({
+			path: "/ws/root",
+			isGitWorktree: true,
+			repoPaths: {
+				"repo-a": "repo-a",
+				"repo-b": "/ws/root/repo-b",
+			},
+		} as unknown as CyrusAgentSession["workspace"]);
+
+		const { config } = buildIssueConfig(session);
+
+		expect(config.additionalDirectories).toEqual(["/ws/root/repo-b"]);
+	});
 });
 
 describe("resolveIssueMcpConfigPath", () => {

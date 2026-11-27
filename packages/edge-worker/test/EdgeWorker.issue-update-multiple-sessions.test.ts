@@ -255,9 +255,10 @@ describe("EdgeWorker - Issue Update Session Delivery (CYPACK-954)", () => {
 				createIssueUpdateWebhook(),
 			);
 
-			expect(
-				runningSession.agentRunner!.addStreamMessage,
-			).toHaveBeenCalledTimes(1);
+			expect(runningSession.agentRunner!.addStreamMessage).toHaveBeenCalledWith(
+				expect.any(String),
+				{ isSynthetic: true },
+			);
 		});
 
 		it("should NOT resume idle sessions — updates are streaming-only", async () => {

@@ -21,46 +21,59 @@ export function validateRuntimeReceipt(messages) {
 	);
 	const findEvent = (predicate) => events.find(({ block }) => predicate(block));
 	const eventPosition = (event) => events.indexOf(event);
+	const toolResultFor = (toolUseEvent) =>
+		findEvent(
+			(block) =>
+				block.type === "tool_result" &&
+				block.tool_use_id === toolUseEvent.block.id,
+		);
 
 	const readUseEvent = findEvent(
 		(block) => block.type === "tool_use" && block.name === "Read",
 	);
 	assert.ok(readUseEvent, "Claude did not invoke Read");
-	const readResultEvent = findEvent(
-		(block) =>
-			block.type === "tool_result" &&
-			block.tool_use_id === readUseEvent.block.id,
-	);
+	const readResultEvent = toolResultFor(readUseEvent);
 	assert.ok(readResultEvent, "Read did not return a tool result");
-	assert.equal(
+	assert.notEqual(
 		readResultEvent.block.is_error,
-		false,
+		true,
 		"Read tool result failed",
 	);
 
-	const bashUseEvent = findEvent(
-		(block) => block.type === "tool_use" && block.name === "Bash",
+	const bashAttempts = events.filter(
+		({ block }) => block.type === "tool_use" && block.name === "Bash",
 	);
-	assert.ok(bashUseEvent, "Claude did not invoke Bash");
-	const bashResultEvent = findEvent(
-		(block) =>
-			block.type === "tool_result" &&
-			block.tool_use_id === bashUseEvent.block.id,
-	);
-	assert.ok(bashResultEvent, "Bash did not return a tool result");
+	assert.ok(bashAttempts.length > 0, "Claude did not invoke Bash");
+	const prematureSuccessfulBash = bashAttempts.find((event) => {
+		const result = toolResultFor(event);
+		return (
+			eventPosition(event) < eventPosition(readResultEvent) &&
+			result?.block.is_error !== true
+		);
+	});
 	assert.equal(
+		prematureSuccessfulBash,
+		undefined,
+		"Bash ran before the successful Read result",
+	);
+	const bashUseEvent = bashAttempts.find(
+		(event) => eventPosition(readResultEvent) < eventPosition(event),
+	);
+	assert.ok(
+		bashUseEvent,
+		"Claude did not invoke Bash after the successful Read",
+	);
+	const bashResultEvent = toolResultFor(bashUseEvent);
+	assert.ok(bashResultEvent, "Bash did not return a tool result");
+	assert.notEqual(
 		bashResultEvent.block.is_error,
-		false,
+		true,
 		"Bash tool result failed",
 	);
 
 	assert.ok(
 		eventPosition(readUseEvent) < eventPosition(readResultEvent),
 		"Read result preceded its tool invocation",
-	);
-	assert.ok(
-		eventPosition(readResultEvent) < eventPosition(bashUseEvent),
-		"Bash ran before the successful Read result",
 	);
 	assert.ok(
 		eventPosition(bashUseEvent) < eventPosition(bashResultEvent),
@@ -85,6 +98,13 @@ export function validateRuntimeReceipt(messages) {
 	return {
 		bashResult: bashResultEvent.block,
 		bashUse: bashUseEvent.block,
+		blockedPrematureBashCount: bashAttempts.filter((event) => {
+			const result = toolResultFor(event);
+			return (
+				eventPosition(event) < eventPosition(readResultEvent) &&
+				result?.block.is_error === true
+			);
+		}).length,
 		readResult: readResultEvent.block,
 		readUse: readUseEvent.block,
 		text,

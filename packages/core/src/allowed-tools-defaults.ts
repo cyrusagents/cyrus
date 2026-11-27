@@ -46,6 +46,9 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 
 	// Worktree management
 	"EnterWorktree",
+	// Explicit approval preserves unattended Cyrus cleanup on Claude Code
+	// 2.1.327+, whose ExitWorktree otherwise prompts before discarding changes.
+	// Cyrus itself owns the outer Git worktree lifecycle.
 	"ExitWorktree",
 
 	// User interaction
@@ -71,6 +74,9 @@ export const LINEAR_DEFAULT_ALLOWED_TOOLS = [
 	"LSP",
 	"RemoteTrigger",
 	"ToolSearch",
+	"ListMcpResourcesTool",
+	"ReadMcpResourceDirTool",
+	"ReadMcpResourceTool",
 	"Skill",
 
 	// Design sync
@@ -167,6 +173,8 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 
 	// Worktree management
 	"EnterWorktree",
+	// See the Linear default: keep unattended SDK ExitWorktree explicitly
+	// approved while Cyrus owns the outer Git worktree lifecycle.
 	"ExitWorktree",
 
 	// User interaction
@@ -192,6 +200,9 @@ export const GITHUB_DEFAULT_ALLOWED_TOOLS = [
 	"LSP",
 	"RemoteTrigger",
 	"ToolSearch",
+	"ListMcpResourcesTool",
+	"ReadMcpResourceDirTool",
+	"ReadMcpResourceTool",
 	"Skill",
 
 	// Design sync
