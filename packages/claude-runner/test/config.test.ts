@@ -29,7 +29,6 @@ describe("config", () => {
 				"TaskUpdate",
 				"TaskGet",
 				"TaskList",
-				"McpTaskCheck",
 				"NotebookEdit",
 				"Skill",
 				"SendMessage",
@@ -49,7 +48,7 @@ describe("config", () => {
 				"Workflow",
 				"ReportFindings",
 			]);
-			expect(availableTools).toHaveLength(34);
+			expect(availableTools).toHaveLength(33);
 		});
 
 		it("should define read-only tools", () => {
@@ -64,7 +63,6 @@ describe("config", () => {
 				"TaskUpdate",
 				"TaskGet",
 				"TaskList",
-				"McpTaskCheck",
 				"Task",
 				"ListAgents",
 				"Skill",
@@ -72,7 +70,7 @@ describe("config", () => {
 				"LSP",
 				"ToolSearch",
 			]);
-			expect(readOnlyTools).toHaveLength(17);
+			expect(readOnlyTools).toHaveLength(16);
 		});
 
 		it("should define write tools", () => {
