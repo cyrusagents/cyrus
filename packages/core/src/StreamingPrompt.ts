@@ -24,7 +24,7 @@ export class StreamingPrompt {
 		this.sessionId = sessionId;
 	}
 
-	addMessage(content: string): void {
+	addMessage(content: string, options?: { isSynthetic?: boolean }): void {
 		if (this.isComplete) {
 			throw new Error("Cannot add message to completed stream");
 		}
@@ -37,6 +37,7 @@ export class StreamingPrompt {
 			},
 			parent_tool_use_id: null,
 			session_id: this.sessionId || "pending",
+			...(options?.isSynthetic ? { isSynthetic: true } : {}),
 		};
 
 		this.messageQueue.push(message);
