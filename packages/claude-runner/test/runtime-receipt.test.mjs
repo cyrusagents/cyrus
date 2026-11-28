@@ -35,6 +35,13 @@ test("accepts ordered successful Read and foreground Bash results", () => {
 	expect(receipt.bashResult.is_error).toBe(false);
 });
 
+test("accepts successful tool results that omit the optional error flag", () => {
+	const messages = validReceipt();
+	delete messages[1].message.content[0].is_error;
+	delete messages[3].message.content[0].is_error;
+	expect(() => validateRuntimeReceipt(messages)).not.toThrow();
+});
+
 test("rejects an errored Read result", () => {
 	const messages = validReceipt();
 	messages[1] = toolResult("read-1", true);
@@ -49,6 +56,19 @@ test("rejects Bash before the successful Read result", () => {
 	expect(() => validateRuntimeReceipt(messages)).toThrow(
 		/Bash ran before the successful Read result/,
 	);
+});
+
+test("accepts a blocked premature Bash attempt followed by ordered execution", () => {
+	const messages = validReceipt();
+	messages.splice(
+		1,
+		0,
+		toolUse("Bash", "bash-blocked", { command: "pwd", timeout: 10_000 }),
+		toolResult("bash-blocked", true),
+	);
+	const receipt = validateRuntimeReceipt(messages);
+	expect(receipt.blockedPrematureBashCount).toBe(1);
+	expect(receipt.bashUse.id).toBe("bash-1");
 });
 
 test("rejects an errored Bash result", () => {

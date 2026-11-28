@@ -1,0 +1,69 @@
+{
+	"status": "PASS",
+	"provenance": {
+		"candidateSource": "5df4e9c5c4b54edb053922a0434439bc6eb8ea0a",
+		"featureSource": "d5f2c7edf0e2a2a0f5e0ac0d8a466c05b9ad8765",
+		"verifiedPullRequestHead": "bf37d37e7d092c598a5033c43173c6a621e174fe",
+		"pullRequest": "cyrusagents/cyrus#1620",
+		"runnerTarballSha256": "c71a7a3c440a9aa28eeaf112f26f7d5ff43fca8f5994acd3a8abddd302ca9617",
+		"coreTarballSha256": "f33fc0c463100666aeb8fef219e5733e72106bc559f73dbd335f5fba7398d3cf",
+		"consumerLockSha256": "98a1be622026996abbb4190f2f1fc55fe565be5cd2f88d7785c24ac4c300beb8",
+		"nativeExecutableSha256": "4874591dc39bff1188921b82cbeb8a44e3a33b0f92c888b3d43639b9344101f7",
+		"candidateStamp": {
+			"channel": "test",
+			"repository": "https://github.com/cyrusagents/cyrus",
+			"schemaVersion": 1,
+			"sourceSha": "5df4e9c5c4b54edb053922a0434439bc6eb8ea0a",
+			"version": "0.2.84-test.1"
+		}
+	},
+	"installed": {
+		"cyrusCore": "0.2.84-test.1",
+		"cyrusClaudeRunner": "0.2.84-test.1",
+		"agentSdk": "0.3.331",
+		"apiSdk": "1.13.0",
+		"nativePackage": "0.3.331",
+		"claudeCode": "2.1.331"
+	},
+	"identity": {
+		"accountEmailSha256": "d3f063f14875fb814af753daad734c68f131c5680ca5f190dc18e0a2fded380a",
+		"apiProvider": "firstParty",
+		"authMethod": "claude.ai",
+		"osUser": "agentops",
+		"subscriptionType": "max"
+	},
+	"configuration": {
+		"configDir": "/Users/agentops",
+		"secureStorageConfigDir": "",
+		"sandbox": {
+			"enabled": true,
+			"autoAllowBashIfSandboxed": true,
+			"allowUnsandboxedCommands": false,
+			"filesystem": {
+				"allowRead": ["."],
+				"allowWrite": ["."]
+			}
+		}
+	},
+	"runtime": {
+		"read": {
+			"target": "package.json",
+			"resultReceived": true,
+			"isError": false
+		},
+		"bash": {
+			"command": "pwd",
+			"timeout": 10000,
+			"foreground": true,
+			"blockedPrematureAttempts": 1,
+			"resultReceived": true,
+			"isError": false
+		},
+		"finalText": "SDK_RUNTIME_OK",
+		"resultSubtype": "success",
+		"resultIsError": false,
+		"sessionWritesLost": false,
+		"cleanStop": true
+	},
+	"retainedNegativeReceipt": "2026-11-21-cypack-1654-configured-sandbox-probe.json"
+}

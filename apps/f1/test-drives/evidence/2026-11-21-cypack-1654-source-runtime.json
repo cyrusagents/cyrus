@@ -1,0 +1,109 @@
+{
+	"schemaVersion": 1,
+	"issue": "CYPACK-1654",
+	"testedSourceSha": "ea0b74839dcf5463064beefe81bf04e4e739cef5",
+	"runtime": {
+		"agentSdk": "0.3.330",
+		"apiSdk": "1.12.0",
+		"claudeCode": "2.1.330"
+	},
+	"identity": {
+		"command": "claude auth status --json (email and account identifiers omitted)",
+		"loggedIn": true,
+		"authMethod": "claude.ai",
+		"apiProvider": "firstParty",
+		"subscriptionType": "max"
+	},
+	"sandbox": {
+		"enabled": false,
+		"note": "This successful source-worktree run predates the configured-sandbox probe and is not final candidate acceptance."
+	},
+	"events": [
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "<F1_HOME>/worktrees/DEF-1",
+			"claude_code_version": "2.1.330",
+			"permissionMode": "default",
+			"apiKeySource": "none"
+		},
+		{
+			"type": "assistant",
+			"content": [
+				{
+					"type": "tool_use",
+					"name": "Read",
+					"input": {
+						"file_path": "<F1_HOME>/worktrees/DEF-1/package.json"
+					}
+				}
+			]
+		},
+		{
+			"type": "user",
+			"content": [
+				{
+					"type": "tool_result",
+					"is_error": false,
+					"content": "package.json read successfully; package name simple-rate-limiter, version 0.1.0"
+				}
+			]
+		},
+		{
+			"type": "assistant",
+			"content": [
+				{
+					"type": "tool_use",
+					"name": "Bash",
+					"input": {
+						"command": "pwd",
+						"description": "Print working directory",
+						"timeout": 10000
+					}
+				}
+			]
+		},
+		{
+			"type": "user",
+			"content": [
+				{
+					"type": "tool_result",
+					"is_error": false,
+					"content": "<F1_HOME>/worktrees/DEF-1"
+				}
+			]
+		},
+		{
+			"type": "assistant",
+			"content": [
+				{
+					"type": "text",
+					"text": "SDK_RUNTIME_OK"
+				}
+			]
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"is_error": false,
+			"result": "SDK_RUNTIME_OK",
+			"stop_reason": "end_turn",
+			"terminal_reason": "completed"
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle"
+		}
+	],
+	"lifecycle": {
+		"sessionWritesLostCount": 0,
+		"stopRequest": "Session stopped successfully",
+		"serverShutdown": "clean"
+	},
+	"sanitization": [
+		"Temporary absolute paths replaced with <F1_HOME>.",
+		"Session, request, tool-use, account, and team identifiers omitted.",
+		"Environment values, usage, cost, and credential expiry omitted."
+	]
+}
